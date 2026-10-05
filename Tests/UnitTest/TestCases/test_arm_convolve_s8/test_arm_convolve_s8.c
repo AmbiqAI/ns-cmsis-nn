@@ -3891,8 +3891,9 @@ void conv_1x1_out_grouped_arm_convolve_1x1_out_s8(void)
 #endif
 }
 
-/* The 2x2 upscaled im2col with an input depth of 1 takes a one-element store per tap. It must match the same
-   convolution without upscale over an explicitly upscaled input, whose inserted positions hold -input_offset. */
+/* The 2x2 upscaled im2col can store a tap of depth 1 directly (ARM_NN_DEPTH1_STORE). At depths 1 and 2 it must match
+   the same convolution without upscale over an explicitly upscaled input, whose inserted positions hold -input_offset.
+ */
 void upscale_depth_one_arm_convolve_s8(void)
 {
     enum
@@ -3901,11 +3902,12 @@ void upscale_depth_one_arm_convolve_s8(void)
         UP_W = 12,
         K_H = 3,
         K_W = 3,
-        OUT_C = 4
+        OUT_C = 4,
+        MAX_C = 2
     };
-    static int8_t low[(UP_H / 2) * (UP_W / 2)];
-    static int8_t up[UP_H * UP_W];
-    static int8_t weights[OUT_C * K_H * K_W];
+    static int8_t low[(UP_H / 2) * (UP_W / 2) * MAX_C];
+    static int8_t up[UP_H * UP_W * MAX_C];
+    static int8_t weights[OUT_C * K_H * K_W * MAX_C];
     static int8_t out_upscale[UP_H * UP_W * OUT_C];
     static int8_t out_ref[UP_H * UP_W * OUT_C];
     static int16_t buf[512];
@@ -3916,68 +3918,78 @@ void upscale_depth_one_arm_convolve_s8(void)
     const int32_t input_offset = 9;
     uint32_t seed = 11u;
 
-    for (int32_t i = 0; i < (int32_t)sizeof(low); i++)
+    for (int32_t c = 1; c <= MAX_C; c++)
     {
-        seed = seed * 1664525u + 1013904223u;
-        low[i] = (int8_t)(seed >> 24);
-    }
-    for (int32_t i = 0; i < (int32_t)sizeof(weights); i++)
-    {
-        seed = seed * 1664525u + 1013904223u;
-        weights[i] = (int8_t)(seed >> 24);
-    }
-    for (int32_t y = 0; y < UP_H; y++)
-    {
-        for (int32_t x = 0; x < UP_W; x++)
+        for (int32_t i = 0; i < (int32_t)sizeof(low); i++)
         {
-            up[y * UP_W + x] = (y % 2 == 0 && x % 2 == 0) ? low[(y / 2) * (UP_W / 2) + x / 2] : (int8_t)-input_offset;
+            seed = seed * 1664525u + 1013904223u;
+            low[i] = (int8_t)(seed >> 24);
         }
+        for (int32_t i = 0; i < (int32_t)sizeof(weights); i++)
+        {
+            seed = seed * 1664525u + 1013904223u;
+            weights[i] = (int8_t)(seed >> 24);
+        }
+        for (int32_t y = 0; y < UP_H; y++)
+        {
+            for (int32_t x = 0; x < UP_W; x++)
+            {
+                for (int32_t ch = 0; ch < c; ch++)
+                {
+                    up[(y * UP_W + x) * c + ch] = (y % 2 == 0 && x % 2 == 0)
+                        ? low[((y / 2) * (UP_W / 2) + x / 2) * c + ch]
+                        : (int8_t)-input_offset;
+                }
+            }
+        }
+
+        const cmsis_nn_dims input_dims = {1, UP_H, UP_W, c};
+        const cmsis_nn_dims filter_dims = {OUT_C, K_H, K_W, c};
+        const cmsis_nn_dims bias_dims = {1, 1, 1, OUT_C};
+        const cmsis_nn_dims output_dims = {1, UP_H, UP_W, OUT_C};
+        const cmsis_nn_dims upscale_dims = {1, 2, 2, 1};
+        const cmsis_nn_conv_params conv_params = {.input_offset = input_offset,
+                                                  .output_offset = -3,
+                                                  .stride = {1, 1},
+                                                  .padding = {1, 1},
+                                                  .dilation = {1, 1},
+                                                  .activation = {-128, 127}};
+        const cmsis_nn_per_channel_quant_params quant_params = {mult, shift};
+        TEST_ASSERT_TRUE(arm_convolve_s8_get_buffer_size(&input_dims, &filter_dims) <= (int32_t)sizeof(buf));
+        const cmsis_nn_context ctx = {buf, sizeof(buf)};
+        const cmsis_nn_context sums_ctx = {sums, sizeof(sums)};
+        TEST_ASSERT_EQUAL(
+            ARM_CMSIS_NN_SUCCESS,
+            arm_convolve_weight_sum(sums, weights, &input_dims, &filter_dims, &output_dims, input_offset, bias));
+
+        TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
+                          arm_convolve_s8(&ctx,
+                                          &sums_ctx,
+                                          &conv_params,
+                                          &quant_params,
+                                          &input_dims,
+                                          low,
+                                          &filter_dims,
+                                          weights,
+                                          &bias_dims,
+                                          bias,
+                                          &upscale_dims,
+                                          &output_dims,
+                                          out_upscale));
+        TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
+                          arm_convolve_s8(&ctx,
+                                          &sums_ctx,
+                                          &conv_params,
+                                          &quant_params,
+                                          &input_dims,
+                                          up,
+                                          &filter_dims,
+                                          weights,
+                                          &bias_dims,
+                                          bias,
+                                          NULL,
+                                          &output_dims,
+                                          out_ref));
+        TEST_ASSERT_EQUAL_INT8_ARRAY(out_ref, out_upscale, sizeof(out_ref));
     }
-
-    const cmsis_nn_dims input_dims = {1, UP_H, UP_W, 1};
-    const cmsis_nn_dims filter_dims = {OUT_C, K_H, K_W, 1};
-    const cmsis_nn_dims bias_dims = {1, 1, 1, OUT_C};
-    const cmsis_nn_dims output_dims = {1, UP_H, UP_W, OUT_C};
-    const cmsis_nn_dims upscale_dims = {1, 2, 2, 1};
-    const cmsis_nn_conv_params conv_params = {.input_offset = input_offset,
-                                              .output_offset = -3,
-                                              .stride = {1, 1},
-                                              .padding = {1, 1},
-                                              .dilation = {1, 1},
-                                              .activation = {-128, 127}};
-    const cmsis_nn_per_channel_quant_params quant_params = {mult, shift};
-    TEST_ASSERT_TRUE(arm_convolve_s8_get_buffer_size(&input_dims, &filter_dims) <= (int32_t)sizeof(buf));
-    const cmsis_nn_context ctx = {buf, sizeof(buf)};
-    const cmsis_nn_context sums_ctx = {sums, sizeof(sums)};
-    arm_convolve_weight_sum(sums, weights, &input_dims, &filter_dims, &output_dims, input_offset, bias);
-
-    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
-                      arm_convolve_s8(&ctx,
-                                      &sums_ctx,
-                                      &conv_params,
-                                      &quant_params,
-                                      &input_dims,
-                                      low,
-                                      &filter_dims,
-                                      weights,
-                                      &bias_dims,
-                                      bias,
-                                      &upscale_dims,
-                                      &output_dims,
-                                      out_upscale));
-    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
-                      arm_convolve_s8(&ctx,
-                                      &sums_ctx,
-                                      &conv_params,
-                                      &quant_params,
-                                      &input_dims,
-                                      up,
-                                      &filter_dims,
-                                      weights,
-                                      &bias_dims,
-                                      bias,
-                                      NULL,
-                                      &output_dims,
-                                      out_ref));
-    TEST_ASSERT_EQUAL_INT8_ARRAY(out_ref, out_upscale, sizeof(out_ref));
 }

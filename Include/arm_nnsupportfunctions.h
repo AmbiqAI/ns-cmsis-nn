@@ -1967,6 +1967,14 @@ __STATIC_FORCEINLINE void arm_nn_write_s8x4_ia(int8_t **in, int32_t value)
     #define ARM_NN_WORD_COPY
 #endif
 
+/* Where ARM_NN_WORD_COPY makes the copy and fill helpers calls, an im2col tap of depth 1 is stored directly instead.
+ * Elsewhere the helpers are inline loops or the C library, and the extra branch costs more than it saves. */
+#if defined(ARM_NN_WORD_COPY)
+    #define ARM_NN_DEPTH1_STORE (1)
+#else
+    #define ARM_NN_DEPTH1_STORE (0)
+#endif
+
 #if defined(ARM_NN_WORD_COPY)
 
 /**

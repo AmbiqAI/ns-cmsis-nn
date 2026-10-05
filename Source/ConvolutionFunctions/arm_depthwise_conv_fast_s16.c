@@ -123,10 +123,9 @@ arm_cmsis_nn_status arm_depthwise_conv_fast_s16(const cmsis_nn_context *ctx,
                 {
                     for (int i_ker_x = base_idx_x; i_ker_x < base_idx_x + kernel_x * dilation_x; i_ker_x += dilation_x)
                     {
-                        /* A depth of one is one element: a store is cheaper than a library call */
                         if (i_ker_y < 0 || i_ker_y >= input_y || i_ker_x < 0 || i_ker_x >= input_x)
                         {
-                            if (input_ch == 1)
+                            if (ARM_NN_DEPTH1_STORE && input_ch == 1)
                             {
                                 lhs_buffer[0] = 0;
                             }
@@ -135,7 +134,7 @@ arm_cmsis_nn_status arm_depthwise_conv_fast_s16(const cmsis_nn_context *ctx,
                                 memset(lhs_buffer, (int16_t)0, (uint32_t)(input_ch * sizeof(int16_t)));
                             }
                         }
-                        else if (input_ch == 1)
+                        else if (ARM_NN_DEPTH1_STORE && input_ch == 1)
                         {
                             lhs_buffer[0] = input[i_ker_y * input_x + i_ker_x];
                         }
@@ -272,7 +271,7 @@ arm_cmsis_nn_status arm_depthwise_conv_fast_s16(const cmsis_nn_context *ctx,
 
                         if (idx_x < 0 || idx_x >= input_x)
                         {
-                            if (input_ch == 1)
+                            if (ARM_NN_DEPTH1_STORE && input_ch == 1)
                             {
                                 col_buffer[index] = 0;
                             }
@@ -281,7 +280,7 @@ arm_cmsis_nn_status arm_depthwise_conv_fast_s16(const cmsis_nn_context *ctx,
                                 memset(&col_buffer[index], 0, input_ch * sizeof(int16_t));
                             }
                         }
-                        else if (input_ch == 1)
+                        else if (ARM_NN_DEPTH1_STORE && input_ch == 1)
                         {
                             col_buffer[index] = input[idx_y * input_x + idx_x];
                         }

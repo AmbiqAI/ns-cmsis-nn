@@ -221,11 +221,10 @@ static arm_cmsis_nn_status arm_convolve_s16_mve(const cmsis_nn_context *ctx,
                             const int32_t k_y = base_idx_y + dilation_y * i_ker_y;
                             const int32_t k_x = base_idx_x + dilation_x * i_ker_x;
 
-                            /* A depth of one is one element: a store is cheaper than a library call */
                             if (k_y < 0 || k_y >= input_y || k_x < 0 || k_x >= input_x)
                             {
                                 /* Filling 0 for out-of-bound paddings */
-                                if (kernel_ch == 1)
+                                if (ARM_NN_DEPTH1_STORE && kernel_ch == 1)
                                 {
                                     im2col[0] = 0;
                                 }
@@ -234,7 +233,7 @@ static arm_cmsis_nn_status arm_convolve_s16_mve(const cmsis_nn_context *ctx,
                                     arm_memset_s8((int8_t *)im2col, 0, sizeof(int16_t) * (uint32_t)kernel_ch);
                                 }
                             }
-                            else if (kernel_ch == 1)
+                            else if (ARM_NN_DEPTH1_STORE && kernel_ch == 1)
                             {
                                 im2col[0] = input_data[(k_y * input_x + k_x) * input_ch + i_group];
                             }
@@ -397,10 +396,9 @@ static arm_cmsis_nn_status arm_convolve_s16_dsp(const cmsis_nn_context *ctx,
                             const int32_t k_y = base_idx_y + dilation_y * i_ker_y;
                             const int32_t k_x = base_idx_x + dilation_x * i_ker_x;
 
-                            /* A depth of one is one element: a store is cheaper than a library call */
                             if (k_y < 0 || k_y >= input_y || k_x < 0 || k_x >= input_x)
                             {
-                                if (kernel_ch == 1)
+                                if (ARM_NN_DEPTH1_STORE && kernel_ch == 1)
                                 {
                                     im2col[0] = 0;
                                 }
@@ -409,7 +407,7 @@ static arm_cmsis_nn_status arm_convolve_s16_dsp(const cmsis_nn_context *ctx,
                                     arm_memset_s8((int8_t *)im2col, 0, sizeof(int16_t) * (uint32_t)kernel_ch);
                                 }
                             }
-                            else if (kernel_ch == 1)
+                            else if (ARM_NN_DEPTH1_STORE && kernel_ch == 1)
                             {
                                 im2col[0] = input_data[(k_y * input_x + k_x) * input_ch + i_group];
                             }
