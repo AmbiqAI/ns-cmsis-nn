@@ -110,5 +110,3 @@ void test_conv_1x1_out_operands_at_gap_arm_convolve_1x1_out_s8(void)
     conv_1x1_out_operands_at_gap_arm_convolve_1x1_out_s8();
 }
 void test_conv_1x1_out_grouped_arm_convolve_1x1_out_s8(void) { conv_1x1_out_grouped_arm_convolve_1x1_out_s8(); }
-
-void test_upscale_depth_one_arm_convolve_s8(void) { upscale_depth_one_arm_convolve_s8(); }

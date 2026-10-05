@@ -123,7 +123,7 @@ For a CMSIS-NN file compiled as `armclang -mcpu=cortex-m4 --target=arm-arm-none-
  - `ARM_NN_WORD_COPY`
    - Makes `arm_memcpy_s8`/`_s16`/`_s32`/`_q15`, `arm_memset_s8` and `arm_memset_s16` copy and fill a word at a time instead of calling the C library. MVE builds keep their vector loops, except `arm_memcpy_q15`, which has none.
    - Defined by default for clang (not armclang) with unaligned access on armv7-m, armv7e-m and armv8-m.main, where ATfE 22.1's C library moves one byte at a time. Requires unaligned word access.
-   - Without MVE it also makes the im2col loops of `arm_convolve_s8`, `arm_convolve_s16` and `arm_depthwise_conv_fast_s16` store a tap of depth 1 directly.
+   - Without MVE it also makes `arm_convolve_s8` and `arm_convolve_s16` fill the im2col taps of a depth-1 input with plain stores, and `arm_depthwise_conv_fast_s16` hand a depth-1 input to `arm_depthwise_conv_s16`.
 
  - `NN_DISABLE_SPECIALIZATION`
    - Disables optional shape/layout-specific fast paths and forces the corresponding generic implementation path.

@@ -195,24 +195,33 @@ arm_cmsis_nn_status arm_convolve_s8(const cmsis_nn_context *ctx,
                                     if ((k_x >= 0 && k_x < input_x) && ((k_x % 2 == 0) || x_rshift == 0))
                                     {
                                         const int32_t k_x_rshifted = k_x >> x_rshift;
-#if ARM_NN_DEPTH1_STORE
-                                        if (kernel_ch == 1)
-                                        {
-                                            im2col_buf[0] = input_data[k_y_rshifted * input_x_rshifted + k_x_rshifted];
-                                        }
-                                        else
-#endif
-                                            arm_memcpy_s8(im2col_buf,
-                                                          input_data +
-                                                              (k_y_rshifted * input_x_rshifted + k_x_rshifted) *
-                                                                  input_ch,
-                                                          sizeof(int8_t) * kernel_ch);
+                                        arm_memcpy_s8(im2col_buf,
+                                                      input_data +
+                                                          (k_y_rshifted * input_x_rshifted + k_x_rshifted) * input_ch,
+                                                      sizeof(int8_t) * kernel_ch);
                                     }
                                     im2col_buf += kernel_ch;
                                 }
                             }
                         }
                     }
+#if ARM_NN_DEPTH1_STORE
+                    else if (kernel_ch == 1)
+                    {
+                        im2col_buf = arm_nn_im2col_depth1_s8(im2col_buf,
+                                                             input_data + i_group,
+                                                             input_ch,
+                                                             input_x,
+                                                             input_y,
+                                                             base_idx_x,
+                                                             base_idx_y,
+                                                             kernel_x,
+                                                             kernel_y,
+                                                             dilation_x,
+                                                             dilation_y,
+                                                             (int8_t)-input_offset);
+                    }
+#endif
                     else
                     {
                         for (int32_t i_ker_y = 0; i_ker_y < kernel_y; i_ker_y++)
@@ -224,21 +233,8 @@ arm_cmsis_nn_status arm_convolve_s8(const cmsis_nn_context *ctx,
 
                                 if (k_y < 0 || k_y >= input_y || k_x < 0 || k_x >= input_x)
                                 {
-#if ARM_NN_DEPTH1_STORE
-                                    if (kernel_ch == 1)
-                                    {
-                                        im2col_buf[0] = (int8_t)-input_offset;
-                                    }
-                                    else
-#endif
-                                        arm_memset_s8(im2col_buf, (int8_t)-input_offset, sizeof(int8_t) * kernel_ch);
+                                    arm_memset_s8(im2col_buf, (int8_t)-input_offset, sizeof(int8_t) * kernel_ch);
                                 }
-#if ARM_NN_DEPTH1_STORE
-                                else if (kernel_ch == 1)
-                                {
-                                    im2col_buf[0] = input_data[(k_y * input_x + k_x) * input_ch + i_group];
-                                }
-#endif
                                 else
                                 {
                                     arm_memcpy_s8(im2col_buf,

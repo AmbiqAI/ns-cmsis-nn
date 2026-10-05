@@ -49,6 +49,21 @@
  *
  */
 
+#if ARM_NN_DEPTH1_STORE
+static arm_cmsis_nn_status arm_depthwise_conv_fast_s16_im2col(const cmsis_nn_context *ctx,
+                                                              const cmsis_nn_dw_conv_params *dw_conv_params,
+                                                              const cmsis_nn_per_channel_quant_params *quant_params,
+                                                              const cmsis_nn_dims *input_dims,
+                                                              const int16_t *input,
+                                                              const cmsis_nn_dims *filter_dims,
+                                                              const int8_t *kernel,
+                                                              const cmsis_nn_dims *bias_dims,
+                                                              const int64_t *bias,
+                                                              const cmsis_nn_dims *output_dims,
+                                                              int16_t *output);
+
+/* One channel leaves the im2col nothing to amortize, so arm_depthwise_conv_s16() takes the layer. The im2col kernel
+   below stays a function of its own, so its code is the same as without this choice. */
 arm_cmsis_nn_status arm_depthwise_conv_fast_s16(const cmsis_nn_context *ctx,
                                                 const cmsis_nn_dw_conv_params *dw_conv_params,
                                                 const cmsis_nn_per_channel_quant_params *quant_params,
@@ -60,6 +75,59 @@ arm_cmsis_nn_status arm_depthwise_conv_fast_s16(const cmsis_nn_context *ctx,
                                                 const int64_t *bias,
                                                 const cmsis_nn_dims *output_dims,
                                                 int16_t *output)
+{
+    if (input_dims->c == 1 && output_dims->c == 1)
+    {
+        return arm_depthwise_conv_s16(ctx,
+                                      dw_conv_params,
+                                      quant_params,
+                                      input_dims,
+                                      input,
+                                      filter_dims,
+                                      kernel,
+                                      bias_dims,
+                                      bias,
+                                      output_dims,
+                                      output);
+    }
+    return arm_depthwise_conv_fast_s16_im2col(ctx,
+                                              dw_conv_params,
+                                              quant_params,
+                                              input_dims,
+                                              input,
+                                              filter_dims,
+                                              kernel,
+                                              bias_dims,
+                                              bias,
+                                              output_dims,
+                                              output);
+}
+
+__attribute__((noinline)) static arm_cmsis_nn_status
+arm_depthwise_conv_fast_s16_im2col(const cmsis_nn_context *ctx,
+                                   const cmsis_nn_dw_conv_params *dw_conv_params,
+                                   const cmsis_nn_per_channel_quant_params *quant_params,
+                                   const cmsis_nn_dims *input_dims,
+                                   const int16_t *input,
+                                   const cmsis_nn_dims *filter_dims,
+                                   const int8_t *kernel,
+                                   const cmsis_nn_dims *bias_dims,
+                                   const int64_t *bias,
+                                   const cmsis_nn_dims *output_dims,
+                                   int16_t *output)
+#else
+arm_cmsis_nn_status arm_depthwise_conv_fast_s16(const cmsis_nn_context *ctx,
+                                                const cmsis_nn_dw_conv_params *dw_conv_params,
+                                                const cmsis_nn_per_channel_quant_params *quant_params,
+                                                const cmsis_nn_dims *input_dims,
+                                                const int16_t *input,
+                                                const cmsis_nn_dims *filter_dims,
+                                                const int8_t *kernel,
+                                                const cmsis_nn_dims *bias_dims,
+                                                const int64_t *bias,
+                                                const cmsis_nn_dims *output_dims,
+                                                int16_t *output)
+#endif
 {
     const int32_t input_ch = input_dims->c;
     const int32_t output_ch = output_dims->c;
@@ -260,21 +328,8 @@ arm_cmsis_nn_status arm_depthwise_conv_fast_s16(const cmsis_nn_context *ctx,
 
                         if (idx_x < 0 || idx_x >= input_x)
                         {
-        #if ARM_NN_DEPTH1_STORE
-                            if (input_ch == 1)
-                            {
-                                col_buffer[index] = 0;
-                            }
-                            else
-        #endif
-                                memset(&col_buffer[index], 0, input_ch * sizeof(int16_t));
+                            memset(&col_buffer[index], 0, input_ch * sizeof(int16_t));
                         }
-        #if ARM_NN_DEPTH1_STORE
-                        else if (input_ch == 1)
-                        {
-                            col_buffer[index] = input[idx_y * input_x + idx_x];
-                        }
-        #endif
                         else
                         {
                             arm_memcpy_q15(&col_buffer[index],
