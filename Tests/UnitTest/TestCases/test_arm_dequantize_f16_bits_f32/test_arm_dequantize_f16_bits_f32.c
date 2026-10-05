@@ -13,19 +13,17 @@
 #include <string.h>
 
 #include "unity.h"
+#include "../Utils/mpu_guard.h"
 
-/* The kernel's path, as arm_dequantize_half_bits.c selects it. The vector conversion returns the default NaN for
-   every NaN; the scalar conversion, which the vector path also uses where the assembler needs the #427 workaround
-   (the condition below is Internal/arm_nn_vcvt_f16.h's), and the integer path keep a NaN's sign and payload and
-   quiet it. */
-#if ARM_NN_ENABLE_F16 && defined(ARM_MATH_MVE_FLOAT16) && !defined(ARM_MATH_AUTOVECTORIZE)
+/* The kernel's path, as arm_nnsupportfunctions.h selects it. The vector conversion returns the default NaN for every
+   NaN; the scalar conversion, which the vector path also uses where the assembler needs the #427 workaround, and
+   the integer path keep a NaN's sign and payload and quiet it. */
+#if defined(ARM_NN_DEQUANTIZE_F16_MVE)
     #define DQ_VECTOR_PATH (1)
 #else
     #define DQ_VECTOR_PATH (0)
 #endif
-#if DQ_VECTOR_PATH &&                                                                                                  \
-    !(defined(__GNUC__) && !defined(__clang__) &&                                                                      \
-      (defined(ARM_NN_GAS_VCVT_F16_BROKEN) || (__GNUC__ < 14 && !defined(ARM_NN_GAS_F16_VERIFIED))))
+#if DQ_VECTOR_PATH && !defined(ARM_NN_VCVT_F16_SCALAR_FORM)
     #define DQ_DEFAULT_NAN (1)
 #else
     #define DQ_DEFAULT_NAN (0)
@@ -58,9 +56,13 @@ static uint32_t dq_reference(const uint32_t h)
 }
 
 #if DQ_HAS_FPSCR
-/* FPSCR.AHP (exponent 31 read as a number), DN (default NaN), FZ (flush to zero) and FZ16 (flush half
-   subnormals) */
-    #define DQ_FPSCR_MODES ((1u << 26) | (1u << 25) | (1u << 24) | (1u << 19))
+/* FPSCR.AHP (exponent 31 read as a number), DN (default NaN), FZ (flush to zero) and, on a core with half
+   precision, FZ16 (flush half subnormals; reserved elsewhere) */
+    #if defined(__ARM_FEATURE_FP16_SCALAR_ARITHMETIC) || (defined(__ARM_FEATURE_MVE) && (__ARM_FEATURE_MVE & 2))
+        #define DQ_FPSCR_MODES ((1u << 26) | (1u << 25) | (1u << 24) | (1u << 19))
+    #else
+        #define DQ_FPSCR_MODES ((1u << 26) | (1u << 25) | (1u << 24))
+    #endif
 
 static uint32_t dq_fpscr_set(const uint32_t modes)
 {
@@ -192,6 +194,31 @@ void alternative_half_arm_dequantize_f16_bits_f32(void)
     dq_sweep(1, DQ_FPSCR_MODES);
 #else
     TEST_IGNORE_MESSAGE("no M-profile FPU");
+#endif
+}
+
+/* Inputs of 1 to 9 halves that end where unmapped memory begins: a load past the last half faults */
+void input_at_gap_arm_dequantize_f16_bits_f32(void)
+{
+#if defined(MPU_GUARD_AVAILABLE)
+    static const uint16_t src[9] = {0x3C00u, 0xBC00u, 0x0001u, 0x7BFFu, 0x3555u, 0x4000u, 0x8400u, 0x3800u, 0xC000u};
+    float out[9];
+    for (int32_t n = 1; n <= 9; n++)
+    {
+        const uint16_t *in = guard_place(src, (size_t)n * sizeof(src[0]));
+        guard_gap_enable();
+        const arm_cmsis_nn_status status = arm_dequantize_f16_bits_f32(in, out, n);
+        guard_gap_disable();
+        TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, status);
+        for (int32_t i = 0; i < n; i++)
+        {
+            uint32_t got;
+            memcpy(&got, &out[i], sizeof(got));
+            TEST_ASSERT_EQUAL_HEX32(dq_reference(src[i]), got);
+        }
+    }
+#else
+    TEST_IGNORE_MESSAGE("no MPU guard on this platform");
 #endif
 }
 

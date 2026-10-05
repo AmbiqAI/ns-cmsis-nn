@@ -21,6 +21,7 @@
  */
 
 #include <arm_nnfunctions.h>
+#include <arm_nnsupportfunctions.h>
 #include <stdint.h>
 #include <string.h>
 #include <unity.h>
@@ -53,11 +54,9 @@ static uint16_t dq_bits16(float16_t h)
     return b;
 }
 
-/* The kernel's path, as arm_dequantize_half_bits.c selects it, and whether Internal/arm_nn_vcvt_f16.h makes its
- * vector conversion the scalar form (#427) */
-#if ARM_NN_ENABLE_F16 && defined(ARM_MATH_MVE_FLOAT16) && !defined(ARM_MATH_AUTOVECTORIZE) &&                          \
-    !(defined(__GNUC__) && !defined(__clang__) &&                                                                      \
-      (defined(ARM_NN_GAS_VCVT_F16_BROKEN) || (__GNUC__ < 14 && !defined(ARM_NN_GAS_F16_VERIFIED))))
+/* The kernel's path, as arm_nnsupportfunctions.h selects it, and whether its vector conversion is the scalar form
+ * (#427) */
+#if defined(ARM_NN_DEQUANTIZE_F16_MVE) && !defined(ARM_NN_VCVT_F16_SCALAR_FORM)
     #define DQ_DEFAULT_NAN (1)
 #else
     #define DQ_DEFAULT_NAN (0)
