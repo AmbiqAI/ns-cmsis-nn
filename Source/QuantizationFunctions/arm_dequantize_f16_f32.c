@@ -10,7 +10,7 @@
 /* ----------------------------------------------------------------------
  * Project:      CMSIS NN Library
  * Title:        arm_dequantize_f16_f32.c
- * Description:  Widen float16 to float32, bit-exact
+ * Description:  Widen float16 to float32 as the hardware conversion does
  *
  * $Date:        5 October 2026
  * $Revision:    V.1.1.0

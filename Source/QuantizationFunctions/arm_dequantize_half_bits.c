@@ -10,7 +10,7 @@
 /* ----------------------------------------------------------------------
  * Project:      CMSIS NN Library
  * Title:        arm_dequantize_half_bits.c
- * Description:  Widen float16, given as raw IEEE bits, to float32, bit-exact
+ * Description:  Widen float16, given as raw IEEE bits, to float32 as the hardware conversion does
  *
  * $Date:        5 October 2026
  * $Revision:    V.1.0.0
@@ -43,9 +43,9 @@
 
 #if !defined(ARM_NN_DEQUANTIZE_MVE) && !defined(ARM_NN_DEQUANTIZE_FPU)
 /*
- * Integer widening of one half. Exact for every input class, raises no FP
- * flag, and keeps a NaN's sign, quiet bit and payload (a C cast would quiet
- * a signaling NaN). Half subnormals are normal singles: renormalize.
+ * Integer widening of one half, with the result of the FPU's VCVTB at reset FPSCR: exact for every finite half and
+ * Inf, and a NaN keeps its sign and payload and comes back quiet. Raises no FP flag. Half subnormals are normal
+ * singles: renormalize.
  */
 static inline uint32_t arm_nn_f16_bits_to_f32_bits(const uint32_t h)
 {
@@ -54,7 +54,7 @@ static inline uint32_t arm_nn_f16_bits_to_f32_bits(const uint32_t h)
     uint32_t mant = h & 0x3FFu;
     if (exp == 0x1Fu)
     {
-        return sign | 0x7F800000u | (mant << 13);
+        return sign | 0x7F800000u | (mant << 13) | (mant != 0u ? 0x00400000u : 0u);
     }
     if (exp != 0u)
     {
@@ -74,55 +74,6 @@ static inline uint32_t arm_nn_f16_bits_to_f32_bits(const uint32_t h)
 }
 #endif
 
-#if defined(ARM_NN_DEQUANTIZE_FPU)
-/*
- * One half: the FPU converts every finite half exactly. An Inf or NaN (exponent 31) is rebuilt from its bits,
- * because the conversion would quiet a signaling NaN, would drop the payload with FPSCR.DN set, and would read
- * exponent 31 as a number with FPSCR.AHP set.
- */
-static inline float arm_nn_dequantize_one_f32(const uint32_t h)
-{
-    float out;
-    if ((h & 0x7FFFu) < 0x7C00u)
-    {
-        float in;
-        memcpy(&in, &h, sizeof(in));
-        __asm("vcvtb.f32.f16 %0, %1" : "=t"(out) : "t"(in));
-    }
-    else
-    {
-        const uint32_t special = ((h & 0x8000u) << 16) | 0x7F800000u | ((h & 0x3FFu) << 13);
-        memcpy(&out, &special, sizeof(out));
-    }
-    return out;
-}
-#endif
-
-#if defined(ARM_NN_DEQUANTIZE_MVE)
-/*
- * Vector VCVT always returns the default NaN (Armv8.1-M StandardFPSCRValue,
- * DN=1), and reads exponent 31 as a number with FPSCR.AHP set. Rebuild the
- * Inf and NaN lanes from the half's bits so the result never depends on FPSCR:
- * `bits` holds the halves `conv` was converted from, one per 32-bit lane.
- * Out of line: keeps its constants out of the hot loop's registers.
- */
-static __attribute__((noinline)) float32x4_t arm_nn_dequantize_nan_lanes_f32(const uint32x4_t bits,
-                                                                             const float32x4_t conv)
-{
-    const uint32x4_t sign = vshlq_n_u32(vandq(bits, vdupq_n_u32(0x8000u)), 16);
-    const uint32x4_t mant = vshlq_n_u32(vandq(bits, vdupq_n_u32(0x3FFu)), 13);
-    const uint32x4_t nan = vorrq(vorrq(sign, mant), vdupq_n_u32(0x7F800000u));
-    const mve_pred16_t nan_p = vcmphiq_n_u32(vandq(bits, vdupq_n_u32(0x7FFFu)), 0x7BFFu);
-    return vpselq(vreinterpretq_f32_u32(nan), conv, nan_p);
-}
-
-/* Inf or NaN test on the raw halves (|h| >= 0x7C00), one predicate bit per 32-bit lane. */
-static inline mve_pred16_t arm_nn_dequantize_nan_p(const uint32x4_t bits)
-{
-    return vcmphiq_n_u32(vandq(bits, vdupq_n_u32(0x7FFFu)), 0x7BFFu);
-}
-#endif
-
 arm_cmsis_nn_status arm_dequantize_f16_bits_f32(const uint16_t *input, float *output, const int32_t block_size)
 {
     if (block_size < 0 || ((input == NULL || output == NULL) && block_size != 0))
@@ -131,66 +82,41 @@ arm_cmsis_nn_status arm_dequantize_f16_bits_f32(const uint16_t *input, float *ou
     }
 #if defined(ARM_NN_DEQUANTIZE_MVE)
     /*
-     * Widening loads keep element order: half j of a 4-block lands in the low
-     * half of lane j, which is what the bottom-half VCVT converts. A plain
-     * 8-lane load would leave VCVTB/VCVTT with the even and odd halves.
+     * A widening load puts half j of a 4-block in the low half of lane j, which is what the bottom-half VCVT
+     * converts, so the output keeps element order.
      */
-    int32_t i = 0;
-    for (; i + 8 <= block_size; i += 8)
+    const uint16_t *in = input;
+    float *out = output;
+    for (int32_t n = block_size >> 2; n > 0; n--)
     {
-        const uint32x4_t w0 = vldrhq_u32(input + i);
-        const uint32x4_t w1 = vldrhq_u32(input + i + 4);
-        float32x4_t f0 = arm_nn_vcvtbq_f32_f16(vreinterpretq_f16_u32(w0));
-        float32x4_t f1 = arm_nn_vcvtbq_f32_f16(vreinterpretq_f16_u32(w1));
-        if ((arm_nn_dequantize_nan_p(w0) | arm_nn_dequantize_nan_p(w1)) != 0u)
-        {
-            f0 = arm_nn_dequantize_nan_lanes_f32(w0, f0);
-            f1 = arm_nn_dequantize_nan_lanes_f32(w1, f1);
-        }
-        vst1q(output + i, f0);
-        vst1q(output + i + 4, f1);
+        vst1q(out, arm_nn_vcvtbq_f32_f16(vreinterpretq_f16_u32(vldrhq_u32(in))));
+        in += 4;
+        out += 4;
     }
-    for (; i < block_size; i += 4)
+    if ((block_size & 3) != 0)
     {
-        /* Inactive lanes load as zero and never trip the NaN test. */
-        const mve_pred16_t p = vctp32q((uint32_t)(block_size - i));
-        const uint32x4_t w = vldrhq_z_u32(input + i, p);
-        float32x4_t f = arm_nn_vcvtbq_f32_f16(vreinterpretq_f16_u32(w));
-        if (arm_nn_dequantize_nan_p(w) != 0u)
-        {
-            f = arm_nn_dequantize_nan_lanes_f32(w, f);
-        }
-        vst1q_p(output + i, f, p);
+        const mve_pred16_t p = vctp32q((uint32_t)(block_size & 3));
+        vst1q_p(out, arm_nn_vcvtbq_f32_f16(vreinterpretq_f16_u32(vldrhq_z_u32(in, p))), p);
     }
 #elif defined(ARM_NN_DEQUANTIZE_FPU)
     int32_t i = 0;
     for (; i + 2 <= block_size; i += 2)
     {
         /* Two halves per word, read through memcpy: arm_dequantize_f16_f32() passes float16_t storage */
-        uint32_t pair;
-        memcpy(&pair, &input[i], sizeof(pair));
-        /* A half is an Inf or NaN when its magnitude is at least 0x7C00; adding 0x400 carries such a lane into its
-           top bit */
-        if ((((pair & 0x7FFF7FFFu) + 0x04000400u) & 0x80008000u) == 0u)
-        {
-            float in;
-            memcpy(&in, &pair, sizeof(in));
-            __asm("vcvtb.f32.f16 %0, %2\n\t"
-                  "vcvtt.f32.f16 %1, %2"
-                  : "=&t"(output[i]), "=&t"(output[i + 1])
-                  : "t"(in));
-        }
-        else
-        {
-            output[i] = arm_nn_dequantize_one_f32((uint16_t)pair);
-            output[i + 1] = arm_nn_dequantize_one_f32((uint16_t)(pair >> 16));
-        }
+        float in;
+        memcpy(&in, &input[i], sizeof(in));
+        __asm("vcvtb.f32.f16 %0, %2\n\t"
+              "vcvtt.f32.f16 %1, %2"
+              : "=&t"(output[i]), "=&t"(output[i + 1])
+              : "t"(in));
     }
     if (i < block_size)
     {
-        uint16_t h;
-        memcpy(&h, &input[i], sizeof(h));
-        output[i] = arm_nn_dequantize_one_f32(h);
+        uint32_t h = 0u;
+        float in;
+        memcpy(&h, &input[i], sizeof(uint16_t));
+        memcpy(&in, &h, sizeof(in));
+        __asm("vcvtb.f32.f16 %0, %1" : "=t"(output[i]) : "t"(in));
     }
 #else
     for (int32_t i = 0; i < block_size; i++)

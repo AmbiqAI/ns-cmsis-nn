@@ -7653,15 +7653,19 @@ arm_dequantize_s16_f32(const int16_t *input, float *output, int32_t size, int32_
 /**
  * @brief Widen float16 values, given as their raw IEEE 754 binary16 bits, to float32.
  *
- * Bit-exact for every input: finite values, subnormals (normal in float32), +/-0 and +/-Inf convert
- * exactly, and a NaN keeps its sign, quiet bit and payload (a signaling NaN stays signaling). The result
- * does not depend on FPSCR (DN, AHP, FZ, rounding mode). Needs no float16 support from the toolchain or the
- * build (ARM_NN_ENABLE_F16 may be off), so float32 code can widen stored float16 weights. Paths: with MVE
- * float16, ARM_NN_ENABLE_F16 and no ARM_MATH_AUTOVECTORIZE, a vector conversion, which may leave FPSCR.IOC set
- * for a signaling-NaN input (same result bits); otherwise, on a little-endian M-profile core with an FPU, the
- * scalar half-to-single conversion, two elements per word; otherwise integer widening. Inf and NaN elements are
- * always rebuilt from their bits. arm_dequantize_f16_f32() calls this function. Input and output must not
- * overlap.
+ * Each element gives what the path's hardware half-to-single conversion gives, as a `(float)` cast of a half
+ * does. Finite values, subnormals (normal in float32), +/-0 and +/-Inf convert exactly whatever FPSCR.FZ16
+ * holds. Needs no float16 support from the toolchain or the build (ARM_NN_ENABLE_F16 may be off), so float32
+ * code can widen stored float16 weights. Paths:
+ *  - MVE float16, ARM_NN_ENABLE_F16 and no ARM_MATH_AUTOVECTORIZE: the vector VCVTB. Every NaN becomes the
+ *    default NaN (0x7FC00000), except where the assembler needs the scalar form instead (#427, see
+ *    Internal/arm_nn_vcvt_f16.h), which treats a NaN as the next path does.
+ *  - Otherwise, a little-endian M-profile core with an FPU: the scalar VCVTB/VCVTT, two elements per word. A NaN
+ *    keeps its sign and payload and comes back quiet; FPSCR.DN set gives the default NaN instead.
+ *  - Otherwise: integer widening with the scalar VCVTB's result at reset FPSCR.
+ *
+ * On the two hardware paths FPSCR.AHP set reads exponent 31 as a number, and a signaling NaN sets FPSCR.IOC.
+ * arm_dequantize_f16_f32() calls this function. Input and output must not overlap.
  *
  * @param[in]   input       Pointer to the binary16 bit patterns.
  * @param[out]  output      Pointer to the float32 output array.
