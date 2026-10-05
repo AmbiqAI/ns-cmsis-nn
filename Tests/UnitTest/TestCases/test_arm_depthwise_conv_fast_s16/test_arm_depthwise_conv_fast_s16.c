@@ -1460,7 +1460,8 @@ void depth_one_arm_depthwise_conv_fast_s16(void)
         TEST_ASSERT_EQUAL_INT16_ARRAY(out_ref, out_fast, sizeof(out_ref) / sizeof(out_ref[0]));
     }
 
-    /* A depth-1 layer the im2col kernel rejects is still rejected: vertical dilation, and no buffer */
+    /* A depth-1 layer the im2col kernel rejects is still rejected: vertical dilation, no buffer, one input channel
+       against two output channels, a kernel of 512 taps, and a horizontal dilation of 0 */
     {
         const cmsis_nn_dims input_dims = {1, 9, 9, 1};
         const cmsis_nn_dims filter_dims = {1, 3, 3, 1};
@@ -1494,6 +1495,51 @@ void depth_one_arm_depthwise_conv_fast_s16(void)
                                                .dilation = {1, 1},
                                                .activation = {-32768, 32767}};
         const cmsis_nn_dims plain_output_dims = {1, 7, 7, 1};
+        const cmsis_nn_dims two_out_dims = {1, 7, 7, 2};
+        TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR,
+                          arm_depthwise_conv_fast_s16(&ctx,
+                                                      &plain,
+                                                      &quant_params,
+                                                      &input_dims,
+                                                      input,
+                                                      &filter_dims,
+                                                      kernel,
+                                                      &bias_dims,
+                                                      bias,
+                                                      &two_out_dims,
+                                                      out_fast));
+        const cmsis_nn_dims wide_filter_dims = {1, 1, 512, 1};
+        TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR,
+                          arm_depthwise_conv_fast_s16(&ctx,
+                                                      &plain,
+                                                      &quant_params,
+                                                      &input_dims,
+                                                      input,
+                                                      &wide_filter_dims,
+                                                      kernel,
+                                                      &bias_dims,
+                                                      bias,
+                                                      &plain_output_dims,
+                                                      out_fast));
+        const cmsis_nn_dw_conv_params no_dilation = {.input_offset = 0,
+                                                     .output_offset = 0,
+                                                     .ch_mult = 1,
+                                                     .stride = {1, 1},
+                                                     .padding = {0, 0},
+                                                     .dilation = {0, 1},
+                                                     .activation = {-32768, 32767}};
+        TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR,
+                          arm_depthwise_conv_fast_s16(&ctx,
+                                                      &no_dilation,
+                                                      &quant_params,
+                                                      &input_dims,
+                                                      input,
+                                                      &filter_dims,
+                                                      kernel,
+                                                      &bias_dims,
+                                                      bias,
+                                                      &plain_output_dims,
+                                                      out_fast));
         const cmsis_nn_context no_buf = {NULL, 0};
         const arm_cmsis_nn_status expected =
             arm_depthwise_conv_fast_s16_get_buffer_size(&input_dims, &filter_dims) != 0 ? ARM_CMSIS_NN_ARG_ERROR

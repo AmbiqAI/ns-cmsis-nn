@@ -2268,6 +2268,8 @@ int32_t arm_depthwise_conv_wrapper_s16_get_buffer_size_mve(const cmsis_nn_dw_con
  *        -# filter_dims->w * filter_dims->h < MAX_COL_COUNT (512)
  *        -# dw_conv_params->dilation.h == 1 and dw_conv_params->dilation.w >= 1
  *    - Recommended when number of channels is 4 or greater.
+ *    - Where ARM_NN_WORD_COPY is defined without MVE, a one-channel layer that meets these constraints is computed
+ *      by arm_depthwise_conv_s16(); the scratch buffer is still required.
  *
  */
 arm_cmsis_nn_status arm_depthwise_conv_fast_s16(const cmsis_nn_context *ctx,
