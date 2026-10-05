@@ -25,7 +25,7 @@ name: Host sanitizer unit tests
 # entries all along. Zero reports is not zero sites: those TUs still inline
 # shift-base-instrumentable code from arm_nn_requantize and
 # arm_nn_divide_by_power_of_two, silent only because no test reaches the
-# offending shift counts. Removing the mask is the open half of #357.
+# offending shift counts. Removing the mask is #711.
 #
 # shift-exponent stays on, so a shift count at or past the operand width is
 # still reported. LeakSanitizer is on (it is part of ASan by default), so a test

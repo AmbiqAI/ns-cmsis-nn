@@ -14,7 +14,7 @@
 
 /* Built with shift-base checks (see CMakeLists.txt): the s8, s8_s16 and u8 softmax requantization must not
  * left-shift a negative or overflowing signed value (#704), and must keep the outputs pinned below. Rows stay at
- * 200 or fewer; longer rows reach a separate shift-exponent defect (#710). */
+ * 200 or fewer; longer rows reach separate shift defects (#710). */
 
 static uint32_t lcg = 9u;
 static int32_t rnd(int32_t lo, int32_t hi)
@@ -56,6 +56,19 @@ int main(void)
                 h = fnv(h, (uint16_t)out16[i]);
                 h = fnv(h, out_u8[i]);
             }
+        }
+    }
+
+    /* A positive diff_min leaves every element out, so the row sum is 0 */
+    arm_softmax_s8(in, 1, 12, 1077952576, 23, 1, out);
+    arm_softmax_s8_s16(in, 1, 12, 1077952576, 23, 1, out16);
+    arm_softmax_u8(in_u8, 1, 12, 1077952576, 23, 1, out_u8);
+    for (int32_t i = 0; i < 12; i++)
+    {
+        if (out[i] != INT8_MIN || out16[i] != INT16_MIN || out_u8[i] != 0)
+        {
+            printf("empty row: output %ld is %d, %d, %u\n", (long)i, out[i], out16[i], out_u8[i]);
+            failures++;
         }
     }
 

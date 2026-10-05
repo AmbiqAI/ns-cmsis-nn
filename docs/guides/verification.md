@@ -94,9 +94,10 @@ licence.
   checking on target is tracked in
   [helia-core-tester#68](https://github.com/AmbiqAI/helia-core-tester/issues/68).
 - **UBSan's `shift-base` check is masked** repo-wide, although no host suite
-  reports under it any more (see the workflow comment). Related
-  residual shift-base UB on the M4 DSP path — invisible to the x86
-  sanitizer, which cannot compile those sites — is tracked in
+  reports under it any more; removing the mask is
+  [#711](https://github.com/AmbiqAI/ns-cmsis-nn/issues/711). The M4 DSP
+  offset-packing sites, which the x86 sanitizer cannot compile, shift
+  unsigned values since
   [#357](https://github.com/AmbiqAI/ns-cmsis-nn/issues/357).
 - **Coverage is gated on a floor and no-regression** per merged run
   (`ci/coverage-floor.json` holds the floor; raising it is a reviewed
