@@ -19,6 +19,7 @@
 #include <stdlib.h>
 
 #include <arm_nnfunctions.h>
+#include <arm_nnsupportfunctions.h>
 #include <unity.h>
 
 #include "../TestData/grouped_conv_1/test_data.h"
@@ -445,4 +446,127 @@ void grouped_conv_null_bias_arm_grouped_convolve_s8(void)
     grouped_conv_1_run(zero_bias, with_zero);
     grouped_conv_1_run(NULL, with_null);
     TEST_ASSERT_EQUAL_INT8_ARRAY(with_zero, with_null, GROUPED_CONV_1_DST_SIZE);
+}
+
+/* arm_convolve_s8() on a 1x2x2xC_IN layer with a 1x1 filter of depth filter_c, returning its status; anything it
+ * writes lands in output. */
+static arm_cmsis_nn_status grouped_conv_status(int32_t in_c,
+                                               int32_t filter_c,
+                                               int32_t out_c,
+                                               const cmsis_nn_dims *upscale_dims,
+                                               int8_t *output)
+{
+    static int8_t input[2 * 2 * 8];
+    static int8_t weights[8 * 8];
+    static int32_t mult[8];
+    static int32_t shift[8];
+    static int32_t weight_sum[8];
+    static const int32_t bias[8] = {0};
+    static int16_t scratch[256];
+    for (int32_t i = 0; i < (int32_t)sizeof(input); i++)
+    {
+        input[i] = (int8_t)(i * 7 - 50);
+    }
+    for (int32_t i = 0; i < (int32_t)sizeof(weights); i++)
+    {
+        weights[i] = (int8_t)(i * 5 - 31);
+    }
+    for (int32_t i = 0; i < 8; i++)
+    {
+        mult[i] = 1 << 30;
+        shift[i] = -1;
+        weight_sum[i] = 0;
+    }
+    const cmsis_nn_dims input_dims = {1, 2, 2, in_c};
+    const cmsis_nn_dims filter_dims = {out_c, 1, 1, filter_c};
+    const cmsis_nn_dims bias_dims = {1, 1, 1, out_c};
+    const cmsis_nn_dims output_dims = {1, 2, 2, out_c};
+    const cmsis_nn_conv_params conv_params = {
+        .input_offset = 3,
+        .output_offset = -2,
+        .stride = {1, 1},
+        .padding = {0, 0},
+        .dilation = {1, 1},
+        .activation = {-128, 127},
+    };
+    const cmsis_nn_per_channel_quant_params quant_params = {.multiplier = mult, .shift = shift};
+    const cmsis_nn_context ctx = {scratch, (int32_t)sizeof(scratch)};
+    const cmsis_nn_context weight_sum_ctx = {weight_sum, (int32_t)sizeof(weight_sum)};
+    return arm_convolve_s8(&ctx,
+                           &weight_sum_ctx,
+                           &conv_params,
+                           &quant_params,
+                           &input_dims,
+                           input,
+                           &filter_dims,
+                           weights,
+                           &bias_dims,
+                           bias,
+                           upscale_dims,
+                           &output_dims,
+                           output);
+}
+
+/* Shapes arm_convolve_s8() cannot compute are argument errors that write nothing (#700, #702): a grouped layer with
+ * an upscale factor of 2 on either axis, an input depth that is not a whole number of filter depths, an output
+ * depth that is not a whole number of groups, and a depth of 0. A grouped layer with an upscale of 1 and an ungrouped
+ * layer stay valid. */
+void grouped_conv_arg_errors_arm_grouped_convolve_s8(void)
+{
+    const cmsis_nn_dims up_hw = {0, 2, 2, 0};
+    const cmsis_nn_dims up_h = {0, 2, 1, 0};
+    const cmsis_nn_dims up_w = {0, 1, 2, 0};
+    const cmsis_nn_dims up_none = {0, 1, 1, 0};
+    const struct
+    {
+        int32_t in_c, filter_c, out_c;
+        const cmsis_nn_dims *upscale;
+        arm_cmsis_nn_status expected;
+    } cases[] = {
+        {4, 2, 4, &up_hw, ARM_CMSIS_NN_ARG_ERROR},
+        {4, 2, 4, &up_h, ARM_CMSIS_NN_ARG_ERROR},
+        {4, 2, 4, &up_w, ARM_CMSIS_NN_ARG_ERROR},
+        {6, 4, 4, NULL, ARM_CMSIS_NN_ARG_ERROR},
+        {7, 4, 4, NULL, ARM_CMSIS_NN_ARG_ERROR},
+        {4, 0, 4, NULL, ARM_CMSIS_NN_ARG_ERROR},
+        {0, 2, 4, NULL, ARM_CMSIS_NN_ARG_ERROR},
+        /* depths kept as uint16_t: 65,536 would read as 0, a negative output depth as 65,532; each bound alone */
+        {65536, 65536, 1, NULL, ARM_CMSIS_NN_ARG_ERROR},
+        {65536, 1, 1, NULL, ARM_CMSIS_NN_ARG_ERROR},
+        {1, 1, 65536, NULL, ARM_CMSIS_NN_ARG_ERROR},
+        {2, 1, 70000, NULL, ARM_CMSIS_NN_ARG_ERROR},
+        {4, 2, -4, NULL, ARM_CMSIS_NN_ARG_ERROR},
+        {4, 2, 3, NULL, ARM_CMSIS_NN_ARG_ERROR},
+        {4, 2, 4, &up_none, ARM_CMSIS_NN_SUCCESS},
+        {4, 2, 4, NULL, ARM_CMSIS_NN_SUCCESS},
+    };
+    for (size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); i++)
+    {
+        int8_t output[2 * 2 * 8];
+        memset(output, 0x5A, sizeof(output));
+        TEST_ASSERT_EQUAL_MESSAGE(cases[i].expected,
+                                  grouped_conv_status(
+                                      cases[i].in_c, cases[i].filter_c, cases[i].out_c, cases[i].upscale, output),
+                                  "case");
+        if (cases[i].expected != ARM_CMSIS_NN_SUCCESS)
+        {
+            for (size_t j = 0; j < sizeof(output); j++)
+            {
+                TEST_ASSERT_EQUAL_INT8(0x5A, output[j]);
+            }
+        }
+    }
+}
+
+/* arm_nn_convolve_s8_groups_invalid() at the 16-bit edge of each depth, with one group: 65,535 is valid, 65,536 is
+ * not. */
+void grouped_conv_depth_bounds_arm_grouped_convolve_s8(void)
+{
+    const cmsis_nn_dims one = {1, 1, 1, 1};
+    const cmsis_nn_dims max = {1, 1, 1, UINT16_MAX};
+    const cmsis_nn_dims over = {1, 1, 1, UINT16_MAX + 1};
+    TEST_ASSERT_FALSE(arm_nn_convolve_s8_groups_invalid(&max, &max, &one));
+    TEST_ASSERT_TRUE(arm_nn_convolve_s8_groups_invalid(&over, &over, &one));
+    TEST_ASSERT_FALSE(arm_nn_convolve_s8_groups_invalid(&one, &one, &max));
+    TEST_ASSERT_TRUE(arm_nn_convolve_s8_groups_invalid(&one, &one, &over));
 }
