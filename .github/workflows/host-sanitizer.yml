@@ -29,6 +29,14 @@ name: Host sanitizer unit tests
 # shift-exponent stays on, so a shift count at or past the operand width is
 # still reported. LeakSanitizer is on (it is part of ASan by default), so a test
 # that mallocs without freeing fails its suite.
+#
+# The word-copy cell builds the same suites with ARM_NN_WORD_COPY defined. The
+# library defines it by default only for clang (not armclang) with unaligned
+# access on armv7-m, armv7e-m and armv8-m.main, and no PR leg executes a clang
+# build (#340), so without this cell nothing in CI runs the word-at-a-time
+# arm_memcpy_* and arm_memset_* bodies inside the scalar kernel paths that call
+# them, or arm_convolve_s8's depth-1 im2col fill. Call sites inside DSP or MVE
+# branches still run nowhere with the macro on.
 
 on:
   # Invoked from ci.yml so it reports under the single required gate
@@ -43,8 +51,17 @@ permissions:
 
 jobs:
   host-sanitizer:
+    name: host-sanitizer / ${{ matrix.config }}
     runs-on: ubuntu-24.04
     timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - config: default
+            defines: ''
+          - config: word-copy
+            defines: -DARM_NN_WORD_COPY
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7
@@ -58,6 +75,8 @@ jobs:
           python3 -m pip install --user termcolor pyserial
 
       - name: Configure (host, ASan + UBSan, F32 and F16 on)
+        env:
+          DEFINES: ${{ matrix.defines }}
         run: |
           cmake -S Tests/UnitTest -B build-host -G Ninja \
             -DBUILD_CMSIS_NN_UNIT=ON \
@@ -65,11 +84,25 @@ jobs:
             -DARM_NN_ENABLE_F32=ON \
             -DARM_NN_ENABLE_F16=ON \
             -DCMSIS_OPTIMIZATION_LEVEL=-O1 \
-            "-DCMAKE_C_FLAGS=-fsanitize=address,undefined -fno-sanitize=shift-base -fno-sanitize-recover=all -g -fno-omit-frame-pointer" \
+            "-DCMAKE_C_FLAGS=-fsanitize=address,undefined -fno-sanitize=shift-base -fno-sanitize-recover=all -g -fno-omit-frame-pointer ${DEFINES}" \
             "-DCMAKE_EXE_LINKER_FLAGS=-fsanitize=address,undefined"
 
       - name: Build every suite
         run: cmake --build build-host --parallel
+
+      # Without this the cell would pass as a copy of the default one if the
+      # macro stopped selecting the word helpers.
+      - name: Assert the word-copy code is built
+        if: matrix.config == 'word-copy'
+        run: |
+          set -euo pipefail
+          syms="$(nm -A build-host/cmsis-nn/libcmsis-nn.a)"
+          for want in 'arm_convolve_s8\.c\.o:.* arm_nn_im2col_depth1_s8' ' arm_nn_copy_words_s8' ' arm_nn_fill_words_s8'; do
+            if ! grep -qE "${want}\$" <<<"${syms}"; then
+              echo "::error title=Word-copy code not built::no symbol matching '${want}' in the library" >&2
+              exit 1
+            fi
+          done
 
       # --no-tests=error turns a *fully* empty test set into a failure rather than a
       # pass. It says nothing about a partial regression, so the count check below

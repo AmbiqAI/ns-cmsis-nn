@@ -34,7 +34,7 @@ status context is `CI Passed`.
 | `gcc` | `toolchain-matrix-strict-link.yml` | cortex-m4, cortex-m55 | `float32` on both, `float16` on m55 | no, build and strict link only | GCC 13.2.Rel1, 14.2.Rel1, 15.3.Rel1 |
 | `atfe` | `toolchain-matrix-strict-link.yml` | cortex-m4, cortex-m55 | `float32` on both, `float16` on m55 | no, build and strict link only | ATfE 19.1.5 |
 | `armclang` | `toolchain-matrix-strict-link.yml` | cortex-m4, cortex-m55 | `float32` on both, `float16` on m55 | no, build and strict link only | armclang 6.23.32 |
-| `host-sanitizer` | `host-sanitizer.yml` | x86-64 host, scalar paths | `float32`, `float16` | yes, on the host under `ctest` | ubuntu-24.04 system GCC |
+| `host-sanitizer` | `host-sanitizer.yml` | x86-64 host, scalar paths; a second cell with `ARM_NN_WORD_COPY` defined | `float32`, `float16` | yes, on the host under `ctest` | ubuntu-24.04 system GCC |
 | `compile` | `unity-m55-compile.yml` | cortex-m55, cortex-m4, cortex-m0 | `float32` on all three, `float16` on m55 | no, compile and link only | Arm GNU 14.2.rel1 |
 | `f16-exec` | `unity-f16-exec-gcc-floor.yml` | cortex-m55 | `float16` | yes, QEMU `mps3-an547`, at `-Ofast` | GCC 13.2.Rel1 |
 | `build-staticlibs`, `build-pack` | `pack-dryrun.yml` | cortex-m0, cortex-m4, cortex-m55 | n/a | no, packaging only | GCC 14.2.Rel1 |
