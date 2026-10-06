@@ -91,6 +91,24 @@ The wrappers exist for as long as a GCC 13 release is in the support matrix;
 their removal is tracked by
 [#435](https://github.com/AmbiqAI/ns-cmsis-nn/issues/435).
 
+### NaN in `float16` dequantize
+
+`arm_dequantize_f16_f32()` and `arm_dequantize_f16_bits_f32()`
+return, for each element, what the path's half-to-single conversion instruction
+returns. With `FPSCR.AHP` clear, finite values, subnormals, ±0 and ±Inf convert
+exactly on every path, whatever `FPSCR.FZ` and `FZ16`; only NaNs differ:
+
+| Path | A NaN input gives |
+|---|---|
+| MVE `float16` with `ARM_NN_ENABLE_F16` and no `ARM_MATH_AUTOVECTORIZE` (vector `VCVTB`) | The default NaN, `0x7FC00000`. Where the wrappers above select the scalar form, as on the scalar path. |
+| Other little-endian M-profile FPU paths (scalar `VCVTB`/`VCVTT`) | Its sign and payload, quieted. With `FPSCR.DN` set, the default NaN. |
+| Other configurations, including no FPU or big-endian builds (integer widening) | The scalar instruction's result at reset `FPSCR`: sign and payload, quieted, independently of `FPSCR`. |
+
+On both hardware paths a signaling NaN sets `FPSCR.IOC`, and with `FPSCR.AHP`
+set exponent 31 reads as a number rather than as Inf or NaN. The output must be
+4-byte aligned, like any `float` storage. A test that compares NaN bits across
+targets must expect these per-path results.
+
 ### How the form is chosen
 
 The preprocessor cannot see the assembler, so the CMake build asks it. At
@@ -211,6 +229,30 @@ See [#437](https://github.com/AmbiqAI/ns-cmsis-nn/issues/437).
 
 See [#427](https://github.com/AmbiqAI/ns-cmsis-nn/issues/427) for the analysis
 this section summarizes.
+
+## `ARM_NN_WORD_COPY`
+
+ATfE 22.1's C library implements `memcpy` and `memset` one byte at a time on
+Armv7-M, Armv7E-M and Armv8-M Mainline. `ARM_NN_WORD_COPY` makes
+`arm_memcpy_s8`/`_s16`/`_s32`/`_q15`, `arm_memset_s8` and `arm_memset_s16` copy
+and fill a word at a time instead. Without MVE it also makes `arm_convolve_s8`
+fill the im2col taps of a filter depth of 1 (4 taps or more) with one call per
+output pixel.
+
+- **Default:** defined by `arm_nnsupportfunctions.h` for clang (not armclang)
+  when the target has unaligned access (`__ARM_FEATURE_UNALIGNED`) and is
+  Armv7-M, Armv7E-M or Armv8-M Mainline: ATfE on Cortex-M3, M4, M7 and M33.
+  GCC, armclang, MVE, Armv6-M and Armv8.1-M builds compile the same code as
+  without it.
+- **Requirement:** unaligned word access. Do not define it for a target that
+  traps unaligned accesses (for example with `CCR.UNALIGN_TRP` set).
+- **Overriding:** a build may define it for another target that meets the
+  requirement. There is no switch to turn the default off; a target that must
+  avoid unaligned access should be built without `__ARM_FEATURE_UNALIGNED`
+  (`-mno-unaligned-access`).
+- **Coverage:** the `word-copy` cell of `host-sanitizer.yml` runs every Unity
+  suite with it defined. No pull request leg executes an ATfE build yet
+  ([#340](https://github.com/AmbiqAI/ns-cmsis-nn/issues/340)).
 
 ## What gets pinned
 
