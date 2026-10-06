@@ -8,6 +8,7 @@
  */
 
 #include <arm_nnfunctions.h>
+#include <arm_nnsupportfunctions.h>
 #include <math.h>
 #include <string.h>
 #include <unity.h>
@@ -138,4 +139,196 @@ void fully_connected_k31_n9_f16(void)
 {
     fc_f16_case(1, 31, 9, 1, -1.0e4f, 1.0e4f);
     fc_f16_case(2, 31, 9, 0, -1.0e4f, 1.0e4f);
+}
+
+#define PRECISE_MAX_ROWS 5
+#define PRECISE_MAX_K 128
+#define PRECISE_MAX_OUTPUTS 9
+static float16_t precise_x[PRECISE_MAX_ROWS * PRECISE_MAX_K];
+static float16_t precise_w[PRECISE_MAX_OUTPUTS * PRECISE_MAX_K];
+static float16_t precise_packed[16 * PRECISE_MAX_K];
+static float16_t precise_bias[PRECISE_MAX_OUTPUTS];
+static float16_t precise_y[PRECISE_MAX_ROWS * (PRECISE_MAX_OUTPUTS + 3)];
+static float16_t precise_legacy[PRECISE_MAX_ROWS * PRECISE_MAX_OUTPUTS];
+
+static uint16_t precise_bits(float16_t value)
+{
+    uint16_t bits;
+    memcpy(&bits, &value, sizeof(bits));
+    return bits;
+}
+
+static void precise_pack(int32_t k, int32_t outputs)
+{
+    memset(precise_packed, 0, sizeof(precise_packed));
+    for (int32_t col = 0; col < outputs; ++col)
+    {
+        for (int32_t tap = 0; tap < k; ++tap)
+        {
+            precise_packed[(col / 8) * k * 8 + tap * 8 + col % 8] = precise_w[col * k + tap];
+        }
+    }
+}
+
+static void precise_case(int32_t rows, int32_t k, int32_t outputs, bool bias, float16_t lo, float16_t hi)
+{
+    const int32_t stride = outputs + 3;
+    for (int32_t i = 0; i < rows * k; ++i)
+    {
+        precise_x[i] = (float16_t)((i % 7 - 3) / 8.0f);
+    }
+    for (int32_t col = 0; col < outputs; ++col)
+    {
+        precise_bias[col] = (float16_t)((col % 5 - 2) / 8.0f);
+        for (int32_t tap = 0; tap < k; ++tap)
+        {
+            precise_w[col * k + tap] = (float16_t)(((col + tap) % 5 - 2) / 4.0f);
+        }
+    }
+    precise_pack(k, outputs);
+    for (int32_t i = 0; i < rows * stride; ++i)
+    {
+        precise_y[i] = (float16_t)42;
+    }
+    TEST_ASSERT_EQUAL(
+        ARM_CMSIS_NN_SUCCESS,
+        arm_nn_mat_mult_nt_n_packed_f16_precise(
+            precise_x, precise_packed, bias ? precise_bias : NULL, precise_y, rows, outputs, k, stride, lo, hi));
+    for (int32_t row = 0; row < rows; ++row)
+    {
+        for (int32_t col = 0; col < outputs; ++col)
+        {
+            float32_t ref = (float32_t)precise_bias[col];
+            uint32_t bias_bits;
+            memcpy(&bias_bits, &ref, sizeof(bias_bits));
+            bias_bits &= 0u - (uint32_t)bias;
+            memcpy(&ref, &bias_bits, sizeof(ref));
+            for (int32_t tap = 0; tap < k; ++tap)
+            {
+                ref += (float32_t)precise_x[row * k + tap] * (float32_t)precise_w[col * k + tap];
+            }
+            if (ref < (float32_t)lo)
+                ref = (float32_t)lo;
+            if (ref > (float32_t)hi)
+                ref = (float32_t)hi;
+            /* Every term is a multiple of 1/32 and partial magnitudes stay below 32: these sums are exact. */
+            TEST_ASSERT_FLOAT_WITHIN(0.0f, ref, (float32_t)precise_y[row * stride + col]);
+        }
+        for (int32_t col = outputs; col < stride; ++col)
+        {
+            TEST_ASSERT_EQUAL_UINT16(precise_bits((float16_t)42), precise_bits(precise_y[row * stride + col]));
+        }
+    }
+    if (k <= 32)
+    {
+        TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
+                          arm_nn_mat_mult_nt_n_packed_f16(precise_x,
+                                                          precise_packed,
+                                                          bias ? precise_bias : NULL,
+                                                          precise_legacy,
+                                                          rows,
+                                                          outputs,
+                                                          k,
+                                                          outputs,
+                                                          lo,
+                                                          hi));
+        TEST_ASSERT_EQUAL(
+            ARM_CMSIS_NN_SUCCESS,
+            arm_nn_mat_mult_nt_n_packed_f16_acc16(
+                precise_x, precise_packed, bias ? precise_bias : NULL, precise_y, rows, outputs, k, outputs, lo, hi));
+        for (int32_t i = 0; i < rows * outputs; ++i)
+        {
+            TEST_ASSERT_EQUAL_UINT16(precise_bits(precise_legacy[i]), precise_bits(precise_y[i]));
+        }
+    }
+}
+
+void fully_connected_packed_precise_contract_f16(void)
+{
+    precise_case(1, 1, 1, false, (float16_t)-1, (float16_t)1);
+    precise_case(1, 3, 7, true, (float16_t)-1, (float16_t)1);
+    precise_case(4, 31, 9, false, (float16_t)-1, (float16_t)1);
+    precise_case(5, 32, 9, true, (float16_t)-1, (float16_t)1);
+    precise_case(1, 33, 1, false, (float16_t)-1, (float16_t)1);
+    precise_case(4, 128, 9, true, (float16_t)-0.25f, (float16_t)0.25f);
+}
+
+void fully_connected_packed_precise_bias_f16(void)
+{
+    for (int32_t tap = 0; tap < 32; ++tap)
+    {
+        precise_x[tap] = (float16_t)64;
+        if (tap < 16)
+            precise_w[tap] = (float16_t)64;
+        else
+            precise_w[tap] = (float16_t)-64;
+    }
+    precise_bias[0] = (float16_t)1;
+    precise_pack(32, 1);
+    TEST_ASSERT_EQUAL(
+        ARM_CMSIS_NN_SUCCESS,
+        arm_nn_mat_mult_nt_n_packed_f16_precise(
+            precise_x, precise_packed, precise_bias, precise_y, 1, 1, 32, 1, (float16_t)-65504, (float16_t)65504));
+    TEST_ASSERT_EQUAL_UINT16(precise_bits((float16_t)1), precise_bits(precise_y[0]));
+    TEST_ASSERT_EQUAL(
+        ARM_CMSIS_NN_SUCCESS,
+        arm_nn_mat_mult_nt_n_packed_f16(
+            precise_x, precise_packed, precise_bias, precise_legacy, 1, 1, 32, 1, (float16_t)-65504, (float16_t)65504));
+    TEST_ASSERT_EQUAL(
+        ARM_CMSIS_NN_SUCCESS,
+        arm_nn_mat_mult_nt_n_packed_f16_acc16(
+            precise_x, precise_packed, precise_bias, precise_y, 1, 1, 32, 1, (float16_t)-65504, (float16_t)65504));
+    TEST_ASSERT_EQUAL_UINT16(precise_bits(precise_legacy[0]), precise_bits(precise_y[0]));
+}
+
+void fully_connected_packed_precise_nonfinite_f16(void)
+{
+    const uint16_t nan_bits = 0x7e55;
+    memcpy(precise_x, &nan_bits, sizeof(nan_bits));
+    for (int32_t col = 0; col < 3; ++col)
+        precise_w[col] = (float16_t)0.5f;
+    precise_pack(1, 3);
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
+                      arm_nn_mat_mult_nt_n_packed_f16_precise(
+                          precise_x, precise_packed, NULL, precise_y, 1, 3, 1, 3, (float16_t)-65504, (float16_t)65504));
+    for (int32_t col = 0; col < 3; ++col)
+    {
+        const uint16_t bits = precise_bits(precise_y[col]);
+#if defined(ARM_MATH_MVE_FLOAT16) && !defined(ARM_MATH_AUTOVECTORIZE)
+        /* The documented MVE maxNum/minNum clamp suppresses a NaN to the lower bound. */
+        TEST_ASSERT_EQUAL_UINT16(precise_bits((float16_t)-65504), bits);
+#else
+        TEST_ASSERT_TRUE((bits & 0x7c00) == 0x7c00 && (bits & 0x03ff) != 0);
+#endif
+    }
+}
+
+void fully_connected_packed_precise_invalid_f16(void)
+{
+    precise_x[0] = (float16_t)0.5f;
+    precise_packed[0] = (float16_t)0.5f;
+    precise_y[0] = (float16_t)42;
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR,
+                      arm_nn_mat_mult_nt_n_packed_f16_precise(
+                          NULL, precise_packed, NULL, precise_y, 1, 1, 1, 1, (float16_t)-1, (float16_t)1));
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR,
+                      arm_nn_mat_mult_nt_n_packed_f16_precise(
+                          precise_x, NULL, NULL, precise_y, 1, 1, 1, 1, (float16_t)-1, (float16_t)1));
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR,
+                      arm_nn_mat_mult_nt_n_packed_f16_precise(
+                          precise_x, precise_packed, NULL, NULL, 1, 1, 1, 1, (float16_t)-1, (float16_t)1));
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR,
+                      arm_nn_mat_mult_nt_n_packed_f16_precise(
+                          precise_x, precise_packed, NULL, precise_y, 0, 1, 1, 1, (float16_t)-1, (float16_t)1));
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR,
+                      arm_nn_mat_mult_nt_n_packed_f16_precise(
+                          precise_x, precise_packed, NULL, precise_y, 1, 1, -1, 1, (float16_t)-1, (float16_t)1));
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR,
+                      arm_nn_mat_mult_nt_n_packed_f16_precise(
+                          precise_x, precise_packed, NULL, precise_y, 1, 1, 1, 0, (float16_t)-1, (float16_t)1));
+    TEST_ASSERT_EQUAL_UINT16(precise_bits((float16_t)42), precise_bits(precise_y[0]));
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
+                      arm_nn_mat_mult_nt_n_packed_f16_precise(
+                          precise_x, precise_packed, NULL, precise_y, 1, 1, 1, INT32_MAX, (float16_t)-1, (float16_t)1));
+    TEST_ASSERT_EQUAL_UINT16(precise_bits((float16_t)0.25f), precise_bits(precise_y[0]));
 }

@@ -1351,6 +1351,43 @@ arm_cmsis_nn_status arm_nn_mat_mult_nt_n_packed_f16(const float16_t *__RESTRICT 
                                                     float16_t activation_max);
 
 /**
+ * @brief Packed float16 matrix multiply with shorter partial sums, for precise packed callers.
+ *
+ * The packed layout and all argument meanings are those of arm_nn_mat_mult_nt_n_packed_f16.
+ * This entry has its own numerical order; it does not change that entry or its acc16 twin.
+ *
+ * @param[in] lhs Non-transposed lhs, with lhs_rows rows of rhs_cols elements.
+ * @param[in] rhs_packed Logical rhs_rows output columns in 8-column blocks, K-major within each block.
+ * @param[in] bias Optional rhs_rows-element bias; NULL means zero bias.
+ * @param[out] dst Output matrix. The caller provides the complete arrays, including packed column padding.
+ * @param[in] lhs_rows Positive number of lhs rows.
+ * @param[in] rhs_rows Positive number of logical output columns.
+ * @param[in] rhs_cols Positive shared reduction dimension K.
+ * @param[in] row_address_offset Positive output row stride, in elements.
+ * @param[in] activation_min Lower ordered clamp bound.
+ * @param[in] activation_max Upper ordered clamp bound.
+ * @return ARM_CMSIS_NN_SUCCESS, or ARM_CMSIS_NN_ARG_ERROR for NULL lhs/rhs/dst or nonpositive dimensions/stride.
+ *
+ * @note MVE: each lane forms at most four fused-product taps in float16, starting from zero. Each partial is
+ * widened and added to its float32 lane accumulator in K order; bias is added in float32 after the final fold,
+ * then the result rounds to float16 once before clamping. The scalar/autovectorized leg uses the existing
+ * float32 accumulation rule. This order is not bit-equivalent to the standard or legacy packed entries, and
+ * no universal absolute-error bound is implied. Float16 products/partials can overflow for finite inputs;
+ * shorter partials do not make this an overflow-free float32 dot product. As with the legacy packed entry,
+ * the scalar clamp propagates NaN, while the MVE maxNum/minNum clamp resolves NaN to a bound.
+ */
+arm_cmsis_nn_status arm_nn_mat_mult_nt_n_packed_f16_precise(const float16_t *__RESTRICT lhs,
+                                                            const float16_t *__RESTRICT rhs_packed,
+                                                            const float16_t *__RESTRICT bias,
+                                                            float16_t *__RESTRICT dst,
+                                                            int32_t lhs_rows,
+                                                            int32_t rhs_rows,
+                                                            int32_t rhs_cols,
+                                                            int32_t row_address_offset,
+                                                            float16_t activation_min,
+                                                            float16_t activation_max);
+
+/**
  * @brief arm_nn_mat_mult_nt_n_packed_f16 with every MVE accumulator lane in float16 (no blockwise fold).
  *
  * Same arguments, return codes and scalar leg as arm_nn_mat_mult_nt_n_packed_f16; see its accumulation note.
