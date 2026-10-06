@@ -279,6 +279,28 @@ void fully_connected_packed_precise_bias_f16(void)
         arm_nn_mat_mult_nt_n_packed_f16_acc16(
             precise_x, precise_packed, precise_bias, precise_y, 1, 1, 32, 1, (float16_t)-65504, (float16_t)65504));
     TEST_ASSERT_EQUAL_UINT16(precise_bits(precise_legacy[0]), precise_bits(precise_y[0]));
+
+    /* Four-tap partials are exactly +/-32768; eight taps overflow. Cover four rows and the tail. */
+    for (int32_t i = 0; i < 5 * 16; ++i)
+    {
+        precise_x[i] = (float16_t)128;
+    }
+    for (int32_t tap = 0; tap < 16; ++tap)
+    {
+        if (tap < 8)
+            precise_w[tap] = (float16_t)64;
+        else
+            precise_w[tap] = (float16_t)-64;
+    }
+    precise_pack(16, 1);
+    TEST_ASSERT_EQUAL(
+        ARM_CMSIS_NN_SUCCESS,
+        arm_nn_mat_mult_nt_n_packed_f16_precise(
+            precise_x, precise_packed, precise_bias, precise_y, 5, 1, 16, 1, (float16_t)-65504, (float16_t)65504));
+    for (int32_t row = 0; row < 5; ++row)
+    {
+        TEST_ASSERT_EQUAL_UINT16(0x3c00, precise_bits(precise_y[row]));
+    }
 }
 
 void fully_connected_packed_precise_nonfinite_f16(void)
