@@ -36,16 +36,16 @@
 /* Positive shifts round identically in both modes. Multiply before dividing so that centered byte * Q31 fits in
  * int64_t, even when the final result exceeds int32_t. Keep this rare path out of the ordinary loop's register
  * allocation. */
-static __attribute__((noinline)) void arm_nn_requantize_8bit_wide(const int8_t *input,
-                                                                  const bool input_unsigned,
-                                                                  int8_t *output,
-                                                                  int32_t size,
-                                                                  const int32_t effective_scale_multiplier,
-                                                                  const int32_t effective_scale_shift,
-                                                                  const int32_t input_zeropoint,
-                                                                  const int32_t output_zeropoint,
-                                                                  const int32_t output_min,
-                                                                  const int32_t output_max)
+static __attribute__((noinline, cold)) void arm_nn_requantize_8bit_wide(const int8_t *input,
+                                                                        const bool input_unsigned,
+                                                                        int8_t *output,
+                                                                        int32_t size,
+                                                                        const int32_t effective_scale_multiplier,
+                                                                        const int32_t effective_scale_shift,
+                                                                        const int32_t input_zeropoint,
+                                                                        const int32_t output_zeropoint,
+                                                                        const int32_t output_min,
+                                                                        const int32_t output_max)
 {
     const int32_t right_shift = 31 - effective_scale_shift;
     for (int32_t i = 0; i < size; i++)
