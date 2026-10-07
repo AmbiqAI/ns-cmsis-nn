@@ -2758,6 +2758,21 @@ __STATIC_FORCEINLINE int32_t arm_nn_requantize(const int32_t val, const int32_t 
 }
 
 /**
+ * @brief           Requantize with a positive scale exponent without narrowing the result.
+ * @param[in]       val         Centered input value.
+ * @param[in]       multiplier  Nonnegative Q31 multiplier in [0, INT32_MAX].
+ * @param[in]       shift       Positive scale exponent in [1, 30].
+ * @return          Rounded result before output zero point and saturation. Both rounding modes agree for this range.
+ */
+__STATIC_FORCEINLINE int64_t arm_nn_requantize_positive_shift_s64(const int32_t val,
+                                                                  const int32_t multiplier,
+                                                                  const int32_t shift)
+{
+    const int32_t right_shift = 31 - shift;
+    return ((int64_t)val * multiplier + ((int64_t)1 << (right_shift - 1))) >> right_shift;
+}
+
+/**
  * @brief           Requantize a given 64 bit value.
  * @param[in]       val                 Value to be requantized in the range {-(1<<47)} to {(1<<47) - 1}
  * @param[in]       reduced_multiplier  Reduced multiplier in the range {NN_Q31_MIN + 1, Q32_MAX} to {Q16_MIN + 1,
