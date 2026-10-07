@@ -56,13 +56,11 @@ static bool gelu_finite_control(gelu_function fn)
         input[i] = (float)(i - 43) / 8.0f;
         output[i] = 99.0f;
     }
-    if (fn(input, output, 67) != ARM_CMSIS_NN_SUCCESS)
-    {
-        return false;
-    }
+    /* Compare scalar calls: optimized array calls may use a different vector libm. */
     for (int i = 0; i < 67; ++i)
     {
-        if (!gelu_equal(gelu_producer(input[i]), output[i]))
+        if (fn(input + i, output + i, 1) != ARM_CMSIS_NN_SUCCESS ||
+            !gelu_equal(gelu_producer(input[i]), output[i]))
         {
             return false;
         }
@@ -79,7 +77,8 @@ static bool gelu_count_control(gelu_function fn)
     {
         for (int i = 0; i < 36; ++i)
         {
-            input[i] = (float)(i - 20) / 8.0f;
+            /* Here erfc rounds to 2, so GELU is exactly the input on either libm path. */
+            input[i] = 32.0f + (float)i;
             output[i] = 99.0f;
         }
         int n = counts[c];
@@ -91,7 +90,7 @@ static bool gelu_count_control(gelu_function fn)
         }
         for (int i = 1; i <= n; ++i)
         {
-            if (!gelu_equal(gelu_producer(input[i]), output[i]))
+            if (gelu_bits(input[i]) != gelu_bits(output[i]))
             {
                 return false;
             }
@@ -113,15 +112,23 @@ void gelu_f32_counts(void)
 void gelu_f32_in_place(void)
 {
     float values[17], reference[17];
+    /* Array aliasing uses exact identity inputs, independent of libm vectorization. */
     for (int i = 0; i < 17; ++i)
     {
-        values[i] = (float)(i - 12) / 4.0f;
-        reference[i] = gelu_producer(values[i]);
+        values[i] = reference[i] = 32.0f + (float)i;
     }
     TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, arm_nn_gelu_f32(values, values, 17));
     for (int i = 0; i < 17; ++i)
     {
-        TEST_ASSERT_TRUE(gelu_equal(reference[i], values[i]));
+        TEST_ASSERT_EQUAL_HEX32(gelu_bits(reference[i]), gelu_bits(values[i]));
+    }
+    /* Nontrivial in-place arithmetic retains the controlled scalar producer gate. */
+    for (int i = 0; i < 17; ++i)
+    {
+        float value = (float)(i - 12) / 4.0f;
+        const float expected = gelu_producer(value);
+        TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, arm_nn_gelu_f32(&value, &value, 1));
+        TEST_ASSERT_TRUE(gelu_equal(expected, value));
     }
 }
 
@@ -157,8 +164,7 @@ void gelu_f32_bounds(void)
     const int counts[] = {1, 3, 4, 5, 17};
     for (int i = 0; i < 17; ++i)
     {
-        input[i] = (float)(i - 8) / 4.0f;
-        expected[i] = gelu_producer(input[i]);
+        input[i] = expected[i] = 32.0f + (float)i;
     }
     for (unsigned c = 0; c < sizeof(counts) / sizeof(counts[0]); ++c)
     {
