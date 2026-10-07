@@ -85,6 +85,7 @@
         "^arm_leaky_relu",
         "^arm_logistic",
         "^arm_nn_activation",
+        "^arm_nn_gelu_f32$",
         "^arm_prelu",
         "^arm_relu",
         "^arm_tanh"

@@ -44,27 +44,6 @@ extern "C" {
 #if ARM_NN_ENABLE_F32
 
 /**
- * @brief Elementwise exact (default) GELU, x * Phi(x), for float32 data.
- *
- * Evaluates 0.5f * x * erfcf(x * -float(1/sqrt(2))); this is the exact-mode
- * expression of TensorFlow Lite v2.16.1, not its tanh approximation. Results
- * depend on the compiler, libm and floating-point environment. Subnormals
- * follow the caller's flush-to-zero setting. The expression propagates NaN,
- * maps +Inf to +Inf and -Inf to NaN; NaN payloads and exception flags are not
- * specified. No scratch or vector alignment is required.
- *
- * @param[in]  input   Input vector of size naturally aligned float32 elements.
- * @param[out] output  Output vector; exact alias with input is supported.
- *                     Partial overlap is not supported.
- * @param[in]  size    Element count. Zero succeeds without accessing either pointer,
- *                    which may then be NULL. Negative counts are invalid.
- *
- * @return ARM_CMSIS_NN_SUCCESS, or ARM_CMSIS_NN_ARG_ERROR for a negative count
- *         or a NULL pointer with a positive count. Invalid arguments write nothing.
- */
-arm_cmsis_nn_status arm_nn_gelu_f32(const float32_t *input, float32_t *output, int32_t size);
-
-/**
  * @addtogroup NNConv
  * @{
  */
@@ -980,6 +959,27 @@ arm_cmsis_nn_status arm_avg_pool_f32(const cmsis_nn_context *ctx,
  * @addtogroup Acti
  * @{
  */
+
+/**
+ * @brief Elementwise exact (default) GELU, x * Phi(x), for float32 data.
+ *
+ * Evaluates 0.5f * x * erfcf(x * -float(1/sqrt(2))); this is the exact-mode
+ * expression of TensorFlow Lite v2.16.1, not its tanh approximation. Results
+ * depend on the compiler, libm and floating-point environment. Subnormals
+ * follow the caller's flush-to-zero setting. The expression propagates NaN,
+ * maps +Inf to +Inf and -Inf to NaN; NaN payloads and exception flags are not
+ * specified. No scratch or vector alignment is required.
+ *
+ * @param[in]  input   Input vector of size naturally aligned float32 elements.
+ * @param[out] output  Output vector; exact alias with input is supported.
+ *                     Partial overlap is not supported.
+ * @param[in]  size    Element count. Zero succeeds without accessing either pointer,
+ *                    which may then be NULL. Negative counts are invalid.
+ *
+ * @return ARM_CMSIS_NN_SUCCESS, or ARM_CMSIS_NN_ARG_ERROR for a negative count
+ *         or a NULL pointer with a positive count. Invalid arguments write nothing.
+ */
+arm_cmsis_nn_status arm_nn_gelu_f32(const float32_t *input, float32_t *output, int32_t size);
 
 /**
  * @brief Elementwise activation.
