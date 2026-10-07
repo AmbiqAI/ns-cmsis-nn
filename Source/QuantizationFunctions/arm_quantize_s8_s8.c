@@ -47,12 +47,10 @@ static __attribute__((noinline, cold)) void arm_nn_requantize_8bit_wide(const in
                                                                         const int32_t output_min,
                                                                         const int32_t output_max)
 {
-    const int32_t right_shift = 31 - effective_scale_shift;
     for (int32_t i = 0; i < size; i++)
     {
         const int32_t centered = (input_unsigned ? ((const uint8_t *)input)[i] : input[i]) - input_zeropoint;
-        int64_t val = (int64_t)centered * effective_scale_multiplier;
-        val = (val + ((int64_t)1 << (right_shift - 1))) >> right_shift;
+        int64_t val = arm_nn_requantize_positive_shift_s64(centered, effective_scale_multiplier, effective_scale_shift);
         val += output_zeropoint;
         val = ARM_NN_CLAMP(val, output_max, output_min);
         if (output_min < 0)

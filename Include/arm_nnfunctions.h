@@ -7655,12 +7655,13 @@ arm_cmsis_nn_status arm_requantize_u8_s8(const uint8_t *input,
  * @brief Requantize an int16_t array to another int16_t range with a different scale.
  * @param[in]   input                   Pointer to the input int16_t array.
  * @param[out]  output                  Pointer to the output int16_t array.
- * @param[in]   size                    Number of elements in the arrays.
- * @param[in]   effective_scale_multiplier   Multiplier used for the scaling operation.
- * @param[in]   effective_scale_shift   Right or left shift (depending on sign) applied after the multiplier.
- * @param[in]   input_zeropoint         Zero point of the input data.
- * @param[in]   output_zeropoint        Zero point of the output data.
+ * @param[in]   size                    Number of elements in the arrays. A nonpositive size performs no accesses.
+ * @param[in]   effective_scale_multiplier   Nonnegative Q31 multiplier in [0, INT32_MAX].
+ * @param[in]   effective_scale_shift   Scale exponent in [-31, 30]; positive values increase the scale.
+ * @param[in]   input_zeropoint         Zero point of the input data, in [-32768, 32767].
+ * @param[in]   output_zeropoint        Zero point of the output data, in [-32768, 32767].
  *
+ * @note       Scale and zero-point ranges are caller preconditions; they are not checked.
  * @return     The function returns <code>ARM_CMSIS_NN_SUCCESS</CODE>
  */
 arm_cmsis_nn_status arm_requantize_s16_s16(const int16_t *input,
