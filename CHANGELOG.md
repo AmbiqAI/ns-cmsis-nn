@@ -1,5 +1,18 @@
 # Changelog
 
+## [7.41.0](https://github.com/AmbiqAI/ns-cmsis-nn/compare/v7.40.0...v7.41.0) (2026-10-07)
+
+
+### Features
+
+* add precise packed FP16 matrix multiplication ([bcf000c](https://github.com/AmbiqAI/ns-cmsis-nn/commit/bcf000c0a88ea99697366f151f503a6f80e262d1)), closes [#643](https://github.com/AmbiqAI/ns-cmsis-nn/issues/643)
+* **quant:** add mixed-sign 8-bit requantization ([203e736](https://github.com/AmbiqAI/ns-cmsis-nn/commit/203e736bdd0f64a903e3a192c19ebba9d9a2a0ba)), closes [#729](https://github.com/AmbiqAI/ns-cmsis-nn/issues/729)
+
+
+### Bug Fixes
+
+* **quant:** preserve s16 saturation and bound vector tails ([4fcd2aa](https://github.com/AmbiqAI/ns-cmsis-nn/commit/4fcd2aa954ffe8796397d58deb6822113d0977a3)), closes [#733](https://github.com/AmbiqAI/ns-cmsis-nn/issues/733) [#729](https://github.com/AmbiqAI/ns-cmsis-nn/issues/729)
+
 ## [7.40.0](https://github.com/AmbiqAI/ns-cmsis-nn/compare/v7.39.3...v7.40.0) (2026-10-05)
 
 
