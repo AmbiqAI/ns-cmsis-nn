@@ -43,7 +43,7 @@
 __STATIC_INLINE int32_t arm_depthwise_conv_fast_s16_get_buffer_size_mve(const cmsis_nn_dims *input_dims,
                                                                         const cmsis_nn_dims *filter_dims)
 {
-    /* The kernel reads only the im2col rows; the + 8 is kept so the size reported to callers does not change.  */
+    /* MVE kernel uses no buffer; size kept */
     // Folded one factor at a time so the accumulator stays bounded: a chained (int64_t) product of four int32_t
     // dims can itself wrap back to a small non-negative value.
     int64_t required_bytes = arm_nn_size_mul(4, input_dims->c);
