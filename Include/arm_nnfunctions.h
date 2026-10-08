@@ -670,7 +670,7 @@ arm_cmsis_nn_status arm_convolve_1x1_s8_short_k(const cmsis_nn_context *ctx,
  *    - The output is identical to arm_convolve_s8(). The bias is read through the weight sums, which
  *      arm_convolve_weight_sum() fills as for arm_convolve_s8(); bias_dims and bias_data are unused.
  *    - Gate: upscale_dims NULL, C_IN from 1 to 3 with CK equal to C_IN (one group), dilation 1 in both dimensions,
- *      WK and HK at least 1 with WK x C_IN at most 16 and HK x WK x C_IN at most 48, and C_OUT a positive multiple
+ *      WK and HK at least 1 with WK x C_IN at most 16 and HK x WK x C_IN at most 80, and C_OUT a positive multiple
  *      of 4. Stride, padding and batch count are as for arm_convolve_s8().
  *    - Scratch: ctx->buf holds arm_convolve_s8_get_buffer_size() bytes (4 x 16 x ceil(HK x WK x C_IN / 16) on
  *      ARM_MATH_MVEI builds), the same as arm_convolve_s8(), and needs no alignment.

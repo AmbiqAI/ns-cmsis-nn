@@ -1620,8 +1620,9 @@ __STATIC_FORCEINLINE int32_t arm_nn_is_convolve_s8_1x1_short_k(const cmsis_nn_co
 
 /**
  * @brief The gate of arm_convolve_s8_small_cin(): upscale_dims NULL, input depth 1 to 3 with filter depth equal to it,
- *        dilation 1, a kernel of at least 1x1 with kernel width x depth at most 16 and at most 48 values, and a
- *        positive multiple of 4 output channels. Plain C; it evaluates the same on every build.
+ *        dilation 1, a kernel of at least 1x1 with kernel width x depth at most 16 and at most 80 values (five
+ *        16-byte chunks: a 5x5 kernel over three channels), and a positive multiple of 4 output channels. Plain C; it
+ *        evaluates the same on every build.
  *
  * @param[in]   conv_params   Convolution parameters
  * @param[in]   input_dims    Input tensor dimensions. Format: [N, H, W, C_IN]
@@ -1642,7 +1643,7 @@ __STATIC_FORCEINLINE int32_t arm_nn_is_convolve_s8_small_cin(const cmsis_nn_conv
     const int64_t input_ch = input_dims->c;
     return (upscale_dims == NULL) && (filter_dims->c == input_ch) && (input_ch >= 1) && (input_ch <= 3) &&
         (conv_params->dilation.w == 1) && (conv_params->dilation.h == 1) && (kernel_x >= 1) && (kernel_y >= 1) &&
-        (kernel_x * input_ch <= 16) && (kernel_x * kernel_y * input_ch <= 48) && (output_dims->c > 0) &&
+        (kernel_x * input_ch <= 16) && (kernel_x * kernel_y * input_ch <= 80) && (output_dims->c > 0) &&
         ((output_dims->c & 3) == 0);
 }
 
