@@ -180,3 +180,40 @@ void transpose_conv_s16_invalid_params_arm_transpose_conv_s16(void)
     TEST_ASSERT_EQUAL(
         -1, arm_transpose_conv_s16_get_buffer_size_mve(&c.params, &c.input_dims, &c.filter_dims, &c.output_dims));
 }
+
+void transpose_conv_s16_negative_dims_arm_transpose_conv_s16(void)
+{
+    tconv_s16_case c;
+    TCONV_S16_CASE(c, TRANSPOSE_CONV_S16_1, transpose_conv_s16_1);
+
+    /* Each dimension of the three shapes. */
+    int32_t *dims[] = {&c.input_dims.n,
+                       &c.input_dims.h,
+                       &c.input_dims.w,
+                       &c.input_dims.c,
+                       &c.filter_dims.n,
+                       &c.filter_dims.h,
+                       &c.filter_dims.w,
+                       &c.filter_dims.c,
+                       &c.output_dims.n,
+                       &c.output_dims.h,
+                       &c.output_dims.w,
+                       &c.output_dims.c};
+
+    for (size_t i = 0; i < sizeof(dims) / sizeof(dims[0]); i++)
+    {
+        const int32_t saved = *dims[i];
+        *dims[i] = -1;
+        TEST_ASSERT_EQUAL_MESSAGE(
+            -1,
+            arm_transpose_conv_s16_get_buffer_size(&c.params, &c.input_dims, &c.filter_dims, &c.output_dims),
+            "negative dimension accepted");
+        TEST_ASSERT_EQUAL_MESSAGE(
+            -1,
+            arm_transpose_conv_s16_get_buffer_size_mve(&c.params, &c.input_dims, &c.filter_dims, &c.output_dims),
+            "negative dimension accepted");
+        *dims[i] = saved;
+        TEST_ASSERT_EQUAL(
+            0, arm_transpose_conv_s16_get_buffer_size(&c.params, &c.input_dims, &c.filter_dims, &c.output_dims));
+    }
+}
