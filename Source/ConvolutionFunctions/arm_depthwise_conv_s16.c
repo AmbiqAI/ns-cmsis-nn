@@ -146,7 +146,7 @@ static void depthwise_conv_s16_generic_s16(const int16_t *input,
     }
 }
 
-#if defined(ARM_MATH_MVEI)
+#if defined(ARM_MATH_MVEI) && !defined(ARM_MATH_AUTOVECTORIZE)
 /* Exact s64 requant state in s32 lanes */
 typedef struct
 {
@@ -471,8 +471,9 @@ static void dw_s16_mve(const int16_t *input,
                 const int32_t ky_end =
                     base_y + span_y < input_y ? kernel_y : ARM_NN_MIN(kernel_y, (input_y - base_y + dil_y - 1) / dil_y);
                 const int32_t n_y = ARM_NN_MAX(ky_end - ky_start, 0);
-                const int32_t in_y = (base_y + ky_start * dil_y) * input_x;
-                const int8_t *ker_y = kernel + ky_start * ker_row + oc;
+                /* Clamps move only rows without taps */
+                const int32_t in_y = ARM_NN_MIN(base_y + ky_start * dil_y, input_y - 1) * input_x;
+                const int8_t *ker_y = kernel + ARM_NN_MIN(ky_start, kernel_y - 1) * ker_row + oc;
 
                 for (int32_t ox = 0; ox < output_x;)
                 {
@@ -560,8 +561,9 @@ static void dw_s16_mve(const int16_t *input,
                         ? kernel_x
                         : ARM_NN_MIN(kernel_x, (input_x - base_x + dil_x - 1) / dil_x);
                     const int32_t n_x = ARM_NN_MAX(kx_end - kx_start, 0);
-                    const int16_t *ip = in_batch + ((in_y + base_x) * input_ch + kx_start * in_col);
-                    const int8_t *rhs = ker_y + kx_start * ker_col;
+                    const int32_t in_x = ARM_NN_MIN(base_x + kx_start * dil_x, input_x - 1);
+                    const int16_t *ip = in_batch + (in_y + in_x) * input_ch;
+                    const int8_t *rhs = ker_y + ARM_NN_MIN(kx_start, kernel_x - 1) * ker_col;
                     int32x4_t acc = rq.bias;
                     if (mode_1 == DW_S16_IN_VEC)
                     {
@@ -673,7 +675,7 @@ arm_cmsis_nn_status arm_depthwise_conv_s16(const cmsis_nn_context *ctx,
     (void)bias_dims;
     (void)ctx;
 
-#if defined(ARM_MATH_MVEI)
+#if defined(ARM_MATH_MVEI) && !defined(ARM_MATH_AUTOVECTORIZE)
     if (arm_nn_depthwise_conv_s16_mve(
             dw_conv_params, quant_params, input_dims, input, filter_dims, kernel, bias, output_dims, output))
     {

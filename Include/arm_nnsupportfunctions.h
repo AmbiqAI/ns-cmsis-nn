@@ -3251,6 +3251,7 @@ __STATIC_FORCEINLINE int8x16_t arm_narrow_mve_from_int32x4x4_to_int8x16(int32x4_
     return out;
 }
 
+    #if !defined(ARM_MATH_AUTOVECTORIZE)
 /**
  * @brief           MVE s16 depthwise convolution for any channel multiplier, used by
  *                  arm_depthwise_conv_s16() and arm_depthwise_conv_fast_s16().
@@ -3277,6 +3278,7 @@ bool arm_nn_depthwise_conv_s16_mve(const cmsis_nn_dw_conv_params *dw_conv_params
                                    const int64_t *bias,
                                    const cmsis_nn_dims *output_dims,
                                    int16_t *output);
+    #endif
 
 #endif
 

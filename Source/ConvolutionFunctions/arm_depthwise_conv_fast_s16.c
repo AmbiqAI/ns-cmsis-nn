@@ -86,7 +86,7 @@ arm_cmsis_nn_status arm_depthwise_conv_fast_s16(const cmsis_nn_context *ctx,
         return ARM_CMSIS_NN_ARG_ERROR;
     }
 
-#if defined(ARM_MATH_MVEI)
+#if defined(ARM_MATH_MVEI) && !defined(ARM_MATH_AUTOVECTORIZE)
     (void)bias_dims;
     /* Shared MVE kernel needs no im2col */
     if (!arm_nn_depthwise_conv_s16_mve(
