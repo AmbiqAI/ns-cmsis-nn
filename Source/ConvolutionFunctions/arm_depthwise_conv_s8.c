@@ -289,6 +289,14 @@ arm_cmsis_nn_status arm_depthwise_conv_s8(const cmsis_nn_context *ctx,
     (void)bias_dims;
     (void)ctx;
 
+    /* Use the MVE kernel when built */
+    if (arm_nn_depthwise_conv_s8_mve(
+            dw_conv_params, quant_params, input_dims, input, filter_dims, kernel, bias, output_dims, output) ==
+        ARM_CMSIS_NN_SUCCESS)
+    {
+        return ARM_CMSIS_NN_SUCCESS;
+    }
+
     if (dw_conv_params->ch_mult % 4 == 0 && input_dims->n == 1 && dw_conv_params->dilation.w == 1 &&
         dw_conv_params->dilation.h == 1)
     {

@@ -244,6 +244,10 @@ __STATIC_FORCEINLINE _Float16 arm_nn_abs_f16h(_Float16 x)
 // will result in lower scratch buffer usage.
 #define CH_IN_BLOCK_MVE (124)
 
+// Widest s8 DW conv layer that arm_nn_depthwise_conv_s8_direct() takes. Past it the im2col copies are cheap per MAC
+// and the channel path wins.
+#define DW_DIRECT_MAX_CH (16)
+
 // Number of channels processed in a block for DW Conv with Int4 weights(MVE)
 // Requirement: See CH_IN_BLOCK_MVE.
 // An additional requirement for this signed 4 variant is that it must be an even number.
@@ -1751,6 +1755,61 @@ arm_cmsis_nn_status arm_nn_depthwise_conv_s8_planar(const cmsis_nn_context *ctx,
                                                     const int8_t *kernel,
                                                     const cmsis_nn_dims *output_dims,
                                                     int8_t *output);
+
+/**
+ * @brief s8 depthwise convolution with channel multiplier 1 for few channels. It reads the input in place, four
+ *        output pixels at a time, instead of building im2col columns. It serves arm_depthwise_conv_s8_opt().
+ *
+ * @param[in]      dw_conv_params  Depthwise convolution parameters
+ * @param[in]      quant_params    Per-channel quantization parameters
+ * @param[in]      input_dims      Input tensor dimensions. Format: [1, H, W, C_IN]
+ * @param[in]      input           Input data pointer
+ * @param[in]      filter_dims     Filter tensor dimensions. Format: [1, H, W, C_OUT]
+ * @param[in]      kernel          Filter data pointer
+ * @param[in]      weight_sum      Per-channel weight sums from arm_depthwise_convolve_weight_sum(), bias included
+ * @param[in]      output_dims     Output tensor dimensions. Format: [1, H, W, C_OUT]
+ * @param[out]     output          Output data pointer
+ *
+ * @return         <code>ARM_CMSIS_NN_SUCCESS</code> when the layer was computed, or
+ *                 <code>ARM_CMSIS_NN_NO_IMPL_ERROR</code> when it is not one this path takes (then nothing is
+ *                 written), or MVE is not available.
+ */
+arm_cmsis_nn_status arm_nn_depthwise_conv_s8_direct(const cmsis_nn_dw_conv_params *dw_conv_params,
+                                                    const cmsis_nn_per_channel_quant_params *quant_params,
+                                                    const cmsis_nn_dims *input_dims,
+                                                    const int8_t *input,
+                                                    const cmsis_nn_dims *filter_dims,
+                                                    const int8_t *kernel,
+                                                    const int32_t *weight_sum,
+                                                    const cmsis_nn_dims *output_dims,
+                                                    int8_t *output);
+
+/**
+ * @brief s8 depthwise convolution vectorized across output channels with MVE. It takes any channel multiplier,
+ *        batch count, stride, padding and dilation, and gives the same result as arm_depthwise_conv_s8().
+ *
+ * @param[in]      dw_conv_params  Depthwise convolution parameters
+ * @param[in]      quant_params    Per-channel quantization parameters
+ * @param[in]      input_dims      Input tensor dimensions. Format: [N, H, W, C_IN]
+ * @param[in]      input           Input data pointer
+ * @param[in]      filter_dims     Filter tensor dimensions. Format: [1, H, W, C_OUT]
+ * @param[in]      kernel          Filter data pointer
+ * @param[in]      bias            Bias data pointer, or NULL
+ * @param[in]      output_dims     Output tensor dimensions. Format: [N, H, W, C_OUT]
+ * @param[out]     output          Output data pointer
+ *
+ * @return         <code>ARM_CMSIS_NN_SUCCESS</code>, or <code>ARM_CMSIS_NN_NO_IMPL_ERROR</code> without MVE, in
+ *                 which case nothing is written.
+ */
+arm_cmsis_nn_status arm_nn_depthwise_conv_s8_mve(const cmsis_nn_dw_conv_params *dw_conv_params,
+                                                 const cmsis_nn_per_channel_quant_params *quant_params,
+                                                 const cmsis_nn_dims *input_dims,
+                                                 const int8_t *input,
+                                                 const cmsis_nn_dims *filter_dims,
+                                                 const int8_t *kernel,
+                                                 const int32_t *bias,
+                                                 const cmsis_nn_dims *output_dims,
+                                                 int8_t *output);
 
 /**
  * @brief Depthwise convolution of transposed rhs matrix with 4 lhs matrices. To be used in non-padded cases. rhs
