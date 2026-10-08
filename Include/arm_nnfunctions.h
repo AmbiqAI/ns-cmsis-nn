@@ -22,8 +22,8 @@
  * Title:        arm_nnfunctions.h
  * Description:  Public header file for CMSIS NN Library
  *
- * $Date:        27 March 2026
- * $Revision:    V.19.1.0
+ * $Date:        8 October 2026
+ * $Revision:    V.19.2.0
  *
  * Target :  Arm(R) M-Profile Architecture
  * -------------------------------------------------------------------- */
@@ -987,6 +987,94 @@ int32_t arm_transpose_conv_s8_get_buffer_size_mve(const cmsis_nn_transpose_conv_
                                                   const cmsis_nn_dims *input_dims,
                                                   const cmsis_nn_dims *filter_dims,
                                                   const cmsis_nn_dims *out_dims);
+
+/**
+ * @brief Basic s16 transpose convolution function (A16W8)
+ * @param[in, out] ctx                   Function context. This function does not access ctx->buf, and
+ *                                       arm_transpose_conv_s16_get_buffer_size() returns 0 for every valid shape.
+ *                                       Callers should still size ctx from that function, since a later
+ *                                       implementation may need scratch.
+ * @param[in, out] output_ctx            Not accessed by this function and has no size requirement. The parameter
+ *                                       keeps the signature of arm_transpose_conv_s8().
+ * @param[in]      transpose_conv_params Convolution parameters (e.g. strides, pads,...).
+ *                                       transpose_conv_params->input_offset  : Not used (input zero point is 0)
+ *                                       transpose_conv_params->output_offset : Not used (output zero point is 0)
+ *                                       transpose_conv_params->padding_offsets : Not used
+ * @param[in]      quant_params          Per-channel quantization info.
+ *                                       It contains the multiplier and shift values to be applied to each out channel.
+ * @param[in]      input_dims            Input (activation) tensor dimensions. Format: [N, H, W, C_IN]
+ * @param[in]      input_data            Input (activation) data pointer. Data type: int16
+ * @param[in]      filter_dims           Filter tensor dimensions. Format: [C_OUT, HK, WK, C_IN] where HK and WK are the
+ *                                       spatial filter dimensions (TFLite TRANSPOSE_CONV OHWI layout)
+ * @param[in]      filter_data           Filter data pointer. Data type: int8
+ * @param[in]      bias_dims             Bias tensor dimensions. Format: [C_OUT]
+ * @param[in]      bias_data             Optional bias data pointer. Data type: int64. May be NULL.
+ * @param[in]      output_dims           Output tensor dimensions. Format: [N, H, W, C_OUT]
+ * @param[out]     output_data           Output data pointer. Data type: int16
+ *
+ * @return     The function returns either
+ *                  <code>ARM_CMSIS_NN_ARG_ERROR</code> if a stride is not positive or a dilation is not 1, or
+ *                  <code>ARM_CMSIS_NN_SUCCESS</code> on successful completion.
+ *
+ * @details
+ *    1. Supported framework: TensorFlow Lite micro, int16x8 TRANSPOSE_CONV. The result is bit-exact with
+ *       reference_integer_ops::TransposeConv using an int64 bias and an int64 scratch.
+ *    2. Integer widths: input int16, weights int8, bias int64, accumulator int64. Each int16 x int8 product is
+ *       formed in int32 and added to the int64 accumulator; the bias is added once after the last product.
+ *    3. Requantization matches TFLite MultiplyByQuantizedMultiplier(int64_t, int32_t, int): the multiplier is
+ *       reduced to 16 bits, (multiplier + 2^15) >> 16 saturated at 0x7FFF, then
+ *       result = (acc * reduced + 2^(14 - shift)) >> (15 - shift), computed in int64 and clamped to
+ *       [activation.min, activation.max]. Zero points are 0 on input and output.
+ *    4. Scratch: none. ctx and output_ctx are not accessed.
+ *    5. Output position (y, x) of out channel o sums every input (iy, ix) and tap (ky, kx) with
+ *       iy * stride.h - padding.h + ky == y and ix * stride.w - padding.w + kx == x.
+ *    6. Dilation is not supported: transpose_conv_params->dilation must be 1 in both dimensions.
+ *    7. This is a plain C kernel with the same code on every core. It keeps the int64 accumulation of the
+ *       reference; narrowing it to int32 for a given model is left to an optimized implementation.
+ *
+ */
+arm_cmsis_nn_status arm_transpose_conv_s16(const cmsis_nn_context *ctx,
+                                           const cmsis_nn_context *output_ctx,
+                                           const cmsis_nn_transpose_conv_params *transpose_conv_params,
+                                           const cmsis_nn_per_channel_quant_params *quant_params,
+                                           const cmsis_nn_dims *input_dims,
+                                           const int16_t *input_data,
+                                           const cmsis_nn_dims *filter_dims,
+                                           const int8_t *filter_data,
+                                           const cmsis_nn_dims *bias_dims,
+                                           const int64_t *bias_data,
+                                           const cmsis_nn_dims *output_dims,
+                                           int16_t *output_data);
+
+/**
+ * @brief Get the required buffer size for ctx in s16 transpose conv function
+ *
+ * @param[in]       transposed_conv_params  Transposed convolution parameters
+ * @param[in]       input_dims              Input (activation) tensor dimensions. Format: [N, H, W, C_IN]
+ * @param[in]       filter_dims             Filter tensor dimensions. Format: [C_OUT, HK, WK, C_IN] where HK and WK
+ *                                          are the spatial filter dimensions
+ * @param[in]       out_dims                Output tensor dimensions. Format: [N, H, W, C_OUT]
+ * @return          The function returns the required buffer size in bytes, which is 0 for this implementation,
+ *                  or -1 if any dimension is negative or either stride is not positive
+ *
+ */
+int32_t arm_transpose_conv_s16_get_buffer_size(const cmsis_nn_transpose_conv_params *transposed_conv_params,
+                                               const cmsis_nn_dims *input_dims,
+                                               const cmsis_nn_dims *filter_dims,
+                                               const cmsis_nn_dims *out_dims);
+
+/**
+ * @brief Get size of additional buffer required by arm_transpose_conv_s16() for Arm(R) Helium Architecture case.
+ * @copydetails arm_transpose_conv_s16_get_buffer_size
+ *
+ * @note       Intended for compilation on Host. If compiling for an Arm target, use
+ *             arm_transpose_conv_s16_get_buffer_size().
+ *
+ */
+int32_t arm_transpose_conv_s16_get_buffer_size_mve(const cmsis_nn_transpose_conv_params *transposed_conv_params,
+                                                   const cmsis_nn_dims *input_dims,
+                                                   const cmsis_nn_dims *filter_dims,
+                                                   const cmsis_nn_dims *out_dims);
 
 /**
  * @brief Basic s16 convolution function

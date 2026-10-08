@@ -293,7 +293,9 @@
         <file category="source" name="Source/ConvolutionFunctions/arm_nn_mat_mult_s8.c"/>
         <file category="source" name="Source/ConvolutionFunctions/arm_transpose_conv_f16.c"/>
         <file category="source" name="Source/ConvolutionFunctions/arm_transpose_conv_f32.c"/>
+        <file category="source" name="Source/ConvolutionFunctions/arm_transpose_conv_get_buffer_sizes_s16.c"/>
         <file category="source" name="Source/ConvolutionFunctions/arm_transpose_conv_get_buffer_sizes_s8.c"/>
+        <file category="source" name="Source/ConvolutionFunctions/arm_transpose_conv_s16.c"/>
         <file category="source" name="Source/ConvolutionFunctions/arm_transpose_conv_s8.c"/>
         <file category="source" name="Source/ConvolutionFunctions/arm_transpose_conv_wrapper_s8.c"/>
         <file category="source" name="Source/FullyConnectedFunctions/arm_batch_matmul_f16.c"/>
