@@ -142,44 +142,39 @@ void transpose_conv_s16_7_arm_transpose_conv_s16(void)
     run_tconv_s16_case(&c);
 }
 
+/* Run a case expecting an argument error. */
+static void expect_arg_error(const tconv_s16_case *c)
+{
+    cmsis_nn_dims bias_dims = {1, 1, 1, c->output_dims.c};
+    cmsis_nn_context ctx = {NULL, 0};
+    int16_t output[TRANSPOSE_CONV_S16_1_DST_SIZE];
+
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR,
+                      arm_transpose_conv_s16(&ctx,
+                                             &ctx,
+                                             &c->params,
+                                             &c->quant,
+                                             &c->input_dims,
+                                             c->input,
+                                             &c->filter_dims,
+                                             c->weights,
+                                             &bias_dims,
+                                             c->bias,
+                                             &c->output_dims,
+                                             output));
+}
+
 void transpose_conv_s16_invalid_params_arm_transpose_conv_s16(void)
 {
     tconv_s16_case c;
     TCONV_S16_CASE(c, TRANSPOSE_CONV_S16_1, transpose_conv_s16_1);
-    cmsis_nn_dims bias_dims = {1, 1, 1, c.output_dims.c};
-    cmsis_nn_context ctx = {NULL, 0};
-    int16_t output[TRANSPOSE_CONV_S16_1_DST_SIZE];
 
     c.params.dilation.w = 2;
-    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR,
-                      arm_transpose_conv_s16(&ctx,
-                                             &ctx,
-                                             &c.params,
-                                             &c.quant,
-                                             &c.input_dims,
-                                             c.input,
-                                             &c.filter_dims,
-                                             c.weights,
-                                             &bias_dims,
-                                             c.bias,
-                                             &c.output_dims,
-                                             output));
+    expect_arg_error(&c);
 
     c.params.dilation.w = 1;
     c.params.stride.h = 0;
-    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR,
-                      arm_transpose_conv_s16(&ctx,
-                                             &ctx,
-                                             &c.params,
-                                             &c.quant,
-                                             &c.input_dims,
-                                             c.input,
-                                             &c.filter_dims,
-                                             c.weights,
-                                             &bias_dims,
-                                             c.bias,
-                                             &c.output_dims,
-                                             output));
+    expect_arg_error(&c);
     TEST_ASSERT_EQUAL(-1,
                       arm_transpose_conv_s16_get_buffer_size(&c.params, &c.input_dims, &c.filter_dims, &c.output_dims));
     TEST_ASSERT_EQUAL(

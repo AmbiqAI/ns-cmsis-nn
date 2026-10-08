@@ -1018,7 +1018,9 @@ int32_t arm_transpose_conv_s8_get_buffer_size_mve(const cmsis_nn_transpose_conv_
  *
  * @details
  *    1. Supported framework: TensorFlow Lite micro, int16x8 TRANSPOSE_CONV. The result is bit-exact with
- *       reference_integer_ops::TransposeConv using an int64 bias and an int64 scratch.
+ *       reference_integer_ops::TransposeConv using an int64 bias and an int64 scratch, for inputs that meet the
+ *       TFLite preconditions: shift in [-31, 7] and a requantized result that fits int32. Outside them TFLite
+ *       truncates to int32, while this function clamps the int64 result.
  *    2. Integer widths: input int16, weights int8, bias int64, accumulator int64. Each int16 x int8 product is
  *       formed in int32 and added to the int64 accumulator; the bias is added once after the last product.
  *    3. Requantization matches TFLite MultiplyByQuantizedMultiplier(int64_t, int32_t, int): the multiplier is
