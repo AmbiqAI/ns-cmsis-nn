@@ -493,7 +493,8 @@ class TestSettings(ABC):
             # Keras 3 exports a dynamic batch.
             input_details = interpreter.get_input_details()
             if list(input_details[0]['shape']) != list(input_data.shape):
-                interpreter.resize_tensor_input(input_details[0]['index'], list(input_data.shape))
+                # Strict: only dynamic dims may change.
+                interpreter.resize_tensor_input(input_details[0]['index'], list(input_data.shape), strict=True)
         interpreter.allocate_tensors()
 
         output_details = interpreter.get_output_details()
