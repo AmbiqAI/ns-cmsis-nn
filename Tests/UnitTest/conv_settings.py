@@ -229,8 +229,11 @@ class ConvSettings(TestSettings):
         op = next(op for op in subgraph.operators
                   if model.operatorCodes[op.opcodeIndex].builtinCode == schema_fb.BuiltinOperator.TRANSPOSE_CONV)
         buffer = model.buffers[subgraph.tensors[op.inputs[3]].buffer]
-        bias = np.frombuffer(buffer.data.tobytes(), dtype=np.int64) * factor
-        buffer.data = np.frombuffer(bias.astype(np.int64).tobytes(), dtype=np.uint8)
+        # Python ints; reject int64 overflow.
+        bias = [int(b) * factor for b in np.frombuffer(buffer.data.tobytes(), dtype=np.int64)]
+        if any(not -(1 << 63) <= b < (1 << 63) for b in bias):
+            raise RuntimeError("ERROR: bias_shift overflows the int64 bias")
+        buffer.data = np.frombuffer(np.array(bias, dtype=np.int64).tobytes(), dtype=np.uint8)
         output = subgraph.tensors[subgraph.outputs[0]]
         output.quantization.scale = [scale * factor for scale in output.quantization.scale]
         flatbuffer_utils.write_model(model, str(self.model_path_tflite))
