@@ -1,5 +1,77 @@
 # Changelog
 
+## [7.41.0](https://github.com/AmbiqAI/ns-cmsis-nn/compare/v7.40.0...v7.41.0) (2026-10-07)
+
+
+### Features
+
+* add precise packed FP16 matrix multiplication ([bcf000c](https://github.com/AmbiqAI/ns-cmsis-nn/commit/bcf000c0a88ea99697366f151f503a6f80e262d1)), closes [#643](https://github.com/AmbiqAI/ns-cmsis-nn/issues/643)
+* **quant:** add mixed-sign 8-bit requantization ([203e736](https://github.com/AmbiqAI/ns-cmsis-nn/commit/203e736bdd0f64a903e3a192c19ebba9d9a2a0ba)), closes [#729](https://github.com/AmbiqAI/ns-cmsis-nn/issues/729)
+
+
+### Bug Fixes
+
+* **quant:** preserve s16 saturation and bound vector tails ([4fcd2aa](https://github.com/AmbiqAI/ns-cmsis-nn/commit/4fcd2aa954ffe8796397d58deb6822113d0977a3)), closes [#733](https://github.com/AmbiqAI/ns-cmsis-nn/issues/733) [#729](https://github.com/AmbiqAI/ns-cmsis-nn/issues/729)
+
+## [7.40.0](https://github.com/AmbiqAI/ns-cmsis-nn/compare/v7.39.3...v7.40.0) (2026-10-05)
+
+
+### Features
+
+* **float:** direct entries for each route of arm_convolve_f16/f32 and arm_depthwise_conv_f16 ([#698](https://github.com/AmbiqAI/ns-cmsis-nn/issues/698)) ([bef5d95](https://github.com/AmbiqAI/ns-cmsis-nn/commit/bef5d958a78ee0672297416ad477cfb81a8c3403)), closes [#674](https://github.com/AmbiqAI/ns-cmsis-nn/issues/674)
+* **quant:** widen float16 bits to float32 without float16 support ([#719](https://github.com/AmbiqAI/ns-cmsis-nn/issues/719)) ([3ae7f30](https://github.com/AmbiqAI/ns-cmsis-nn/commit/3ae7f309229763bddade5d37529a8d4758bd86dc)), closes [#717](https://github.com/AmbiqAI/ns-cmsis-nn/issues/717)
+* **s8:** row-broadcast direct entries for arm_mul_s8 and arm_add_s8 ([#695](https://github.com/AmbiqAI/ns-cmsis-nn/issues/695)) ([20f5bde](https://github.com/AmbiqAI/ns-cmsis-nn/commit/20f5bde46d5d50a5d540e63b2867e82605d38dd3)), closes [#676](https://github.com/AmbiqAI/ns-cmsis-nn/issues/676)
+
+
+### Bug Fixes
+
+* **conv:** compute weight-sum sizes in int32 and reject sizes that do not fit ([#687](https://github.com/AmbiqAI/ns-cmsis-nn/issues/687)) ([2fde446](https://github.com/AmbiqAI/ns-cmsis-nn/commit/2fde4462c88e246773d738027d5f020888be6e37)), closes [#679](https://github.com/AmbiqAI/ns-cmsis-nn/issues/679)
+* **conv:** keep a NULL bias NULL across the groups of arm_convolve_s8 and arm_convolve_1x1_out_s8 ([#701](https://github.com/AmbiqAI/ns-cmsis-nn/issues/701)) ([a7c7a27](https://github.com/AmbiqAI/ns-cmsis-nn/commit/a7c7a270f5e735d5d3311fe022edb442c482414d)), closes [#697](https://github.com/AmbiqAI/ns-cmsis-nn/issues/697)
+* **conv:** reject s16 convolution depths that do not make whole groups ([#725](https://github.com/AmbiqAI/ns-cmsis-nn/issues/725)) ([7b309f3](https://github.com/AmbiqAI/ns-cmsis-nn/commit/7b309f3ff918846530dff3181979a2ed77ecc926)), closes [#706](https://github.com/AmbiqAI/ns-cmsis-nn/issues/706)
+* **conv:** reject the grouped shapes arm_convolve_s8 and arm_convolve_1x1_out_s8 cannot compute ([#708](https://github.com/AmbiqAI/ns-cmsis-nn/issues/708)) ([3e435e5](https://github.com/AmbiqAI/ns-cmsis-nn/commit/3e435e535f62602844d70c5050017f03cde8c3e4)), closes [#699](https://github.com/AmbiqAI/ns-cmsis-nn/issues/699) [#700](https://github.com/AmbiqAI/ns-cmsis-nn/issues/700) [#702](https://github.com/AmbiqAI/ns-cmsis-nn/issues/702)
+* **softmax:** correctly round long rows of near-equal values in s8, s8_s16 and u8 ([#715](https://github.com/AmbiqAI/ns-cmsis-nn/issues/715)) ([abd765d](https://github.com/AmbiqAI/ns-cmsis-nn/commit/abd765ddba66a4405be249f33b786c2d5011d4dc))
+* **softmax:** left-shift unsigned values in the s8 and u8 softmax requantization ([#712](https://github.com/AmbiqAI/ns-cmsis-nn/issues/712)) ([42148d0](https://github.com/AmbiqAI/ns-cmsis-nn/commit/42148d07ea80f2661f37f2473b03b2c46529c755)), closes [#704](https://github.com/AmbiqAI/ns-cmsis-nn/issues/704)
+
+
+### Performance
+
+* **conv:** fill depth-1 im2col taps in one call per pixel in arm_convolve_s8 ([#724](https://github.com/AmbiqAI/ns-cmsis-nn/issues/724)) ([07fb2ee](https://github.com/AmbiqAI/ns-cmsis-nn/commit/07fb2eeee1d74f9d257cc6ab5f643431a3bfb6ba)), closes [#718](https://github.com/AmbiqAI/ns-cmsis-nn/issues/718)
+* **mean:** reduce H and W in arm_mean_s8 without MVE in four-channel passes ([#689](https://github.com/AmbiqAI/ns-cmsis-nn/issues/689)) ([ecc4289](https://github.com/AmbiqAI/ns-cmsis-nn/commit/ecc42893fd32d2b80c8524492d459583e9fef8c5)), closes [#678](https://github.com/AmbiqAI/ns-cmsis-nn/issues/678)
+* **support:** copy and fill a word at a time on ATfE's byte-loop C library targets ([#716](https://github.com/AmbiqAI/ns-cmsis-nn/issues/716)) ([bad50f9](https://github.com/AmbiqAI/ns-cmsis-nn/commit/bad50f9d9bc1423aa8df18187c2f57b9b16f7d97)), closes [#714](https://github.com/AmbiqAI/ns-cmsis-nn/issues/714)
+
+## [7.39.3](https://github.com/AmbiqAI/ns-cmsis-nn/compare/v7.39.2...v7.39.3) (2026-10-04)
+
+
+### Bug Fixes
+
+* **concat:** accept any input count in arm_concatenation_s32 ([#668](https://github.com/AmbiqAI/ns-cmsis-nn/issues/668)) ([4d7d48e](https://github.com/AmbiqAI/ns-cmsis-nn/commit/4d7d48e35b515d65abefdfadb9a685adc3e3eba3)), closes [#667](https://github.com/AmbiqAI/ns-cmsis-nn/issues/667)
+
+
+### Performance
+
+* **conv:** add a short-K direct entry for pointwise layers with up to 16 input channels ([#677](https://github.com/AmbiqAI/ns-cmsis-nn/issues/677)) ([f3261a3](https://github.com/AmbiqAI/ns-cmsis-nn/commit/f3261a34b73cc70f92e1cdfd343091afb5b52056)), closes [#672](https://github.com/AmbiqAI/ns-cmsis-nn/issues/672)
+* **conv:** run long-K 1xN no-padding rows through the contiguous-K matmul ([#663](https://github.com/AmbiqAI/ns-cmsis-nn/issues/663)) ([ce01c57](https://github.com/AmbiqAI/ns-cmsis-nn/commit/ce01c57ce2549f86e07dd55c8dc32ef4c046a5d1)), closes [#659](https://github.com/AmbiqAI/ns-cmsis-nn/issues/659)
+* **fc:** add a per-channel s8 fully connected entry on a weight stream packed ahead of time ([#686](https://github.com/AmbiqAI/ns-cmsis-nn/issues/686)) ([a08d4f6](https://github.com/AmbiqAI/ns-cmsis-nn/commit/a08d4f6beee230c9932bdec7d2d2f8930ada6f33)), closes [#675](https://github.com/AmbiqAI/ns-cmsis-nn/issues/675)
+* **s8:** requantize right-shift-only layers without the left-shift step ([#664](https://github.com/AmbiqAI/ns-cmsis-nn/issues/664)) ([16af1d0](https://github.com/AmbiqAI/ns-cmsis-nn/commit/16af1d0ad7d2370f74262085ab2d6dbffcc599be)), closes [#660](https://github.com/AmbiqAI/ns-cmsis-nn/issues/660)
+
+## [7.39.2](https://github.com/AmbiqAI/ns-cmsis-nn/compare/v7.39.1...v7.39.2) (2026-10-02)
+
+
+### Bug Fixes
+
+* **pack:** export the pack root as an include path ([#658](https://github.com/AmbiqAI/ns-cmsis-nn/issues/658)) ([b07f524](https://github.com/AmbiqAI/ns-cmsis-nn/commit/b07f52405542a6d5de9308d81018284aff46299d)), closes [#657](https://github.com/AmbiqAI/ns-cmsis-nn/issues/657) [#512](https://github.com/AmbiqAI/ns-cmsis-nn/issues/512)
+* **pool:** share one window check across the pooling kernels and admit an INT32_MIN final step ([#655](https://github.com/AmbiqAI/ns-cmsis-nn/issues/655)) ([e9b868b](https://github.com/AmbiqAI/ns-cmsis-nn/commit/e9b868b142fd5e85c0f3b106b7ed32cb1fe75994)), closes [#652](https://github.com/AmbiqAI/ns-cmsis-nn/issues/652) [#555](https://github.com/AmbiqAI/ns-cmsis-nn/issues/555)
+
+## [7.39.1](https://github.com/AmbiqAI/ns-cmsis-nn/compare/v7.39.0...v7.39.1) (2026-10-01)
+
+
+### Bug Fixes
+
+* **arg:** float ARG_MAX/ARG_MIN skip NaN as LiteRT does ([#650](https://github.com/AmbiqAI/ns-cmsis-nn/issues/650)) ([1be3538](https://github.com/AmbiqAI/ns-cmsis-nn/commit/1be35389f8a61fb885998ef3cec13d7158e0a8a6))
+* **dw:** stop the float depthwise sizers reserving to-conv scratch for ch_mult 1 ([#646](https://github.com/AmbiqAI/ns-cmsis-nn/issues/646)) ([b0be438](https://github.com/AmbiqAI/ns-cmsis-nn/commit/b0be43888e8a1be260e336b2db7b14b3cb507166)), closes [#625](https://github.com/AmbiqAI/ns-cmsis-nn/issues/625)
+* **f16:** accumulate the generic depthwise scalar leg in float32 ([#647](https://github.com/AmbiqAI/ns-cmsis-nn/issues/647)) ([03fba7a](https://github.com/AmbiqAI/ns-cmsis-nn/commit/03fba7abc95f634b348dfe6b4d3a6326778e7325)), closes [#645](https://github.com/AmbiqAI/ns-cmsis-nn/issues/645) [#386](https://github.com/AmbiqAI/ns-cmsis-nn/issues/386)
+* **pool:** reject empty and out-of-range pooling windows before any write ([#651](https://github.com/AmbiqAI/ns-cmsis-nn/issues/651)) ([5576282](https://github.com/AmbiqAI/ns-cmsis-nn/commit/55762829be17b728759f8a48cf7980427366284c)), closes [#630](https://github.com/AmbiqAI/ns-cmsis-nn/issues/630)
+
 ## [7.39.0](https://github.com/AmbiqAI/ns-cmsis-nn/compare/v7.38.1...v7.39.0) (2026-10-01)
 
 

@@ -7,7 +7,7 @@ linking the prebuilt `.a` we already validated in CI.
 ## Install
 
 ```bash
-VERSION=7.39.0 # x-release-please-version
+VERSION=7.41.0 # x-release-please-version
 curl -LO https://github.com/AmbiqAI/ns-cmsis-nn/releases/download/v${VERSION}/Ambiq.NS-CMSIS-NN.${VERSION}.pack
 
 # CMSIS-Toolbox
@@ -29,8 +29,8 @@ The pack defines the component **heliaCORE NN Lib from Ambiq** with two variants
 In your `.cproject` or IDE, select **one** of:
 
 ```xml
-<component Cclass="Machine Learning" Cgroup="NN Lib" Csub="heliaCORE" Cvendor="Ambiq" Cvariant="Source"   Cversion="7.39.0"/> <!-- x-release-please-version -->
-<component Cclass="Machine Learning" Cgroup="NN Lib" Csub="heliaCORE" Cvendor="Ambiq" Cvariant="Prebuilt" Cversion="7.39.0"/> <!-- x-release-please-version -->
+<component Cclass="Machine Learning" Cgroup="NN Lib" Csub="heliaCORE" Cvendor="Ambiq" Cvariant="Source"   Cversion="7.41.0"/> <!-- x-release-please-version -->
+<component Cclass="Machine Learning" Cgroup="NN Lib" Csub="heliaCORE" Cvendor="Ambiq" Cvariant="Prebuilt" Cversion="7.41.0"/> <!-- x-release-please-version -->
 ```
 
 ## Prebuilt — supported architectures
@@ -51,6 +51,13 @@ link a GCC-built C archive when the CPU/FPU flags, float ABI, and calling
 convention match, but the `Source` Cvariant is recommended when you want your
 project toolchain to optimize and qualify the kernels directly.
 :::
+
+## Headers
+
+Include the headers as `#include "arm_nnfunctions.h"`. Both components also put
+the pack root on the include path, so the source-tree spelling
+`#include "Include/arm_nnfunctions.h"`, which TFLM-based runtimes such as heliaRT
+use, resolves without an extra `add-path`. Both spellings reach the same file.
 
 ## Verify the selection
 

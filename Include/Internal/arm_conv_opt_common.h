@@ -35,17 +35,24 @@
 
 #define ARM_CONV_ARRAY_SIZE(arr) (sizeof(arr) / sizeof((arr)[0]))
 
+/* Filter-format argument of the shared float route bodies: 0 standard, 1 NT_N_PACKED (the per-format direct entries),
+ * or read from conv_params at each use (the format-agnostic entries and the routers, so that they keep one copy of
+ * each loop) */
+#define ARM_CONV_FORMAT_FROM_PARAMS (-1)
+#define ARM_CONV_FORMAT_PACKED(packed, conv_params)                                                                    \
+    ((packed) == ARM_CONV_FORMAT_FROM_PARAMS ? (conv_params)->weight_format == ARM_NN_WEIGHT_FORMAT_NT_N_PACKED        \
+                                             : (packed) != 0)
+
 /*
  * Heuristics for selecting the NHWC packed-patch-matrix + GEMM float32 path.
- * Below MIN_OC / MIN_POS the packing/setup overhead tends to outweigh the GEMM win.
+ * MIN_OC / MIN_POS (Include/arm_nnsupportfunctions_flt.h, with the route predicates): below them the packing/setup
+ * overhead tends to outweigh the GEMM win.
  * MAX_TILE_ROWS bounds scratch usage and keeps the packed panel cache-friendly.
  * MIN_K gates only the 1x1 route (arm_convolve_1x1_f32.c); the generic conv
  * takes patch-GEMM at any patch length (#417).
  */
 #define ARM_NN_CONV_NHWC_PATCH_GEMM_F32_MAX_TILE_ROWS (8)
 #define ARM_NN_CONV_NHWC_PATCH_GEMM_F32_MIN_K (16)
-#define ARM_NN_CONV_NHWC_PATCH_GEMM_F32_MIN_OC (8)
-#define ARM_NN_CONV_NHWC_PATCH_GEMM_F32_MIN_POS (8)
 
 /*
  * Heuristics for selecting the NHWC packed-patch-matrix + GEMM float16 path.
@@ -53,8 +60,6 @@
  */
 #define ARM_NN_CONV_NHWC_PATCH_GEMM_F16_MAX_TILE_ROWS (8)
 #define ARM_NN_CONV_NHWC_PATCH_GEMM_F16_MIN_K (16)
-#define ARM_NN_CONV_NHWC_PATCH_GEMM_F16_MIN_OC (8)
-#define ARM_NN_CONV_NHWC_PATCH_GEMM_F16_MIN_POS (8)
 
 #define ARM_CONV_DISPATCH(TABLE, COUNT, ...)                                                                           \
     do                                                                                                                 \

@@ -21,7 +21,7 @@ See [Requirements](../requirements/) before choosing source or prebuilt kernels.
 ## 1. Install the pack
 
 ```bash
-VERSION=7.39.0 # x-release-please-version
+VERSION=7.41.0 # x-release-please-version
 curl -LO https://github.com/AmbiqAI/ns-cmsis-nn/releases/download/v${VERSION}/Ambiq.NS-CMSIS-NN.${VERSION}.pack
 
 # CMSIS-Toolbox
@@ -61,6 +61,13 @@ Install the downloaded pack with your IDE's pack manager. In its component
 selection view, choose **Ambiq → Machine Learning → NN Lib → heliaCORE** and
 select exactly one variant, **Source** or **Prebuilt**. Rebuild the board project
 so the generated include paths and selected sources or library are applied.
+
+## Headers
+
+Include the headers as `#include "arm_nnfunctions.h"`. Both components also put
+the pack root on the include path, so the source-tree spelling
+`#include "Include/arm_nnfunctions.h"`, which TFLM-based runtimes such as heliaRT
+use, resolves without an extra `add-path`. Both spellings reach the same file.
 
 ## Prebuilt — supported architectures
 

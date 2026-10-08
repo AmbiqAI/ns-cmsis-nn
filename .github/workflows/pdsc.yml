@@ -24,6 +24,9 @@ on:
   workflow_call:
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   check_pdsc:
     name: Check PDSC file

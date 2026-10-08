@@ -61,6 +61,12 @@ arm_cmsis_nn_status arm_convolve_wrapper_s16(const cmsis_nn_context *ctx,
                                              const cmsis_nn_dims *output_dims,
                                              int16_t *output_data)
 {
+    /* Every route below assumes whole groups; the 1x1 and channel-multiplier-1 kernels do not check them */
+    if (arm_nn_convolve_groups_invalid(input_dims, filter_dims, output_dims))
+    {
+        return ARM_CMSIS_NN_ARG_ERROR;
+    }
+
 #if defined(ARM_MATH_MVEI)
 
     if ( // CASE_CONV_1X1

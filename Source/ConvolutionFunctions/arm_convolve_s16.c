@@ -89,7 +89,7 @@ arm_cmsis_nn_status arm_convolve_s16(const cmsis_nn_context *ctx,
 {
     (void)bias_dims;
 
-    if (ctx->buf == NULL)
+    if (ctx->buf == NULL || arm_nn_convolve_groups_invalid(input_dims, filter_dims, output_dims))
     {
         return ARM_CMSIS_NN_ARG_ERROR;
     }
@@ -159,11 +159,6 @@ static arm_cmsis_nn_status arm_convolve_s16_mve(const cmsis_nn_context *ctx,
     const int32_t rhs_cols = kernel_ch * kernel_y * kernel_x;
     const int32_t groups = input_ch / kernel_ch;
     const int32_t output_ch_per_group = output_ch / groups;
-
-    if (input_ch % groups != 0 || output_ch % groups != 0)
-    {
-        return ARM_CMSIS_NN_ARG_ERROR;
-    }
 
     for (int i_batch = 0; i_batch < input_batches; i_batch++)
     {
@@ -358,11 +353,6 @@ static arm_cmsis_nn_status arm_convolve_s16_dsp(const cmsis_nn_context *ctx,
     const int32_t rhs_cols = kernel_ch * kernel_y * kernel_x;
     const int32_t groups = input_ch / kernel_ch;
     const int32_t output_ch_per_group = output_ch / groups;
-
-    if (input_ch % groups != 0 || output_ch % groups != 0)
-    {
-        return ARM_CMSIS_NN_ARG_ERROR;
-    }
 
     for (int i_batch = 0; i_batch < input_batches; i_batch++)
     {

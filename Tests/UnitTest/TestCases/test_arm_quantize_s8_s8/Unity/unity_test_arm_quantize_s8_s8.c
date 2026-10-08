@@ -36,3 +36,11 @@
  void tearDown(void) {}
 
  void test_quantize_arm_quantize_s8_s8(void) { test_arm_quantize_s8_s8(); }
+
+void test_quantize_arm_requantize_s8_s8_all_inputs(void) { test_arm_requantize_s8_s8_all_inputs(); }
+
+void test_quantize_arm_requantize_s8_u8_all_inputs(void) { test_arm_requantize_s8_u8_all_inputs(); }
+
+void test_quantize_arm_requantize_u8_s8_all_inputs(void) { test_arm_requantize_u8_s8_all_inputs(); }
+
+void test_quantize_arm_requantize_s8_u8_microwakeword(void) { test_arm_requantize_s8_u8_microwakeword(); }

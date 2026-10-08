@@ -22,6 +22,7 @@ set(SRC_FLT "")
 if (ARM_NN_ENABLE_F32)
   list(APPEND SRC_FLT arm_hard_swish_f32.c
                       arm_nn_activation_f32.c
+                      arm_nn_gelu_f32.c
                       arm_prelu_f32.c)
 endif()
 if (ARM_NN_ENABLE_F16)

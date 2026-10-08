@@ -49,10 +49,20 @@
  * @{
  */
 
-__STATIC_INLINE bool arm_conv_nhwc_use_patch_gemm_f32(const cmsis_nn_context *ctx,
-                                                      int32_t patch_len,
-                                                      int32_t output_c,
-                                                      int32_t output_positions)
+/* The argument check of the router and of every direct entry */
+__STATIC_INLINE bool arm_convolve_nhwc_f32_args_ok(const cmsis_nn_conv_params_f32 *conv_params,
+                                                   const cmsis_nn_dims *input_dims,
+                                                   const float32_t *input_data,
+                                                   const cmsis_nn_dims *filter_dims,
+                                                   const float32_t *filter_data,
+                                                   const cmsis_nn_dims *output_dims,
+                                                   const float32_t *output_data)
+{
+    return conv_params && input_dims && filter_dims && output_dims && input_data && filter_data && output_data;
+}
+
+__STATIC_INLINE bool
+arm_conv_nhwc_use_patch_gemm_f32(const cmsis_nn_context *ctx, int32_t patch_len, const cmsis_nn_dims *output_dims)
 {
     if (!ctx || !ctx->buf || ctx->size <= 0 || patch_len <= 0)
     {
@@ -60,7 +70,7 @@ __STATIC_INLINE bool arm_conv_nhwc_use_patch_gemm_f32(const cmsis_nn_context *ct
     }
 
     /* No patch-length floor: the sizer already covers every patch length (#417). */
-    if (output_c < ARM_NN_CONV_NHWC_PATCH_GEMM_F32_MIN_OC || output_positions < ARM_NN_CONV_NHWC_PATCH_GEMM_F32_MIN_POS)
+    if (!arm_nn_conv_flt_is_patch_gemm(output_dims))
     {
         return false;
     }
@@ -72,21 +82,21 @@ __STATIC_INLINE bool arm_conv_nhwc_use_patch_gemm_f32(const cmsis_nn_context *ct
 __STATIC_INLINE bool arm_conv_nhwc_use_1x1_f32(const cmsis_nn_conv_params_f32 *conv_params,
                                                const cmsis_nn_dims *filter_dims)
 {
-    return conv_params && filter_dims && filter_dims->h == 1 && filter_dims->w == 1 && conv_params->padding.h == 0 &&
-        conv_params->padding.w == 0;
+    return conv_params && filter_dims && arm_nn_conv_flt_is_1x1(&conv_params->padding, filter_dims);
 }
 
-__STATIC_INLINE arm_cmsis_nn_status arm_convolve_patch_mat_mul_f32(const float32_t *lhs,
-                                                                   const float32_t *rhs,
-                                                                   const float32_t *bias,
-                                                                   float32_t *dst,
-                                                                   int32_t lhs_rows,
-                                                                   int32_t rhs_rows,
-                                                                   int32_t rhs_cols,
-                                                                   int32_t row_address_offset,
-                                                                   const cmsis_nn_conv_params_f32 *conv_params)
+__STATIC_FORCEINLINE arm_cmsis_nn_status arm_convolve_patch_mat_mul_f32(const float32_t *lhs,
+                                                                        const float32_t *rhs,
+                                                                        const float32_t *bias,
+                                                                        float32_t *dst,
+                                                                        int32_t lhs_rows,
+                                                                        int32_t rhs_rows,
+                                                                        int32_t rhs_cols,
+                                                                        int32_t row_address_offset,
+                                                                        const cmsis_nn_conv_params_f32 *conv_params,
+                                                                        const int32_t packed)
 {
-    if (conv_params->weight_format == ARM_NN_WEIGHT_FORMAT_NT_N_PACKED)
+    if (ARM_CONV_FORMAT_PACKED(packed, conv_params))
     {
         return arm_nn_mat_mult_nt_n_packed_f32(lhs,
                                                rhs,
@@ -124,9 +134,8 @@ __STATIC_INLINE bool arm_conv_nhwc_use_1xn_f32(const cmsis_nn_context *ctx,
     }
 
     /* This helper only selects the generic 1xN NHWC kernel family. */
-    if (input_dims->h != 1 || output_dims->h != 1 || filter_dims->h != 1 || filter_dims->w <= 1 ||
-        conv_params->stride.h != 1 || conv_params->stride.w <= 0 || conv_params->padding.h != 0 ||
-        conv_params->dilation.h != 1 || conv_params->dilation.w != 1)
+    if (!arm_nn_conv_flt_is_1xn(
+            &conv_params->stride, &conv_params->padding, &conv_params->dilation, input_dims, filter_dims, output_dims))
     {
         return false;
     }
@@ -150,7 +159,6 @@ __STATIC_INLINE bool arm_conv_nhwc_use_1xn_f32(const cmsis_nn_context *ctx,
 }
 
     #if defined(ARM_MATH_MVEF) && !defined(ARM_MATH_AUTOVECTORIZE)
-        #define ARM_NN_CONV_SMALL_C_F32_LANES (4)
         #define ARM_NN_CONV_SMALL_C_F32_OC_GROUP (4)
         #define ARM_NN_CONV_SMALL_C_MODE_EDGE (0)
         #define ARM_NN_CONV_SMALL_C_MODE_GATHER (1)
@@ -193,12 +201,7 @@ typedef struct
  * and store unpredicated; edge and tail groups compare in_x against input_w once per tap column. */
 __STATIC_INLINE bool arm_conv_nhwc_use_small_c_f32(const cmsis_nn_dims *input_dims, const cmsis_nn_dims *output_dims)
 {
-    if (input_dims->c <= 0 || input_dims->c >= ARM_NN_CONV_SMALL_C_F32_LANES || output_dims->c <= 0 ||
-        output_dims->w <= 0)
-    {
-        return false;
-    }
-    return true;
+    return arm_nn_conv_f32_is_small_c(input_dims, output_dims);
 }
 
 /* n_oc (1..OC_GROUP) output channels from oc0 for one group of LANES output x positions whose first tap
@@ -530,15 +533,16 @@ static arm_cmsis_nn_status arm_conv_small_c_dispatch_f32(const cmsis_nn_conv_par
 }
     #endif /* defined(ARM_MATH_MVEF) && !defined(ARM_MATH_AUTOVECTORIZE) */
 
-static arm_cmsis_nn_status arm_convolve_nhwc_patch_gemm_f32(const cmsis_nn_context *ctx,
-                                                            const cmsis_nn_conv_params_f32 *conv_params,
-                                                            const cmsis_nn_dims *input_dims,
-                                                            const float32_t *input_data,
-                                                            const cmsis_nn_dims *filter_dims,
-                                                            const float32_t *filter_data,
-                                                            const float32_t *bias_data,
-                                                            const cmsis_nn_dims *output_dims,
-                                                            float32_t *output_data)
+__STATIC_FORCEINLINE arm_cmsis_nn_status arm_convolve_nhwc_patch_gemm_f32(const cmsis_nn_context *ctx,
+                                                                          const cmsis_nn_conv_params_f32 *conv_params,
+                                                                          const cmsis_nn_dims *input_dims,
+                                                                          const float32_t *input_data,
+                                                                          const cmsis_nn_dims *filter_dims,
+                                                                          const float32_t *filter_data,
+                                                                          const float32_t *bias_data,
+                                                                          const cmsis_nn_dims *output_dims,
+                                                                          float32_t *output_data,
+                                                                          const int32_t packed)
 {
     const int32_t batch = input_dims->n;
     const int32_t input_h = input_dims->h;
@@ -617,7 +621,8 @@ static arm_cmsis_nn_status arm_convolve_nhwc_patch_gemm_f32(const cmsis_nn_conte
                                                                     output_c,
                                                                     patch_len,
                                                                     output_c,
-                                                                    conv_params);
+                                                                    conv_params,
+                                                                    packed);
             if (st != ARM_CMSIS_NN_SUCCESS)
             {
                 return st;
@@ -628,24 +633,43 @@ static arm_cmsis_nn_status arm_convolve_nhwc_patch_gemm_f32(const cmsis_nn_conte
     return ARM_CMSIS_NN_SUCCESS;
 }
 
-arm_cmsis_nn_status arm_convolve_nhwc_f32(const cmsis_nn_context *ctx,
-                                          const cmsis_nn_conv_params_f32 *conv_params,
-                                          const cmsis_nn_dims *input_dims,
-                                          const float32_t *input_data,
-                                          const cmsis_nn_dims *filter_dims,
-                                          const float32_t *filter_data,
-                                          const cmsis_nn_dims *bias_dims,
-                                          const float32_t *bias_data,
-                                          const cmsis_nn_dims *output_dims,
-                                          float32_t *output_data)
+/* The router's patch-GEMM call: out of line, the filter format read per tile */
+static arm_cmsis_nn_status arm_convolve_nhwc_patch_gemm_any_f32(const cmsis_nn_context *ctx,
+                                                                const cmsis_nn_conv_params_f32 *conv_params,
+                                                                const cmsis_nn_dims *input_dims,
+                                                                const float32_t *input_data,
+                                                                const cmsis_nn_dims *filter_dims,
+                                                                const float32_t *filter_data,
+                                                                const float32_t *bias_data,
+                                                                const cmsis_nn_dims *output_dims,
+                                                                float32_t *output_data)
 {
-    (void)bias_dims;
+    return arm_convolve_nhwc_patch_gemm_f32(ctx,
+                                            conv_params,
+                                            input_dims,
+                                            input_data,
+                                            filter_dims,
+                                            filter_data,
+                                            bias_data,
+                                            output_dims,
+                                            output_data,
+                                            ARM_CONV_FORMAT_FROM_PARAMS);
+}
 
-    if (!conv_params || !input_dims || !filter_dims || !output_dims || !input_data || !filter_data || !output_data)
-    {
-        return ARM_CMSIS_NN_ARG_ERROR;
-    }
-
+/*
+ * Direct route: any NHWC layer, no scratch. NT_N_PACKED filters (packed set) are stored as
+ * [out_c / 4][patch][4 lanes] and indexed lane-wise; standard filters as OHWI rows.
+ */
+__STATIC_FORCEINLINE arm_cmsis_nn_status arm_convolve_nhwc_direct_f32_body(const cmsis_nn_conv_params_f32 *conv_params,
+                                                                           const cmsis_nn_dims *input_dims,
+                                                                           const float32_t *input_data,
+                                                                           const cmsis_nn_dims *filter_dims,
+                                                                           const float32_t *filter_data,
+                                                                           const float32_t *bias_data,
+                                                                           const cmsis_nn_dims *output_dims,
+                                                                           float32_t *output_data,
+                                                                           const bool weights_packed)
+{
     const int32_t batch = input_dims->n;
     const int32_t input_h = input_dims->h;
     const int32_t input_w = input_dims->w;
@@ -662,79 +686,6 @@ arm_cmsis_nn_status arm_convolve_nhwc_f32(const cmsis_nn_context *ctx,
     const int32_t dil_h = conv_params->dilation.h;
     const int32_t dil_w = conv_params->dilation.w;
     const int32_t patch_len = kernel_h * kernel_w * input_c;
-    const int32_t output_positions = output_h * output_w;
-
-    if (arm_conv_nhwc_use_1x1_f32(conv_params, filter_dims))
-    {
-        return arm_convolve_1x1_nhwc_f32(ctx,
-                                         conv_params,
-                                         input_dims,
-                                         input_data,
-                                         filter_dims,
-                                         filter_data,
-                                         bias_dims,
-                                         bias_data,
-                                         output_dims,
-                                         output_data);
-    }
-
-    if (arm_conv_nhwc_use_1xn_f32(ctx, conv_params, input_dims, filter_dims, output_dims))
-    {
-        return arm_convolve_1_x_n_nhwc_f32(ctx,
-                                           conv_params,
-                                           input_dims,
-                                           input_data,
-                                           filter_dims,
-                                           filter_data,
-                                           bias_dims,
-                                           bias_data,
-                                           output_dims,
-                                           output_data);
-    }
-
-    #ifndef NN_DISABLE_SPECIALIZATION
-    /*
-     * Let direct specializations claim their shapes first. Packed-patch GEMM
-     * remains the generic fallback for shapes that are not handled by a tuned
-     * direct kernel.
-     */
-    ARM_CONV_DISPATCH(arm_conv_spec_nhwc_f32,
-                      ARM_CONV_ARRAY_SIZE(arm_conv_spec_nhwc_f32),
-                      ctx,
-                      conv_params,
-                      input_dims,
-                      input_data,
-                      filter_dims,
-                      filter_data,
-                      bias_dims,
-                      bias_data,
-                      output_dims,
-                      output_data);
-    #endif
-
-    #if defined(ARM_MATH_MVEF) && !defined(ARM_MATH_AUTOVECTORIZE)
-    if (arm_conv_nhwc_use_small_c_f32(input_dims, output_dims))
-    {
-        return arm_conv_small_c_dispatch_f32(
-            conv_params, input_dims, input_data, filter_dims, filter_data, bias_data, output_dims, output_data);
-    }
-    #endif
-
-    const bool use_patch_gemm = arm_conv_nhwc_use_patch_gemm_f32(ctx, patch_len, output_c, output_positions);
-
-    if (use_patch_gemm)
-    {
-        arm_cmsis_nn_status st = arm_convolve_nhwc_patch_gemm_f32(
-            ctx, conv_params, input_dims, input_data, filter_dims, filter_data, bias_data, output_dims, output_data);
-        if (st == ARM_CMSIS_NN_SUCCESS)
-        {
-            return st;
-        }
-    }
-
-    /* NT_N_PACKED filters are stored as [out_c / 4][patch][4 lanes]; index them lane-wise below rather than
-     * as OHWI rows. */
-    const bool weights_packed = conv_params->weight_format == ARM_NN_WEIGHT_FORMAT_NT_N_PACKED;
     #if defined(ARM_MATH_MVEF) && !defined(ARM_MATH_AUTOVECTORIZE)
     const float32x4_t vmin = vdupq_n_f32(conv_params->activation.min);
     const float32x4_t vmax = vdupq_n_f32(conv_params->activation.max);
@@ -870,6 +821,108 @@ arm_cmsis_nn_status arm_convolve_nhwc_f32(const cmsis_nn_context *ctx,
     return ARM_CMSIS_NN_SUCCESS;
 }
 
+arm_cmsis_nn_status arm_convolve_nhwc_f32(const cmsis_nn_context *ctx,
+                                          const cmsis_nn_conv_params_f32 *conv_params,
+                                          const cmsis_nn_dims *input_dims,
+                                          const float32_t *input_data,
+                                          const cmsis_nn_dims *filter_dims,
+                                          const float32_t *filter_data,
+                                          const cmsis_nn_dims *bias_dims,
+                                          const float32_t *bias_data,
+                                          const cmsis_nn_dims *output_dims,
+                                          float32_t *output_data)
+{
+    (void)bias_dims;
+
+    if (!arm_convolve_nhwc_f32_args_ok(
+            conv_params, input_dims, input_data, filter_dims, filter_data, output_dims, output_data))
+    {
+        return ARM_CMSIS_NN_ARG_ERROR;
+    }
+
+    const int32_t patch_len = filter_dims->h * filter_dims->w * input_dims->c;
+
+    if (arm_conv_nhwc_use_1x1_f32(conv_params, filter_dims))
+    {
+        return arm_convolve_1x1_nhwc_f32(ctx,
+                                         conv_params,
+                                         input_dims,
+                                         input_data,
+                                         filter_dims,
+                                         filter_data,
+                                         bias_dims,
+                                         bias_data,
+                                         output_dims,
+                                         output_data);
+    }
+
+    if (arm_conv_nhwc_use_1xn_f32(ctx, conv_params, input_dims, filter_dims, output_dims))
+    {
+        return arm_convolve_1_x_n_nhwc_f32(ctx,
+                                           conv_params,
+                                           input_dims,
+                                           input_data,
+                                           filter_dims,
+                                           filter_data,
+                                           bias_dims,
+                                           bias_data,
+                                           output_dims,
+                                           output_data);
+    }
+
+    #ifndef NN_DISABLE_SPECIALIZATION
+    /*
+     * Let direct specializations claim their shapes first. Packed-patch GEMM
+     * remains the generic fallback for shapes that are not handled by a tuned
+     * direct kernel.
+     */
+    ARM_CONV_DISPATCH(arm_conv_spec_nhwc_f32,
+                      ARM_CONV_ARRAY_SIZE(arm_conv_spec_nhwc_f32),
+                      ctx,
+                      conv_params,
+                      input_dims,
+                      input_data,
+                      filter_dims,
+                      filter_data,
+                      bias_dims,
+                      bias_data,
+                      output_dims,
+                      output_data);
+    #endif
+
+    #if defined(ARM_MATH_MVEF) && !defined(ARM_MATH_AUTOVECTORIZE)
+    if (arm_conv_nhwc_use_small_c_f32(input_dims, output_dims))
+    {
+        return arm_conv_small_c_dispatch_f32(
+            conv_params, input_dims, input_data, filter_dims, filter_data, bias_data, output_dims, output_data);
+    }
+    #endif
+
+    /* NT_N_PACKED filters are stored as [out_c / 4][patch][4 lanes] */
+    const bool weights_packed = conv_params->weight_format == ARM_NN_WEIGHT_FORMAT_NT_N_PACKED;
+    const bool use_patch_gemm = arm_conv_nhwc_use_patch_gemm_f32(ctx, patch_len, output_dims);
+
+    if (use_patch_gemm)
+    {
+        arm_cmsis_nn_status st = arm_convolve_nhwc_patch_gemm_any_f32(
+            ctx, conv_params, input_dims, input_data, filter_dims, filter_data, bias_data, output_dims, output_data);
+        if (st == ARM_CMSIS_NN_SUCCESS)
+        {
+            return st;
+        }
+    }
+
+    return arm_convolve_nhwc_direct_f32_body(conv_params,
+                                             input_dims,
+                                             input_data,
+                                             filter_dims,
+                                             filter_data,
+                                             bias_data,
+                                             output_dims,
+                                             output_data,
+                                             weights_packed);
+}
+
 arm_cmsis_nn_status arm_convolve_f32(const cmsis_nn_context *ctx,
                                      const cmsis_nn_conv_params_f32 *conv_params,
                                      const cmsis_nn_dims *input_dims,
@@ -922,6 +975,284 @@ arm_cmsis_nn_status arm_convolve_wrapper_f32(const cmsis_nn_context *ctx,
                             output_data,
                             ARM_NN_LAYOUT_NHWC);
 }
+
+arm_cmsis_nn_status arm_convolve_1d_k5_nhwc_ohwi_f32(const cmsis_nn_context *ctx,
+                                                     const cmsis_nn_conv_params_f32 *conv_params,
+                                                     const cmsis_nn_dims *input_dims,
+                                                     const float32_t *input_data,
+                                                     const cmsis_nn_dims *filter_dims,
+                                                     const float32_t *filter_data,
+                                                     const cmsis_nn_dims *bias_dims,
+                                                     const float32_t *bias_data,
+                                                     const cmsis_nn_dims *output_dims,
+                                                     float32_t *output_data)
+{
+    (void)ctx;
+    (void)bias_dims;
+    if (!arm_convolve_nhwc_f32_args_ok(
+            conv_params, input_dims, input_data, filter_dims, filter_data, output_dims, output_data))
+    {
+        return ARM_CMSIS_NN_ARG_ERROR;
+    }
+    if (conv_params->weight_format != ARM_NN_WEIGHT_FORMAT_STANDARD ||
+        !arm_nn_conv_flt_is_1d_k(&conv_params->stride,
+                                 &conv_params->padding,
+                                 &conv_params->dilation,
+                                 input_dims,
+                                 filter_dims,
+                                 output_dims,
+                                 5))
+    {
+        return ARM_CMSIS_NN_NO_IMPL_ERROR;
+    }
+    arm_conv1d_nhwc_f32_run(
+        conv_params, input_dims, input_data, filter_data, bias_data, output_dims, output_data, 5, false);
+    return ARM_CMSIS_NN_SUCCESS;
+}
+
+arm_cmsis_nn_status arm_convolve_1d_k5_nhwc_packed_f32(const cmsis_nn_context *ctx,
+                                                       const cmsis_nn_conv_params_f32 *conv_params,
+                                                       const cmsis_nn_dims *input_dims,
+                                                       const float32_t *input_data,
+                                                       const cmsis_nn_dims *filter_dims,
+                                                       const float32_t *filter_data,
+                                                       const cmsis_nn_dims *bias_dims,
+                                                       const float32_t *bias_data,
+                                                       const cmsis_nn_dims *output_dims,
+                                                       float32_t *output_data)
+{
+    (void)ctx;
+    (void)bias_dims;
+    if (!arm_convolve_nhwc_f32_args_ok(
+            conv_params, input_dims, input_data, filter_dims, filter_data, output_dims, output_data))
+    {
+        return ARM_CMSIS_NN_ARG_ERROR;
+    }
+    if (conv_params->weight_format != ARM_NN_WEIGHT_FORMAT_NT_N_PACKED ||
+        !arm_nn_conv_flt_is_1d_k(&conv_params->stride,
+                                 &conv_params->padding,
+                                 &conv_params->dilation,
+                                 input_dims,
+                                 filter_dims,
+                                 output_dims,
+                                 5))
+    {
+        return ARM_CMSIS_NN_NO_IMPL_ERROR;
+    }
+    arm_conv1d_nhwc_f32_run(
+        conv_params, input_dims, input_data, filter_data, bias_data, output_dims, output_data, 5, true);
+    return ARM_CMSIS_NN_SUCCESS;
+}
+
+arm_cmsis_nn_status arm_convolve_1d_k3_nhwc_ohwi_f32(const cmsis_nn_context *ctx,
+                                                     const cmsis_nn_conv_params_f32 *conv_params,
+                                                     const cmsis_nn_dims *input_dims,
+                                                     const float32_t *input_data,
+                                                     const cmsis_nn_dims *filter_dims,
+                                                     const float32_t *filter_data,
+                                                     const cmsis_nn_dims *bias_dims,
+                                                     const float32_t *bias_data,
+                                                     const cmsis_nn_dims *output_dims,
+                                                     float32_t *output_data)
+{
+    (void)ctx;
+    (void)bias_dims;
+    if (!arm_convolve_nhwc_f32_args_ok(
+            conv_params, input_dims, input_data, filter_dims, filter_data, output_dims, output_data))
+    {
+        return ARM_CMSIS_NN_ARG_ERROR;
+    }
+    if (conv_params->weight_format != ARM_NN_WEIGHT_FORMAT_STANDARD ||
+        !arm_nn_conv_flt_is_1d_k(&conv_params->stride,
+                                 &conv_params->padding,
+                                 &conv_params->dilation,
+                                 input_dims,
+                                 filter_dims,
+                                 output_dims,
+                                 3))
+    {
+        return ARM_CMSIS_NN_NO_IMPL_ERROR;
+    }
+    arm_conv1d_nhwc_f32_run(
+        conv_params, input_dims, input_data, filter_data, bias_data, output_dims, output_data, 3, false);
+    return ARM_CMSIS_NN_SUCCESS;
+}
+
+arm_cmsis_nn_status arm_convolve_1d_k3_nhwc_packed_f32(const cmsis_nn_context *ctx,
+                                                       const cmsis_nn_conv_params_f32 *conv_params,
+                                                       const cmsis_nn_dims *input_dims,
+                                                       const float32_t *input_data,
+                                                       const cmsis_nn_dims *filter_dims,
+                                                       const float32_t *filter_data,
+                                                       const cmsis_nn_dims *bias_dims,
+                                                       const float32_t *bias_data,
+                                                       const cmsis_nn_dims *output_dims,
+                                                       float32_t *output_data)
+{
+    (void)ctx;
+    (void)bias_dims;
+    if (!arm_convolve_nhwc_f32_args_ok(
+            conv_params, input_dims, input_data, filter_dims, filter_data, output_dims, output_data))
+    {
+        return ARM_CMSIS_NN_ARG_ERROR;
+    }
+    if (conv_params->weight_format != ARM_NN_WEIGHT_FORMAT_NT_N_PACKED ||
+        !arm_nn_conv_flt_is_1d_k(&conv_params->stride,
+                                 &conv_params->padding,
+                                 &conv_params->dilation,
+                                 input_dims,
+                                 filter_dims,
+                                 output_dims,
+                                 3))
+    {
+        return ARM_CMSIS_NN_NO_IMPL_ERROR;
+    }
+    arm_conv1d_nhwc_f32_run(
+        conv_params, input_dims, input_data, filter_data, bias_data, output_dims, output_data, 3, true);
+    return ARM_CMSIS_NN_SUCCESS;
+}
+
+arm_cmsis_nn_status arm_convolve_small_c_nhwc_f32(const cmsis_nn_context *ctx,
+                                                  const cmsis_nn_conv_params_f32 *conv_params,
+                                                  const cmsis_nn_dims *input_dims,
+                                                  const float32_t *input_data,
+                                                  const cmsis_nn_dims *filter_dims,
+                                                  const float32_t *filter_data,
+                                                  const cmsis_nn_dims *bias_dims,
+                                                  const float32_t *bias_data,
+                                                  const cmsis_nn_dims *output_dims,
+                                                  float32_t *output_data)
+{
+    (void)ctx;
+    (void)bias_dims;
+    if (!arm_convolve_nhwc_f32_args_ok(
+            conv_params, input_dims, input_data, filter_dims, filter_data, output_dims, output_data))
+    {
+        return ARM_CMSIS_NN_ARG_ERROR;
+    }
+    if (!arm_nn_conv_f32_is_small_c(input_dims, output_dims))
+    {
+        return ARM_CMSIS_NN_NO_IMPL_ERROR;
+    }
+    #if defined(ARM_MATH_MVEF) && !defined(ARM_MATH_AUTOVECTORIZE)
+    return arm_conv_small_c_dispatch_f32(
+        conv_params, input_dims, input_data, filter_dims, filter_data, bias_data, output_dims, output_data);
+    #else
+    (void)bias_data;
+    return ARM_CMSIS_NN_NO_IMPL_ERROR;
+    #endif
+}
+
+arm_cmsis_nn_status arm_convolve_patch_gemm_nhwc_ohwi_f32(const cmsis_nn_context *ctx,
+                                                          const cmsis_nn_conv_params_f32 *conv_params,
+                                                          const cmsis_nn_dims *input_dims,
+                                                          const float32_t *input_data,
+                                                          const cmsis_nn_dims *filter_dims,
+                                                          const float32_t *filter_data,
+                                                          const cmsis_nn_dims *bias_dims,
+                                                          const float32_t *bias_data,
+                                                          const cmsis_nn_dims *output_dims,
+                                                          float32_t *output_data)
+{
+    (void)bias_dims;
+    if (!arm_convolve_nhwc_f32_args_ok(
+            conv_params, input_dims, input_data, filter_dims, filter_data, output_dims, output_data))
+    {
+        return ARM_CMSIS_NN_ARG_ERROR;
+    }
+    if (conv_params->weight_format != ARM_NN_WEIGHT_FORMAT_STANDARD)
+    {
+        return ARM_CMSIS_NN_NO_IMPL_ERROR;
+    }
+    if (!ctx || !ctx->buf || ctx->size <= 0)
+    {
+        return ARM_CMSIS_NN_ARG_ERROR;
+    }
+    return arm_convolve_nhwc_patch_gemm_f32(
+        ctx, conv_params, input_dims, input_data, filter_dims, filter_data, bias_data, output_dims, output_data, false);
+}
+
+arm_cmsis_nn_status arm_convolve_patch_gemm_nhwc_packed_f32(const cmsis_nn_context *ctx,
+                                                            const cmsis_nn_conv_params_f32 *conv_params,
+                                                            const cmsis_nn_dims *input_dims,
+                                                            const float32_t *input_data,
+                                                            const cmsis_nn_dims *filter_dims,
+                                                            const float32_t *filter_data,
+                                                            const cmsis_nn_dims *bias_dims,
+                                                            const float32_t *bias_data,
+                                                            const cmsis_nn_dims *output_dims,
+                                                            float32_t *output_data)
+{
+    (void)bias_dims;
+    if (!arm_convolve_nhwc_f32_args_ok(
+            conv_params, input_dims, input_data, filter_dims, filter_data, output_dims, output_data))
+    {
+        return ARM_CMSIS_NN_ARG_ERROR;
+    }
+    if (conv_params->weight_format != ARM_NN_WEIGHT_FORMAT_NT_N_PACKED)
+    {
+        return ARM_CMSIS_NN_NO_IMPL_ERROR;
+    }
+    if (!ctx || !ctx->buf || ctx->size <= 0)
+    {
+        return ARM_CMSIS_NN_ARG_ERROR;
+    }
+    return arm_convolve_nhwc_patch_gemm_f32(
+        ctx, conv_params, input_dims, input_data, filter_dims, filter_data, bias_data, output_dims, output_data, true);
+}
+
+arm_cmsis_nn_status arm_convolve_direct_nhwc_ohwi_f32(const cmsis_nn_context *ctx,
+                                                      const cmsis_nn_conv_params_f32 *conv_params,
+                                                      const cmsis_nn_dims *input_dims,
+                                                      const float32_t *input_data,
+                                                      const cmsis_nn_dims *filter_dims,
+                                                      const float32_t *filter_data,
+                                                      const cmsis_nn_dims *bias_dims,
+                                                      const float32_t *bias_data,
+                                                      const cmsis_nn_dims *output_dims,
+                                                      float32_t *output_data)
+{
+    (void)ctx;
+    (void)bias_dims;
+    if (!arm_convolve_nhwc_f32_args_ok(
+            conv_params, input_dims, input_data, filter_dims, filter_data, output_dims, output_data))
+    {
+        return ARM_CMSIS_NN_ARG_ERROR;
+    }
+    if (conv_params->weight_format != ARM_NN_WEIGHT_FORMAT_STANDARD)
+    {
+        return ARM_CMSIS_NN_NO_IMPL_ERROR;
+    }
+    return arm_convolve_nhwc_direct_f32_body(
+        conv_params, input_dims, input_data, filter_dims, filter_data, bias_data, output_dims, output_data, false);
+}
+
+arm_cmsis_nn_status arm_convolve_direct_nhwc_packed_f32(const cmsis_nn_context *ctx,
+                                                        const cmsis_nn_conv_params_f32 *conv_params,
+                                                        const cmsis_nn_dims *input_dims,
+                                                        const float32_t *input_data,
+                                                        const cmsis_nn_dims *filter_dims,
+                                                        const float32_t *filter_data,
+                                                        const cmsis_nn_dims *bias_dims,
+                                                        const float32_t *bias_data,
+                                                        const cmsis_nn_dims *output_dims,
+                                                        float32_t *output_data)
+{
+    (void)ctx;
+    (void)bias_dims;
+    if (!arm_convolve_nhwc_f32_args_ok(
+            conv_params, input_dims, input_data, filter_dims, filter_data, output_dims, output_data))
+    {
+        return ARM_CMSIS_NN_ARG_ERROR;
+    }
+    if (conv_params->weight_format != ARM_NN_WEIGHT_FORMAT_NT_N_PACKED)
+    {
+        return ARM_CMSIS_NN_NO_IMPL_ERROR;
+    }
+    return arm_convolve_nhwc_direct_f32_body(
+        conv_params, input_dims, input_data, filter_dims, filter_data, bias_data, output_dims, output_data, true);
+}
+
 /**
  * @} end of NNConv group
  */

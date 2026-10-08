@@ -47,8 +47,9 @@ int test_formats(void)
             const uint16_t words[2] = {(uint16_t)bits, anchors[a]};
             float16_t input[2];
             memcpy(input, words, sizeof(input));
-            int32_t minimum = nan_bits(words[0]) ? 0 : nan_bits(words[1]) ? 1 : value(words[1]) < value(words[0]);
-            int32_t maximum = nan_bits(words[0]) ? 0 : nan_bits(words[1]) ? 1 : value(words[1]) > value(words[0]);
+            /* A NaN never wins; a non-NaN value replaces a leading NaN. */
+            int32_t minimum = nan_bits(words[1]) ? 0 : nan_bits(words[0]) ? 1 : value(words[1]) < value(words[0]);
+            int32_t maximum = nan_bits(words[1]) ? 0 : nan_bits(words[0]) ? 1 : value(words[1]) > value(words[0]);
             if (arm_argmin_f16(input, &dims, 3, &output) != ARM_CMSIS_NN_SUCCESS || output != minimum)
                 return 5;
             if (arm_argmax_f16(input, &dims, 3, &output) != ARM_CMSIS_NN_SUCCESS || output != maximum)
@@ -59,9 +60,9 @@ int test_formats(void)
     const uint32_t words32[] = {0x3f800000, 0x7f800001};
     float32_t input32[2];
     memcpy(input32, words32, sizeof(input32));
-    if (arm_argmin_f32(input32, &dims, 3, &output) != ARM_CMSIS_NN_SUCCESS || output != 1)
+    if (arm_argmin_f32(input32, &dims, 3, &output) != ARM_CMSIS_NN_SUCCESS || output != 0)
         return 7;
-    if (arm_argmax_f32(input32, &dims, 3, &output) != ARM_CMSIS_NN_SUCCESS || output != 1)
+    if (arm_argmax_f32(input32, &dims, 3, &output) != ARM_CMSIS_NN_SUCCESS || output != 0)
         return 8;
 #endif
     return 0;

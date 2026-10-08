@@ -70,3 +70,13 @@ void test_buffer_size_out_of_range_dsp_arm_fully_connected_s8(void)
 }
 
 void test_operands_at_gap_arm_fully_connected_s8(void) { operands_at_gap_arm_fully_connected_s8(); }
+
+void test_fc_packed_arm_fully_connected_per_channel_packed_s8(void)
+{
+    fc_packed_arm_fully_connected_per_channel_packed_s8();
+}
+
+void test_fc_packed_contract_arm_fully_connected_per_channel_packed_s8(void)
+{
+    fc_packed_contract_arm_fully_connected_per_channel_packed_s8();
+}

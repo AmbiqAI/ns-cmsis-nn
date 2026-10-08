@@ -45,8 +45,17 @@ void test_convolve_small_c_dilated_f32(void) { convolve_small_c_dilated_f32(); }
 
 void test_convolve_small_c_batch2_f32(void) { convolve_small_c_batch2_f32(); }
 
+void test_convolve_1xn_long_k_f32(void) { convolve_1xn_long_k_f32(); }
+
+void test_convolve_1xn_stride2_f32(void) { convolve_1xn_stride2_f32(); }
+
+void test_convolve_1xn_batch2_f32(void) { convolve_1xn_batch2_f32(); }
+
 void test_convolve_full_c_partial_block_f32(void) { convolve_full_c_partial_block_f32(); }
 
 void test_convolve_small_c_no_overread_f32(void) { convolve_small_c_no_overread_f32(); }
 
 void test_convolve_small_c_inf_weight_in_padding_f32(void) { convolve_small_c_inf_weight_in_padding_f32(); }
+
+void test_convolve_direct_entries_f32(void) { convolve_direct_entries_f32(); }
+void test_convolve_route_predicates_f32(void) { convolve_route_predicates_f32(); }

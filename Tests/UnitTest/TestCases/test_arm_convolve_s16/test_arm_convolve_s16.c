@@ -2250,3 +2250,156 @@ void weights_at_gap_arm_convolve_s16(void)
     }
 #endif
 }
+
+/* Depths that do not make whole groups: each entry must return ARM_CMSIS_NN_ARG_ERROR before it divides by the
+   filter depth or the group count. */
+void group_arg_errors_arm_convolve_s16(void)
+{
+    /* {C_IN, filter C, C_OUT} */
+    static const int32_t cases[][3] = {
+        {6, 4, 4},   /* C_IN not a multiple of the filter depth */
+        {6, 0, 4},   /* filter depth 0 */
+        {4, 8, 4},   /* filter deeper than the input: zero groups */
+        {0, 4, 4},   /* no input channels */
+        {8, 4, 3},   /* 3 output channels for 2 groups */
+        {8, 4, -2},  /* negative output depth */
+        {-8, -4, 4}, /* negative depths that divide */
+        {8, -4, 4},  /* negative filter depth */
+        {-4, 4, 4}   /* negative input depth */
+    };
+    int16_t input[3 * 3 * 8] = {0};
+    int8_t kernel[8 * 2 * 2 * 8] = {0};
+    int64_t bias[8] = {0};
+    int32_t multiplier[8];
+    int32_t shift[8];
+    int16_t output[2 * 2 * 8];
+    int16_t scratch[2 * 2 * 8 * 4];
+    for (int i = 0; i < 8; i++)
+    {
+        multiplier[i] = 1 << 30;
+        shift[i] = -1;
+    }
+    const cmsis_nn_conv_params conv_params = {
+        .input_offset = 0,
+        .output_offset = 0,
+        .stride = {1, 1},
+        .padding = {0, 0},
+        .dilation = {1, 1},
+        .activation = {-32768, 32767},
+    };
+    const cmsis_nn_per_channel_quant_params quant_params = {multiplier, shift};
+    const cmsis_nn_bias_data bias_data = {bias, false};
+    cmsis_nn_context ctx = {scratch, sizeof(scratch)};
+    /* arm_convolve_s16_fast_small_kernel() has only an MVE implementation */
+#if defined(ARM_MATH_MVEI)
+    const arm_cmsis_nn_status fast_status = ARM_CMSIS_NN_ARG_ERROR;
+#else
+    const arm_cmsis_nn_status fast_status = ARM_CMSIS_NN_NO_IMPL_ERROR;
+#endif
+    for (uint32_t c = 0; c < sizeof(cases) / sizeof(cases[0]); c++)
+    {
+        const cmsis_nn_dims input_dims = {1, 3, 3, cases[c][0]};
+        const cmsis_nn_dims filter_dims = {cases[c][2], 2, 2, cases[c][1]};
+        const cmsis_nn_dims bias_dims = {1, 1, 1, cases[c][2]};
+        const cmsis_nn_dims output_dims = {1, 2, 2, cases[c][2]};
+        TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR,
+                          arm_convolve_s16(&ctx,
+                                           &conv_params,
+                                           &quant_params,
+                                           &input_dims,
+                                           input,
+                                           &filter_dims,
+                                           kernel,
+                                           &bias_dims,
+                                           &bias_data,
+                                           &output_dims,
+                                           output));
+        TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR,
+                          arm_convolve_wrapper_s16(&ctx,
+                                                   &conv_params,
+                                                   &quant_params,
+                                                   &input_dims,
+                                                   input,
+                                                   &filter_dims,
+                                                   kernel,
+                                                   &bias_dims,
+                                                   &bias_data,
+                                                   &output_dims,
+                                                   output));
+        TEST_ASSERT_EQUAL(fast_status,
+                          arm_convolve_s16_fast_small_kernel(&ctx,
+                                                             &conv_params,
+                                                             &quant_params,
+                                                             &input_dims,
+                                                             input,
+                                                             &filter_dims,
+                                                             kernel,
+                                                             &bias_dims,
+                                                             &bias_data,
+                                                             &output_dims,
+                                                             output));
+    }
+
+    /* {C_IN, filter C, C_OUT, kernel size} through the wrapper's own routes: the 1x1 kernel (MVE), and the
+       channel-multiplier-1 kernel (filter C 1, C_IN = C_OUT; on MVE only for 9 or more filter elements), neither of
+       which checks the depths itself */
+    static const int32_t routed[][4] = {
+        {0, 0, 4, 1}, {-4, -4, 4, 1}, {4, 4, -2, 1}, {0, 1, 0, 2}, {-3, 1, -3, 2}, {0, 1, 0, 3}, {-3, 1, -3, 3}};
+    for (uint32_t c = 0; c < sizeof(routed) / sizeof(routed[0]); c++)
+    {
+        const int32_t k = routed[c][3];
+        const cmsis_nn_dims input_dims = {1, 3, 3, routed[c][0]};
+        const cmsis_nn_dims filter_dims = {routed[c][2], k, k, routed[c][1]};
+        const cmsis_nn_dims bias_dims = {1, 1, 1, routed[c][2]};
+        const cmsis_nn_dims output_dims = {1, 4 - k, 4 - k, routed[c][2]};
+        TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR,
+                          arm_convolve_wrapper_s16(&ctx,
+                                                   &conv_params,
+                                                   &quant_params,
+                                                   &input_dims,
+                                                   input,
+                                                   &filter_dims,
+                                                   kernel,
+                                                   &bias_dims,
+                                                   &bias_data,
+                                                   &output_dims,
+                                                   output));
+    }
+
+    /* Controls: two whole groups, and no output channels, are accepted */
+    static const int32_t valid[][3] = {{8, 4, 4}, {8, 4, 0}};
+    for (uint32_t c = 0; c < sizeof(valid) / sizeof(valid[0]); c++)
+    {
+        const cmsis_nn_dims input_dims = {1, 3, 3, valid[c][0]};
+        const cmsis_nn_dims filter_dims = {valid[c][2], 2, 2, valid[c][1]};
+        const cmsis_nn_dims bias_dims = {1, 1, 1, valid[c][2]};
+        const cmsis_nn_dims output_dims = {1, 2, 2, valid[c][2]};
+        TEST_ASSERT_TRUE(arm_convolve_s16_get_buffer_size(&input_dims, &filter_dims) <= (int32_t)sizeof(scratch));
+        TEST_ASSERT_TRUE(arm_convolve_wrapper_s16_get_buffer_size(
+                             &conv_params, &input_dims, &filter_dims, &output_dims) <= (int32_t)sizeof(scratch));
+        TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
+                          arm_convolve_s16(&ctx,
+                                           &conv_params,
+                                           &quant_params,
+                                           &input_dims,
+                                           input,
+                                           &filter_dims,
+                                           kernel,
+                                           &bias_dims,
+                                           &bias_data,
+                                           &output_dims,
+                                           output));
+        TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
+                          arm_convolve_wrapper_s16(&ctx,
+                                                   &conv_params,
+                                                   &quant_params,
+                                                   &input_dims,
+                                                   input,
+                                                   &filter_dims,
+                                                   kernel,
+                                                   &bias_dims,
+                                                   &bias_data,
+                                                   &output_dims,
+                                                   output));
+    }
+}

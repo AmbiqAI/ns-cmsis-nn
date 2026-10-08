@@ -34,6 +34,11 @@ on:
         default: ''
         type: string
 
+# packages: read is for the resolve-ci-image.yml call.
+permissions:
+  contents: read
+  packages: read
+
 jobs:
   resolve-container-image:
     uses: ./.github/workflows/resolve-ci-image.yml
@@ -115,6 +120,13 @@ jobs:
       - name: Setup helia-core-tester build dependencies
         run: |
           cd Tests/helia-core-tester
+          # Run setup_ci.sh's uv sync first, with a 3-minute limit and one retry, so a stalled PyPI download is
+          # retried instead of running into the job timeout (#644). The flags must match setup_ci.sh's own sync,
+          # which then has nothing left to fetch.
+          timeout -k 10 180 uv sync --python 3.11 || {
+            echo "uv sync failed or timed out (exit $?); retrying once"
+            timeout -k 10 180 uv sync --python 3.11
+          }
           ./scripts/setup_ci.sh
 
       - name: Run helia-core-tester full pipeline with coverage and JUnit
@@ -233,6 +245,13 @@ jobs:
       - name: Setup helia-core-tester build dependencies
         run: |
           cd Tests/helia-core-tester
+          # Run setup_ci.sh's uv sync first, with a 3-minute limit and one retry, so a stalled PyPI download is
+          # retried instead of running into the job timeout (#644). The flags must match setup_ci.sh's own sync,
+          # which then has nothing left to fetch.
+          timeout -k 10 180 uv sync --python 3.11 || {
+            echo "uv sync failed or timed out (exit $?); retrying once"
+            timeout -k 10 180 uv sync --python 3.11
+          }
           ./scripts/setup_ci.sh
 
       # No --coverage: the tester's default -Ofast stands, and the real
@@ -252,7 +271,7 @@ jobs:
 
   codegen-tests-mve-float:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 14
     needs: resolve-container-image
     container:
       image: ${{ needs.resolve-container-image.outputs.container_image }}
@@ -326,6 +345,13 @@ jobs:
       - name: Setup helia-core-tester build dependencies
         run: |
           cd Tests/helia-core-tester
+          # Run setup_ci.sh's uv sync first, with a 3-minute limit and one retry, so a stalled PyPI download is
+          # retried instead of running into the job timeout (#644). The flags must match setup_ci.sh's own sync,
+          # which then has nothing left to fetch.
+          timeout -k 10 180 uv sync --python 3.11 || {
+            echo "uv sync failed or timed out (exit $?); retrying once"
+            timeout -k 10 180 uv sync --python 3.11
+          }
           ./scripts/setup_ci.sh
 
       - name: Run helia-core-tester float suite with MVE float coverage
@@ -415,6 +441,13 @@ jobs:
       - name: Setup helia-core-tester build dependencies
         run: |
           cd Tests/helia-core-tester
+          # Run setup_ci.sh's uv sync first, with a 3-minute limit and one retry, so a stalled PyPI download is
+          # retried instead of running into the job timeout (#644). The flags must match setup_ci.sh's own sync,
+          # which then has nothing left to fetch.
+          timeout -k 10 180 uv sync --python 3.11 || {
+            echo "uv sync failed or timed out (exit $?); retrying once"
+            timeout -k 10 180 uv sync --python 3.11
+          }
           ./scripts/setup_ci.sh
 
       - name: Run helia-core-tester int suite with MVE integer coverage
@@ -519,6 +552,13 @@ jobs:
       - name: Setup helia-core-tester build dependencies
         run: |
           cd Tests/helia-core-tester
+          # Run setup_ci.sh's uv sync first, with a 3-minute limit and one retry, so a stalled PyPI download is
+          # retried instead of running into the job timeout (#644). The flags must match setup_ci.sh's own sync,
+          # which then has nothing left to fetch.
+          timeout -k 10 180 uv sync --python 3.11 || {
+            echo "uv sync failed or timed out (exit $?); retrying once"
+            timeout -k 10 180 uv sync --python 3.11
+          }
           ./scripts/setup_ci.sh
 
       - name: Run helia-core-tester float fallback coverage
@@ -604,7 +644,11 @@ jobs:
       - name: Install and sync Python deps (helia-core-tester)
         run: |
           cd Tests/helia-core-tester
-          uv sync
+          # A 3-minute limit and one retry, as in the setup steps above (#644).
+          timeout -k 10 180 uv sync || {
+            echo "uv sync failed or timed out (exit $?); retrying once"
+            timeout -k 10 180 uv sync
+          }
 
       - name: Download cortex-m0 reports
         uses: actions/download-artifact@v8

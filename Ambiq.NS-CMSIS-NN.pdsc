@@ -17,7 +17,7 @@
   <repository type="git">https://github.com/AmbiqAI/ns-cmsis-nn</repository>
 
   <releases>
-    <release version="7.39.0"> <!-- x-release-please-version -->
+    <release version="7.41.0"> <!-- x-release-please-version -->
       Active development
     </release>
   </releases>
@@ -59,10 +59,13 @@
 
   <components>
     <!-- heliaCORE NN — Source variant: build the 200+ kernel sources in-tree. -->
-    <component Cclass="Machine Learning" Cgroup="NN Lib" Csub="heliaCORE" Cvariant="Source" Cvendor="Ambiq" Cversion="7.39.0" condition="CMSIS-NN"> <!-- x-release-please-version -->
+    <component Cclass="Machine Learning" Cgroup="NN Lib" Csub="heliaCORE" Cvariant="Source" Cvendor="Ambiq" Cversion="7.41.0" condition="CMSIS-NN"> <!-- x-release-please-version -->
       <description>heliaCORE NN — Ambiq's optimized superset of Arm CMSIS-NN, tuned for Apollo SoCs.</description>
       <files>
         <file category="doc" name="Documentation/html/index.html"/>
+        <!-- The pack root, for the Include/-prefixed spelling that TFLM-based runtimes use
+             (#include "Include/arm_nnfunctions.h"). -->
+        <file category="include" name="./"/>
         <file category="header" name="Include/arm_nn_types.h"/>
         <file category="header" name="Include/arm_nnfunctions.h"/>
         <file category="header" name="Include/arm_nnsupportfunctions.h"/>
@@ -116,6 +119,7 @@
         <file category="source" name="Source/ActivationFunctions/arm_nn_activation_f16.c"/>
         <file category="source" name="Source/ActivationFunctions/arm_nn_activation_f32.c"/>
         <file category="source" name="Source/ActivationFunctions/arm_nn_activation_s16.c"/>
+        <file category="source" name="Source/ActivationFunctions/arm_nn_gelu_f32.c"/>
         <file category="source" name="Source/ActivationFunctions/arm_prelu_f16.c"/>
         <file category="source" name="Source/ActivationFunctions/arm_prelu_f32.c"/>
         <file category="source" name="Source/ActivationFunctions/arm_prelu_s16.c"/>
@@ -246,6 +250,7 @@
         <file category="source" name="Source/ConvolutionFunctions/arm_convolve_1x1_s4_fast.c"/>
         <file category="source" name="Source/ConvolutionFunctions/arm_convolve_1x1_s8.c"/>
         <file category="source" name="Source/ConvolutionFunctions/arm_convolve_1x1_s8_fast.c"/>
+        <file category="source" name="Source/ConvolutionFunctions/arm_convolve_1x1_s8_short_k.c"/>
         <file category="source" name="Source/ConvolutionFunctions/arm_convolve_even_s4.c"/>
         <file category="source" name="Source/ConvolutionFunctions/arm_convolve_f16.c"/>
         <file category="source" name="Source/ConvolutionFunctions/arm_convolve_f32.c"/>
@@ -301,6 +306,7 @@
         <file category="source" name="Source/FullyConnectedFunctions/arm_fully_connected_get_buffer_sizes_s16.c"/>
         <file category="source" name="Source/FullyConnectedFunctions/arm_fully_connected_get_buffer_sizes_s8.c"/>
         <file category="source" name="Source/FullyConnectedFunctions/arm_fully_connected_per_channel_s16.c"/>
+        <file category="source" name="Source/FullyConnectedFunctions/arm_fully_connected_per_channel_packed_s8.c"/>
         <file category="source" name="Source/FullyConnectedFunctions/arm_fully_connected_per_channel_s8.c"/>
         <file category="source" name="Source/FullyConnectedFunctions/arm_fully_connected_s16.c"/>
         <file category="source" name="Source/FullyConnectedFunctions/arm_fully_connected_s4.c"/>
@@ -400,6 +406,7 @@
         <file category="source" name="Source/PadFunctions/arm_mirror_pad_s16.c"/>
 
         <file category="source" name="Source/QuantizationFunctions/arm_dequantize_f16_f32.c"/>
+        <file category="source" name="Source/QuantizationFunctions/arm_dequantize_half_bits.c"/>
         <file category="source" name="Source/QuantizationFunctions/arm_dequantize_s8_f32.c"/>
         <file category="source" name="Source/QuantizationFunctions/arm_dequantize_s16_f32.c"/>
         <file category="source" name="Source/QuantizationFunctions/arm_quantize_f32_s16.c"/>
@@ -465,10 +472,12 @@
          libns-cmsis-nn.a instead of compiling sources. One <file> entry per
          supported core; CMSIS-Pack pickers (Keil/CMSIS-Toolbox) resolve the
          right archive via the Dcore + Tcompiler conditions above. -->
-    <component Cclass="Machine Learning" Cgroup="NN Lib" Csub="heliaCORE" Cvariant="Prebuilt" Cvendor="Ambiq" Cversion="7.39.0" condition="CMSIS-NN"> <!-- x-release-please-version -->
+    <component Cclass="Machine Learning" Cgroup="NN Lib" Csub="heliaCORE" Cvariant="Prebuilt" Cvendor="Ambiq" Cversion="7.41.0" condition="CMSIS-NN"> <!-- x-release-please-version -->
       <description>heliaCORE NN — Ambiq's prebuilt GCC archive for Cortex-M0/M0+/M4/M55.</description>
       <files>
         <file category="doc"    name="Documentation/html/index.html"/>
+        <!-- The pack root, for the Include/-prefixed spelling (see the Source variant). -->
+        <file category="include" name="./"/>
         <file category="header" name="Include/arm_nn_types.h"/>
         <file category="header" name="Include/arm_nnfunctions.h"/>
         <file category="header" name="Include/arm_nnsupportfunctions.h"/>

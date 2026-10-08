@@ -17,6 +17,7 @@
 #
 
 file(GLOB SRC "./*_s8*.c" "./*_s16*.c" "./arm_quantize_f32_*.c")
+list(APPEND SRC arm_dequantize_half_bits.c)
 if (ARM_NN_ENABLE_F16)
   list(APPEND SRC arm_dequantize_f16_f32.c)
 endif()

@@ -64,3 +64,29 @@ void softmax_s8_s16_invalid_diff_min_arm_softmax_s8_s16(void)
     }
     free(softmax_s8_s16_expect_invalid_output);
 }
+
+/* Rows of n equal values: every output is 65536 / n - 32768, rounded. From 4096 elements the row sum passes
+   int32_t (#705), and at 8192 a wrapped int32_t sum gives a wrong output. */
+void softmax_s8_s16_long_equal_rows_arm_softmax_s8_s16(void)
+{
+    static int8_t input[8192];
+    static int16_t output[8192];
+    const int32_t sizes[] = {256, 601, 8192};
+    const int16_t expected[] = {-32512, -32659, -32760};
+
+    memset(input, 5, sizeof(input));
+    for (size_t k = 0; k < sizeof(sizes) / sizeof(sizes[0]); k++)
+    {
+        arm_softmax_s8_s16(input,
+                           1,
+                           sizes[k],
+                           SOFTMAX_S8_S16_INPUT_MULT,
+                           SOFTMAX_S8_S16_INPUT_LEFT_SHIFT,
+                           SOFTMAX_S8_S16_DIFF_MIN,
+                           output);
+        for (int32_t i = 0; i < sizes[k]; i++)
+        {
+            TEST_ASSERT_EQUAL_INT16(expected[k], output[i]);
+        }
+    }
+}

@@ -407,6 +407,83 @@ __STATIC_FORCEINLINE int32_t GetNearestNeighbor(const int input_value,
 }
 
 /**
+ * @brief Whether every channel requantizes with a right shift only: each has a shift below 0, or a multiplier of 0.
+ *        Plain C; it evaluates the same on every build. arm_nn_requantize_rshift_only() adds the build condition.
+ *
+ * @param[in]   multiplier   Per-channel multipliers
+ * @param[in]   shift        Per-channel shifts
+ * @param[in]   num_ch       Number of channels
+ *
+ * @return      1 when every channel qualifies, 0 otherwise.
+ */
+__STATIC_FORCEINLINE int32_t arm_nn_requantize_channels_rshift_only(const int32_t *multiplier,
+                                                                    const int32_t *shift,
+                                                                    const int32_t num_ch)
+{
+    /* No early exit, so that the loop can be vectorized (ATfE does; GCC 14.3 keeps a scalar hardware loop) */
+    int32_t needs_left_shift = 0;
+    for (int32_t i = 0; i < num_ch; i++)
+    {
+        needs_left_shift |= (shift[i] >= 0) & (multiplier[i] != 0);
+    }
+    return needs_left_shift == 0;
+}
+
+/**
+ * @brief Bytes of the stream arm_fully_connected_per_channel_packed_s8() reads for an accumulation depth k and an
+ *        output depth n: ceil(n / 4) blocks of four rows of k rounded up to 16, plus 48 bytes of parameters.
+ *
+ * @param[in]   k   Accumulation depth, positive
+ * @param[in]   n   Output depth, positive
+ *
+ * @return      The size, in 64 bits so that the caller can bound it.
+ */
+__STATIC_FORCEINLINE int64_t arm_nn_fc_packed_s8_size(const int32_t k, const int32_t n)
+{
+    return (((int64_t)n + 3) / 4) * (4 * (((int64_t)k + 15) / 16 * 16) + 48);
+}
+
+/**
+ * @brief The gate of arm_fully_connected_per_channel_packed_s8(), which a caller selecting the kernel per layer ahead
+ *        of time evaluates: filter offset 0, a positive accumulation and output depth, a stream of at most INT32_MAX
+ *        bytes, and every output channel right-shift-only. Plain C; it evaluates the same on every build. The
+ *        entry also needs MVE (ARM_MATH_MVEI without ARM_MATH_AUTOVECTORIZE) and the default rounding.
+ *
+ * @param[in]   fc_params      Fully connected parameters
+ * @param[in]   quant_params   Per-channel multipliers and shifts
+ * @param[in]   filter_dims    Filter dimensions. Format: [N, C]; N is the accumulation depth, C the output depth
+ *
+ * @return      1 when the layer is in the gate, 0 otherwise.
+ */
+__STATIC_FORCEINLINE int32_t arm_nn_fc_packed_s8_supported(const cmsis_nn_fc_params *fc_params,
+                                                           const cmsis_nn_per_channel_quant_params *quant_params,
+                                                           const cmsis_nn_dims *filter_dims)
+{
+    return fc_params->filter_offset == 0 && filter_dims->n > 0 && filter_dims->c > 0 &&
+        arm_nn_fc_packed_s8_size(filter_dims->n, filter_dims->c) <= INT32_MAX &&
+        arm_nn_requantize_channels_rshift_only(quant_params->multiplier, quant_params->shift, filter_dims->c);
+}
+
+/**
+ * @brief The row-broadcast route of arm_mul_s8() and arm_add_s8(): both inputs have the same depth C > 1, exactly one
+ *        has W = 1, and the output W is above 1, as in [N, H, W, C] x [N | 1, H | 1, 1, C] (a squeeze-and-excite
+ *        scale). Plain C; it evaluates the same on every build.
+ *
+ * @param[in]   input1_dims   First input dimensions [N, H, W, C]
+ * @param[in]   input2_dims   Second input dimensions [N, H, W, C]
+ * @param[in]   output_dims   Output dimensions [N, H, W, C]
+ *
+ * @return      1 for the row-broadcast shape, 0 otherwise.
+ */
+__STATIC_FORCEINLINE int32_t arm_nn_is_row_broadcast(const cmsis_nn_dims *input1_dims,
+                                                     const cmsis_nn_dims *input2_dims,
+                                                     const cmsis_nn_dims *output_dims)
+{
+    return input1_dims->c == input2_dims->c && input1_dims->c > 1 && (input1_dims->w == 1) != (input2_dims->w == 1) &&
+        output_dims->w > 1;
+}
+
+/**
  * @brief Check if convolution parameters correspond to a 1x1 convolution.
  * @param[in]   conv_params   Convolution parameters
  * @param[in]   input_dims    Input dimensions
@@ -1521,6 +1598,27 @@ __STATIC_FORCEINLINE int32_t arm_nn_depthwise_conv_s8_planar_candidate(const cms
 }
 
 /**
+ * @brief The gate of arm_convolve_1x1_s8_short_k(): a 1x1 kernel with no padding, unit stride and dilation, filter
+ *        depth equal to the input depth, an input depth of 1 to 16, and N, H and W positive. Plain C; it evaluates the
+ *        same on every build. The entry also declines C_OUT not positive or unlike the filter's output depth, and
+ *        N x H x W x C_OUT, C_OUT x C_IN or C_OUT x 4 (the weight sums' bytes) above INT32_MAX.
+ *
+ * @param[in]   conv_params   Convolution parameters
+ * @param[in]   input_dims    Input tensor dimensions. Format: [N, H, W, C_IN]
+ * @param[in]   filter_dims   Filter tensor dimensions. Format: [C_OUT, 1, 1, C_IN]
+ *
+ * @return      1 when the layer is in the gate, 0 otherwise.
+ */
+__STATIC_FORCEINLINE int32_t arm_nn_is_convolve_s8_1x1_short_k(const cmsis_nn_conv_params *conv_params,
+                                                               const cmsis_nn_dims *input_dims,
+                                                               const cmsis_nn_dims *filter_dims)
+{
+    return arm_nn_is_convolve_1x1(conv_params, input_dims, filter_dims) && arm_nn_is_convolve_1x1_fast(conv_params) &&
+        (input_dims->c >= 1) && (input_dims->c <= 16) && (input_dims->n > 0) && (input_dims->h > 0) &&
+        (input_dims->w > 0);
+}
+
+/**
  * @brief The gate of arm_convolve_s8_small_cin(): upscale_dims NULL, input depth 1 to 3 with filter depth equal to it,
  *        dilation 1, a kernel of at least 1x1 with kernel width x depth at most 16 and at most 48 values, and a
  *        positive multiple of 4 output channels. Plain C; it evaluates the same on every build.
@@ -1570,21 +1668,41 @@ __STATIC_FORCEINLINE int32_t arm_nn_is_convolve_s8_3x3_c16_s1(const cmsis_nn_con
 }
 
 /**
- * @brief The group check of arm_convolve_s8(), for its direct entries: with groups = C_IN / filter C, C_IN or C_OUT
- *        is not a multiple of groups. A filter C of zero or above C_IN gives no group count and is not reported.
+ * @brief The group check of the grouped convolutions: C_IN and the filter C are positive, C_OUT is not negative,
+ *        C_IN is a whole number of filter depths, and C_OUT a whole number of groups (groups = C_IN / filter C).
+ *        Nothing is divided before the depths are known to be positive.
  *
  * @param[in]      input_dims      Input tensor dimensions. Format: [N, H, W, C_IN]
  * @param[in]      filter_dims     Filter tensor dimensions. Format: [C_OUT, HK, WK, CK]
  * @param[in]      output_dims     Output tensor dimensions. Format: [N, H, W, C_OUT]
  *
- * @return         1 when arm_convolve_s8() reports the group count as an argument error, 0 otherwise.
+ * @return         1 when the dims do not describe whole groups, 0 otherwise.
+ */
+__STATIC_FORCEINLINE int32_t arm_nn_convolve_groups_invalid(const cmsis_nn_dims *input_dims,
+                                                            const cmsis_nn_dims *filter_dims,
+                                                            const cmsis_nn_dims *output_dims)
+{
+    return input_dims->c <= 0 || filter_dims->c <= 0 || output_dims->c < 0 || input_dims->c % filter_dims->c != 0 ||
+        output_dims->c % (input_dims->c / filter_dims->c) != 0;
+}
+
+/**
+ * @brief The group check of arm_convolve_s8() and its direct entries: arm_nn_convolve_groups_invalid(), and C_IN
+ *        and C_OUT fit 16 bits (arm_convolve_s8() keeps the depths as uint16_t; the filter C, a divisor of C_IN,
+ *        then does too).
+ *
+ * @param[in]      input_dims      Input tensor dimensions. Format: [N, H, W, C_IN]
+ * @param[in]      filter_dims     Filter tensor dimensions. Format: [C_OUT, HK, WK, CK]
+ * @param[in]      output_dims     Output tensor dimensions. Format: [N, H, W, C_OUT]
+ *
+ * @return         1 when arm_convolve_s8() reports the dims as an argument error, 0 otherwise.
  */
 __STATIC_FORCEINLINE int32_t arm_nn_convolve_s8_groups_invalid(const cmsis_nn_dims *input_dims,
                                                                const cmsis_nn_dims *filter_dims,
                                                                const cmsis_nn_dims *output_dims)
 {
-    const int32_t groups = filter_dims->c > 0 ? input_dims->c / filter_dims->c : 0;
-    return groups > 0 && (input_dims->c % groups != 0 || output_dims->c % groups != 0);
+    return input_dims->c > UINT16_MAX || output_dims->c > UINT16_MAX ||
+        arm_nn_convolve_groups_invalid(input_dims, filter_dims, output_dims);
 }
 
 /**
@@ -1840,8 +1958,202 @@ __STATIC_FORCEINLINE void arm_nn_write_s8x4_ia(int8_t **in, int32_t value)
     *in += 4;
 }
 
+#if !defined(ARM_NN_WORD_COPY) && defined(__clang__) && !defined(__ARMCC_VERSION) &&                                   \
+    defined(__ARM_FEATURE_UNALIGNED) &&                                                                                \
+    (defined(__ARM_ARCH_7M__) || defined(__ARM_ARCH_7EM__) || defined(__ARM_ARCH_8M_MAIN__))
+    /* ATfE 22.1 ships only size-optimised C libraries for these architectures, whose memcpy and memset move one byte
+     * at a time, so the copy and fill helpers below use arm_nn_copy_words_s8() and arm_nn_fill_words_s8() instead.
+     * Other toolchains and architectures keep their C library. A build or test may also define the macro itself. */
+    #define ARM_NN_WORD_COPY
+#endif
+
+/* Where ARM_NN_WORD_COPY makes the copy and fill helpers calls (it does not on MVE, whose helpers stay inline loops),
+ * arm_convolve_s8 fills each output pixel's im2col taps for a filter depth of 1 and 4 or more taps with
+ * arm_nn_im2col_depth1_s8, one call per pixel instead of one per tap. Other layers run the original code. */
+#if defined(ARM_NN_WORD_COPY) && !defined(ARM_MATH_MVEI)
+    #define ARM_NN_DEPTH1_STORE (1)
+#else
+    #define ARM_NN_DEPTH1_STORE (0)
+#endif
+
+#if ARM_NN_DEPTH1_STORE
 /**
- * @brief           memset optimized for MVE
+ * @brief           The im2col taps of one output pixel for an input depth of 1: an in-bounds tap copies its element
+ *                  and a padded tap stores the pad value. Out of line, so that the convolution keeps its own loop
+ *                  for deeper inputs exactly as it is.
+ *
+ * @param[out]      dst         First tap to write; kernel_x * kernel_y taps are written
+ * @param[in]       src         Element (0, 0) of the channel to gather
+ * @param[in]       stride      Elements between horizontally adjacent input pixels
+ * @param[in]       input_x     Input width
+ * @param[in]       input_y     Input height
+ * @param[in]       base_x      Input x of the first tap (may be negative)
+ * @param[in]       base_y      Input y of the first tap (may be negative)
+ * @param[in]       kernel_x    Taps per row
+ * @param[in]       kernel_y    Rows of taps
+ * @param[in]       dilation_x  Input step between taps in a row
+ * @param[in]       dilation_y  Input step between rows of taps
+ * @param[in]       pad         Value of a padded tap
+ *
+ * @return          The tap after the last one written.
+ */
+__attribute__((noinline, unused)) static int8_t *arm_nn_im2col_depth1_s8(int8_t *dst,
+                                                                         const int8_t *src,
+                                                                         const int32_t stride,
+                                                                         const int32_t input_x,
+                                                                         const int32_t input_y,
+                                                                         const int32_t base_x,
+                                                                         const int32_t base_y,
+                                                                         const int32_t kernel_x,
+                                                                         const int32_t kernel_y,
+                                                                         const int32_t dilation_x,
+                                                                         const int32_t dilation_y,
+                                                                         const int8_t pad)
+{
+    for (int32_t i_ker_y = 0; i_ker_y < kernel_y; i_ker_y++)
+    {
+        const int32_t k_y = base_y + dilation_y * i_ker_y;
+        for (int32_t i_ker_x = 0; i_ker_x < kernel_x; i_ker_x++)
+        {
+            const int32_t k_x = base_x + dilation_x * i_ker_x;
+            *dst++ =
+                (k_y < 0 || k_y >= input_y || k_x < 0 || k_x >= input_x) ? pad : src[(k_y * input_x + k_x) * stride];
+        }
+    }
+    return dst;
+}
+#endif
+
+#if defined(ARM_NN_WORD_COPY)
+
+/**
+ * @brief           Copy bytes a word at a time.
+ * @param[out]      dst         Destination pointer. Any alignment.
+ * @param[in]       src         Source pointer. Any alignment; must not overlap dst.
+ * @param[in]       block_size  Number of bytes to copy.
+ *
+ * @details         Kept out of line, so that clang does not unroll and version it into every caller's loops, and
+ *                  unrolled to four words with a loop-free tail, so that clang does not turn it back into a memcpy
+ *                  call.
+ */
+__attribute__((noinline, unused)) static void arm_nn_copy_words_s8(int8_t *dst, const int8_t *src, uint32_t block_size)
+{
+    /* Copies of a few bytes (im2col with an input depth of 1 to 3) skip the word loop */
+    if (block_size < 4)
+    {
+        if (block_size & 2)
+        {
+            dst[0] = src[0];
+            dst[1] = src[1];
+            dst += 2;
+            src += 2;
+        }
+        if (block_size & 1)
+        {
+            dst[0] = src[0];
+        }
+        return;
+    }
+    while (block_size >= 16)
+    {
+        const int32_t a = arm_nn_read_s8x4_ia(&src);
+        const int32_t b = arm_nn_read_s8x4_ia(&src);
+        const int32_t c = arm_nn_read_s8x4_ia(&src);
+        const int32_t d = arm_nn_read_s8x4_ia(&src);
+        arm_nn_write_s8x4_ia(&dst, a);
+        arm_nn_write_s8x4_ia(&dst, b);
+        arm_nn_write_s8x4_ia(&dst, c);
+        arm_nn_write_s8x4_ia(&dst, d);
+        block_size -= 16;
+    }
+    if (block_size & 8)
+    {
+        const int32_t a = arm_nn_read_s8x4_ia(&src);
+        const int32_t b = arm_nn_read_s8x4_ia(&src);
+        arm_nn_write_s8x4_ia(&dst, a);
+        arm_nn_write_s8x4_ia(&dst, b);
+    }
+    if (block_size & 4)
+    {
+        arm_nn_write_s8x4_ia(&dst, arm_nn_read_s8x4_ia(&src));
+    }
+    if (block_size & 2)
+    {
+        dst[0] = src[0];
+        dst[1] = src[1];
+        dst += 2;
+        src += 2;
+    }
+    if (block_size & 1)
+    {
+        dst[0] = src[0];
+    }
+}
+
+/**
+ * @brief           Fill bytes with a repeating four-byte pattern, a word at a time.
+ * @param[out]      dst         Destination pointer. Any alignment.
+ * @param[in]       pattern     Four bytes, stored in memory order and repeated from dst onwards.
+ * @param[in]       block_size  Number of bytes to fill.
+ *
+ * @details         Out of line and unrolled for the same reasons as arm_nn_copy_words_s8().
+ */
+__attribute__((noinline, unused)) static void
+arm_nn_fill_words_s8(int8_t *dst, const int32_t pattern, uint32_t block_size)
+{
+    /* Hide the pattern's value: with a constant fill (zero padding, say) clang would turn the stores below back
+       into a memset call */
+    int32_t word = pattern;
+    __asm("" : "+r"(word));
+    int8_t bytes[4];
+    memcpy(bytes, &word, 4);
+    /* Fills of a few bytes skip the word loop */
+    if (block_size < 4)
+    {
+        if (block_size & 2)
+        {
+            dst[0] = bytes[0];
+            dst[1] = bytes[1];
+            dst += 2;
+        }
+        if (block_size & 1)
+        {
+            dst[0] = bytes[block_size & 2];
+        }
+        return;
+    }
+    while (block_size >= 16)
+    {
+        arm_nn_write_s8x4_ia(&dst, word);
+        arm_nn_write_s8x4_ia(&dst, word);
+        arm_nn_write_s8x4_ia(&dst, word);
+        arm_nn_write_s8x4_ia(&dst, word);
+        block_size -= 16;
+    }
+    if (block_size & 8)
+    {
+        arm_nn_write_s8x4_ia(&dst, word);
+        arm_nn_write_s8x4_ia(&dst, word);
+    }
+    if (block_size & 4)
+    {
+        arm_nn_write_s8x4_ia(&dst, word);
+    }
+    if (block_size & 2)
+    {
+        dst[0] = bytes[0];
+        dst[1] = bytes[1];
+        dst += 2;
+    }
+    if (block_size & 1)
+    {
+        dst[0] = bytes[block_size & 2];
+    }
+}
+#endif
+
+/**
+ * @brief           memset, a vector loop on MVE and a word loop where ARM_NN_WORD_COPY is defined
  * @param[in, out]  dst         Destination pointer
  * @param[in]       val         Value to set
  * @param[in]       block_size  Number of bytes to copy.
@@ -1859,13 +2171,15 @@ __STATIC_FORCEINLINE void arm_memset_s8(int8_t *dst, const int8_t val, uint32_t 
                    : [in] "+r"(dst)
                    : [cnt] "r"(block_size), [set_val] "r"(val)
                    : "q0", "memory", "r14");
+#elif defined(ARM_NN_WORD_COPY)
+    arm_nn_fill_words_s8(dst, (int32_t)((uint8_t)val * 0x01010101U), block_size);
 #else
     memset(dst, val, block_size);
 #endif
 }
 
 /**
- * @brief           memset optimized for MVE for 16-bit data.
+ * @brief           memset for 16-bit data, a vector loop on MVE and a word loop where ARM_NN_WORD_COPY is defined
  * @param[in, out]  dst         Destination pointer.
  * @param[in]       val         16-bit value to set.
  * @param[in]       block_size  Number of int16_t values to set.
@@ -1886,6 +2200,8 @@ __STATIC_FORCEINLINE void arm_memset_s16(int16_t *dst, const int16_t val, uint32
         : [in] "+r"(dst)
         : [cnt] "r"(block_size), [set_val] "r"(val)
         : "q0", "memory", "r14");
+#elif defined(ARM_NN_WORD_COPY)
+    arm_nn_fill_words_s8((int8_t *)dst, (int32_t)((uint16_t)val * 0x00010001U), block_size * sizeof(int16_t));
 #else
     for (uint32_t i = 0; i < block_size; i++)
     {
@@ -2346,7 +2662,8 @@ __STATIC_FORCEINLINE int32_t arm_nn_divide_by_power_of_two(const int32_t dividen
     return result;
 #else
     int32_t result = 0;
-    const int32_t remainder_mask = (1 << exponent) - 1;
+    /* Unsigned, so that exponent 31 gives INT32_MAX rather than overflowing */
+    const int32_t remainder_mask = (int32_t)((1U << exponent) - 1U);
     int32_t remainder = remainder_mask & dividend;
 
     // Basic division
@@ -2438,6 +2755,21 @@ __STATIC_FORCEINLINE int32_t arm_nn_requantize(const int32_t val, const int32_t 
     return arm_nn_divide_by_power_of_two(arm_nn_doubling_high_mult_no_sat(val * (1 << LEFT_SHIFT(shift)), multiplier),
                                          RIGHT_SHIFT(shift));
 #endif
+}
+
+/**
+ * @brief           Requantize with a positive scale exponent without narrowing the result.
+ * @param[in]       val         Centered input value.
+ * @param[in]       multiplier  Nonnegative Q31 multiplier in [0, INT32_MAX].
+ * @param[in]       shift       Positive scale exponent in [1, 30].
+ * @return          Rounded result before output zero point and saturation. Both rounding modes agree for this range.
+ */
+__STATIC_FORCEINLINE int64_t arm_nn_requantize_positive_shift_s64(const int32_t val,
+                                                                  const int32_t multiplier,
+                                                                  const int32_t shift)
+{
+    const int32_t right_shift = 31 - shift;
+    return ((int64_t)val * multiplier + ((int64_t)1 << (right_shift - 1))) >> right_shift;
 }
 
 /**
@@ -2536,7 +2868,7 @@ __STATIC_FORCEINLINE int16_t arm_nn_divide_by_power_of_two_s16(int16_t x, int ex
 }
 
 /**
- * @brief           memcpy optimized for MVE
+ * @brief           memcpy, a vector loop on MVE and a word loop where ARM_NN_WORD_COPY is defined
  * @param[in, out]  dst         Destination pointer
  * @param[in]       src         Source pointer.
  * @param[in]       block_size  Number of bytes to copy.
@@ -2554,13 +2886,15 @@ __STATIC_FORCEINLINE void arm_memcpy_s8(int8_t *__RESTRICT dst, const int8_t *__
                    : [in] "+r"(src), [out] "+r"(dst)
                    : [cnt] "r"(block_size)
                    : "q0", "memory", "r14");
+#elif defined(ARM_NN_WORD_COPY)
+    arm_nn_copy_words_s8(dst, src, block_size);
 #else
     memcpy(dst, src, block_size);
 #endif
 }
 
 /**
- * @brief           memcpy optimized for MVE
+ * @brief           memcpy of int16_t values through arm_memcpy_s8()
  * @param[in, out]  dst         Destination pointer
  * @param[in]       src         Source pointer.
  * @param[in]       block_size  Number of values to copy.
@@ -2572,7 +2906,7 @@ __STATIC_FORCEINLINE void arm_memcpy_s16(int16_t *__RESTRICT dst, const int16_t 
 }
 
 /**
- * @brief           memcpy optimized for MVE
+ * @brief           memcpy of int32_t values through arm_memcpy_s8()
  * @param[in, out]  dst         Destination pointer
  * @param[in]       src         Source pointer.
  * @param[in]       block_size  Number of values to copy.
@@ -2584,7 +2918,7 @@ __STATIC_FORCEINLINE void arm_memcpy_s32(int32_t *__RESTRICT dst, const int32_t 
 }
 
 /**
- * @brief           memcpy wrapper for int16
+ * @brief           memcpy wrapper for int16, a word loop where ARM_NN_WORD_COPY is defined
  * @param[in, out]  dst         Destination pointer
  * @param[in]       src         Source pointer.
  * @param[in]       block_size  Number of bytes to copy.
@@ -2592,7 +2926,11 @@ __STATIC_FORCEINLINE void arm_memcpy_s32(int32_t *__RESTRICT dst, const int32_t 
  */
 __STATIC_FORCEINLINE void arm_memcpy_q15(int16_t *__RESTRICT dst, const int16_t *__RESTRICT src, uint32_t block_size)
 {
+#if defined(ARM_NN_WORD_COPY)
+    arm_nn_copy_words_s8((int8_t *)dst, (const int8_t *)src, block_size);
+#else
     memcpy(dst, src, block_size);
+#endif
 }
 
 #if defined(ARM_MATH_MVEI)
@@ -2681,6 +3019,67 @@ __STATIC_FORCEINLINE int32x4_t arm_requantize_mve(const int32x4_t val, const int
     return arm_divide_by_power_of_two_mve(
         arm_doubling_high_mult_mve(vshlq_s32(val, vdupq_n_s32(LEFT_SHIFT(shift))), multiplier), RIGHT_SHIFT(shift));
     #endif
+}
+
+/**
+ * @brief           Whether every channel requantizes with a right shift only: each has a shift below 0, or a
+ *                  multiplier of 0. arm_requantize_mve_rshift() and arm_requantize_mve_32x4_rshift() then give the
+ *                  same results as arm_requantize_mve() and arm_requantize_mve_32x4().
+ * @param[in]       multiplier  Per-channel multipliers
+ * @param[in]       shift       Per-channel shifts
+ * @param[in]       num_ch      Number of channels
+ *
+ * @return          true when every channel qualifies. Always false with CMSIS_NN_USE_SINGLE_ROUNDING, whose
+ *                  requantization the right-shift variants do not reproduce.
+ *
+ */
+__STATIC_FORCEINLINE bool
+arm_nn_requantize_rshift_only(const int32_t *multiplier, const int32_t *shift, const int32_t num_ch)
+{
+    #ifdef CMSIS_NN_USE_SINGLE_ROUNDING
+    (void)multiplier;
+    (void)shift;
+    (void)num_ch;
+    return false;
+    #else
+    return arm_nn_requantize_channels_rshift_only(multiplier, shift, num_ch) != 0;
+    #endif
+}
+
+/**
+ * @brief           Requantize a vector whose shift is below 0, or whose multiplier is 0.
+ * @param[in]       val         Vector to be requantized
+ * @param[in]       multiplier  multiplier
+ * @param[in]       shift       shift, below 0 unless multiplier is 0
+ *
+ * @return          The result of arm_requantize_mve() for such a requantization, which needs no left shift and whose
+ *                  rounding fixup reduces to the sign of the product. Use only where arm_nn_requantize_rshift_only()
+ *                  holds.
+ *
+ */
+__STATIC_FORCEINLINE int32x4_t arm_requantize_mve_rshift(const int32x4_t val,
+                                                         const int32_t multiplier,
+                                                         const int32_t shift)
+{
+    return arm_divide_by_nonzero_power_of_two_mve(vqrdmulhq_n_s32(val, multiplier), vdupq_n_s32(shift));
+}
+
+/**
+ * @brief           Requantize a vector with per-lane multipliers and shifts, each shift below 0 unless its multiplier
+ *                  is 0.
+ * @param[in]       val         Vector to be requantized
+ * @param[in]       multiplier  Vector of multipliers
+ * @param[in]       shift       Vector of shifts
+ *
+ * @return          The result of arm_requantize_mve_32x4() for such lanes. Use only where
+ *                  arm_nn_requantize_rshift_only() holds.
+ *
+ */
+__STATIC_FORCEINLINE int32x4_t arm_requantize_mve_32x4_rshift(const int32x4_t val,
+                                                              const int32x4_t multiplier,
+                                                              const int32x4_t shift)
+{
+    return arm_divide_by_nonzero_power_of_two_mve(vqrdmulhq_s32(val, multiplier), shift);
 }
 
 /**
@@ -2869,7 +3268,8 @@ __STATIC_FORCEINLINE int32_t arm_nn_exp_on_negative_values(int32_t val)
 
     const int32_t val_mod_minus_quarter = (val & ((1 << shift) - 1)) - (1 << shift);
     const int32_t remainder = val_mod_minus_quarter - val;
-    const int32_t x = (val_mod_minus_quarter << 5) + (1 << 28);
+    /* Shifted as uint32_t: val_mod_minus_quarter is negative, and a left shift of a negative int32_t is undefined */
+    const int32_t x = (int32_t)((uint32_t)val_mod_minus_quarter << 5) + (1 << 28);
     const int32_t x2 = MUL_SAT(x, x);
 
     int32_t result = 1895147668 +
@@ -2904,8 +3304,9 @@ __STATIC_FORCEINLINE int32_t arm_nn_exp_on_negative_values(int32_t val)
  */
 __STATIC_FORCEINLINE int32_t arm_nn_mult_by_power_of_two(const int32_t val, const int32_t exp)
 {
-    const int32_t thresh = ((1 << (31 - exp)) - 1);
-    int32_t result = val << exp;
+    /* Shifted as uint32_t: val may be negative, or too large (the saturation below then replaces the result) */
+    const int32_t thresh = (int32_t)((1U << (31 - exp)) - 1U);
+    int32_t result = (int32_t)((uint32_t)val << exp);
     result = SELECT_USING_MASK(MASK_IF_NON_ZERO(val > thresh), NN_Q31_MAX, result);
     result = SELECT_USING_MASK(MASK_IF_NON_ZERO(val < -thresh), NN_Q31_MIN, result);
     return result;
@@ -2931,6 +3332,38 @@ __STATIC_FORCEINLINE int32_t arm_nn_one_over_one_plus_x_for_x_in_0_1(int32_t val
     x = (int32_t)((uint32_t)x + (uint32_t)MUL_POW2(MUL_SAT(x, shift - MUL_SAT(half_denominator, x)), 2));
 
     return MUL_POW2(x, 1);
+}
+
+/**
+ * @brief           Reciprocal scale of a softmax row, from the sum of its exponentials.
+ * @param[in]       sum             Sum of the row's exponentials, each with the softmax kernels' 12 accumulation
+ *                                  integer bits. Range: >= 0
+ * @param[in]       unit_bits       The accumulation integer bits plus 31 less the output width: 12 + 23 for an
+ *                                  8-bit output, 12 + 15 for a 16-bit output
+ * @param[out]      bits_over_unit  Exponent for the final DIV_POW2 of MUL_SAT(scale, exponential). At most 31
+ * @return          The scale, 1 / sum in Q0.31 normalised by bits_over_unit
+ *
+ * @details         A sum past 32 bits normalises from its top 32 bits. An exponent past 31 would round every
+ *                  non-negative quotient to 0, so it returns scale 0 with exponent 31 instead, as it does for an
+ *                  empty row (sum 0).
+ */
+__STATIC_FORCEINLINE int32_t arm_nn_softmax_row_scale(const int64_t sum,
+                                                      const int32_t unit_bits,
+                                                      int32_t *bits_over_unit)
+{
+    const uint64_t u = (uint64_t)sum;
+    const uint32_t high = (uint32_t)(u >> 32);
+    /* Leading zeros of sum as a 32-bit value; negative once sum needs more than 32 bits */
+    const int32_t headroom = high ? (int32_t)CLZ(high) - 32 : (int32_t)CLZ((uint32_t)u);
+
+    *bits_over_unit = unit_bits - headroom;
+    if (sum <= 0 || *bits_over_unit > 31)
+    {
+        *bits_over_unit = 31;
+        return 0;
+    }
+    const uint32_t top = headroom >= 0 ? (uint32_t)u << headroom : (uint32_t)(u >> -headroom);
+    return ONE_OVER1((int32_t)top - INT32_MIN);
 }
 
 /**
@@ -3404,6 +3837,115 @@ __STATIC_FORCEINLINE int16_t arm_nn_sqrt_s16_tablefree_element(const int32_t val
         return 32767;
     }
     return (int16_t)y;
+}
+
+/* The path arm_nn_dequantize_f16_bits_f32() takes */
+#if ARM_NN_ENABLE_F16 && defined(ARM_MATH_MVE_FLOAT16) && !defined(ARM_MATH_AUTOVECTORIZE)
+    #define ARM_NN_DEQUANTIZE_F16_MVE
+#elif defined(__ARM_FP) && (__ARM_FP & 4) && defined(__ARM_ARCH_PROFILE) && (__ARM_ARCH_PROFILE == 'M') &&             \
+    !defined(__ARM_BIG_ENDIAN)
+    /* Every M-profile FPU converts half to single (VCVTB), whatever __ARM_FP says about half precision */
+    #define ARM_NN_DEQUANTIZE_F16_FPU
+#endif
+
+#if !defined(ARM_NN_DEQUANTIZE_F16_MVE) && !defined(ARM_NN_DEQUANTIZE_F16_FPU)
+/**
+ * @brief Integer widening of one float16 bit pattern, with the result of the FPU's VCVTB at reset FPSCR: exact for
+ *        every finite half and Inf, and a NaN keeps its sign and payload and comes back quiet. Raises no FP flag.
+ *        Half subnormals are normal singles: renormalize.
+ *
+ * @param[in]  h  The binary16 bits in the low 16 bits.
+ *
+ * @return     The binary32 bits.
+ */
+__STATIC_FORCEINLINE uint32_t arm_nn_f16_bits_to_f32_bits(const uint32_t h)
+{
+    const uint32_t sign = (h & 0x8000u) << 16;
+    const uint32_t exp = (h >> 10) & 0x1Fu;
+    uint32_t mant = h & 0x3FFu;
+    if (exp == 0x1Fu)
+    {
+        return sign | 0x7F800000u | (mant << 13) | (mant != 0u ? 0x00400000u : 0u);
+    }
+    if (exp != 0u)
+    {
+        return sign | ((exp + 112u) << 23) | (mant << 13);
+    }
+    if (mant == 0u)
+    {
+        return sign;
+    }
+    uint32_t shift = 0u;
+    while ((mant & 0x400u) == 0u)
+    {
+        mant <<= 1;
+        shift++;
+    }
+    return sign | ((113u - shift) << 23) | ((mant & 0x3FFu) << 13);
+}
+#endif
+
+/**
+ * @brief The body of arm_dequantize_f16_bits_f32() without its argument checks, inline so that a caller with a
+ *        small or constant size pays no call. Each element gives what the path's hardware half-to-single conversion
+ *        gives; arm_dequantize_f16_bits_f32() documents the paths.
+ *
+ * @param[in]   input       Pointer to the binary16 bit patterns, not NULL unless block_size is 0.
+ * @param[out]  output      Pointer to the float32 output array, 4-byte aligned and not overlapping input.
+ * @param[in]   block_size  Number of elements, not negative (unchecked: the vector path would store
+ *                          block_size & 3 elements for a negative size).
+ */
+__STATIC_FORCEINLINE void arm_nn_dequantize_f16_bits_f32(const uint16_t *input, float *output, const int32_t block_size)
+{
+#if defined(ARM_NN_DEQUANTIZE_F16_MVE)
+    /*
+     * A widening load puts half j of a 4-block in the low half of lane j, which is what the bottom-half VCVT
+     * converts, so the output keeps element order.
+     */
+    const uint16_t *in = input;
+    float *out = output;
+    for (int32_t n = block_size >> 2; n > 0; n--)
+    {
+        vst1q(out, arm_nn_vcvtbq_f32_f16(vreinterpretq_f16_u32(vldrhq_u32(in))));
+        in += 4;
+        out += 4;
+    }
+    if ((block_size & 3) != 0)
+    {
+        const mve_pred16_t p = vctp32q((uint32_t)(block_size & 3));
+        vst1q_p(out, arm_nn_vcvtbq_f32_f16(vreinterpretq_f16_u32(vldrhq_z_u32(in, p))), p);
+    }
+#elif defined(ARM_NN_DEQUANTIZE_F16_FPU)
+    int32_t i = 0;
+    for (; i + 2 <= block_size; i += 2)
+    {
+        /* Two halves per word, read through memcpy: arm_dequantize_f16_f32() passes float16_t storage */
+        float in;
+        memcpy(&in, &input[i], sizeof(in));
+        __asm("vcvtb.f32.f16 %0, %2\n\t"
+              "vcvtt.f32.f16 %1, %2"
+              : "=&t"(output[i]), "=&t"(output[i + 1])
+              : "t"(in));
+    }
+    if (i < block_size)
+    {
+        uint32_t h = 0u;
+        float in;
+        memcpy(&h, &input[i], sizeof(uint16_t));
+        memcpy(&in, &h, sizeof(in));
+        __asm("vcvtb.f32.f16 %0, %1" : "=t"(output[i]) : "t"(in));
+    }
+#else
+    for (int32_t i = 0; i < block_size; i++)
+    {
+        /* Read through memcpy: arm_dequantize_f16_f32() passes float16_t storage */
+        uint16_t h;
+        uint32_t f;
+        memcpy(&h, &input[i], sizeof(h));
+        f = arm_nn_f16_bits_to_f32_bits(h);
+        memcpy(&output[i], &f, sizeof(f));
+    }
+#endif
 }
 
 #ifdef __cplusplus

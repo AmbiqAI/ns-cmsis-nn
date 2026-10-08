@@ -1917,6 +1917,544 @@ void conv_1x1_out_tail_arm_convolve_s8(void)
 #endif
 }
 
+/* Quantization classes for the right-shift-only requantization: 0 every shift in [-30, -1]; 1 as 0 with dead
+ * channels (multiplier 0, shift 0); 2 as 0 with one shift of +1; 3 as 0 with one shift of 0 and a non-zero multiplier;
+ * 4 shifts in [0, 2]. Classes 0 and 1 take the right-shift path, the others the general one. Shifts stop at -30:
+ * the scalar arm_divide_by_power_of_two() overflows forming its remainder mask for an exponent of 31. */
+static void conv_1x1_quant_class(int32_t cls, int32_t channels, int32_t *multiplier, int32_t *shift, uint32_t *seed)
+{
+    for (int32_t i = 0; i < channels; i++)
+    {
+        *seed = *seed * 1664525u + 1013904223u;
+        multiplier[i] = (int32_t)(0x40000000u + ((*seed >> 2) & 0x3FFFFFFFu));
+        *seed = *seed * 1664525u + 1013904223u;
+        shift[i] = cls == 4 ? (int32_t)((*seed >> 8) % 3u) : -1 - (int32_t)((*seed >> 8) % 30u);
+        if (cls == 1 && i % 3 == 1)
+        {
+            multiplier[i] = 0;
+            shift[i] = 0;
+        }
+    }
+    if (cls == 2)
+    {
+        shift[channels - 1] = 1;
+    }
+    if (cls == 3)
+    {
+        shift[channels / 2] = 0;
+    }
+    /* Keep the channels the general path requantizes inside the int8 range, so that taking the wrong path changes
+     * outputs instead of saturating them. */
+    for (int32_t i = 0; i < channels; i++)
+    {
+        if (shift[i] >= 0 && multiplier[i] != 0)
+        {
+            multiplier[i] = (0x30000 + i * 0x1235) >> shift[i];
+        }
+    }
+}
+
+/* Every quantization class through the 1x1 path against arm_nn_requantize(). 30 pixels, 20 input and 7 output channels
+ * reach arm_nn_mat_mult_nt_t_s8()'s four-row loop and its one-row loop (2 remaining pixels), the channel blocks of four
+ * and the channel tail. */
+void conv_1x1_requant_classes_arm_convolve_s8(void)
+{
+    enum
+    {
+        in_h = 6,
+        in_w = 5,
+        in_c = 20,
+        out_c = 7,
+        pixels = in_h * in_w
+    };
+    const int32_t input_offset = 128;
+    const int32_t output_offset = -3;
+    const int32_t activation_min = -128;
+    const int32_t activation_max = 127;
+    int8_t input[pixels * in_c];
+    int8_t kernel[out_c * in_c];
+    int32_t bias[out_c];
+    int32_t multiplier[out_c];
+    int32_t shift[out_c];
+    int32_t weight_sum[out_c];
+    int8_t output[pixels * out_c + 4];
+    uint32_t seed = 41u;
+
+    for (int32_t i = 0; i < pixels * in_c; i++)
+    {
+        seed = seed * 1664525u + 1013904223u;
+        input[i] = (int8_t)(seed >> 24);
+    }
+    for (int32_t i = 0; i < out_c * in_c; i++)
+    {
+        seed = seed * 1664525u + 1013904223u;
+        kernel[i] = (int8_t)(seed >> 24);
+    }
+    for (int32_t i = 0; i < out_c; i++)
+    {
+        seed = seed * 1664525u + 1013904223u;
+        bias[i] = (int32_t)(seed >> 14) - (1 << 17);
+    }
+
+    const cmsis_nn_dims input_dims = {1, in_h, in_w, in_c};
+    const cmsis_nn_dims filter_dims = {out_c, 1, 1, in_c};
+    const cmsis_nn_dims bias_dims = {1, 1, 1, out_c};
+    const cmsis_nn_dims output_dims = {1, in_h, in_w, out_c};
+    const cmsis_nn_conv_params conv_params = {
+        .input_offset = input_offset,
+        .output_offset = output_offset,
+        .stride = {1, 1},
+        .padding = {0, 0},
+        .dilation = {1, 1},
+        .activation = {activation_min, activation_max},
+    };
+    const cmsis_nn_per_channel_quant_params quant_params = {
+        .multiplier = multiplier,
+        .shift = shift,
+    };
+    cmsis_nn_context ctx = {0};
+    const cmsis_nn_context weight_sum_ctx = {weight_sum, (int32_t)sizeof(weight_sum)};
+    ctx.size = arm_convolve_wrapper_s8_get_buffer_size(&conv_params, &input_dims, &filter_dims, &output_dims);
+    if (ctx.size > 0)
+    {
+        ctx.buf = malloc((size_t)ctx.size);
+        TEST_ASSERT_NOT_NULL(ctx.buf);
+    }
+#if defined(ARM_MATH_MVEI)
+    /* Only the MVE path reads the weight sums. */
+    TEST_ASSERT_EQUAL(
+        ARM_CMSIS_NN_SUCCESS,
+        arm_convolve_weight_sum(weight_sum, kernel, &input_dims, &filter_dims, &output_dims, input_offset, bias));
+#endif
+
+    static const char *const cls_name[5] = {"rshift", "rshift+dead", "shift+1", "shift0", "lshift"};
+    for (int32_t cls = 0; cls < 5; cls++)
+    {
+        conv_1x1_quant_class(cls, out_c, multiplier, shift, &seed);
+        memset(output, 0x5A, sizeof(output));
+        TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
+                          arm_convolve_wrapper_s8(&ctx,
+                                                  &weight_sum_ctx,
+                                                  &conv_params,
+                                                  &quant_params,
+                                                  &input_dims,
+                                                  input,
+                                                  &filter_dims,
+                                                  kernel,
+                                                  &bias_dims,
+                                                  bias,
+                                                  &output_dims,
+                                                  output + 2));
+        TEST_ASSERT_EQUAL_INT8(0x5A, output[0]);
+        TEST_ASSERT_EQUAL_INT8(0x5A, output[1]);
+        TEST_ASSERT_EQUAL_INT8(0x5A, output[pixels * out_c + 2]);
+        TEST_ASSERT_EQUAL_INT8(0x5A, output[pixels * out_c + 3]);
+        for (int32_t px = 0; px < pixels; px++)
+        {
+            for (int32_t oc = 0; oc < out_c; oc++)
+            {
+                int32_t acc = bias[oc];
+                for (int32_t ic = 0; ic < in_c; ic++)
+                {
+                    acc += (input[px * in_c + ic] + input_offset) * kernel[oc * in_c + ic];
+                }
+                int32_t expected = arm_nn_requantize(acc, multiplier[oc], shift[oc]) + output_offset;
+                expected = ARM_NN_MAX(expected, activation_min);
+                expected = ARM_NN_MIN(expected, activation_max);
+                TEST_ASSERT_EQUAL_INT8_MESSAGE((int8_t)expected, output[2 + px * out_c + oc], cls_name[cls]);
+            }
+        }
+    }
+    free(ctx.buf);
+}
+
+/* arm_requantize_mve_rshift() and arm_requantize_mve_32x4_rshift() against arm_requantize_mve() and
+ * arm_requantize_mve_32x4() on every input arm_nn_requantize_rshift_only() admits: shifts in [-40, -1], including
+ * those below -31 that the scalar reference does not define, extreme values and multipliers, and multiplier 0. */
+void requantize_rshift_helpers_arm_convolve_s8(void)
+{
+#if defined(ARM_MATH_MVEI) && !defined(CMSIS_NN_USE_SINGLE_ROUNDING)
+    const int32_t edges[] = {INT32_MIN, INT32_MIN + 1, -65537, -2, -1, 0, 1, 2, 65535, INT32_MAX - 1, INT32_MAX};
+    uint32_t seed = 47u;
+    for (int32_t shift = -40; shift <= 0; shift++)
+    {
+        for (int32_t round = 0; round < 64; round++)
+        {
+            int32_t vals[4];
+            int32_t mults[4];
+            int32_t shifts[4];
+            for (int32_t l = 0; l < 4; l++)
+            {
+                seed = seed * 1664525u + 1013904223u;
+                vals[l] = round < 3 ? edges[(round * 4 + l) % 11] : (int32_t)seed;
+                seed = seed * 1664525u + 1013904223u;
+                mults[l] = shift == 0 ? 0 : (round == 0 ? INT32_MAX : (int32_t)(0x40000000u + (seed >> 2)));
+                if (round == 1 && shift != 0)
+                {
+                    /* A negative multiplier, which the check also admits. */
+                    mults[l] = -mults[l];
+                }
+                seed = seed * 1664525u + 1013904223u;
+                shifts[l] = shift == 0 ? 0 : -1 - (int32_t)((seed >> 8) % 40u);
+            }
+            TEST_ASSERT_TRUE(arm_nn_requantize_rshift_only(mults, shifts, 4));
+            const int32x4_t v = vldrwq_s32(vals);
+            int32_t want[4];
+            int32_t got[4];
+            vstrwq_s32(want, arm_requantize_mve(v, mults[0], shift));
+            vstrwq_s32(got, arm_requantize_mve_rshift(v, mults[0], shift));
+            TEST_ASSERT_EQUAL_INT32_ARRAY(want, got, 4);
+            vstrwq_s32(want, arm_requantize_mve_32x4(v, vldrwq_s32(mults), vldrwq_s32(shifts)));
+            vstrwq_s32(got, arm_requantize_mve_32x4_rshift(v, vldrwq_s32(mults), vldrwq_s32(shifts)));
+            TEST_ASSERT_EQUAL_INT32_ARRAY(want, got, 4);
+        }
+    }
+    const int32_t mult_lshift[2] = {1 << 30, 1 << 30};
+    const int32_t shift_lshift[2] = {-3, 0};
+    TEST_ASSERT_FALSE(arm_nn_requantize_rshift_only(mult_lshift, shift_lshift, 2));
+    const int32_t mult_dead[2] = {1 << 30, 0};
+    const int32_t shift_dead[2] = {-3, 5};
+    TEST_ASSERT_TRUE(arm_nn_requantize_rshift_only(mult_dead, shift_dead, 2));
+    /* Channel counts that end in a partial vector, with the one channel that fails the check last. */
+    for (int32_t num_ch = 5; num_ch <= 7; num_ch++)
+    {
+        int32_t mult_tail[8];
+        int32_t shift_tail[8];
+        for (int32_t i = 0; i < 8; i++)
+        {
+            mult_tail[i] = 1 << 30;
+            shift_tail[i] = -4;
+        }
+        TEST_ASSERT_TRUE(arm_nn_requantize_rshift_only(mult_tail, shift_tail, num_ch));
+        shift_tail[num_ch - 1] = 0;
+        TEST_ASSERT_FALSE(arm_nn_requantize_rshift_only(mult_tail, shift_tail, num_ch));
+        shift_tail[num_ch - 1] = -4;
+        shift_tail[num_ch] = 0; /* past the last channel: must not count */
+        TEST_ASSERT_TRUE(arm_nn_requantize_rshift_only(mult_tail, shift_tail, num_ch));
+    }
+    /* A zero multiplier with a positive shift, which the check also admits. */
+    for (int32_t i = 0; i < 11; i += 4)
+    {
+        const int32x4_t v = vldrwq_s32(&edges[i < 8 ? i : 7]);
+        int32_t want[4];
+        int32_t got[4];
+        vstrwq_s32(want, arm_requantize_mve(v, 0, 5));
+        vstrwq_s32(got, arm_requantize_mve_rshift(v, 0, 5));
+        TEST_ASSERT_EQUAL_INT32_ARRAY(want, got, 4);
+    }
+#endif
+}
+
+/* arm_convolve_1x1_s8_short_k() against arm_nn_requantize(), at every input depth from 1 to 16 and at 17 (outside the
+ * gate), with every pixel tail, the paired-pixel depth of 8, one and two batches, the full and a narrower activation
+ * range, and every quantization class, including the two that mix right-shift-only and general channels in one layer.
+ * Outside the gate, and on builds without the kernel, it returns ARM_CMSIS_NN_NO_IMPL_ERROR and writes nothing. Where
+ * the MPU guard is available, input, filter and output each end at the guard gap in turn. */
+void conv_1x1_short_k_arm_convolve_1x1_s8_short_k(void)
+{
+    enum
+    {
+        max_px = 2 * 13,
+        max_cin = 17,
+        max_cout = 8
+    };
+    const int32_t cins[] = {1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17};
+    const int32_t pixel_counts[] = {7, 8, 9, 10, 11, 13};
+    const int32_t couts[] = {1, 5, 8};
+    const int32_t classes[] = {0, 1, 2, 3, 4};
+    const int32_t batches[] = {1, 2};
+    const int32_t input_offset = 128;
+    const int32_t output_offset = 5;
+    int8_t input[max_px * max_cin];
+    int8_t kernel[max_cout * max_cin];
+    int32_t bias[max_cout];
+    int32_t multiplier[max_cout];
+    int32_t shift[max_cout];
+    int32_t weight_sum[max_cout];
+    int8_t output[max_px * max_cout + 4];
+    uint32_t seed = 53u;
+
+    for (size_t a = 0; a < sizeof(cins) / sizeof(cins[0]) * 2; a++)
+    {
+        /* Each depth runs as one batch, then as two batches of that many pixels each. */
+        const int32_t batch = batches[a & 1];
+        for (size_t b = 0; b < sizeof(pixel_counts) / sizeof(pixel_counts[0]); b++)
+        {
+            for (size_t c = 0; c < sizeof(couts) / sizeof(couts[0]); c++)
+            {
+                const int32_t in_c = cins[a >> 1];
+                const int32_t pixels = batch * pixel_counts[b];
+                const int32_t out_c = couts[c];
+                for (int32_t i = 0; i < pixels * in_c; i++)
+                {
+                    seed = seed * 1664525u + 1013904223u;
+                    input[i] = (int8_t)(seed >> 24);
+                }
+                for (int32_t i = 0; i < out_c * in_c; i++)
+                {
+                    seed = seed * 1664525u + 1013904223u;
+                    kernel[i] = (int8_t)(seed >> 24);
+                }
+                for (int32_t i = 0; i < out_c; i++)
+                {
+                    seed = seed * 1664525u + 1013904223u;
+                    bias[i] = (int32_t)(seed >> 16) - (1 << 15);
+                }
+                const cmsis_nn_dims input_dims = {batch, 1, pixels / batch, in_c};
+                const cmsis_nn_dims filter_dims = {out_c, 1, 1, in_c};
+                const cmsis_nn_dims bias_dims = {1, 1, 1, out_c};
+                const cmsis_nn_dims output_dims = {batch, 1, pixels / batch, out_c};
+                cmsis_nn_conv_params conv_params = {
+                    .input_offset = input_offset,
+                    .output_offset = output_offset,
+                    .stride = {1, 1},
+                    .padding = {0, 0},
+                    .dilation = {1, 1},
+                    .activation = {-128, 127},
+                };
+                const cmsis_nn_per_channel_quant_params quant_params = {
+                    .multiplier = multiplier,
+                    .shift = shift,
+                };
+                const cmsis_nn_context weight_sum_ctx = {weight_sum, out_c * (int32_t)sizeof(int32_t)};
+                const cmsis_nn_context ctx = {0};
+#if defined(ARM_MATH_MVEI) && !defined(ARM_MATH_AUTOVECTORIZE)
+                const int32_t runs = in_c <= 16;
+#else
+                const int32_t runs = 0;
+#endif
+#if defined(ARM_MATH_MVEI)
+                TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
+                                  arm_convolve_weight_sum(
+                                      weight_sum, kernel, &input_dims, &filter_dims, &output_dims, input_offset, bias));
+#endif
+                for (size_t k = 0; k < sizeof(classes) / sizeof(classes[0]); k++)
+                {
+                    conv_1x1_quant_class(classes[k], out_c, multiplier, shift, &seed);
+                    /* Alternate the full int8 range with a narrower clamp. */
+                    conv_params.activation.min = (k & 1) ? -100 : -128;
+                    conv_params.activation.max = (k & 1) ? 90 : 127;
+                    const int32_t activation_min = conv_params.activation.min;
+                    const int32_t activation_max = conv_params.activation.max;
+                    memset(output, 0x5A, sizeof(output));
+                    TEST_ASSERT_EQUAL(runs ? ARM_CMSIS_NN_SUCCESS : ARM_CMSIS_NN_NO_IMPL_ERROR,
+                                      arm_convolve_1x1_s8_short_k(&ctx,
+                                                                  &weight_sum_ctx,
+                                                                  &conv_params,
+                                                                  &quant_params,
+                                                                  &input_dims,
+                                                                  input,
+                                                                  &filter_dims,
+                                                                  kernel,
+                                                                  &bias_dims,
+                                                                  bias,
+                                                                  &output_dims,
+                                                                  output + 2));
+                    TEST_ASSERT_EQUAL_INT8(0x5A, output[0]);
+                    TEST_ASSERT_EQUAL_INT8(0x5A, output[1]);
+                    TEST_ASSERT_EQUAL_INT8(0x5A, output[pixels * out_c + 2]);
+                    TEST_ASSERT_EQUAL_INT8(0x5A, output[pixels * out_c + 3]);
+                    if (!runs)
+                    {
+                        for (int32_t i = 0; i < pixels * out_c; i++)
+                        {
+                            TEST_ASSERT_EQUAL_INT8(0x5A, output[2 + i]);
+                        }
+                        continue;
+                    }
+                    for (int32_t px = 0; px < pixels; px++)
+                    {
+                        for (int32_t oc = 0; oc < out_c; oc++)
+                        {
+                            int32_t acc = bias[oc];
+                            for (int32_t ic = 0; ic < in_c; ic++)
+                            {
+                                acc += (input[px * in_c + ic] + input_offset) * kernel[oc * in_c + ic];
+                            }
+                            int32_t expected = arm_nn_requantize(acc, multiplier[oc], shift[oc]) + output_offset;
+                            expected = ARM_NN_MAX(expected, activation_min);
+                            expected = ARM_NN_MIN(expected, activation_max);
+                            TEST_ASSERT_EQUAL_INT8((int8_t)expected, output[2 + px * out_c + oc]);
+                        }
+                    }
+#if defined(MPU_GUARD_AVAILABLE)
+                    if (k == 0)
+                    {
+                        /* Each operand in turn ends at the MPU gap, so a read or write past it faults. */
+                        for (int32_t at_gap = 0; at_gap < 3; at_gap++)
+                        {
+                            const int8_t *in = at_gap == 0 ? guard_place(input, (size_t)(pixels * in_c)) : input;
+                            const int8_t *w = at_gap == 1 ? guard_place(kernel, (size_t)(out_c * in_c)) : kernel;
+                            int8_t *out = at_gap == 2 ? guard_end((size_t)(pixels * out_c)) : output + 2;
+                            guard_gap_enable();
+                            const arm_cmsis_nn_status st = arm_convolve_1x1_s8_short_k(&ctx,
+                                                                                    &weight_sum_ctx,
+                                                                                    &conv_params,
+                                                                                    &quant_params,
+                                                                                    &input_dims,
+                                                                                    in,
+                                                                                    &filter_dims,
+                                                                                    w,
+                                                                                    &bias_dims,
+                                                                                    bias,
+                                                                                    &output_dims,
+                                                                                    out);
+                            guard_gap_disable();
+                            TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, st);
+                            if (at_gap == 2)
+                            {
+                                TEST_ASSERT_EQUAL_INT8_ARRAY(output + 2, out, pixels * out_c);
+                            }
+                        }
+                    }
+#endif
+                }
+            }
+        }
+    }
+}
+
+/* arm_convolve_1x1_s8_short_k() declines layers outside its gate (a stride, padding, a filter depth unlike the input
+ * depth or outside 1 to 16, a dilation, a filter other than 1x1, no pixels, counts past INT32_MAX) with
+ * ARM_CMSIS_NN_NO_IMPL_ERROR and writes nothing; with NULL weight sums it reports ARM_CMSIS_NN_ARG_ERROR, ahead of
+ * the gate, on builds that have the kernel. */
+void conv_1x1_short_k_declines_arm_convolve_1x1_s8_short_k(void)
+{
+    int8_t input[8 * 8 * 8] = {0};
+    int8_t kernel[4 * 8] = {0};
+    int32_t bias[4] = {0}, multiplier[4] = {1 << 30, 1 << 30, 1 << 30, 1 << 30}, shift[4] = {-1, -1, -1, -1};
+    int32_t weight_sum[4] = {0};
+    int8_t output[8 * 8 * 4];
+    const cmsis_nn_per_channel_quant_params quant_params = {multiplier, shift};
+    const cmsis_nn_context ctx = {0};
+    const cmsis_nn_context weight_sum_ctx = {weight_sum, (int32_t)sizeof(weight_sum)};
+    const cmsis_nn_dims bias_dims = {1, 1, 1, 4};
+    for (int32_t k = 0; k < 20; k++)
+    {
+        cmsis_nn_conv_params conv_params = {.stride = {1, 1}, .dilation = {1, 1}, .activation = {-128, 127}};
+        cmsis_nn_dims input_dims = {1, 4, 4, 8}, filter_dims = {4, 1, 1, 8}, output_dims = {1, 4, 4, 4};
+        switch (k)
+        {
+        case 0:
+            conv_params.stride.w = 2;
+            output_dims.w = 2;
+            break;
+        case 1:
+            conv_params.stride.h = 2;
+            output_dims.h = 2;
+            break;
+        case 2:
+            conv_params.padding.h = 1;
+            break;
+        case 3:
+            conv_params.padding.w = 1;
+            break;
+        case 4:
+            conv_params.dilation.h = 2;
+            break;
+        case 5:
+            conv_params.dilation.w = 2;
+            break;
+        case 6:
+            filter_dims.c = 4;
+            break;
+        case 7:
+            filter_dims.h = 3;
+            filter_dims.w = 3;
+            break;
+        case 8:
+            input_dims.c = 0;
+            filter_dims.c = 0;
+            break;
+        /* No pixels: a zero or negative batch, height or width */
+        case 9:
+            input_dims.n = 0;
+            break;
+        case 10:
+            input_dims.n = -1;
+            break;
+        case 11:
+            input_dims.h = -1;
+            break;
+        case 12:
+            input_dims.w = -1;
+            break;
+        case 13:
+            /* -3 pixels: without the gate the kernel takes a one-pixel tail and writes inside output */
+            input_dims.n = -1;
+            input_dims.h = 1;
+            input_dims.w = 3;
+            break;
+        /* Pixel or output element counts past INT32_MAX; no tensor is touched */
+        case 14:
+            input_dims.n = 3;
+            input_dims.h = 1431655765;
+            input_dims.w = 1;
+            break;
+        case 15:
+            input_dims.h = 1 << 20;
+            input_dims.w = 1 << 10;
+            break;
+        /* Output depth not positive, or unlike the filter's */
+        case 16:
+            output_dims.c = INT32_MIN;
+            break;
+        case 17:
+            output_dims.c = 3;
+            break;
+        case 18:
+            /* Weight sums past INT32_MAX bytes: one pixel, 2^29 filter rows of 1 */
+            input_dims = (cmsis_nn_dims){1, 1, 1, 1};
+            filter_dims = (cmsis_nn_dims){1 << 29, 1, 1, 1};
+            output_dims = (cmsis_nn_dims){1, 1, 1, 1 << 29};
+            break;
+        default:
+            /* C_OUT x C_IN past INT32_MAX: one pixel, 2^28 filter rows of 16 */
+            input_dims = (cmsis_nn_dims){1, 1, 1, 16};
+            filter_dims = (cmsis_nn_dims){1 << 28, 1, 1, 16};
+            output_dims = (cmsis_nn_dims){1, 1, 1, 1 << 28};
+            break;
+        }
+        memset(output, 0x5A, sizeof(output));
+        TEST_ASSERT_EQUAL(ARM_CMSIS_NN_NO_IMPL_ERROR,
+                          arm_convolve_1x1_s8_short_k(&ctx,
+                                                      &weight_sum_ctx,
+                                                      &conv_params,
+                                                      &quant_params,
+                                                      &input_dims,
+                                                      input,
+                                                      &filter_dims,
+                                                      kernel,
+                                                      &bias_dims,
+                                                      bias,
+                                                      &output_dims,
+                                                      output));
+        for (int32_t i = 0; i < (int32_t)sizeof(output); i++)
+        {
+            TEST_ASSERT_EQUAL_INT8(0x5A, output[i]);
+        }
+    }
+#if defined(ARM_MATH_MVEI) && !defined(ARM_MATH_AUTOVECTORIZE)
+    /* Outside the gate (stride 2): the weight-sum check comes first */
+    const cmsis_nn_conv_params conv_params = {.stride = {2, 2}, .dilation = {1, 1}, .activation = {-128, 127}};
+    const cmsis_nn_dims input_dims = {1, 4, 4, 8}, filter_dims = {4, 1, 1, 8}, output_dims = {1, 2, 2, 4};
+    const cmsis_nn_context no_sums = {NULL, 0};
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR,
+                      arm_convolve_1x1_s8_short_k(&ctx,
+                                                  &no_sums,
+                                                  &conv_params,
+                                                  &quant_params,
+                                                  &input_dims,
+                                                  input,
+                                                  &filter_dims,
+                                                  kernel,
+                                                  &bias_dims,
+                                                  bias,
+                                                  &output_dims,
+                                                  output));
+#endif
+}
+
 void conv_1x1_out_null_weight_sum_arm_convolve_1x1_out_s8(void)
 {
     /* arm_convolve_1x1_out_s8() is only compiled on builds with the MVE extension, and always reads
@@ -2238,6 +2776,175 @@ void buffer_size_dsp_arm_convolve_s8(void)
 
     TEST_ASSERT_EQUAL(wrapper_buf_size, dsp_wrapper_buf_size);
 #endif
+}
+
+/*
+ * arm_convolve_weight_sum() and arm_depthwise_convolve_weight_sum() on sizes past 16 bits: 65,536 output channels, and
+ * a patch of 65,536 weights both as one dimension and as a product of smaller ones. Every sum is checked against a
+ * scalar reference over weights with no short period. The 256 KB of sums and 128 KB of weights go to SRAM under the
+ * GCC Corstone-300 linker script, which places .bss.NoInit there; elsewhere they join .bss.
+ */
+#define WIDE_SUM_COUNT 65536
+
+#if defined(ARM_MATH_MVEI)
+    #if defined(USING_FVP_CORSTONE_300)
+        #define WIDE_SUM_SECTION __attribute__((section(".bss.NoInit")))
+    #else
+        #define WIDE_SUM_SECTION
+    #endif
+static int32_t wide_sums[WIDE_SUM_COUNT] WIDE_SUM_SECTION;
+static int8_t wide_weights[2 * WIDE_SUM_COUNT] WIDE_SUM_SECTION;
+
+/* Checks sums[j] == bias[j] + lhs_offset * (sum of weights[j * stride + k * k_step] over k < patch). */
+static void wide_sums_check(int32_t channels,
+                            int32_t patch,
+                            int32_t stride,
+                            int32_t k_step,
+                            int32_t lhs_offset,
+                            const int32_t *bias)
+{
+    for (int32_t j = 0; j < channels; j++)
+    {
+        int32_t sum = 0;
+        for (int32_t k = 0; k < patch; k++)
+        {
+            sum += wide_weights[j * stride + k * k_step];
+        }
+        const int32_t expected = (bias ? bias[j] : 0) + lhs_offset * sum;
+        if (wide_sums[j] != expected)
+        {
+            char msg[64];
+            snprintf(msg, sizeof(msg), "channel %ld of %ld", (long)j, (long)channels);
+            TEST_ASSERT_EQUAL_INT32_MESSAGE(expected, wide_sums[j], msg);
+        }
+    }
+}
+#endif
+
+void weight_sum_wide_dims_arm_convolve_s8(void)
+{
+#if defined(ARM_MATH_MVEI)
+    const int32_t lhs_offset = 128;
+    const int32_t bias[1] = {-7};
+    const cmsis_nn_dims input_dims = {1, 1, 1, 1};
+    uint32_t seed = 0x13579bdfu;
+    for (int32_t i = 0; i < 2 * WIDE_SUM_COUNT; i++)
+    {
+        seed = seed * 1664525u + 1013904223u;
+        wide_weights[i] = (int8_t)((int32_t)(seed >> 24) - 128);
+    }
+
+    /* Conv, [C_OUT, KH, KW, C_IN] = [65536, 1, 1, 1]: channel j sums weights[j]. */
+    cmsis_nn_dims filter_dims = {WIDE_SUM_COUNT, 1, 1, 1};
+    cmsis_nn_dims output_dims = {1, 1, 1, WIDE_SUM_COUNT};
+    memset(wide_sums, 0x55, sizeof(wide_sums));
+    TEST_ASSERT_EQUAL(
+        ARM_CMSIS_NN_SUCCESS,
+        arm_convolve_weight_sum(wide_sums, wide_weights, &input_dims, &filter_dims, &output_dims, lhs_offset, NULL));
+    wide_sums_check(WIDE_SUM_COUNT, 1, 1, 1, lhs_offset, NULL);
+
+    /* Conv, one output channel over a 65,536-weight patch: as C_IN alone, then as 16 x 16 x 256. */
+    const cmsis_nn_dims patches[2] = {{1, 1, 1, WIDE_SUM_COUNT}, {1, 16, 16, 256}};
+    output_dims.c = 1;
+    for (int p = 0; p < 2; p++)
+    {
+        memset(wide_sums, 0x55, sizeof(wide_sums[0]));
+        TEST_ASSERT_EQUAL(
+            ARM_CMSIS_NN_SUCCESS,
+            arm_convolve_weight_sum(wide_sums, wide_weights, &input_dims, &patches[p], &output_dims, lhs_offset, bias));
+        wide_sums_check(1, WIDE_SUM_COUNT, 0, 1, lhs_offset, bias);
+    }
+
+    /* Depthwise, [1, KH, KW, C_OUT] = [1, 1, 2, 65536]: tap k of channel j is weights[k * 65536 + j]. */
+    const cmsis_nn_dw_conv_params dw_conv_params = {0};
+    filter_dims = (cmsis_nn_dims){1, 1, 2, WIDE_SUM_COUNT};
+    output_dims.c = WIDE_SUM_COUNT;
+    memset(wide_sums, 0x55, sizeof(wide_sums));
+    TEST_ASSERT_EQUAL(
+        ARM_CMSIS_NN_SUCCESS,
+        arm_depthwise_convolve_weight_sum(
+            wide_sums, NULL, wide_weights, &dw_conv_params, &input_dims, &filter_dims, &output_dims, lhs_offset, NULL));
+    wide_sums_check(WIDE_SUM_COUNT, 2, 1, WIDE_SUM_COUNT, lhs_offset, NULL);
+
+    /* Depthwise, one channel over a 65,536-tap kernel row: tap k of channel 0 is weights[k]. */
+    filter_dims = (cmsis_nn_dims){1, 1, WIDE_SUM_COUNT, 1};
+    output_dims.c = 1;
+    memset(wide_sums, 0x55, sizeof(wide_sums[0]));
+    TEST_ASSERT_EQUAL(
+        ARM_CMSIS_NN_SUCCESS,
+        arm_depthwise_convolve_weight_sum(
+            wide_sums, NULL, wide_weights, &dw_conv_params, &input_dims, &filter_dims, &output_dims, lhs_offset, bias));
+    wide_sums_check(1, WIDE_SUM_COUNT, 0, 1, lhs_offset, bias);
+#endif
+}
+
+/*
+ * Sizes the weight-sum helpers cannot represent are rejected before anything is written: a negative KH, KW or C_IN,
+ * a patch past INT32_MAX, an output depth arm_convolve_s8_get_weights_sum_size() rejects, a NULL buffer, and for the
+ * conv helper a filter of more than INT32_MAX - 15 weights. Builds without MVE do not use the sums and return
+ * ARM_CMSIS_NN_NO_IMPL_ERROR for every call.
+ */
+void weight_sum_arg_errors_arm_convolve_s8(void)
+{
+#if defined(ARM_MATH_MVEI)
+    const arm_cmsis_nn_status expected = ARM_CMSIS_NN_ARG_ERROR;
+#else
+    const arm_cmsis_nn_status expected = ARM_CMSIS_NN_NO_IMPL_ERROR;
+#endif
+    const int8_t weights[4] = {1, 2, 3, 4};
+    const cmsis_nn_dims input_dims = {1, 1, 1, 1};
+    const cmsis_nn_dw_conv_params dw_conv_params = {0};
+    const cmsis_nn_dims good_filter = {1, 1, 1, 1};
+    const cmsis_nn_dims good_output = {1, 1, 1, 1};
+
+    /* Conv filters [C_OUT, KH, KW, C_IN]: negative dims, patches past INT32_MAX as KH * KW (also with C_IN of 0 or
+       INT32_MAX) and as KH * KW * C_IN, and one output channel of INT32_MAX - 14 weights. */
+    const cmsis_nn_dims conv_filters[] = {{1, -1, 1, 1},
+                                          {1, 1, -1, 1},
+                                          {1, 1, 1, -1},
+                                          {1, 65536, 32768, 1},
+                                          {1, 65536, 32768, 0},
+                                          {1, INT32_MAX, INT32_MAX, INT32_MAX},
+                                          {1, 2048, 2048, 512},
+                                          {1, 1, 1, INT32_MAX - 14}};
+    /* Depthwise filters [1, KH, KW, C_OUT]; the last one exceeds INT32_MAX as KH * KW. */
+    const cmsis_nn_dims dw_filters[] = {{1, -1, 1, 1}, {1, 1, -1, 1}, {1, 65536, 32768, 1}};
+    /* Output depths: negative, and the first whose sums do not fit an int32_t byte count. */
+    const cmsis_nn_dims outputs[] = {{1, 1, 1, -1}, {1, 1, 1, INT32_MAX / (int32_t)sizeof(int32_t) + 1}};
+
+    int32_t sums[2] = {0x55555555, 0x55555555};
+    for (size_t i = 0; i < sizeof(conv_filters) / sizeof(conv_filters[0]); i++)
+    {
+        TEST_ASSERT_EQUAL(expected,
+                          arm_convolve_weight_sum(sums, weights, &input_dims, &conv_filters[i], &good_output, 1, NULL));
+    }
+    for (size_t i = 0; i < sizeof(dw_filters) / sizeof(dw_filters[0]); i++)
+    {
+        TEST_ASSERT_EQUAL(
+            expected,
+            arm_depthwise_convolve_weight_sum(
+                sums, NULL, weights, &dw_conv_params, &input_dims, &dw_filters[i], &good_output, 1, NULL));
+    }
+    for (size_t i = 0; i < sizeof(outputs) / sizeof(outputs[0]); i++)
+    {
+        TEST_ASSERT_EQUAL(expected,
+                          arm_convolve_weight_sum(sums, weights, &input_dims, &good_filter, &outputs[i], 1, NULL));
+        TEST_ASSERT_EQUAL(expected,
+                          arm_depthwise_convolve_weight_sum(
+                              sums, NULL, weights, &dw_conv_params, &input_dims, &good_filter, &outputs[i], 1, NULL));
+    }
+    /* Five output channels of INT32_MAX / 5 + 1 weights each: every patch fits, the filter does not. */
+    const cmsis_nn_dims five_rows_filter = {5, 1, 1, INT32_MAX / 5 + 1};
+    const cmsis_nn_dims five_rows_output = {1, 1, 1, 5};
+    TEST_ASSERT_EQUAL(
+        expected, arm_convolve_weight_sum(sums, weights, &input_dims, &five_rows_filter, &five_rows_output, 1, NULL));
+    TEST_ASSERT_EQUAL(expected,
+                      arm_convolve_weight_sum(NULL, weights, &input_dims, &good_filter, &good_output, 1, NULL));
+    TEST_ASSERT_EQUAL(expected,
+                      arm_depthwise_convolve_weight_sum(
+                          NULL, NULL, weights, &dw_conv_params, &input_dims, &good_filter, &good_output, 1, NULL));
+    TEST_ASSERT_EQUAL_INT32(0x55555555, sums[0]);
+    TEST_ASSERT_EQUAL_INT32(0x55555555, sums[1]);
 }
 
 /*
@@ -2629,6 +3336,8 @@ static const low_depth_case_t small_cin_cases[] = {
     {2, 11, 9, 3, 3, 3, 12, 2, 2, 1, 1, 1, 1, 6, 5, 128, -128, 127},
     /* 3x3 input depth 3 stride 2, SAME with the extra padding on the right and bottom edge. */
     {1, 10, 10, 3, 3, 3, 8, 2, 2, 0, 0, 1, 1, 5, 5, 128, -128, 127},
+    /* 1x3 input depth 1, padded: below the depth-1 fill's tap threshold where ARM_NN_DEPTH1_STORE is set. */
+    {1, 1, 40, 1, 1, 3, 8, 1, 1, 0, 1, 1, 1, 1, 40, 5, -128, 127},
     /* 1x9 input depth 1 stride 2 pad 3 (right edge padded by 4). */
     {1, 1, 40, 1, 1, 9, 16, 1, 2, 0, 3, 1, 1, 1, 20, -24, -128, 127},
     /* Non-3-row kernels in the interior; activation clamps inside the int8 range. */
@@ -2863,9 +3572,8 @@ void small_cin_gate_declines_arm_convolve_s8(void)
     } declined[] = {
         /* upscale_dims given */
         {{1, 6, 6, 3, 3, 3, 8, 1, 1, 1, 1, 1, 1, 6, 6, 128, -128, 127}, 3, 1},
-        /* input depth 4 and 0 */
+        /* input depth 4 */
         {{1, 6, 6, 4, 3, 3, 8, 1, 1, 1, 1, 1, 1, 6, 6, 128, -128, 127}, 4, 0},
-        {{1, 6, 6, 0, 3, 3, 8, 1, 1, 1, 1, 1, 1, 6, 6, 128, -128, 127}, 0, 0},
         /* two groups: CK 1 against input depth 2 */
         {{1, 6, 6, 2, 3, 3, 8, 1, 1, 1, 1, 1, 1, 6, 6, 128, -128, 127}, 1, 0},
         /* dilation 2 in x, then in y */
@@ -2893,6 +3601,11 @@ void small_cin_gate_declines_arm_convolve_s8(void)
                                 0,
                                 0,
                                 ARM_CMSIS_NN_NO_IMPL_ERROR);
+    }
+    /* An input depth of 0 breaks arm_convolve_s8()'s group rule: an argument error, as there. */
+    {
+        const low_depth_case_t no_depth = {1, 6, 6, 0, 3, 3, 8, 1, 1, 1, 1, 1, 1, 6, 6, 128, -128, 127};
+        low_depth_expect_status(LOW_DEPTH_SMALL_CIN, &no_depth, 0, 0, 0, 0, ARM_CMSIS_NN_ARG_ERROR);
     }
     /* Kernel dimensions whose width x depth or width x height x depth products leave int32_t are declined. */
     {
@@ -2958,7 +3671,8 @@ void low_depth_arg_errors_arm_convolve_s8(void)
     const low_depth_case_t small = {1, 6, 6, 3, 3, 3, 8, 1, 1, 1, 1, 1, 1, 6, 6, 128, -128, 127};
     const low_depth_case_t c16 = {1, 6, 6, 16, 3, 3, 8, 1, 1, 1, 1, 1, 1, 6, 6, 128, -128, 127};
     const low_depth_case_t outside = {1, 6, 6, 4, 3, 3, 8, 1, 1, 1, 1, 1, 1, 6, 6, 128, -128, 127};
-    /* groups = 5 / 2 = 2 does not divide input depth 5; groups = 4 / 2 = 2 does not divide 3 output channels */
+    /* Input depth 5 is not a whole number of filter depths 2; 3 output channels are not a whole number of the
+       groups = 4 / 2 = 2 */
     const low_depth_case_t bad_in_groups = {1, 6, 6, 5, 3, 3, 8, 1, 1, 1, 1, 1, 1, 6, 6, 128, -128, 127};
     const low_depth_case_t bad_out_groups = {1, 6, 6, 4, 3, 3, 3, 1, 1, 1, 1, 1, 1, 6, 6, 128, -128, 127};
 #if defined(ARM_MATH_MVEI)
@@ -3099,5 +3813,83 @@ void conv_1x1_out_operands_at_gap_arm_convolve_1x1_out_s8(void)
     }
     memset(ctx.buf, 0, buffer_size);
     free(ctx.buf);
+#endif
+}
+
+/* arm_convolve_1x1_out_s8() has one group only (#699): a grouped layer used group 0's weight sums for every group and
+ * returned ARM_CMSIS_NN_SUCCESS, and an input deeper than the filter read only the first channels. Any input depth
+ * other than the filter's, and a filter depth of 0, are rejected. The function exists only on MVE builds. */
+void conv_1x1_out_grouped_arm_convolve_1x1_out_s8(void)
+{
+#if defined(ARM_MATH_MVEI)
+    int8_t input[8] = {1, -2, 3, -4, 5, -6, 7, -8};
+    int8_t kernel[4 * 8] = {0};
+    int32_t multiplier[4] = {1 << 30, 1 << 30, 1 << 30, 1 << 30};
+    int32_t shift[4] = {0, 0, 0, 0};
+    int32_t weight_sum[4] = {0};
+    int8_t output[4] = {0x5A, 0x5A, 0x5A, 0x5A};
+    int16_t scratch[64];
+    /* {input depth, filter depth}: two groups, a depth not a multiple of the filter's, a filter depth of 0 */
+    const int32_t depths[][2] = {{4, 2}, {6, 4}, {7, 4}, {4, 0}};
+    const cmsis_nn_dims bias_dims = {1, 1, 1, 4};
+    const cmsis_nn_dims output_dims = {1, 1, 1, 4};
+    const cmsis_nn_conv_params conv_params = {
+        .input_offset = 0,
+        .output_offset = 0,
+        .stride = {1, 1},
+        .padding = {0, 0},
+        .dilation = {1, 1},
+        .activation = {-128, 127},
+    };
+    const cmsis_nn_per_channel_quant_params quant_params = {.multiplier = multiplier, .shift = shift};
+    const cmsis_nn_context ctx = {scratch, (int32_t)sizeof(scratch)};
+    const cmsis_nn_context weight_sum_ctx = {weight_sum, (int32_t)sizeof(weight_sum)};
+    for (size_t d = 0; d < sizeof(depths) / sizeof(depths[0]); d++)
+    {
+        const cmsis_nn_dims input_dims = {1, 1, 1, depths[d][0]};
+        const cmsis_nn_dims filter_dims = {4, 1, 1, depths[d][1]};
+        TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR,
+                          arm_convolve_1x1_out_s8(&ctx,
+                                                  &weight_sum_ctx,
+                                                  &conv_params,
+                                                  &quant_params,
+                                                  &input_dims,
+                                                  input,
+                                                  &filter_dims,
+                                                  kernel,
+                                                  &bias_dims,
+                                                  NULL,
+                                                  &output_dims,
+                                                  output));
+        for (int i = 0; i < 4; i++)
+        {
+            TEST_ASSERT_EQUAL_INT8(0x5A, output[i]);
+        }
+    }
+    /* An output depth that is negative or beyond 16 bits, with equal input and filter depths */
+    const int32_t bad_out[] = {-4, 65540};
+    for (size_t d = 0; d < sizeof(bad_out) / sizeof(bad_out[0]); d++)
+    {
+        const cmsis_nn_dims input_dims = {1, 1, 1, 4};
+        const cmsis_nn_dims filter_dims = {bad_out[d], 1, 1, 4};
+        const cmsis_nn_dims wide_out = {1, 1, 1, bad_out[d]};
+        TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR,
+                          arm_convolve_1x1_out_s8(&ctx,
+                                                  &weight_sum_ctx,
+                                                  &conv_params,
+                                                  &quant_params,
+                                                  &input_dims,
+                                                  input,
+                                                  &filter_dims,
+                                                  kernel,
+                                                  &bias_dims,
+                                                  NULL,
+                                                  &wide_out,
+                                                  output));
+        for (int i = 0; i < 4; i++)
+        {
+            TEST_ASSERT_EQUAL_INT8(0x5A, output[i]);
+        }
+    }
 #endif
 }

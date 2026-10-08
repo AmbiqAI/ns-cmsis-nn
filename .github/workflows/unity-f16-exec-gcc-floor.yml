@@ -47,8 +47,10 @@ jobs:
       # One suite per kernel source that reaches a Q-form vcvt f16<->f32
       # conversion, directly or through a wrapper or an inline helper:
       #
-      #   Source/QuantizationFunctions/arm_dequantize_f16_f32.c
-      #       -> test_arm_dequantize_f16_f32 (arm_nn_vcvt{b,t}q_f32_f16)
+      #   Source/QuantizationFunctions/arm_dequantize_half_bits.c
+      #       -> test_arm_dequantize_f16_bits_f32 (arm_nn_vcvt{b,t}q_f32_f16;
+      #          arm_dequantize_f16_f32 calls it, and test_arm_dequantize_f16_f32
+      #          stays listed for that entry)
       #   Source/BasicMathFunctions/arm_nn_mean_f16.c
       #       -> test_arm_nn_mean_f16      (arm_nn_vcvt{b,t}q_f32_f16)
       #   Source/BasicMathFunctions/arm_reduce_sum_f16.c
@@ -89,6 +91,7 @@ jobs:
         test_arm_batch_matmul_f16
         test_arm_convolve_packed_f16
         test_arm_depthwise_conv_f16
+        test_arm_dequantize_f16_bits_f32
         test_arm_dequantize_f16_f32
         test_arm_f16_block_accum
         test_arm_fully_connected_f16
@@ -244,6 +247,9 @@ jobs:
           # and arm_convolve_f16 reaches the conversions through its direct
           # small-C kernel (AmbiqAI/ns-cmsis-nn#417), which that suite runs.
           SUITE_FOR = {"arm_convolve_f16": "test_arm_convolve_packed_f16"}
+          # arm_dequantize_half_bits.c holds arm_dequantize_f16_bits_f32(); its
+          # file name carries no dtype tag because the source is always built.
+          SUITE_FOR["arm_dequantize_half_bits"] = "test_arm_dequantize_f16_bits_f32"
           # Kernels without a suite of their own reach the conversions through
           # the blockwise float16 fold helpers (AmbiqAI/ns-cmsis-nn#586);
           # test_arm_f16_block_accum runs each of them on its fold path.

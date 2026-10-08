@@ -92,17 +92,17 @@ arm_cmsis_nn_status arm_convolve_s8(const cmsis_nn_context *ctx,
     const int32_t out_activation_max = conv_params->activation.max;
     const int32_t input_offset = conv_params->input_offset;
 
+    /* Checked before any division by the filter depth or the group count */
+    if (arm_nn_convolve_s8_groups_invalid(input_dims, filter_dims, output_dims))
+    {
+        return ARM_CMSIS_NN_ARG_ERROR;
+    }
     const int32_t groups = input_ch / kernel_ch;
     const int32_t rhs_cols = kernel_x * kernel_y * kernel_ch;
     const int32_t output_ch_per_group = output_ch / groups;
 
     const int32_t *output_mult = quant_params->multiplier;
     const int32_t *output_shift = quant_params->shift;
-
-    if (input_ch % groups != 0 || output_ch % groups != 0)
-    {
-        return ARM_CMSIS_NN_ARG_ERROR;
-    }
 
     // For upscale_dims == 2, the actual index of the input data is the index of the upscaled input divided by two. In
     // the ordinary case, there is no difference. The division is implemented as a rshift for optimization purposes.
@@ -113,6 +113,12 @@ arm_cmsis_nn_status arm_convolve_s8(const cmsis_nn_context *ctx,
     {
         y_rshift = upscale_dims->h == 2 ? 1 : 0;
         x_rshift = upscale_dims->w == 2 ? 1 : 0;
+    }
+
+    /* The upscaled im2col reads the input from its first channel, so it serves one group only */
+    if (groups != 1 && (x_rshift != 0 || y_rshift != 0))
+    {
+        return ARM_CMSIS_NN_ARG_ERROR;
     }
 
     const int32_t input_x_rshifted = input_x >> x_rshift;
@@ -148,7 +154,8 @@ arm_cmsis_nn_status arm_convolve_s8(const cmsis_nn_context *ctx,
         int32_t lhs_rows = 0;
 
         const int8_t *filter_data_ptr = &filter_data[0];
-        const int32_t *bias_data_ptr = &bias_data[0];
+        /* NULL when there is no bias; then it stays NULL in every group */
+        const int32_t *bias_data_ptr = bias_data;
         const int32_t *output_mult_ptr = &output_mult[0];
         const int32_t *output_shift_ptr = &output_shift[0];
 
@@ -198,6 +205,24 @@ arm_cmsis_nn_status arm_convolve_s8(const cmsis_nn_context *ctx,
                             }
                         }
                     }
+#if ARM_NN_DEPTH1_STORE
+                    /* From 4 taps up one call per pixel beats a call per tap */
+                    else if (kernel_ch == 1 && kernel_x * kernel_y >= 4)
+                    {
+                        im2col_buf = arm_nn_im2col_depth1_s8(im2col_buf,
+                                                             input_data + i_group,
+                                                             input_ch,
+                                                             input_x,
+                                                             input_y,
+                                                             base_idx_x,
+                                                             base_idx_y,
+                                                             kernel_x,
+                                                             kernel_y,
+                                                             dilation_x,
+                                                             dilation_y,
+                                                             (int8_t)-input_offset);
+                    }
+#endif
                     else
                     {
                         for (int32_t i_ker_y = 0; i_ker_y < kernel_y; i_ker_y++)
@@ -400,7 +425,10 @@ arm_cmsis_nn_status arm_convolve_s8(const cmsis_nn_context *ctx,
             weight_sum_data_ptr += output_ch_per_group;
 #endif
             filter_data_ptr += output_ch_per_group * rhs_cols;
-            bias_data_ptr += output_ch_per_group;
+            if (bias_data_ptr)
+            {
+                bias_data_ptr += output_ch_per_group;
+            }
             output_mult_ptr += output_ch_per_group;
             output_shift_ptr += output_ch_per_group;
         }

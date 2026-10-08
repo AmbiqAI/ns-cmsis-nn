@@ -38,3 +38,8 @@ void tearDown(void) {}
 void test_concat_axis_c_two_inputs_arm_concatenation_s32(void) { concat_axis_c_two_inputs_arm_concatenation_s32(); }
 void test_concat_axis_w_two_inputs_arm_concatenation_s32(void) { concat_axis_w_two_inputs_arm_concatenation_s32(); }
 void test_concat_axis_c_ten_inputs_arm_concatenation_s32(void) { concat_axis_c_ten_inputs_arm_concatenation_s32(); }
+void test_concat_many_inputs_arm_concatenation_s32(void) { concat_many_inputs_arm_concatenation_s32(); }
+void test_concat_many_inputs_rejected_arm_concatenation_s32(void)
+{
+    concat_many_inputs_rejected_arm_concatenation_s32();
+}
