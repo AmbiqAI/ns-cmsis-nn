@@ -119,6 +119,7 @@ function(_ns_cmsis_nn_group_def group out_subdir out_patterns out_extras)
     if(ARM_NN_ENABLE_F32)
       list(APPEND extras "arm_hard_swish_f32.c"
                          "arm_nn_activation_f32.c"
+                         "arm_nn_gelu_f32.c"
                          "arm_prelu_f32.c")
     endif()
     if(ARM_NN_ENABLE_F16)
