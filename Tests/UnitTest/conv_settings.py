@@ -95,8 +95,12 @@ class ConvSettings(TestSettings):
         self.weights_min = weights_min
         self.weights_max = weights_max
 
+        if bias_shift < 0:
+            raise RuntimeError("ERROR: bias_shift must not be negative")
         if bias_shift and not (self.is_int16xint8 and self.test_type == 'transpose_conv'):
             raise RuntimeError("ERROR: bias_shift only supported for int16x8 transpose conv")
+        if bias_shift and not generate_bias:
+            raise RuntimeError("ERROR: bias_shift needs a bias")
         self.bias_shift = bias_shift
 
         if int16xint8_int32:

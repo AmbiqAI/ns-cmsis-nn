@@ -50,8 +50,9 @@ int32_t arm_transpose_conv_s16_get_buffer_size_mve(const cmsis_nn_transpose_conv
                                                    const cmsis_nn_dims *out_dims)
 {
     if ((transpose_conv_params->stride.w <= 0) || (transpose_conv_params->stride.h <= 0) || (input_dims->n < 0) ||
-        (input_dims->h < 0) || (input_dims->w < 0) || (input_dims->c < 0) || (filter_dims->h < 0) ||
-        (filter_dims->w < 0) || (out_dims->h < 0) || (out_dims->w < 0) || (out_dims->c < 0))
+        (input_dims->h < 0) || (input_dims->w < 0) || (input_dims->c < 0) || (filter_dims->n < 0) ||
+        (filter_dims->h < 0) || (filter_dims->w < 0) || (filter_dims->c < 0) || (out_dims->n < 0) ||
+        (out_dims->h < 0) || (out_dims->w < 0) || (out_dims->c < 0))
     {
         return -1;
     }
