@@ -20,6 +20,7 @@
  * -------------------------------------------------------------------- */
 
 #include "arm_nnfunctions.h"
+#include "arm_nnsupportfunctions.h"
 
 /**
  *  @ingroup NNConv
@@ -36,10 +37,10 @@ static int32_t tconv_s16_bad_args(const cmsis_nn_transpose_conv_params *transpos
                                   const cmsis_nn_dims *filter_dims,
                                   const cmsis_nn_dims *out_dims)
 {
-    return (transpose_conv_params->stride.w <= 0) || (transpose_conv_params->stride.h <= 0) || (input_dims->n < 0) ||
-        (input_dims->h < 0) || (input_dims->w < 0) || (input_dims->c < 0) || (filter_dims->n < 0) ||
-        (filter_dims->h < 0) || (filter_dims->w < 0) || (filter_dims->c < 0) || (out_dims->n < 0) ||
-        (out_dims->h < 0) || (out_dims->w < 0) || (out_dims->c < 0);
+    /* An OR is negative if any operand is. */
+    return (transpose_conv_params->stride.w <= 0) || (transpose_conv_params->stride.h <= 0) ||
+        (input_dims->n | input_dims->h | input_dims->w | input_dims->c | filter_dims->n | filter_dims->h |
+         filter_dims->w | filter_dims->c | out_dims->n | out_dims->h | out_dims->w | out_dims->c) < 0;
 }
 
 /*
@@ -70,21 +71,15 @@ int32_t arm_transpose_conv_s16_get_buffer_size_mve(const cmsis_nn_transpose_conv
         return -1;
     }
 
-    /* Ceil division without overflow. */
-    const int32_t stride_y = transpose_conv_params->stride.h;
-    const int32_t stride_x = transpose_conv_params->stride.w;
-    const int32_t taps_y = filter_dims->h / stride_y + (filter_dims->h % stride_y != 0);
-    const int32_t taps_x = filter_dims->w / stride_x + (filter_dims->w % stride_x != 0);
-
-    /* Only depth 1 to 255 uses scratch. */
-    if ((uint64_t)((int64_t)taps_y * taps_x * input_dims->c - 1) >= 255)
+    /* Zero when the packed path cannot run. */
+    const int32_t col_max = arm_nn_transpose_conv_s16_col(transpose_conv_params, input_dims, filter_dims, out_dims);
+    if (col_max == 0)
     {
         return 0;
     }
 
     /* Slack covers alignment and pointer steps. */
     const int32_t cap = 2048;
-    const int32_t col_max = taps_y * ((taps_x * input_dims->c + 7) & ~7);
     const int32_t fixed = 32 + col_max * 2;
     const int32_t per_ch = 8 + col_max;
     int32_t group = ((cap - fixed) / per_ch) & ~3;

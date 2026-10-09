@@ -22,8 +22,8 @@
  * Title:        arm_nnsupportfunctions.h
  * Description:  Public header file of support functions for CMSIS NN Library
  *
- * $Date:        15 June 2026
- * $Revision:    V.22.11.0
+ * $Date:        9 October 2026
+ * $Revision:    V.22.12.0
  *
  * Target :  Arm(R) M-Profile Architecture
  * -------------------------------------------------------------------- */
@@ -462,6 +462,59 @@ __STATIC_FORCEINLINE int32_t arm_nn_fc_packed_s8_supported(const cmsis_nn_fc_par
     return fc_params->filter_offset == 0 && filter_dims->n > 0 && filter_dims->c > 0 &&
         arm_nn_fc_packed_s8_size(filter_dims->n, filter_dims->c) <= INT32_MAX &&
         arm_nn_requantize_channels_rshift_only(quant_params->multiplier, quant_params->shift, filter_dims->c);
+}
+
+/** Largest stride for the packed s16 transpose convolution. */
+#define ARM_NN_TCONV_S16_MAX_STRIDE (64)
+/** Largest filter dimension and padding for it, 2^7 - 1. */
+#define ARM_NN_TCONV_S16_MAX_FILTER (127)
+/** Largest spatial dimension or channel count for it, 2^15 - 1. */
+#define ARM_NN_TCONV_S16_MAX_DIM (32767)
+
+/**
+ * @brief The gate and column length of the packed Helium path of arm_transpose_conv_s16(). The sizer and the kernel
+ *        both call it, so they agree on every shape. Plain C; it evaluates the same on every build. Each bound is
+ *        checked by comparison before any product is formed, so every product stays far inside int32:
+ *        - stride in [1, ARM_NN_TCONV_S16_MAX_STRIDE]
+ *        - filter H and W, and padding H and W, in [0, ARM_NN_TCONV_S16_MAX_FILTER]
+ *        - input and output H, W and C in [0, ARM_NN_TCONV_S16_MAX_DIM]
+ *        - taps per stride phase x C_IN in [1, 255], with taps = ceil(HK / stride.h) * ceil(WK / stride.w)
+ *        Shapes outside these bounds use the scratch-free int64 path, which gives the same results.
+ *
+ * @param[in]   params        Transpose convolution parameters
+ * @param[in]   input_dims    Input dimensions [N, H, W, C_IN]
+ * @param[in]   filter_dims   Filter dimensions [C_OUT, HK, WK, C_IN]
+ * @param[in]   output_dims   Output dimensions [N, H, W, C_OUT]
+ *
+ * @return      ceil(HK / stride.h) * (ceil(WK / stride.w) * C_IN rounded up to a multiple of 8), the int16 column
+ *              length of one stride phase, or 0 when the shape is outside the gate.
+ */
+__STATIC_FORCEINLINE int32_t arm_nn_transpose_conv_s16_col(const cmsis_nn_transpose_conv_params *params,
+                                                           const cmsis_nn_dims *input_dims,
+                                                           const cmsis_nn_dims *filter_dims,
+                                                           const cmsis_nn_dims *output_dims)
+{
+    const int32_t stride_y = params->stride.h;
+    const int32_t stride_x = params->stride.w;
+
+    /* Unsigned OR, then one compare each. */
+    if ((((uint32_t)stride_y - 1u) | ((uint32_t)stride_x - 1u)) > ARM_NN_TCONV_S16_MAX_STRIDE - 1 ||
+        ((uint32_t)filter_dims->h | (uint32_t)filter_dims->w | (uint32_t)params->padding.h |
+         (uint32_t)params->padding.w) > ARM_NN_TCONV_S16_MAX_FILTER ||
+        ((uint32_t)input_dims->h | (uint32_t)input_dims->w | (uint32_t)input_dims->c | (uint32_t)output_dims->h |
+         (uint32_t)output_dims->w | (uint32_t)output_dims->c) > ARM_NN_TCONV_S16_MAX_DIM)
+    {
+        return 0;
+    }
+
+    const int32_t taps_y = (filter_dims->h + stride_y - 1) / stride_y;
+    const int32_t taps_x = (filter_dims->w + stride_x - 1) / stride_x;
+    const int32_t depth = taps_y * taps_x * input_dims->c;
+    if (depth < 1 || depth > 255)
+    {
+        return 0;
+    }
+    return taps_y * ((taps_x * input_dims->c + 7) & ~7);
 }
 
 /**

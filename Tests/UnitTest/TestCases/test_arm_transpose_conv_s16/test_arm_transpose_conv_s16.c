@@ -245,10 +245,68 @@ void transpose_conv_s16_invalid_params_arm_transpose_conv_s16(void)
     TEST_ASSERT_EQUAL(
         -1, arm_transpose_conv_s16_get_buffer_size_mve(&c.params, &c.input_dims, &c.filter_dims, &c.output_dims));
 
-    /* Extreme strides must not overflow. */
+    /* Strides past the gate need no scratch. */
     c.params.stride.h = INT32_MAX;
     c.params.stride.w = INT32_MAX;
-    expect_buffer_size(&c, 208);
+    expect_buffer_size(&c, 0);
+}
+
+/* One 1x1 output at a given stride. */
+static void run_tiny_stride(const int32_t stride, const int32_t mve_size)
+{
+    const int16_t input[4] = {1000, -2000, 3000, -4000};
+    const int8_t weights[4] = {3, -5, 7, -9};
+    const int64_t bias[1] = {12345};
+    int32_t mult[1] = {1 << 30};
+    int32_t shift[1] = {-1};
+    static int8_t buf[2048];
+
+    tconv_s16_case c = {0};
+    c.input_dims = (cmsis_nn_dims){1, 1, 1, 4};
+    c.filter_dims = (cmsis_nn_dims){1, 1, 1, 4};
+    c.output_dims = (cmsis_nn_dims){1, 1, 1, 1};
+    c.params.stride = (cmsis_nn_tile){stride, stride};
+    c.params.dilation = (cmsis_nn_tile){1, 1};
+    c.params.activation = (cmsis_nn_activation){-32768, 32767};
+    c.quant.multiplier = mult;
+    c.quant.shift = shift;
+    expect_buffer_size(&c, mve_size);
+
+    /* acc 82345, times 2^14, then >> 16. */
+    cmsis_nn_dims bias_dims = {1, 1, 1, 1};
+    cmsis_nn_context ctx = {buf, sizeof(buf)};
+    int16_t output[1] = {0};
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
+                      arm_transpose_conv_s16(&ctx,
+                                             &ctx,
+                                             &c.params,
+                                             &c.quant,
+                                             &c.input_dims,
+                                             input,
+                                             &c.filter_dims,
+                                             weights,
+                                             &bias_dims,
+                                             bias,
+                                             &c.output_dims,
+                                             output));
+    TEST_ASSERT_EQUAL(20586, output[0]);
+}
+
+void transpose_conv_s16_extreme_shapes_arm_transpose_conv_s16(void)
+{
+    /* Gate edge, then past it. */
+    run_tiny_stride(64, 112);
+    run_tiny_stride(65, 0);
+    run_tiny_stride(INT32_MAX, 0);
+
+    /* Huge dims must not overflow. */
+    tconv_s16_case c;
+    TCONV_S16_CASE(c, TRANSPOSE_CONV_S16_1, transpose_conv_s16_1);
+    c.params.stride = (cmsis_nn_tile){1, 1};
+    c.input_dims = (cmsis_nn_dims){1, INT32_MAX, INT32_MAX, 3};
+    c.filter_dims = (cmsis_nn_dims){1, INT32_MAX, INT32_MAX, 3};
+    c.output_dims = (cmsis_nn_dims){1, INT32_MAX, INT32_MAX, 1};
+    expect_buffer_size(&c, 0);
 }
 
 void transpose_conv_s16_negative_dims_arm_transpose_conv_s16(void)

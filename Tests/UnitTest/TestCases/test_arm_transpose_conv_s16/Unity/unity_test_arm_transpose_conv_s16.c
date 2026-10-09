@@ -45,3 +45,7 @@ void test_transpose_conv_s16_negative_dims_arm_transpose_conv_s16(void)
 {
     transpose_conv_s16_negative_dims_arm_transpose_conv_s16();
 }
+void test_transpose_conv_s16_extreme_shapes_arm_transpose_conv_s16(void)
+{
+    transpose_conv_s16_extreme_shapes_arm_transpose_conv_s16();
+}

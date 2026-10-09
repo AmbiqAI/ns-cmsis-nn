@@ -1036,12 +1036,15 @@ int32_t arm_transpose_conv_s8_get_buffer_size_mve(const cmsis_nn_transpose_conv_
  *    2. Integer widths: input int16, weights int8, bias int64. Each int16 x int8 product is exact in int32.
  *       The reference accumulates in int64, and so does this function unless the int32 path below applies.
  *       Helium (ARM_MATH_MVEI without ARM_MATH_AUTOVECTORIZE) uses int32 accumulation and requantization
- *       only when ctx->buf is set and, for every output channel:
+ *       only when ctx->buf is set, the shape is inside the practical bounds below, and for every output channel:
  *       - taps per stride phase x C_IN <= 255, with taps = ceil(HK / stride.h) * ceil(WK / stride.w)
  *       - |bias| <= 2^30
  *       - shift in [-16, 0]
  *       Then |bias + acc| <= 2^30 + 255 * 2^22 < 2^31, since |int16 x int8| <= 2^22, so the int32 sum is
  *       exact. Otherwise it falls back to int64 accumulation, as do all other builds.
+ *       The practical bounds are strides <= 64, filter H/W and padding <= 127, and input and output H, W and
+ *       C <= 32767; the buffer-size function applies the same gate. They cover every realistic layer. Any other
+ *       valid shape takes the slower int64 path, with identical results.
  *    3. Requantization matches TFLite MultiplyByQuantizedMultiplier(int64_t, int32_t, int): the multiplier is
  *       reduced to 16 bits, (multiplier + 2^15) >> 16 saturated at 0x7FFF, then
  *       result = (acc * reduced + 2^(14 - shift)) >> (15 - shift), computed in int64 and clamped to
@@ -1082,8 +1085,9 @@ arm_cmsis_nn_status arm_transpose_conv_s16(const cmsis_nn_context *ctx,
  *
  * @details
  *    The size is 0 except on Helium builds (ARM_MATH_MVEI without ARM_MATH_AUTOVECTORIZE), where it is at most
- *    2048 bytes. It is 0 there too when taps per stride phase x C_IN is 0 or exceeds 255, or when not even
- *    four output channels fit in 2048 bytes; arm_transpose_conv_s16() then uses no scratch. Otherwise
+ *    2048 bytes. It is 0 there too when the shape is outside the practical bounds of arm_transpose_conv_s16(),
+ *    when taps per stride phase x C_IN is 0 or exceeds 255, or when not even four output channels fit in 2048
+ *    bytes; arm_transpose_conv_s16() then uses no scratch. Otherwise
  *    the size is 32 + 2 * col + group * (8 + col) bytes, with
  *    - col = ceil(HK / stride.h) * (ceil(WK / stride.w) * C_IN rounded up to a multiple of 8)
  *    - group = output channels per pass: C_OUT rounded up to a multiple of 4, capped at the largest multiple

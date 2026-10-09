@@ -48,6 +48,15 @@ static int16_t tconv_requant_mve(const int64_t acc,
     return (int16_t)val;
 }
 
+/* Out of line keeps the gate cold. */
+static __attribute__((noinline)) int32_t tconv_s16_col(const cmsis_nn_transpose_conv_params *params,
+                                                       const cmsis_nn_dims *input_dims,
+                                                       const cmsis_nn_dims *filter_dims,
+                                                       const cmsis_nn_dims *output_dims)
+{
+    return arm_nn_transpose_conv_s16_col(params, input_dims, filter_dims, output_dims);
+}
+
 /* Requantize four int32 sums and store. */
 __STATIC_FORCEINLINE void tconv_s16_store4(const int32_t s0,
                                            const int32_t s1,
@@ -212,14 +221,15 @@ arm_cmsis_nn_status arm_transpose_conv_s16(const cmsis_nn_context *ctx,
     const int32_t act_max = transpose_conv_params->activation.max;
 
 #if defined(ARM_MATH_MVEI) && !defined(ARM_MATH_AUTOVECTORIZE)
-    const int32_t taps_y = filter_y / stride_y + (filter_y % stride_y != 0);
-    const int32_t taps_x = filter_x / stride_x + (filter_x % stride_x != 0);
     const int32_t batch_size = input_y * input_x * input_ch;
     const int32_t in_size = batches * batch_size;
 
-    /* int32 path needs depth in [1, 255]. */
+    /* Packed path only inside the shared gate. */
+    const int32_t col_max = ctx != NULL && ctx->buf != NULL
+        ? tconv_s16_col(transpose_conv_params, input_dims, filter_dims, output_dims)
+        : 0;
     int32_t group_pad = 0;
-    if (ctx != NULL && ctx->buf != NULL && (uint64_t)((int64_t)taps_y * taps_x * input_ch - 1) < 255)
+    if (col_max != 0)
     {
         group_pad = 4;
         for (int32_t oc = 0; oc < output_ch; oc++)
@@ -234,7 +244,6 @@ arm_cmsis_nn_status arm_transpose_conv_s16(const cmsis_nn_context *ctx,
     }
 
     /* Channels per group that fit. */
-    const int32_t col_max = group_pad != 0 ? taps_y * ((taps_x * input_ch + 7) & ~7) : 0;
     if (group_pad != 0)
     {
         group_pad = ((ctx->size - 32 - col_max * 2) / (8 + col_max)) & ~3;
@@ -334,20 +343,20 @@ arm_cmsis_nn_status arm_transpose_conv_s16(const cmsis_nn_context *ctx,
                             {
                                 /* Offsets keep pointers in range. */
                                 const int32_t ix_first = qx - ntx + 1;
-                                const int32_t src_off = (qy * input_x + ix_first) * input_ch;
-                                const int32_t end_off = b * batch_size + src_off + row8;
-                                const int32_t inside = qy - nty + 1 >= 0 && qy < input_y && ix_first >= 0;
+                                const int32_t inside =
+                                    qy - nty + 1 >= 0 && qy < input_y && ix_first >= 0 && ix_first + ntx <= input_x;
+                                const int32_t src_off = inside ? (qy * input_x + ix_first) * input_ch : 0;
+                                const int32_t room = in_size - row8 - (b * batch_size + src_off);
                                 const int16_t *src = col;
                                 int32_t row_step = row8;
                                 int32_t next = 0;
 
-                                if (inside && ix_first + ntx <= input_x && end_off <= in_size)
+                                if (inside && room >= 0)
                                 {
                                     /* Interior: read input rows in place. */
                                     src = batch_in + src_off;
                                     row_step = -input_x * input_ch;
-                                    if (ox + stride_x < output_x && ix_first + ntx < input_x &&
-                                        end_off + input_ch <= in_size)
+                                    if (ox + stride_x < output_x && ix_first + ntx < input_x && room >= input_ch)
                                     {
                                         /* Two interior pixels at once. */
                                         next = input_ch;
@@ -403,6 +412,10 @@ arm_cmsis_nn_status arm_transpose_conv_s16(const cmsis_nn_context *ctx,
     /* No scratch: walk the valid taps per output. */
     int16_t *out = output_data;
 
+    /* Stride >= filter leaves one tap. */
+    const int32_t step_y = ARM_NN_MIN(stride_y, filter_y);
+    const int32_t step_x = ARM_NN_MIN(stride_x, filter_x);
+
     for (int32_t b = 0; b < batches; b++)
     {
         const int16_t *batch_in = input_data + b * batch_size;
@@ -412,7 +425,10 @@ arm_cmsis_nn_status arm_transpose_conv_s16(const cmsis_nn_context *ctx,
             /* Valid ky: ky = oy + pad_y - iy * stride_y. */
             const int32_t ry = oy + pad_y;
             const int32_t ky_hi = ARM_NN_MIN(filter_y - 1, ry);
-            int32_t ky_lo = ARM_NN_MAX(0, ry - (input_y - 1) * stride_y);
+            /* Divide first so no product overflows. */
+            int32_t ky_lo = input_y <= 0
+                ? filter_y
+                : ARM_NN_MAX(0, input_y - 1 > ry / stride_y ? 0 : ry - (input_y - 1) * stride_y);
             if (ry >= ky_lo)
             {
                 ky_lo += (ry - ky_lo) % stride_y;
@@ -423,7 +439,9 @@ arm_cmsis_nn_status arm_transpose_conv_s16(const cmsis_nn_context *ctx,
             {
                 const int32_t rx = ox + pad_x;
                 const int32_t kx_hi = ARM_NN_MIN(filter_x - 1, rx);
-                int32_t kx_lo = ARM_NN_MAX(0, rx - (input_x - 1) * stride_x);
+                int32_t kx_lo = input_x <= 0
+                    ? filter_x
+                    : ARM_NN_MAX(0, input_x - 1 > rx / stride_x ? 0 : rx - (input_x - 1) * stride_x);
                 if (rx >= kx_lo)
                 {
                     kx_lo += (rx - kx_lo) % stride_x;
@@ -434,9 +452,9 @@ arm_cmsis_nn_status arm_transpose_conv_s16(const cmsis_nn_context *ctx,
                 {
                     int64_t acc = bias_data != NULL ? bias_data[oc] : 0;
 
-                    for (int32_t ky = ky_lo, iy = iy_lo; ky <= ky_hi; ky += stride_y, iy--)
+                    for (int32_t ky = ky_lo, iy = iy_lo; ky <= ky_hi; ky += step_y, iy--)
                     {
-                        for (int32_t kx = kx_lo, ix = ix_lo; kx <= kx_hi; kx += stride_x, ix--)
+                        for (int32_t kx = kx_lo, ix = ix_lo; kx <= kx_hi; kx += step_x, ix--)
                         {
                             const int16_t *ip = batch_in + (iy * input_x + ix) * input_ch;
                             const int8_t *wp = filter_data + ((oc * filter_y + ky) * filter_x + kx) * input_ch;
