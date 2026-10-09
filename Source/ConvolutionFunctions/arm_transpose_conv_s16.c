@@ -212,8 +212,8 @@ arm_cmsis_nn_status arm_transpose_conv_s16(const cmsis_nn_context *ctx,
     const int32_t act_max = transpose_conv_params->activation.max;
 
 #if defined(ARM_MATH_MVEI) && !defined(ARM_MATH_AUTOVECTORIZE)
-    const int32_t taps_y = (filter_y + stride_y - 1) / stride_y;
-    const int32_t taps_x = (filter_x + stride_x - 1) / stride_x;
+    const int32_t taps_y = filter_y / stride_y + (filter_y % stride_y != 0);
+    const int32_t taps_x = filter_x / stride_x + (filter_x % stride_x != 0);
     const int32_t batch_size = input_y * input_x * input_ch;
     const int32_t in_size = batches * batch_size;
 
@@ -249,6 +249,9 @@ arm_cmsis_nn_status arm_transpose_conv_s16(const cmsis_nn_context *ctx,
         int16_t *col = (int16_t *)(mult_buf + group_pad);
         int8_t *w_buf = (int8_t *)(col + col_max);
 
+        /* Zero once: tail lanes stay defined. */
+        arm_memset_s8((int8_t *)bias_buf, 0, group_pad * (8 + col_max) + col_max * 2);
+
         /* Each stride phase uses a fixed tap grid. */
         for (int32_t py = 0; py < stride_y; py++)
         {
@@ -262,7 +265,7 @@ arm_cmsis_nn_status arm_transpose_conv_s16(const cmsis_nn_context *ctx,
                 continue;
             }
             const int32_t qy_start = (oy_start + pad_y - py) / stride_y;
-            const int32_t nty = py < filter_y ? (filter_y - py + stride_y - 1) / stride_y : 0;
+            const int32_t nty = py < filter_y ? (filter_y - py - 1) / stride_y + 1 : 0;
 
             for (int32_t px = 0; px < stride_x; px++)
             {
@@ -276,7 +279,7 @@ arm_cmsis_nn_status arm_transpose_conv_s16(const cmsis_nn_context *ctx,
                     continue;
                 }
                 const int32_t qx_start = (ox_start + pad_x - px) / stride_x;
-                const int32_t ntx = px < filter_x ? (filter_x - px + stride_x - 1) / stride_x : 0;
+                const int32_t ntx = px < filter_x ? (filter_x - px - 1) / stride_x + 1 : 0;
 
                 /* Rows of taps, each padded to 8. */
                 const int32_t row_len = ntx * input_ch;

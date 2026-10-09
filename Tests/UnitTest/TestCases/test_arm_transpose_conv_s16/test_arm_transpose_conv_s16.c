@@ -62,23 +62,36 @@ typedef struct
         (c).output_size = P##_DST_SIZE;                                                                                \
     } while (0)
 
+typedef enum
+{
+    SCRATCH_NONE,
+    SCRATCH_EXACT,
+    SCRATCH_SHORT
+} scratch_mode;
+
 /* Run one case and check every output. */
-static void run_tconv_s16_once(const tconv_s16_case *c, const int32_t use_scratch)
+static void run_tconv_s16_once(const tconv_s16_case *c, const scratch_mode mode)
 {
     cmsis_nn_dims bias_dims = {1, 1, 1, c->output_dims.c};
     const int32_t buf_size =
         arm_transpose_conv_s16_get_buffer_size(&c->params, &c->input_dims, &c->filter_dims, &c->output_dims);
     TEST_ASSERT_TRUE(buf_size >= 0 && buf_size <= 2048);
 
+    /* Short: one byte less, misaligned by one. */
+    const int32_t shift = mode == SCRATCH_SHORT ? 1 : 0;
+    const int32_t size = mode == SCRATCH_SHORT ? buf_size - 1 : buf_size;
+
     /* Guard bytes catch scratch overruns. */
+    uint8_t *mem = NULL;
     uint8_t *buf = NULL;
-    if (use_scratch && buf_size > 0)
+    if (mode != SCRATCH_NONE && buf_size > 0)
     {
-        buf = malloc(buf_size + SCRATCH_SLACK);
-        TEST_ASSERT_NOT_NULL(buf);
-        memset(buf, SCRATCH_GUARD, buf_size + SCRATCH_SLACK);
+        mem = malloc(shift + size + SCRATCH_SLACK);
+        TEST_ASSERT_NOT_NULL(mem);
+        memset(mem, SCRATCH_GUARD, shift + size + SCRATCH_SLACK);
+        buf = mem + shift;
     }
-    cmsis_nn_context ctx = {buf, buf != NULL ? buf_size : 0};
+    cmsis_nn_context ctx = {buf, buf != NULL ? size : 0};
     cmsis_nn_context output_ctx = {NULL, 0};
 
     int16_t *output = malloc((c->output_size + 1) * sizeof(int16_t));
@@ -102,13 +115,17 @@ static void run_tconv_s16_once(const tconv_s16_case *c, const int32_t use_scratc
     TEST_ASSERT_TRUE(validate_s16(output, c->output_ref, c->output_size));
     TEST_ASSERT_EQUAL_HEX16(OUTPUT_GUARD, (uint16_t)output[c->output_size]);
     free(output);
-    if (buf != NULL)
+    if (mem != NULL)
     {
-        for (int32_t i = buf_size; i < buf_size + SCRATCH_SLACK; i++)
+        for (int32_t i = 0; i < shift; i++)
+        {
+            TEST_ASSERT_EQUAL_HEX8(SCRATCH_GUARD, mem[i]);
+        }
+        for (int32_t i = size; i < size + SCRATCH_SLACK; i++)
         {
             TEST_ASSERT_EQUAL_HEX8(SCRATCH_GUARD, buf[i]);
         }
-        free(buf);
+        free(mem);
     }
 }
 
@@ -127,11 +144,12 @@ static void expect_buffer_size(const tconv_s16_case *c, const int32_t mve_size)
         arm_transpose_conv_s16_get_buffer_size_mve(&c->params, &c->input_dims, &c->filter_dims, &c->output_dims));
 }
 
-/* Run with and without scratch. */
+/* Run with exact, short and no scratch. */
 static void run_tconv_s16_case(const tconv_s16_case *c)
 {
-    run_tconv_s16_once(c, 1);
-    run_tconv_s16_once(c, 0);
+    run_tconv_s16_once(c, SCRATCH_EXACT);
+    run_tconv_s16_once(c, SCRATCH_SHORT);
+    run_tconv_s16_once(c, SCRATCH_NONE);
 }
 
 void transpose_conv_s16_1_arm_transpose_conv_s16(void)
@@ -154,6 +172,8 @@ void transpose_conv_s16_3_arm_transpose_conv_s16(void)
 {
     tconv_s16_case c;
     TCONV_S16_CASE(c, TRANSPOSE_CONV_S16_3, transpose_conv_s16_3);
+    /* 8 channels; short scratch fits 4. */
+    expect_buffer_size(&c, 576);
     run_tconv_s16_case(&c);
 }
 
@@ -224,6 +244,11 @@ void transpose_conv_s16_invalid_params_arm_transpose_conv_s16(void)
                       arm_transpose_conv_s16_get_buffer_size(&c.params, &c.input_dims, &c.filter_dims, &c.output_dims));
     TEST_ASSERT_EQUAL(
         -1, arm_transpose_conv_s16_get_buffer_size_mve(&c.params, &c.input_dims, &c.filter_dims, &c.output_dims));
+
+    /* Extreme strides must not overflow. */
+    c.params.stride.h = INT32_MAX;
+    c.params.stride.w = INT32_MAX;
+    expect_buffer_size(&c, 208);
 }
 
 void transpose_conv_s16_negative_dims_arm_transpose_conv_s16(void)

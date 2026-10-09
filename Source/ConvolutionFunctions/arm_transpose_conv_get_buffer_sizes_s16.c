@@ -70,8 +70,11 @@ int32_t arm_transpose_conv_s16_get_buffer_size_mve(const cmsis_nn_transpose_conv
         return -1;
     }
 
-    const int32_t taps_y = (filter_dims->h + transpose_conv_params->stride.h - 1) / transpose_conv_params->stride.h;
-    const int32_t taps_x = (filter_dims->w + transpose_conv_params->stride.w - 1) / transpose_conv_params->stride.w;
+    /* Ceil division without overflow. */
+    const int32_t stride_y = transpose_conv_params->stride.h;
+    const int32_t stride_x = transpose_conv_params->stride.w;
+    const int32_t taps_y = filter_dims->h / stride_y + (filter_dims->h % stride_y != 0);
+    const int32_t taps_x = filter_dims->w / stride_x + (filter_dims->w % stride_x != 0);
 
     /* Only depth 1 to 255 uses scratch. */
     if ((uint64_t)((int64_t)taps_y * taps_x * input_dims->c - 1) >= 255)
