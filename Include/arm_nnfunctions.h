@@ -23,7 +23,7 @@
  * Description:  Public header file for CMSIS NN Library
  *
  * $Date:        8 October 2026
- * $Revision:    V.19.2.0
+ * $Revision:    V.19.2.1
  *
  * Target :  Arm(R) M-Profile Architecture
  * -------------------------------------------------------------------- */
@@ -990,10 +990,10 @@ int32_t arm_transpose_conv_s8_get_buffer_size_mve(const cmsis_nn_transpose_conv_
 
 /**
  * @brief Basic s16 transpose convolution function (A16W8)
- * @param[in, out] ctx                   Function context. This function does not access ctx->buf, and
- *                                       arm_transpose_conv_s16_get_buffer_size() returns 0 for every valid shape.
- *                                       Callers should still size ctx from that function, since a later
- *                                       implementation may need scratch.
+ * @param[in, out] ctx                   Function context with the scratch buffer. Size ctx->buf with
+ *                                       arm_transpose_conv_s16_get_buffer_size(). ctx->buf may be NULL; the
+ *                                       Helium build then uses its slower int64 path, and other builds never
+ *                                       access it.
  * @param[in, out] output_ctx            Not accessed by this function and has no size requirement. The parameter
  *                                       keeps the signature of arm_transpose_conv_s8().
  * @param[in]      transpose_conv_params Convolution parameters (e.g. strides, pads,...).
@@ -1033,18 +1033,27 @@ int32_t arm_transpose_conv_s8_get_buffer_size_mve(const cmsis_nn_transpose_conv_
  *       - A shift >= 15 makes the shift count zero or negative, which is undefined behaviour here and in TFLite.
  *       - A result outside int32 differs: TFLite truncates it to int32 before the clamp, while this function
  *         clamps the int64 result to [activation.min, activation.max].
- *    2. Integer widths: input int16, weights int8, bias int64, accumulator int64. Each int16 x int8 product is
- *       formed in int32 and added to the int64 accumulator; the bias is added once after the last product.
+ *    2. Integer widths: input int16, weights int8, bias int64. Each int16 x int8 product is exact in int32.
+ *       The reference accumulates in int64, and so does this function unless the int32 path below applies.
+ *       Helium (ARM_MATH_MVEI without ARM_MATH_AUTOVECTORIZE) uses int32 accumulation and requantization
+ *       only when ctx->buf is set and, for every output channel:
+ *       - taps per stride phase x C_IN <= 255, with taps = ceil(HK / stride.h) * ceil(WK / stride.w)
+ *       - |bias| <= 2^30
+ *       - shift in [-16, 0]
+ *       Then |bias + acc| <= 2^30 + 255 * 2^22 < 2^31, since |int16 x int8| <= 2^22, so the int32 sum is
+ *       exact. Otherwise it falls back to int64 accumulation, as do all other builds.
  *    3. Requantization matches TFLite MultiplyByQuantizedMultiplier(int64_t, int32_t, int): the multiplier is
  *       reduced to 16 bits, (multiplier + 2^15) >> 16 saturated at 0x7FFF, then
  *       result = (acc * reduced + 2^(14 - shift)) >> (15 - shift), computed in int64 and clamped to
- *       [activation.min, activation.max]. Zero points are 0 on input and output.
- *    4. Scratch: none. ctx and output_ctx are not accessed.
+ *       [activation.min, activation.max]. Zero points are 0 on input and output. The int32 path computes the
+ *       same value as a rounding doubling high multiply of acc by reduced * 2^(16 + shift), which is exact for
+ *       shift in [-16, 0].
+ *    4. Scratch: see arm_transpose_conv_s16_get_buffer_size(). output_ctx is not accessed.
  *    5. Output position (y, x) of out channel o sums every input (iy, ix) and tap (ky, kx) with
  *       iy * stride.h - padding.h + ky == y and ix * stride.w - padding.w + kx == x.
- *    6. Dilation is not supported: transpose_conv_params->dilation must be 1 in both dimensions.
- *    7. This is a plain C kernel with the same code on every core. It keeps the int64 accumulation of the
- *       reference; narrowing it to int32 for a given model is left to an optimized implementation.
+ *    6. Dilation is not supported: transpose_conv_params->dilation must be 1 in both dimensions. Padding must
+ *       be >= 0, as TFLite always emits.
+ *    7. Helium builds have an MVE implementation. Other builds use a plain C loop with int64 accumulation.
  *
  */
 arm_cmsis_nn_status arm_transpose_conv_s16(const cmsis_nn_context *ctx,
@@ -1068,8 +1077,19 @@ arm_cmsis_nn_status arm_transpose_conv_s16(const cmsis_nn_context *ctx,
  * @param[in]       filter_dims             Filter tensor dimensions. Format: [C_OUT, HK, WK, C_IN] where HK and WK
  *                                          are the spatial filter dimensions
  * @param[in]       out_dims                Output tensor dimensions. Format: [N, H, W, C_OUT]
- * @return          The function returns the required buffer size in bytes, which is 0 for this implementation,
- *                  or -1 if any dimension is negative or either stride is not positive
+ * @return          The function returns the required buffer size in bytes, or -1 if any dimension is negative
+ *                  or either stride is not positive
+ *
+ * @details
+ *    The size is 0 except on Helium builds (ARM_MATH_MVEI without ARM_MATH_AUTOVECTORIZE), where it is at most
+ *    2048 bytes. It is 0 there too when taps per stride phase x C_IN is 0 or exceeds 255, or when not even
+ *    four output channels fit in 2048 bytes; arm_transpose_conv_s16() then uses no scratch. Otherwise
+ *    the size is 32 + 2 * col + group * (8 + col) bytes, with
+ *    - col = ceil(HK / stride.h) * (ceil(WK / stride.w) * C_IN rounded up to a multiple of 8)
+ *    - group = output channels per pass: C_OUT rounded up to a multiple of 4, capped at the largest multiple
+ *      of 4 that fits in 2048 bytes
+ *    Any ctx->size works: the function uses as many channels per pass as fit, and the int64 path when
+ *    fewer than four fit.
  *
  */
 int32_t arm_transpose_conv_s16_get_buffer_size(const cmsis_nn_transpose_conv_params *transposed_conv_params,

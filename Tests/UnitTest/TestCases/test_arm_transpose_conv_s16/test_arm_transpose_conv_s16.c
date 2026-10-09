@@ -9,6 +9,7 @@
 
 #include <arm_nnfunctions.h>
 #include <stdlib.h>
+#include <string.h>
 #include <unity.h>
 
 #include "../TestData/transpose_conv_s16_1/test_data.h"
@@ -21,6 +22,8 @@
 #include "../Utils/validate.h"
 
 #define OUTPUT_GUARD (0x5A5A)
+#define SCRATCH_GUARD (0xA5)
+#define SCRATCH_SLACK (16)
 
 typedef struct
 {
@@ -60,14 +63,22 @@ typedef struct
     } while (0)
 
 /* Run one case and check every output. */
-static void run_tconv_s16_case(const tconv_s16_case *c)
+static void run_tconv_s16_once(const tconv_s16_case *c, const int32_t use_scratch)
 {
     cmsis_nn_dims bias_dims = {1, 1, 1, c->output_dims.c};
     const int32_t buf_size =
         arm_transpose_conv_s16_get_buffer_size(&c->params, &c->input_dims, &c->filter_dims, &c->output_dims);
-    TEST_ASSERT_EQUAL(0, buf_size);
+    TEST_ASSERT_TRUE(buf_size >= 0 && buf_size <= 2048);
 
-    cmsis_nn_context ctx = {NULL, buf_size};
+    /* Guard bytes catch scratch overruns. */
+    uint8_t *buf = NULL;
+    if (use_scratch && buf_size > 0)
+    {
+        buf = malloc(buf_size + SCRATCH_SLACK);
+        TEST_ASSERT_NOT_NULL(buf);
+        memset(buf, SCRATCH_GUARD, buf_size + SCRATCH_SLACK);
+    }
+    cmsis_nn_context ctx = {buf, buf != NULL ? buf_size : 0};
     cmsis_nn_context output_ctx = {NULL, 0};
 
     int16_t *output = malloc((c->output_size + 1) * sizeof(int16_t));
@@ -91,12 +102,44 @@ static void run_tconv_s16_case(const tconv_s16_case *c)
     TEST_ASSERT_TRUE(validate_s16(output, c->output_ref, c->output_size));
     TEST_ASSERT_EQUAL_HEX16(OUTPUT_GUARD, (uint16_t)output[c->output_size]);
     free(output);
+    if (buf != NULL)
+    {
+        for (int32_t i = buf_size; i < buf_size + SCRATCH_SLACK; i++)
+        {
+            TEST_ASSERT_EQUAL_HEX8(SCRATCH_GUARD, buf[i]);
+        }
+        free(buf);
+    }
+}
+
+/* Expected scratch bytes on Helium only. */
+static void expect_buffer_size(const tconv_s16_case *c, const int32_t mve_size)
+{
+#if defined(ARM_MATH_MVEI) && !defined(ARM_MATH_AUTOVECTORIZE)
+    const int32_t expected = mve_size;
+#else
+    const int32_t expected = 0;
+#endif
+    TEST_ASSERT_EQUAL(
+        expected, arm_transpose_conv_s16_get_buffer_size(&c->params, &c->input_dims, &c->filter_dims, &c->output_dims));
+    TEST_ASSERT_EQUAL(
+        mve_size,
+        arm_transpose_conv_s16_get_buffer_size_mve(&c->params, &c->input_dims, &c->filter_dims, &c->output_dims));
+}
+
+/* Run with and without scratch. */
+static void run_tconv_s16_case(const tconv_s16_case *c)
+{
+    run_tconv_s16_once(c, 1);
+    run_tconv_s16_once(c, 0);
 }
 
 void transpose_conv_s16_1_arm_transpose_conv_s16(void)
 {
     tconv_s16_case c;
     TCONV_S16_CASE(c, TRANSPOSE_CONV_S16_1, transpose_conv_s16_1);
+    /* 32 + 2 * 48 + 4 * (8 + 48). */
+    expect_buffer_size(&c, 352);
     run_tconv_s16_case(&c);
 }
 
@@ -132,6 +175,8 @@ void transpose_conv_s16_6_arm_transpose_conv_s16(void)
 {
     tconv_s16_case c;
     TCONV_S16_CASE(c, TRANSPOSE_CONV_S16_6, transpose_conv_s16_6);
+    /* 9 taps x 96 channels exceeds 255. */
+    expect_buffer_size(&c, 0);
     run_tconv_s16_case(&c);
 }
 
@@ -213,7 +258,7 @@ void transpose_conv_s16_negative_dims_arm_transpose_conv_s16(void)
             arm_transpose_conv_s16_get_buffer_size_mve(&c.params, &c.input_dims, &c.filter_dims, &c.output_dims),
             "negative dimension accepted");
         *dims[i] = saved;
-        TEST_ASSERT_EQUAL(
-            0, arm_transpose_conv_s16_get_buffer_size(&c.params, &c.input_dims, &c.filter_dims, &c.output_dims));
+        TEST_ASSERT_TRUE(
+            arm_transpose_conv_s16_get_buffer_size(&c.params, &c.input_dims, &c.filter_dims, &c.output_dims) >= 0);
     }
 }
