@@ -1,5 +1,21 @@
 # Changelog
 
+## [7.42.0](https://github.com/AmbiqAI/ns-cmsis-nn/compare/v7.41.0...v7.42.0) (2026-10-09)
+
+
+### Features
+
+* add exact float32 GELU activation ([945affd](https://github.com/AmbiqAI/ns-cmsis-nn/commit/945affd987dd47e0b1e1c5a6f11f04f1e8ac0916)), closes [#743](https://github.com/AmbiqAI/ns-cmsis-nn/issues/743)
+* **conv:** add direct s16 transpose convolution (golden) ([319d78f](https://github.com/AmbiqAI/ns-cmsis-nn/commit/319d78fe637c2537327c2022a033ef8736771a6f))
+* **conv:** add direct s16 transpose convolution (golden) ([6180ce4](https://github.com/AmbiqAI/ns-cmsis-nn/commit/6180ce4db48ac6b169359d5e1bffd6fe01901dc8)), closes [#750](https://github.com/AmbiqAI/ns-cmsis-nn/issues/750)
+
+
+### Bug Fixes
+
+* **conv:** check every dimension in the s16 transpose conv sizer ([b27999e](https://github.com/AmbiqAI/ns-cmsis-nn/commit/b27999e4a89aad509fe425faf9cccc6723c15335))
+* **conv:** scope the s16 transpose conv bit-exact claim ([ba4ab29](https://github.com/AmbiqAI/ns-cmsis-nn/commit/ba4ab29adb86b66ee554ce9a700f88fe0908c69d)), closes [#750](https://github.com/AmbiqAI/ns-cmsis-nn/issues/750)
+* keep concat copy destinations within output bounds ([7cee5fc](https://github.com/AmbiqAI/ns-cmsis-nn/commit/7cee5fc553590026ace1f100f259dcd69e921c54)), closes [#755](https://github.com/AmbiqAI/ns-cmsis-nn/issues/755)
+
 ## [7.41.0](https://github.com/AmbiqAI/ns-cmsis-nn/compare/v7.40.0...v7.41.0) (2026-10-07)
 
 
