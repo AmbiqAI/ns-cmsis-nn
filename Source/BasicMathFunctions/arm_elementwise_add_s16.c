@@ -82,11 +82,8 @@ arm_cmsis_nn_status arm_elementwise_add_s16(const int16_t *input_1_vect,
         int32x4_t vect_1 = vldrhq_z_s32(input_1_vect, pred);
         int32x4_t vect_2 = vldrhq_z_s32(input_2_vect, pred);
 
-        vect_1 = vshlq_r_s32(vect_1, left_shift);
-        vect_2 = vshlq_r_s32(vect_2, left_shift);
-
-        vect_1 = arm_requantize_mve(vect_1, input_1_mult, input_1_shift);
-        vect_2 = arm_requantize_mve(vect_2, input_2_mult, input_2_shift);
+        vect_1 = arm_requantize_shifted_mve(vect_1, left_shift, input_1_mult, input_1_shift);
+        vect_2 = arm_requantize_shifted_mve(vect_2, left_shift, input_2_mult, input_2_shift);
 
         vect_1 = vaddq_s32(vect_1, vect_2);
         vect_1 = arm_requantize_mve(vect_1, out_mult, out_shift);

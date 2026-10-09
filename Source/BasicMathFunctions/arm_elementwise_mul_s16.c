@@ -76,7 +76,7 @@ arm_cmsis_nn_status arm_elementwise_mul_s16(const int16_t *input_1_vect,
 
         int32x4_t res_0 = vmulq_s32(input_1, input_2);
 
-        res_0 = arm_requantize_mve_32x4(res_0, vdupq_n_s32(out_mult), vdupq_n_s32(out_shift));
+        res_0 = arm_requantize_mve(res_0, out_mult, out_shift);
 
         res_0 = vmaxq_s32(res_0, vdupq_n_s32(out_activation_min));
         res_0 = vminq_s32(res_0, vdupq_n_s32(out_activation_max));
