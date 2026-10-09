@@ -489,6 +489,12 @@ class TestSettings(ABC):
     def interpret_model(self, input_data, inttype):
         interpreter = self.Interpreter(model_path=str(self.model_path_tflite),
                                        experimental_op_resolver_type=self.OpResolverType.BUILTIN_REF)
+        if input_data is not None:
+            # Keras 3 exports a dynamic batch.
+            input_details = interpreter.get_input_details()
+            if list(input_details[0]['shape']) != list(input_data.shape):
+                # Strict: only dynamic dims may change.
+                interpreter.resize_tensor_input(input_details[0]['index'], list(input_data.shape), strict=True)
         interpreter.allocate_tensors()
 
         output_details = interpreter.get_output_details()
