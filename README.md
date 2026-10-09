@@ -255,7 +255,7 @@ inference libraries such as Arm Compute Library or XNNPACK.
 |--------------------------------|:------:|:-------:|:-------:|:--------:|:---------:|:---------:|:--------:|:---------:|:---------:|
 | Conv2D                         | Yes    | Yes     | Yes     | Yes      | Yes       | Yes       | Yes      | Yes       | Yes       |
 | DepthwiseConv2D                | Yes    | Yes     | Yes     | Yes      | Yes       | Yes       | Yes      | Yes       | Yes       |
-| TransposeConv2D                | Yes    | Yes     | No      | Yes      | No        | No        | Yes      | No        | No        |
+| TransposeConv2D                | Yes    | Yes     | No      | Yes      | No        | No        | Yes      | Yes       | No        |
 | Fully Connected                | Yes    | Yes     | Yes     | Yes      | Yes       | Yes       | Yes      | Yes       | Yes       |
 | Batch MatMul                   | Yes    | Yes     | No      | Yes      | Yes       | No        | Yes      | Yes       | No        |
 | Add / Sub                      | Yes    | Yes     | N/A     | Yes      | Yes       | N/A       | Yes      | Yes       | N/A       |
