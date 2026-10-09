@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: LicenseRef-Ambiq-Apollo-SDK
  */
 
-#include "Internal/arm_concatenation_common.h"
+#include "../../../../Include/Internal/arm_concatenation_common.h"
 
 /* Clang constant evaluation diagnoses even an unused pointer beyond one-past;
  * ordinary memory sanitizers only observe accesses. Instantiate the production
