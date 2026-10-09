@@ -3343,6 +3343,16 @@ static const low_depth_case_t small_cin_cases[] = {
     /* Non-3-row kernels in the interior; activation clamps inside the int8 range. */
     {1, 9, 10, 3, 5, 3, 8, 2, 1, 2, 1, 1, 1, 5, 10, 17, -60, 70},
     {1, 20, 19, 1, 5, 5, 4, 1, 1, 2, 2, 1, 1, 20, 19, 3, -128, 127},
+    /* K of 49, 64, 65 and 80: four and five 16-byte chunks, with the fifth chunk full (80) and one value in (65). */
+    {1, 9, 9, 1, 7, 7, 8, 1, 1, 3, 3, 1, 1, 9, 9, 5, -128, 127},
+    {1, 10, 9, 2, 8, 4, 8, 1, 1, 4, 2, 1, 1, 11, 10, -31, -128, 127},
+    {1, 13, 9, 1, 13, 5, 4, 1, 1, 6, 2, 1, 1, 13, 9, 7, -128, 127},
+    {1, 16, 16, 2, 8, 5, 8, 2, 1, 4, 2, 1, 1, 9, 16, 9, -128, 127},
+    /* BlazeFace L0 style: 5x5 over three channels (K 75), stride 2, SAME, 24 output channels, clamped activation. */
+    {1, 16, 16, 3, 5, 5, 24, 2, 2, 2, 2, 1, 1, 8, 8, 128, -100, 100},
+    {1, 15, 17, 3, 5, 5, 8, 2, 2, 1, 1, 1, 1, 7, 8, -3, -128, 127},
+    /* 5x5 over three channels at stride 1 with a 3-pixel tail in the last column group. */
+    {1, 6, 7, 3, 5, 5, 4, 1, 1, 2, 2, 1, 1, 6, 7, 128, -128, 127},
     {1, 3, 40, 1, 3, 16, 4, 1, 3, 1, 7, 1, 1, 3, 14, 0, -128, 127},
     /* 1x1 depth 1: output columns fewer than four in the last group (3 pixels). */
     {1, 1, 7, 1, 1, 1, 4, 1, 1, 0, 0, 1, 1, 1, 7, 5, -128, 127},
@@ -3394,8 +3404,9 @@ static const low_depth_case_t low_depth_neighbour_cases[] = {
     {1, 9, 9, 3, 3, 3, 6, 1, 1, 1, 1, 1, 1, 9, 9, 128, -128, 127},
     {1, 9, 9, 3, 3, 3, 8, 1, 1, 2, 2, 2, 2, 9, 9, 128, -128, 127},
     {1, 12, 12, 3, 7, 7, 8, 2, 2, 3, 3, 1, 1, 6, 6, 128, -128, 127},
-    /* Input depth 1 with K = 49. */
-    {1, 10, 10, 1, 7, 7, 8, 1, 1, 3, 3, 1, 1, 10, 10, 128, -128, 127},
+    /* K of 81 and 96: one value past the 80-value gate, and six chunks. */
+    {1, 10, 10, 1, 9, 9, 8, 1, 1, 4, 4, 1, 1, 10, 10, 128, -128, 127},
+    {1, 10, 12, 3, 8, 4, 8, 1, 1, 4, 2, 1, 1, 11, 13, 128, -128, 127},
 };
 
 static void low_depth_check(const low_depth_case_t *tc, uint32_t seed, low_depth_entry_t entry)
