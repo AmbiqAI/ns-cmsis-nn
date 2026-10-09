@@ -64,9 +64,8 @@ void arm_concatenation_s8_x(const int8_t *input,
     // Copy per row
     for (i = 0; i < num_iterations; ++i)
     {
-        arm_memcpy_s8(output, input, input_x);
+        arm_memcpy_s8(output + (size_t)i * output_x, input, input_x);
         input += input_x;
-        output += output_x;
     }
 }
 

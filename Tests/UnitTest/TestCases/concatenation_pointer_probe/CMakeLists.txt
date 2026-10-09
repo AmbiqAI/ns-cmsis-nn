@@ -13,6 +13,12 @@ if(CONCAT_POINTER_CLANGXX)
             -DARM_NN_ENABLE_F32=0 -DARM_NN_ENABLE_F16=0
             "-I${CMAKE_CURRENT_SOURCE_DIR}/../../../../Include"
             "${CMAKE_CURRENT_SOURCE_DIR}/concatenation_pointer_probe.cpp")
+    add_test(NAME concatenation_s8_pointer_probe
+        COMMAND "${CONCAT_POINTER_CLANGXX}" ${_concat_pointer_target} -std=c++20 -fsyntax-only
+            -DARM_NN_ENABLE_F32=0 -DARM_NN_ENABLE_F16=0
+            "-I${CMAKE_CURRENT_SOURCE_DIR}/../../../../Include"
+            "-I${CMAKE_CURRENT_SOURCE_DIR}/../../../../Source/ConcatenationFunctions"
+            "${CMAKE_CURRENT_SOURCE_DIR}/concatenation_s8_pointer_probe.cpp")
 else()
-    message(STATUS "concatenation_pointer_probe not registered: clang++ is unavailable")
+    message(STATUS "concatenation pointer probes not registered: clang++ is unavailable")
 endif()
