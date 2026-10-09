@@ -849,7 +849,8 @@ void AC_FN(fuzz)(void)
 /* At rank 4 the result must equal what the per-axis 4-D kernels produce for the same inputs. */
 void AC_FN(matches_4d_axis_kernels)(void)
 {
-    static ac_t ref[AC_MAX_ELEMENTS];
+    static ac_t ref_buf[AC_MAX_ELEMENTS + 2 * AC_GUARD];
+    ac_t *ref = ref_buf + AC_GUARD;
     ac_seed = 0x4D4Du;
     for (int32_t axis = 0; axis < 4; axis++)
     {
@@ -859,6 +860,8 @@ void AC_FN(matches_4d_axis_kernels)(void)
             ac_random_case(&c, 4, axis, AC_MAX_ELEMENTS);
             ac_run_case(&c); /* also lays out random slices in the arena */
             const int32_t total = ac_product(c.shape, c.dims);
+            ac_fill_guard(ref_buf, AC_GUARD);
+            ac_fill_guard(ref + total, AC_GUARD);
             ac_t *packed = ac_packed_buf + AC_GUARD;
             /* Row-major [w, z, y, x]: axis 3 is x. */
             const int32_t out_w = c.shape[0], out_z = c.shape[1], out_y = c.shape[2], out_x = c.shape[3];
@@ -889,7 +892,13 @@ void AC_FN(matches_4d_axis_kernels)(void)
             for (int32_t i = 0; i < total; i++)
             {
                 AC_ASSERT_BITS(ac_bits_of(ref[i]), ac_bits_of(packed[i]));
+                int32_t slice, index;
+                ac_ref_map(&c, i, &slice, &index);
+                AC_ASSERT_BITS(ac_bits_of(packed[i]), ac_bits_of(ac_slices[slice][index]));
             }
+            ac_assert_guard(ref_buf, AC_GUARD);
+            ac_assert_guard(ref + total, AC_GUARD);
+            ac_assert_slice_guards(c.num);
         }
     }
 }

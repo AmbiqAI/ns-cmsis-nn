@@ -352,6 +352,11 @@ if(NOT BUILD_CMSIS_NN_UNIT_TESTS_FOR_FVP_BASED_CORSTONE_300
     add_subdirectory(TestCases/reduction_nan_ofast_probe)
 endif()
 
+# Constant evaluation checks pointer formation without a memory access.
+if(NOT BUILD_CMSIS_NN_UNIT_TESTS_FOR_FVP_BASED_CORSTONE_300 AND NOT CMAKE_CROSSCOMPILING)
+    add_subdirectory(TestCases/concatenation_pointer_probe)
+endif()
+
 # The standalone integer probes restore shift-base checks for their own kernel objects.
 # Cross toolchains need not provide the host sanitizer runtimes.
 # No test_arm directory prefix: unittest_targets.py reserves that for Unity suites.
