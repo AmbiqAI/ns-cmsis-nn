@@ -25,7 +25,9 @@
 // the paths that multiply a zero-padded patch (patch-GEMM, the 1xN padded regions, the depthwise to-conv route)
 // count every tap of the patch. With a library built by clang (-ffast-math) the float16 reduction of a short dot is
 // the compiler's order, so there outputs of at most 32 taps are checked only against the other entry and `_acc16`
-// only for its checksum; the fold, whose order the kernels pin, is checked exactly on every compiler.
+// only for its checksum; the fold, whose order the kernels pin, is checked exactly on every compiler. The generic
+// depthwise kernel's taps are scalar multiply-adds that match the fused emulation only where the compiler contracts
+// them, as the library's builds do, and the shapes here keep its rows short of where GCC -Ofast vectorizes them.
 //
 // Two lane shapes are emulated. A lane kernel keeps one output per vector lane and adds one tap per step, the bias
 // starting the first partial. A reduction kernel spreads one output's taps over the eight lanes of a vector
