@@ -3682,6 +3682,13 @@
         "asymmetric_quantize_inputs": 0
       },
       {
+        "name": "mean_axis_h_mixed_s16",
+        "in_dim": [2, 2, 3, 4],
+        "axis": [1],
+        "keep_dims": true,
+        "asymmetric_quantize_inputs": 0
+      },
+      {
         "name": "mean_axis_n_s16",
         "in_dim": [2, 3, 2, 4],
         "axis": [0],
