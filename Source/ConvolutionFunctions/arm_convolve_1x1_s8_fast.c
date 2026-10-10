@@ -65,7 +65,7 @@ arm_cmsis_nn_status arm_convolve_1x1_s8_fast(const cmsis_nn_context *ctx,
     {
         return ARM_CMSIS_NN_ARG_ERROR;
     }
-    /* A negative extent gives a pixel count the row loops never reach. See AmbiqAI/ns-cmsis-nn#680. */
+    /* A negative extent would give the row loops a negative or wrapped count. See AmbiqAI/ns-cmsis-nn#680. */
     if (input_dims->n < 0 || input_dims->h < 0 || input_dims->w < 0 || input_dims->c < 0 || output_dims->c < 0)
     {
         return ARM_CMSIS_NN_ARG_ERROR;

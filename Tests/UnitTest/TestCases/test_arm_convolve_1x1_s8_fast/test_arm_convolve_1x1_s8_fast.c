@@ -836,8 +836,9 @@ void buffer_size_out_of_range_dsp_arm_convolve_1x1_s8_fast(void)
 
 /*
  * A negative N, H, W, C_IN or C_OUT, or a pixel count N * H * W past INT32_MAX, is an argument error. A zero one
- * returns success, even with H * W past INT32_MAX. Neither writes anything (#680): the row loops would otherwise run
- * on a negative or wrapped count. On MVE a NULL weight-sum buffer is an error even for a zero extent.
+ * returns success, even with H * W past INT32_MAX, unless another extent is negative. Neither writes anything (#680):
+ * a negative extent would give the row loops a negative or wrapped count. On MVE a NULL weight-sum buffer is an error
+ * even for a zero extent.
  */
 void extent_checks_arm_convolve_1x1_s8_fast(void)
 {
@@ -854,8 +855,8 @@ void extent_checks_arm_convolve_1x1_s8_fast(void)
     const cmsis_nn_per_channel_quant_params quant_params = {multiplier, shift};
     const cmsis_nn_dims filter_dims = {1, 1, 1, 1};
     const cmsis_nn_dims bias_dims = {1, 1, 1, 1};
-    /* [N, H, W, C_IN] with C_OUT: one negative or zero value each, N * H * W of 2^31, H * W of 2^32, then a zero N
-       with H * W of 2^32 */
+    /* [N, H, W, C_IN] with C_OUT: one negative or zero value each, N * H * W of 2^31, H * W of 2^32, a zero N with
+       H * W of 2^32, a zero with a negative, and INT32_MIN */
     const struct
     {
         cmsis_nn_dims input;
@@ -873,7 +874,11 @@ void extent_checks_arm_convolve_1x1_s8_fast(void)
                  {{1, 1, 3, 1}, 0, ARM_CMSIS_NN_SUCCESS},
                  {{2, 65536, 16384, 1}, 1, ARM_CMSIS_NN_ARG_ERROR},
                  {{1, 65536, 65536, 1}, 1, ARM_CMSIS_NN_ARG_ERROR},
-                 {{0, 65536, 65536, 1}, 1, ARM_CMSIS_NN_SUCCESS}};
+                 {{0, 65536, 65536, 1}, 1, ARM_CMSIS_NN_SUCCESS},
+                 {{0, -1, 3, 1}, 1, ARM_CMSIS_NN_ARG_ERROR},
+                 {{-1, 0, 3, 1}, 1, ARM_CMSIS_NN_ARG_ERROR},
+                 {{1, 1, 3, 0}, -1, ARM_CMSIS_NN_ARG_ERROR},
+                 {{INT32_MIN, 1, 3, 1}, 1, ARM_CMSIS_NN_ARG_ERROR}};
     for (size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); i++)
     {
         const cmsis_nn_dims output_dims = {cases[i].input.n, cases[i].input.h, cases[i].input.w, cases[i].out_c};
