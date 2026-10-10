@@ -48,7 +48,7 @@
  * Refer to header file for details.
  */
 
-__STATIC_INLINE float32_t arm_nn_lstm_activate_gate_f32(float32_t x, arm_nn_activation_type_flt type)
+__STATIC_INLINE float32_t arm_nn_lstm_activate_gate_f32(float32_t x, int32_t type)
 {
     if (type == ARM_NN_FLT_ACT_TANH)
     {

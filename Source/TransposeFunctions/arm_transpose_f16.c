@@ -85,11 +85,7 @@ arm_transpose_2d_kernel_f16(const float16_t *input, float16_t *output, int32_t r
     return ARM_CMSIS_NN_SUCCESS;
 }
 
-ARM_TRANSPOSE_DEFINE(arm_transpose_f16,
-                     float16_t,
-                     cmsis_nn_transpose_params_f16,
-                     arm_nn_tensor_layout,
-                     arm_transpose_2d_kernel_f16)
+ARM_TRANSPOSE_DEFINE(arm_transpose_f16, float16_t, cmsis_nn_transpose_params_f16, arm_transpose_2d_kernel_f16)
 
 /**
  * @} end of Transpose group

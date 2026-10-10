@@ -3,9 +3,9 @@
 # SPDX-FileCopyrightText: Copyright 2026 Ambiq <opensource@ambiq.com>
 # SPDX-License-Identifier: Apache-2.0
 #
-# Mutation tests for scripts/check_public_struct_enums.py (#764): the check catches an enum-typed field, accepts the
-# int32_t form, ignores enums named only in comments, fails loudly when discovery finds nothing, and the real headers
-# pass.
+# Mutation tests for scripts/check_public_struct_enums.py (#764): the check catches an enum-typed field in every form
+# a header can declare one, accepts the int32_t form and pointers to an enum, fails loudly when the headers do not parse
+# or hold no fields, and the real headers pass. Needs clang (CLANG, default "clang").
 #
 # Run with: python3 scripts/tests/test_check_public_struct_enums.py
 
@@ -22,7 +22,7 @@ from pathlib import Path
 REPO = Path(__file__).resolve().parents[2]
 SCRIPT = REPO / "scripts" / "check_public_struct_enums.py"
 
-ENUM = "typedef enum\n{\n    FMT_A = 0,\n    FMT_B = 1,\n} my_format;\n"
+PRELUDE = "#include <stdint.h>\ntypedef enum\n{\n    FMT_A = 0,\n    FMT_B = 1,\n} my_format;\n"
 
 
 def load_checker():
@@ -41,24 +41,63 @@ class CheckPublicStructEnums(unittest.TestCase):
             with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()):
                 return load_checker().main(include)
 
-    def test_enum_field_is_caught(self):
-        self.assertEqual(1, self.run_on(ENUM + "typedef struct\n{\n    int32_t a;\n    my_format fmt;\n} params;\n"))
+    def test_plain_is_caught(self):
+        self.assertEqual(1, self.run_on(PRELUDE + "typedef struct\n{\n    int32_t a;\n    my_format fmt;\n} params;\n"))
 
-    def test_const_enum_field_is_caught(self):
-        self.assertEqual(1, self.run_on(ENUM + "typedef struct\n{\n    const my_format fmt;\n} params;\n"))
+    def test_const_is_caught(self):
+        self.assertEqual(1, self.run_on(PRELUDE + "typedef struct\n{\n    const my_format fmt;\n} params;\n"))
+
+    def test_trailing_const_is_caught(self):
+        self.assertEqual(1, self.run_on(PRELUDE + "typedef struct\n{\n    my_format const fmt;\n} params;\n"))
+
+    def test_alias_is_caught(self):
+        self.assertEqual(1, self.run_on(PRELUDE + "typedef my_format my_format_alias;\ntypedef struct\n{\n    my_format_alias fmt;\n} params;\n"))
+
+    def test_tagged_enum_is_caught(self):
+        self.assertEqual(1, self.run_on(PRELUDE + "enum tag_format { TAG_A };\nstruct params\n{\n    enum tag_format fmt;\n};\n"))
+
+    def test_second_declarator_is_caught(self):
+        self.assertEqual(1, self.run_on(PRELUDE + "typedef struct\n{\n    int32_t a, b;\n    my_format c, d;\n} params;\n"))
+
+    def test_bitfield_is_caught(self):
+        self.assertEqual(1, self.run_on(PRELUDE + "typedef struct\n{\n    my_format fmt : 4;\n} params;\n"))
+
+    def test_array_2d_is_caught(self):
+        self.assertEqual(1, self.run_on(PRELUDE + "typedef struct\n{\n    my_format fmt[2][3];\n} params;\n"))
+
+    def test_after_nested_struct_is_caught(self):
+        self.assertEqual(1, self.run_on(PRELUDE + "typedef struct\n{\n    struct\n    {\n        int32_t w;\n    } inner;\n    my_format fmt;\n} params;\n"))
+
+    def test_in_nested_struct_is_caught(self):
+        self.assertEqual(1, self.run_on(PRELUDE + "typedef struct\n{\n    struct\n    {\n        my_format fmt;\n    } inner;\n} params;\n"))
+
+    def test_union_is_caught(self):
+        self.assertEqual(1, self.run_on(PRELUDE + "typedef union\n{\n    int32_t a;\n    my_format fmt;\n} params;\n"))
+
+    def test_attribute_is_caught(self):
+        self.assertEqual(1, self.run_on(PRELUDE + "typedef struct __attribute__((aligned(8)))\n{\n    my_format fmt;\n} params;\n"))
+
+    def test_declarator_list_is_caught(self):
+        self.assertEqual(1, self.run_on(PRELUDE + "struct params\n{\n    my_format fmt;\n} p, *pp;\n"))
 
     def test_int32_field_naming_the_enum_passes(self):
-        self.assertEqual(0, self.run_on(ENUM + "typedef struct\n{\n    int32_t fmt; /**< A my_format value. */\n} params;\n"))
+        self.assertEqual(0, self.run_on(PRELUDE + "typedef struct\n{\n    int32_t fmt; /**< A my_format value. */\n} params;\n"))
 
     def test_enum_named_in_a_comment_only_passes(self):
-        self.assertEqual(0, self.run_on(ENUM + "typedef struct\n{\n    // my_format fmt;\n    int32_t fmt;\n} params;\n"))
+        self.assertEqual(0, self.run_on(PRELUDE + "typedef struct\n{\n    // my_format fmt;\n    int32_t fmt;\n} params;\n"))
+
+    def test_pointer_to_enum_passes(self):
+        self.assertEqual(0, self.run_on(PRELUDE + "typedef struct\n{\n    const my_format *fmt;\n} params;\n"))
 
     def test_no_headers_fails_loudly(self):
         with tempfile.TemporaryDirectory() as tmp, contextlib.redirect_stderr(io.StringIO()):
             self.assertEqual(1, load_checker().main(Path(tmp)))
 
-    def test_no_enums_fails_loudly(self):
-        self.assertEqual(1, self.run_on("typedef struct\n{\n    int32_t a;\n} params;\n"))
+    def test_no_fields_fails_loudly(self):
+        self.assertEqual(1, self.run_on(PRELUDE))
+
+    def test_unparsable_headers_fail_loudly(self):
+        self.assertEqual(1, self.run_on(PRELUDE + "typedef struct\n{\n    undeclared_type fmt;\n} params;\n"))
 
     def test_repo_is_clean(self):
         with contextlib.redirect_stdout(io.StringIO()):
