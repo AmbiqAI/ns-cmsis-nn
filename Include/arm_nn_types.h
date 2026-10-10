@@ -380,7 +380,8 @@ typedef struct
     const void *hidden_effective_bias; /**< Precomputed kernel_sum * lhs_offset*/
 
     const void *bias;
-    arm_nn_activation_type activation_type;
+    int32_t activation_type; /**< An arm_nn_activation_type value; fixed width so the layout is independent of the
+                                  compiler's enum size. */
 } cmsis_nn_lstm_gate;
 
 /** CMSIS-NN object for LSTM parameters*/

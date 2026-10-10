@@ -141,11 +141,11 @@ typedef struct
  */
 typedef struct
 {
-    cmsis_nn_tile stride;                   /**< Spatial stride. */
-    cmsis_nn_tile padding;                  /**< Spatial zero-padding. */
-    cmsis_nn_tile dilation;                 /**< Spatial dilation. */
-    cmsis_nn_activation_f32 activation;     /**< Output activation clamp range. */
-    arm_nn_weight_format_flt weight_format; /**< Filter storage format. */
+    cmsis_nn_tile stride;               /**< Spatial stride. */
+    cmsis_nn_tile padding;              /**< Spatial zero-padding. */
+    cmsis_nn_tile dilation;             /**< Spatial dilation. */
+    cmsis_nn_activation_f32 activation; /**< Output activation clamp range. */
+    int32_t weight_format;              /**< Filter storage format, an arm_nn_weight_format_flt value. */
 } cmsis_nn_conv_params_f32;
 
 /**
@@ -187,8 +187,8 @@ typedef struct
  */
 typedef struct
 {
-    cmsis_nn_activation_f32 activation;     /**< Output activation clamp range. */
-    arm_nn_weight_format_flt weight_format; /**< Weight storage format. */
+    cmsis_nn_activation_f32 activation; /**< Output activation clamp range. */
+    int32_t weight_format;              /**< Weight storage format, an arm_nn_weight_format_flt value. */
 } cmsis_nn_fc_params_f32;
 
 /**
@@ -196,13 +196,13 @@ typedef struct
  */
 typedef struct
 {
-    const bool adj_x;                    /**< True when the left-hand-side operand is stored transposed. */
-    const bool adj_y;                    /**< True when the right-hand-side operand is stored transposed. */
-    cmsis_nn_activation_f32 activation;  /**< Output activation clamp range. */
-    arm_nn_weight_format_flt rhs_format; /**< Right-hand-side operand storage format.
-                                          *   `ARM_NN_WEIGHT_FORMAT_NT_N_PACKED` is currently supported only when
-                                          *   `adj_x == false` and `adj_y == false`.
-                                          */
+    const bool adj_x;                   /**< True when the left-hand-side operand is stored transposed. */
+    const bool adj_y;                   /**< True when the right-hand-side operand is stored transposed. */
+    cmsis_nn_activation_f32 activation; /**< Output activation clamp range. */
+    int32_t rhs_format;                 /**< Right-hand-side operand storage format, an arm_nn_weight_format_flt value.
+                                         *   `ARM_NN_WEIGHT_FORMAT_NT_N_PACKED` is currently supported only when
+                                         *   `adj_x == false` and `adj_y == false`.
+                                         */
 } cmsis_nn_bmm_params_f32;
 
 /**
@@ -218,9 +218,9 @@ typedef struct
  */
 typedef struct
 {
-    int32_t num_dims;            /**< Number of active dimensions in the permutation. */
-    int32_t perm[4];             /**< Permutation indices. */
-    arm_nn_tensor_layout layout; /**< Layout convention used to interpret tensor dimensions. */
+    int32_t num_dims; /**< Number of active dimensions in the permutation. */
+    int32_t perm[4];  /**< Permutation indices. */
+    int32_t layout;   /**< Layout convention used to interpret tensor dimensions, an arm_nn_tensor_layout value. */
 } cmsis_nn_transpose_params_f32;
 
 /**
@@ -238,10 +238,10 @@ typedef struct
  */
 typedef struct
 {
-    const float32_t *input_weights;             /**< Input-to-gate weight matrix. */
-    const float32_t *hidden_weights;            /**< Hidden-state-to-gate weight matrix. */
-    const float32_t *bias;                      /**< Optional gate bias vector. */
-    arm_nn_activation_type_flt activation_type; /**< Gate activation selector. */
+    const float32_t *input_weights;  /**< Input-to-gate weight matrix. */
+    const float32_t *hidden_weights; /**< Hidden-state-to-gate weight matrix. */
+    const float32_t *bias;           /**< Optional gate bias vector. */
+    int32_t activation_type;         /**< Gate activation selector, an arm_nn_activation_type_flt value. */
 } cmsis_nn_lstm_gate_f32;
 
 /**
@@ -358,11 +358,11 @@ typedef struct
  */
 typedef struct
 {
-    cmsis_nn_tile stride;                   /**< Spatial stride. */
-    cmsis_nn_tile padding;                  /**< Spatial zero-padding. */
-    cmsis_nn_tile dilation;                 /**< Spatial dilation. */
-    cmsis_nn_activation_f16 activation;     /**< Output activation clamp range. */
-    arm_nn_weight_format_flt weight_format; /**< Filter storage format. */
+    cmsis_nn_tile stride;               /**< Spatial stride. */
+    cmsis_nn_tile padding;              /**< Spatial zero-padding. */
+    cmsis_nn_tile dilation;             /**< Spatial dilation. */
+    cmsis_nn_activation_f16 activation; /**< Output activation clamp range. */
+    int32_t weight_format;              /**< Filter storage format, an arm_nn_weight_format_flt value. */
 } cmsis_nn_conv_params_f16;
 
 /**
@@ -404,8 +404,8 @@ typedef struct
  */
 typedef struct
 {
-    cmsis_nn_activation_f16 activation;     /**< Output activation clamp range. */
-    arm_nn_weight_format_flt weight_format; /**< Weight storage format. */
+    cmsis_nn_activation_f16 activation; /**< Output activation clamp range. */
+    int32_t weight_format;              /**< Weight storage format, an arm_nn_weight_format_flt value. */
 } cmsis_nn_fc_params_f16;
 
 /**
@@ -413,13 +413,13 @@ typedef struct
  */
 typedef struct
 {
-    const bool adj_x;                    /**< True when the left-hand-side operand is stored transposed. */
-    const bool adj_y;                    /**< True when the right-hand-side operand is stored transposed. */
-    cmsis_nn_activation_f16 activation;  /**< Output activation clamp range. */
-    arm_nn_weight_format_flt rhs_format; /**< Right-hand-side operand storage format.
-                                          *   `ARM_NN_WEIGHT_FORMAT_NT_N_PACKED` is currently supported only when
-                                          *   `adj_x == false` and `adj_y == false`.
-                                          */
+    const bool adj_x;                   /**< True when the left-hand-side operand is stored transposed. */
+    const bool adj_y;                   /**< True when the right-hand-side operand is stored transposed. */
+    cmsis_nn_activation_f16 activation; /**< Output activation clamp range. */
+    int32_t rhs_format;                 /**< Right-hand-side operand storage format, an arm_nn_weight_format_flt value.
+                                         *   `ARM_NN_WEIGHT_FORMAT_NT_N_PACKED` is currently supported only when
+                                         *   `adj_x == false` and `adj_y == false`.
+                                         */
 } cmsis_nn_bmm_params_f16;
 
 /**
@@ -435,9 +435,9 @@ typedef struct
  */
 typedef struct
 {
-    int32_t num_dims;            /**< Number of active dimensions in the permutation. */
-    int32_t perm[4];             /**< Permutation indices. */
-    arm_nn_tensor_layout layout; /**< Layout convention used to interpret tensor dimensions. */
+    int32_t num_dims; /**< Number of active dimensions in the permutation. */
+    int32_t perm[4];  /**< Permutation indices. */
+    int32_t layout;   /**< Layout convention used to interpret tensor dimensions, an arm_nn_tensor_layout value. */
 } cmsis_nn_transpose_params_f16;
 
 /**
@@ -455,10 +455,10 @@ typedef struct
  */
 typedef struct
 {
-    const float16_t *input_weights;             /**< Input-to-gate weight matrix. */
-    const float16_t *hidden_weights;            /**< Hidden-state-to-gate weight matrix. */
-    const float16_t *bias;                      /**< Optional gate bias vector. */
-    arm_nn_activation_type_flt activation_type; /**< Gate activation selector. */
+    const float16_t *input_weights;  /**< Input-to-gate weight matrix. */
+    const float16_t *hidden_weights; /**< Hidden-state-to-gate weight matrix. */
+    const float16_t *bias;           /**< Optional gate bias vector. */
+    int32_t activation_type;         /**< Gate activation selector, an arm_nn_activation_type_flt value. */
 } cmsis_nn_lstm_gate_f16;
 
 /**
