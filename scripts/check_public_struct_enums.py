@@ -30,10 +30,28 @@ CLANG_ARGS = ("-fsyntax-only", "-w", "-Wno-error=implicit-function-declaration",
               "-DARM_NN_ENABLE_F32=1", "-Xclang", "-ast-dump=json")
 
 
+def without_unnamed(name: str) -> str:
+    """A type name with each "(unnamed ... at FILE:L:C)" or "(anonymous ...)" group removed. The group holds a path,
+    which may itself contain parentheses, so it is matched by depth."""
+    while (start := max(name.find("(unnamed"), name.find("(anonymous"))) >= 0:
+        depth, end = 0, start
+        for end in range(start, len(name)):
+            depth += {"(": 1, ")": -1}.get(name[end], 0)
+            if depth == 0:
+                break
+        name = name[:start] + name[end + 1:]
+    return name
+
+
 def scalar_type(name: str) -> str:
-    """A type name with qualifiers and array bounds removed."""
-    name = re.sub(r"(\[\d*\])+$", "", name).strip()
-    return re.sub(r"^((const|volatile)\s+)+", "", re.sub(r"\s+(const|volatile)$", "", name))
+    """A type name with the unnamed-tag groups, _Atomic(), typeof(), qualifiers and array bounds removed."""
+    name = without_unnamed(name).strip()
+    while True:
+        unwrapped = re.fullmatch(r"(?:_Atomic|typeof|__typeof__|__typeof)\s*\((.*)\)", name)
+        name = re.sub(r"(\s*\[\d*\])+$", "", unwrapped.group(1) if unwrapped else name).strip()
+        name = re.sub(r"^((const|volatile|_Atomic)\s+)+|(\s+(const|volatile|_Atomic))+$", "", name)
+        if not unwrapped:
+            return name
 
 
 def names_enum(type_node: dict) -> bool:
@@ -66,9 +84,10 @@ def main(include_dir: Path = INCLUDE_DIR) -> int:
 
     ast = json.loads(result.stdout)
     root = Path(include_dir).resolve()
-    # Typedefs that resolve to an enum, by name and by id. Decided from the type nodes, not from printed type names,
+    # Typedefs that resolve to an enum, by id and by name. Decided from the type nodes, not from printed type names,
     # which differ between clang releases.
-    enum_typedefs: set[str] = set()
+    enum_typedef_ids: set[str] = set()
+    enum_typedef_names: set[str] = set()
     # A "typedef struct { ... } name;" record is anonymous; name it after its typedef
     record_names: dict[str, str] = {}
 
@@ -98,7 +117,8 @@ def main(include_dir: Path = INCLUDE_DIR) -> int:
         in_headers = Path(current_file).resolve().is_relative_to(root) if current_file else False
         if kind == "TypedefDecl":
             if any(names_enum(child) for child in node.get("inner", [])):
-                enum_typedefs.update((node["name"], node["id"]))
+                enum_typedef_ids.add(node["id"])
+                enum_typedef_names.add(node["name"])
         elif kind == "RecordDecl" and in_headers and node.get("completeDefinition"):
             record = node.get("name") or record_names.get(node["id"]) or f"anonymous {node['tagUsed']} in {record}"
             records.add(node["id"])
@@ -110,11 +130,13 @@ def main(include_dir: Path = INCLUDE_DIR) -> int:
     walk(ast, "")
 
     def is_enum(type_json: dict) -> bool:
-        names = [scalar_type(type_json[key]) for key in ("qualType", "desugaredQualType") if key in type_json]
-        if any("*" in name or "(" in name.replace("(unnamed at", "").replace("(anonymous at", "") for name in names):
-            return False
-        return (type_json.get("typeAliasDeclId") in enum_typedefs or
-                any(name.startswith("enum ") or name in enum_typedefs for name in names))
+        # A field spelled with a typedef carries the typedef's id; that decides it, whatever the name shadows
+        if "typeAliasDeclId" in type_json:
+            return type_json["typeAliasDeclId"] in enum_typedef_ids
+        names = [scalar_type(type_json[key]) for key in ("desugaredQualType", "qualType") if key in type_json]
+        if any("*" in name or "(" in name for name in names):
+            return False  # a pointer or a function type
+        return any(re.match(r"enum\b", name) or name in enum_typedef_names for name in names)
 
     if not fields:
         print("no struct or union fields found under the headers; the check would pass vacuously", file=sys.stderr)
