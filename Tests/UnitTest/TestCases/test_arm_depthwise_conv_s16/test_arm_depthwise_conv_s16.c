@@ -445,10 +445,10 @@ void buffer_size_dsp_arm_depthwise_conv_s16(void)
 }
 
 /* Edge cases checked against a scalar reference */
-#define EDGE_MAX_IN 256
+#define EDGE_MAX_IN 512
 #define EDGE_MAX_OUT 512
 #define EDGE_MAX_CH 16
-#define EDGE_MAX_KER 64
+#define EDGE_MAX_KER 512
 static int16_t edge_input[EDGE_MAX_IN];
 static int8_t edge_filter[EDGE_MAX_KER];
 static int16_t edge_output[EDGE_MAX_OUT];
@@ -465,6 +465,10 @@ typedef struct
 } edge_case;
 
 static uint32_t edge_seed;
+/* Fill every input with -32768 and every weight with -128, the largest product */
+static int edge_extreme;
+/* Pass a NULL bias; the reference then reads the zeros left in edge_bias */
+static int edge_null_bias;
 
 static int32_t edge_rand(int32_t mag)
 {
@@ -515,11 +519,11 @@ static int32_t edge_run(const edge_case *c)
     TEST_ASSERT_TRUE(out_ch <= EDGE_MAX_CH && c->k_h * c->k_w * out_ch <= EDGE_MAX_KER);
     for (int32_t i = 0; i < c->in_h * c->in_w * c->in_ch; i++)
     {
-        edge_input[i] = (int16_t)edge_rand(c->in_mag);
+        edge_input[i] = edge_extreme ? INT16_MIN : (int16_t)edge_rand(c->in_mag);
     }
     for (int32_t i = 0; i < c->k_h * c->k_w * out_ch; i++)
     {
-        edge_filter[i] = (int8_t)edge_rand(c->w_mag);
+        edge_filter[i] = edge_extreme ? INT8_MIN : (int8_t)edge_rand(c->w_mag);
     }
     edge_reference_dw(c, out_h, out_w);
 
@@ -546,7 +550,7 @@ static int32_t edge_run(const edge_case *c)
                                              &filter_dims,
                                              edge_filter,
                                              &bias_dims,
-                                             edge_bias,
+                                             edge_null_bias ? NULL : edge_bias,
                                              &output_dims,
                                              edge_output));
     TEST_ASSERT_EQUAL_INT16_ARRAY(edge_reference, edge_output, out_size);
@@ -589,6 +593,7 @@ void channel_tail_arm_depthwise_conv_s16(void)
         {4, 7, 3, 1, 2, 3, 1, 1, 1, 16384, 127},
         {4, 4, 3, 3, 3, 2, 1, 1, 1, 16384, 127},
         {4, 4, 2, 4, 2, 2, 1, 1, 1, 16384, 127},
+        {6, 9, 4, 1, 3, 3, 2, 1, 1, 16384, 127},
     };
     edge_run_cases(cases, sizeof(cases) / sizeof(cases[0]), 1);
 }
@@ -602,6 +607,13 @@ void zero_taps_arm_depthwise_conv_s16(void)
         {3, 3, 4, 2, 2, 2, 2, 4, 3, 16384, 127},
     };
     edge_run_cases(cases, sizeof(cases) / sizeof(cases[0]), 2);
+
+    /* Again with a bias that requantizes to a non-zero output where a pixel has no taps */
+    for (size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); i++)
+    {
+        edge_quant(cases[i].in_ch * cases[i].ch_mult, 1, -6);
+        (void)edge_run(&cases[i]);
+    }
 }
 
 void wide_bias_arm_depthwise_conv_s16(void)
@@ -637,4 +649,61 @@ void positive_shift_arm_depthwise_conv_s16(void)
     const edge_case wide = {5, 6, 5, 1, 3, 3, 1, 1, 1, 16384, 127};
     edge_quant(5, 0, 10);
     (void)edge_run(&wide);
+
+    /* The s64 path with no bias */
+    edge_quant(5, 0, 10);
+    edge_null_bias = 1;
+    (void)edge_run(&cases[0]);
+    edge_null_bias = 0;
+}
+
+/* 511 taps run the s32 kernel and 512 must not: with every product at its largest, 512 taps sum to 2^31 */
+void tap_limit_arm_depthwise_conv_s16(void)
+{
+    const edge_case cases[] = {
+        {1, 511, 1, 1, 1, 511, 1, 0, 1, 0, 0},
+        {16, 32, 1, 1, 16, 32, 1, 0, 1, 0, 0},
+    };
+    edge_extreme = 1;
+    for (size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); i++)
+    {
+        edge_quant(1, 0, -20);
+        TEST_ASSERT_TRUE(edge_run(&cases[i]) > 0);
+    }
+    edge_extreme = 0;
+}
+
+/* Shifts of -2 to 6 keep a 1x1 layer on the s32 requantization; one channel has the largest multiplier */
+void s32_shift_arm_depthwise_conv_s16(void)
+{
+    const edge_case cases[] = {
+        {3, 4, 4, 1, 1, 1, 1, 0, 1, 16, 7},
+        {3, 4, 2, 2, 1, 1, 1, 0, 1, 16, 7},
+    };
+    const int32_t shifts[] = {-2, -1, 0, 1, 2, 4, 6};
+    edge_seed = 5;
+    for (size_t s = 0; s < sizeof(shifts) / sizeof(shifts[0]); s++)
+    {
+        for (size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); i++)
+        {
+            edge_quant(cases[i].in_ch * cases[i].ch_mult, shifts[s] < 2 ? 1 : 0, shifts[s]);
+            edge_mult[0] = 0x7FFF8000;
+            TEST_ASSERT_TRUE(edge_run(&cases[i]) > 0);
+        }
+    }
+}
+
+/* The s32 bound: shift 0 allows |bias| + taps * 2^22 below 2^29. One tap of the largest product with a bias one
+   below, at and above that limit; at and above it, a 32-bit left shift would wrap. */
+void s32_bound_arm_depthwise_conv_s16(void)
+{
+    const edge_case c = {1, 4, 1, 1, 1, 1, 1, 0, 1, 0, 0};
+    edge_extreme = 1;
+    for (int32_t d = -1; d <= 1; d++)
+    {
+        edge_quant(1, 0, 0);
+        edge_bias[0] = ((int64_t)1 << 29) - ((int64_t)1 << 22) + d;
+        (void)edge_run(&c);
+    }
+    edge_extreme = 0;
 }
