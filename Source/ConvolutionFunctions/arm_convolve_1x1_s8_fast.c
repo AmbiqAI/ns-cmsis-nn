@@ -65,6 +65,12 @@ arm_cmsis_nn_status arm_convolve_1x1_s8_fast(const cmsis_nn_context *ctx,
     {
         return ARM_CMSIS_NN_ARG_ERROR;
     }
+    /* A negative extent would give the row loops a negative or wrapped count (AmbiqAI/ns-cmsis-nn#680), and C_IN must
+       be at least 1, as for arm_convolve_s8() */
+    if (input_dims->n < 0 || input_dims->h < 0 || input_dims->w < 0 || input_dims->c < 1 || output_dims->c < 0)
+    {
+        return ARM_CMSIS_NN_ARG_ERROR;
+    }
 
 #if defined(ARM_MATH_MVEI)
     /* Only the MVE path of arm_nn_mat_mult_nt_t_s8() reads the per-channel weight sums. Diagnose a
@@ -74,6 +80,18 @@ arm_cmsis_nn_status arm_convolve_1x1_s8_fast(const cmsis_nn_context *ctx,
         return ARM_CMSIS_NN_ARG_ERROR;
     }
 #endif
+
+    /* An empty output returns at once */
+    if (input_dims->n == 0 || input_dims->h == 0 || input_dims->w == 0 || output_dims->c == 0)
+    {
+        return ARM_CMSIS_NN_SUCCESS;
+    }
+    /* The pixel count N * H * W is formed in int32_t */
+    if ((int64_t)input_dims->h * input_dims->w > INT32_MAX ||
+        (int64_t)input_dims->n * (input_dims->h * input_dims->w) > INT32_MAX)
+    {
+        return ARM_CMSIS_NN_ARG_ERROR;
+    }
 
     (void)filter_dims;
     (void)bias_dims;

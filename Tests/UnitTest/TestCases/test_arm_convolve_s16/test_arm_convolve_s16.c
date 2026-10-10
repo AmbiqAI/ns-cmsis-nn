@@ -2366,6 +2366,38 @@ void group_arg_errors_arm_convolve_s16(void)
                                                    output));
     }
 
+    /* arm_convolve_1x1_s16_ns_np_nd() called directly over 3 pixels (#763): it must not write a negative output
+       depth's worth of values, divide by a filter depth of 0, or read C_IN weights per channel from a grouped
+       filter. {C_IN, filter C, C_OUT} */
+    static const int32_t direct_1x1[][3] = {{4, 4, -5}, {4, 4, -1}, {0, 0, 4}, {-4, -4, 4}, {6, 4, 4}, {8, 4, 4}};
+    for (uint32_t c = 0; c < sizeof(direct_1x1) / sizeof(direct_1x1[0]); c++)
+    {
+        const cmsis_nn_dims input_dims = {1, 1, 3, direct_1x1[c][0]};
+        const cmsis_nn_dims filter_dims = {direct_1x1[c][2], 1, 1, direct_1x1[c][1]};
+        const cmsis_nn_dims bias_dims = {1, 1, 1, direct_1x1[c][2]};
+        const cmsis_nn_dims output_dims = {1, 1, 3, direct_1x1[c][2]};
+        for (uint32_t i = 0; i < sizeof(output) / sizeof(output[0]); i++)
+        {
+            output[i] = 0x5555;
+        }
+        TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR,
+                          arm_convolve_1x1_s16_ns_np_nd(&ctx,
+                                                        &conv_params,
+                                                        &quant_params,
+                                                        &input_dims,
+                                                        input,
+                                                        &filter_dims,
+                                                        kernel,
+                                                        &bias_dims,
+                                                        &bias_data,
+                                                        &output_dims,
+                                                        output));
+        for (uint32_t i = 0; i < sizeof(output) / sizeof(output[0]); i++)
+        {
+            TEST_ASSERT_EQUAL_INT16(0x5555, output[i]);
+        }
+    }
+
     /* Controls: two whole groups, and no output channels, are accepted */
     static const int32_t valid[][3] = {{8, 4, 4}, {8, 4, 0}};
     for (uint32_t c = 0; c < sizeof(valid) / sizeof(valid[0]); c++)

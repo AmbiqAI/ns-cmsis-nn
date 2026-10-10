@@ -558,15 +558,16 @@ void grouped_conv_arg_errors_arm_grouped_convolve_s8(void)
     }
 }
 
-/* arm_nn_convolve_s8_groups_invalid() at the 16-bit edge of each depth, with one group: 65,535 is valid, 65,536 is
+/* arm_nn_convolve_s8_args_invalid() at the 16-bit edge of each depth, with one group: 65,535 is valid, 65,536 is
  * not. */
 void grouped_conv_depth_bounds_arm_grouped_convolve_s8(void)
 {
+    const cmsis_nn_conv_params unit = {0, 0, {1, 1}, {0, 0}, {1, 1}, {-128, 127}};
     const cmsis_nn_dims one = {1, 1, 1, 1};
     const cmsis_nn_dims max = {1, 1, 1, UINT16_MAX};
     const cmsis_nn_dims over = {1, 1, 1, UINT16_MAX + 1};
-    TEST_ASSERT_FALSE(arm_nn_convolve_s8_groups_invalid(&max, &max, &one));
-    TEST_ASSERT_TRUE(arm_nn_convolve_s8_groups_invalid(&over, &over, &one));
-    TEST_ASSERT_FALSE(arm_nn_convolve_s8_groups_invalid(&one, &one, &max));
-    TEST_ASSERT_TRUE(arm_nn_convolve_s8_groups_invalid(&one, &one, &over));
+    TEST_ASSERT_FALSE(arm_nn_convolve_s8_args_invalid(&unit, &max, &max, &one));
+    TEST_ASSERT_TRUE(arm_nn_convolve_s8_args_invalid(&unit, &over, &over, &one));
+    TEST_ASSERT_FALSE(arm_nn_convolve_s8_args_invalid(&unit, &one, &one, &max));
+    TEST_ASSERT_TRUE(arm_nn_convolve_s8_args_invalid(&unit, &one, &one, &over));
 }

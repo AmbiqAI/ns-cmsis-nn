@@ -254,11 +254,35 @@ arm_cmsis_nn_status arm_depthwise_conv_s16(const cmsis_nn_context *ctx,
                                            const cmsis_nn_dims *output_dims,
                                            int16_t *output)
 {
-    const uint16_t dilation_x = dw_conv_params->dilation.w;
-    const uint16_t dilation_y = dw_conv_params->dilation.h;
-
     (void)bias_dims;
     (void)ctx;
+
+    /* The kernel keeps every dimension, padding, stride and dilation as uint16_t; a value is in [0, UINT16_MAX]
+       exactly when no bit above bit 15 is set. It forms tensor indices in int32_t: the input and output planes
+       (H * W) and the input, the filter and the output, C * ch_mult channels, must each hold at most INT32_MAX
+       elements, and a kernel size times its dilation is at most INT32_MAX / 2. A dilation below 1 would read before
+       the input. See AmbiqAI/ns-cmsis-nn#707. Unsigned throughout: nothing past the OR is used unless every value
+       fits 16 bits. */
+    const uint32_t all =
+        (uint32_t)(input_dims->n | input_dims->w | input_dims->h | input_dims->c | dw_conv_params->ch_mult |
+                   filter_dims->w | filter_dims->h | dw_conv_params->padding.w | dw_conv_params->padding.h |
+                   dw_conv_params->stride.w | dw_conv_params->stride.h | output_dims->w | output_dims->h |
+                   dw_conv_params->dilation.w | dw_conv_params->dilation.h);
+    const uint64_t out_ch = (uint64_t)((uint32_t)input_dims->c * (uint32_t)dw_conv_params->ch_mult);
+    if (all > UINT16_MAX || dw_conv_params->dilation.w < 1 || dw_conv_params->dilation.h < 1 ||
+        arm_nn_depthwise_s16_tap_index_invalid(dw_conv_params, output_dims) ||
+        (uint32_t)input_dims->w * (uint32_t)input_dims->h > INT32_MAX ||
+        (uint32_t)output_dims->w * (uint32_t)output_dims->h > INT32_MAX ||
+        (uint64_t)((uint32_t)input_dims->w * (uint32_t)input_dims->h) * (uint32_t)input_dims->c > INT32_MAX ||
+        (uint64_t)((uint32_t)filter_dims->w * (uint32_t)filter_dims->h) * out_ch > INT32_MAX ||
+        (uint64_t)((uint32_t)output_dims->w * (uint32_t)output_dims->h) * out_ch > INT32_MAX ||
+        (uint32_t)filter_dims->w * (uint32_t)dw_conv_params->dilation.w > INT32_MAX / 2 ||
+        (uint32_t)filter_dims->h * (uint32_t)dw_conv_params->dilation.h > INT32_MAX / 2)
+    {
+        return ARM_CMSIS_NN_ARG_ERROR;
+    }
+    const uint16_t dilation_x = dw_conv_params->dilation.w;
+    const uint16_t dilation_y = dw_conv_params->dilation.h;
 
     depthwise_conv_s16_generic_s16(input,
                                    input_dims->n,
