@@ -2625,7 +2625,8 @@ arm_cmsis_nn_status arm_gather_nd_f32(const float32_t *params_data,
  * Whether that is fused is the compiler's choice (GCC contracts it in GNU C modes or with -ffast-math, clang by
  * default; -ffp-contract=off stops both), and under -ffast-math (the library's -Ofast) a compiler may vectorize a
  * kernel row of a window of at most 32 taps and reorder its sum, as for the short dots of arm_convolve_f16(); the fold
- * over a longer window keeps tap order (AmbiqAI/ns-cmsis-nn#693). On the scalar legs it accumulates in float32, bias
+ * over a longer window keeps tap order, while the `_acc16` entries, which have no fold, may have a long row reordered
+ * at any window size (AmbiqAI/ns-cmsis-nn#693). On the scalar legs it accumulates in float32, bias
  * included, and rounds to float16 once (#645), the same on both entries. It clamps a NaN to the activation maximum
  * (`arm_nn_clamp_f16h`) on every leg. Unifying these under the #334 promise is a separate issue.
  */
@@ -2833,7 +2834,8 @@ arm_cmsis_nn_status arm_depthwise_conv_cin1_nhwc_f16_acc16(const cmsis_nn_contex
  * Whether that is fused is the compiler's choice (GCC contracts it in GNU C modes or with -ffast-math, clang by
  * default; -ffp-contract=off stops both), and under -ffast-math (the library's -Ofast) a compiler may vectorize a
  * kernel row of a window of at most 32 taps and reorder its sum, as for the short dots of arm_convolve_f16(); the fold
- * over a longer window keeps tap order (AmbiqAI/ns-cmsis-nn#693). On the scalar legs it accumulates in float32, bias
+ * over a longer window keeps tap order, while the `_acc16` entries, which have no fold, may have a long row reordered
+ * at any window size (AmbiqAI/ns-cmsis-nn#693). On the scalar legs it accumulates in float32, bias
  * included, and rounds to float16 once (#645), the same on both entries. It clamps a NaN to the activation maximum
  * (`arm_nn_clamp_f16h`) on every leg. Unifying these under the #334 promise is a separate issue.
  */
@@ -2888,7 +2890,8 @@ arm_cmsis_nn_status arm_depthwise_conv_f16_acc16(const cmsis_nn_context *ctx,
  * Whether that is fused is the compiler's choice (GCC contracts it in GNU C modes or with -ffast-math, clang by
  * default; -ffp-contract=off stops both), and under -ffast-math (the library's -Ofast) a compiler may vectorize a
  * kernel row of a window of at most 32 taps and reorder its sum, as for the short dots of arm_convolve_f16(); the fold
- * over a longer window keeps tap order (AmbiqAI/ns-cmsis-nn#693). On the scalar legs it accumulates in float32, bias
+ * over a longer window keeps tap order, while the `_acc16` entries, which have no fold, may have a long row reordered
+ * at any window size (AmbiqAI/ns-cmsis-nn#693). On the scalar legs it accumulates in float32, bias
  * included, and rounds to float16 once (#645), the same on both entries. It clamps a NaN to the activation maximum
  * (`arm_nn_clamp_f16h`) on every leg. Unifying these under the #334 promise is a separate issue.
  */
