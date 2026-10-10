@@ -3,9 +3,9 @@
 # SPDX-FileCopyrightText: Copyright 2026 Ambiq <opensource@ambiq.com>
 # SPDX-License-Identifier: Apache-2.0
 #
-# Mutation tests for scripts/check_public_struct_enums.py (#764): the check catches an enum-typed field in every form
-# a header can declare one, accepts the int32_t form and pointers to an enum, fails loudly when the headers do not parse
-# or hold no fields, and the real headers pass. Needs clang (CLANG, default "clang").
+# Mutation tests for scripts/check_public_struct_enums.py (#764): the check catches an enum-typed field in each form it
+# covers (listed in the script), accepts the int32_t form and pointers to an enum, fails loudly when the headers do not
+# parse or hold no fields, and the real headers pass. Needs clang (CLANG, default "clang").
 #
 # Run with: python3 scripts/tests/test_check_public_struct_enums.py
 

@@ -219,7 +219,8 @@ jobs:
     # entries (#693, #764). The check parses the headers with the runner
     # image's clang (printed below). Its tests pass with clang 18.1.6 and
     # 22.1. Clang's JSON AST output differs between releases, so a runner
-    # clang must pass scripts/tests/test_check_public_struct_enums.py.
+    # clang must pass scripts/tests/test_check_public_struct_enums.py. The
+    # forms it does not cover are listed in the script.
     name: Public struct enum fields
     runs-on: ubuntu-latest
     timeout-minutes: 10

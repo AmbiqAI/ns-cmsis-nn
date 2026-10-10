@@ -8,9 +8,12 @@
 # layout or field width in a caller and a library built with different conventions, and one of them misreads it. See
 # #693 and #764.
 #
-# The headers are parsed by clang (CLANG, default "clang"), so every way of declaring a field is seen as the compiler
-# sees it: through typedef aliases, in nested and anonymous records, in unions, as arrays and bitfields. Pointers to
-# an enum are allowed; their size does not depend on the enum's.
+# The headers are parsed by clang (CLANG, default "clang"). A field is caught when its type is a typedef'd, tagged or
+# inline anonymous enum, also through typedef aliases, in nested and anonymous records and unions, as an array or a
+# bitfield, const or volatile, or wrapped once in _Atomic() or typeof(). Pointers to an enum are allowed; their size
+# does not depend on the enum's. Not covered: a qualifier or array bound combined with an _Atomic() or typeof()
+# wrapper (const _Atomic(T), __typeof__(T) f[2]), __typeof_unqual__, and a checkout path with unbalanced
+# parentheses. The test-built layout asserts in test_arm_nn_struct_abi cover the existing fields whatever the form.
 
 from __future__ import annotations
 
