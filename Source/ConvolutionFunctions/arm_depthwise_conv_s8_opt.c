@@ -117,6 +117,21 @@ arm_cmsis_nn_status arm_depthwise_conv_s8_opt_channelwise(const cmsis_nn_context
     int16_t *buffer_a = (int16_t *)ctx->buf;
 
     #ifdef ARM_MATH_MVEI
+    /* Few channels and room for four pixels: read in place */
+    if (input_ch <= DW_DIRECT_MAX_CH && 3 * stride_x + (kernel_x - 1) * dilation_x < input_x &&
+        arm_nn_depthwise_conv_s8_direct(dw_conv_params,
+                                        quant_params,
+                                        input_dims,
+                                        input,
+                                        filter_dims,
+                                        kernel,
+                                        (const int32_t *)weight_sum_ctx->buf,
+                                        output_dims,
+                                        output) == ARM_CMSIS_NN_SUCCESS)
+    {
+        return ARM_CMSIS_NN_SUCCESS;
+    }
+
     /* Generate two columns from the input tensor */
     int32_t *weight_sum_buf = (int32_t *)weight_sum_ctx->buf;
     int8_t *lhs_buffer = (int8_t *)buffer_a;
