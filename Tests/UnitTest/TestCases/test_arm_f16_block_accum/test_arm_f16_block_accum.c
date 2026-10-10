@@ -23,9 +23,9 @@
 // most 32 taps must agree byte for byte between the two entries. A +0 / -0 difference counts as agreement. The tap
 // count is the output's own: the direct kernels skip padded taps, so an edge output counts only its in-range taps;
 // the paths that multiply a zero-padded patch (patch-GEMM, the 1xN padded regions, the depthwise to-conv route)
-// count every tap of the patch. Under clang (-ffast-math) the float16 reduction of a short dot is the compiler's
-// order, so there outputs of at most 32 taps are checked only against the other entry and `_acc16` only for its
-// checksum; the fold, whose order the kernels pin, is checked exactly on every compiler.
+// count every tap of the patch. With a library built by clang (-ffast-math) the float16 reduction of a short dot is
+// the compiler's order, so there outputs of at most 32 taps are checked only against the other entry and `_acc16`
+// only for its checksum; the fold, whose order the kernels pin, is checked exactly on every compiler.
 //
 // Two lane shapes are emulated. A lane kernel keeps one output per vector lane and adds one tap per step, the bias
 // starting the first partial. A reduction kernel spreads one output's taps over the eight lanes of a vector
