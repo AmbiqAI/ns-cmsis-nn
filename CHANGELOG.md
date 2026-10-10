@@ -1,5 +1,17 @@
 # Changelog
 
+## [7.43.0](https://github.com/AmbiqAI/ns-cmsis-nn/compare/v7.42.0...v7.43.0) (2026-10-10)
+
+
+### Features
+
+* add exact float16 GELU activation ([#761](https://github.com/AmbiqAI/ns-cmsis-nn/issues/761)) ([9109611](https://github.com/AmbiqAI/ns-cmsis-nn/commit/9109611837ac62714f960498978004661b1d0dc9)), closes [#743](https://github.com/AmbiqAI/ns-cmsis-nn/issues/743)
+
+
+### Bug Fixes
+
+* route s8/s16 transpose last-axis swaps to the MVE path ([#759](https://github.com/AmbiqAI/ns-cmsis-nn/issues/759)) ([9f233a4](https://github.com/AmbiqAI/ns-cmsis-nn/commit/9f233a4504d4a7ed94311de08eec3bf42f2c518f))
+
 ## [7.42.0](https://github.com/AmbiqAI/ns-cmsis-nn/compare/v7.41.0...v7.42.0) (2026-10-09)
 
 
