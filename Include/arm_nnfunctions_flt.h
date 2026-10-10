@@ -2621,9 +2621,14 @@ arm_cmsis_nn_status arm_gather_nd_f32(const float32_t *params_data,
  *       to-convolution route (input channels 1, output channels 8 or more, ctx supplied) goes through
  *       arm_nn_mat_mult_nt_n_packed_f16, with the same blockwise rule over every tap, padded ones included, and clamps
  * a NaN to the activation minimum (`arm_nn_clamp_mve_f16`). The `ch_mult > 1` generic kernel accumulates in float16
- * with the same blockwise rule on MVE builds; on the scalar legs it accumulates in float32, bias included, and rounds
- * to float16 once (#645), the same on both entries. It clamps a NaN to the activation maximum (`arm_nn_clamp_f16h`)
- * on every leg. Unifying these under the #334 promise is a separate issue.
+ * with the same blockwise rule on MVE builds, as written: each tap is a scalar float16 `acc + a * b` in tap order.
+ * Whether that is fused is the compiler's choice (GCC contracts it in GNU C modes or with -ffast-math, clang by
+ * default; -ffp-contract=off stops both), and under -ffast-math (the library's -Ofast) a compiler may vectorize a
+ * kernel row of a window of at most 32 taps and reorder its sum, as for the short dots of arm_convolve_f16(); the fold
+ * over a longer window keeps tap order, while the `_acc16` entries, which have no fold, may have a long row reordered
+ * at any window size (AmbiqAI/ns-cmsis-nn#693). On the scalar legs it accumulates in float32, bias
+ * included, and rounds to float16 once (#645), the same on both entries. It clamps a NaN to the activation maximum
+ * (`arm_nn_clamp_f16h`) on every leg. Unifying these under the #334 promise is a separate issue.
  */
 arm_cmsis_nn_status arm_depthwise_nhwc_conv_f16(const cmsis_nn_context *ctx,
                                                 const cmsis_nn_dw_conv_params_f16 *dw_conv_params,
@@ -2825,9 +2830,14 @@ arm_cmsis_nn_status arm_depthwise_conv_cin1_nhwc_f16_acc16(const cmsis_nn_contex
  *       to-convolution route (input channels 1, output channels 8 or more, ctx supplied) goes through
  *       arm_nn_mat_mult_nt_n_packed_f16, with the same blockwise rule over every tap, padded ones included, and clamps
  * a NaN to the activation minimum (`arm_nn_clamp_mve_f16`). The `ch_mult > 1` generic kernel accumulates in float16
- * with the same blockwise rule on MVE builds; on the scalar legs it accumulates in float32, bias included, and rounds
- * to float16 once (#645), the same on both entries. It clamps a NaN to the activation maximum (`arm_nn_clamp_f16h`)
- * on every leg. Unifying these under the #334 promise is a separate issue.
+ * with the same blockwise rule on MVE builds, as written: each tap is a scalar float16 `acc + a * b` in tap order.
+ * Whether that is fused is the compiler's choice (GCC contracts it in GNU C modes or with -ffast-math, clang by
+ * default; -ffp-contract=off stops both), and under -ffast-math (the library's -Ofast) a compiler may vectorize a
+ * kernel row of a window of at most 32 taps and reorder its sum, as for the short dots of arm_convolve_f16(); the fold
+ * over a longer window keeps tap order, while the `_acc16` entries, which have no fold, may have a long row reordered
+ * at any window size (AmbiqAI/ns-cmsis-nn#693). On the scalar legs it accumulates in float32, bias
+ * included, and rounds to float16 once (#645), the same on both entries. It clamps a NaN to the activation maximum
+ * (`arm_nn_clamp_f16h`) on every leg. Unifying these under the #334 promise is a separate issue.
  */
 arm_cmsis_nn_status arm_depthwise_conv_f16(const cmsis_nn_context *ctx,
                                            const cmsis_nn_dw_conv_params_f16 *dw_conv_params,
@@ -2876,9 +2886,14 @@ arm_cmsis_nn_status arm_depthwise_conv_f16_acc16(const cmsis_nn_context *ctx,
  *       to-convolution route (input channels 1, output channels 8 or more, ctx supplied) goes through
  *       arm_nn_mat_mult_nt_n_packed_f16, with the same blockwise rule over every tap, padded ones included, and clamps
  * a NaN to the activation minimum (`arm_nn_clamp_mve_f16`). The `ch_mult > 1` generic kernel accumulates in float16
- * with the same blockwise rule on MVE builds; on the scalar legs it accumulates in float32, bias included, and rounds
- * to float16 once (#645), the same on both entries. It clamps a NaN to the activation maximum (`arm_nn_clamp_f16h`)
- * on every leg. Unifying these under the #334 promise is a separate issue.
+ * with the same blockwise rule on MVE builds, as written: each tap is a scalar float16 `acc + a * b` in tap order.
+ * Whether that is fused is the compiler's choice (GCC contracts it in GNU C modes or with -ffast-math, clang by
+ * default; -ffp-contract=off stops both), and under -ffast-math (the library's -Ofast) a compiler may vectorize a
+ * kernel row of a window of at most 32 taps and reorder its sum, as for the short dots of arm_convolve_f16(); the fold
+ * over a longer window keeps tap order, while the `_acc16` entries, which have no fold, may have a long row reordered
+ * at any window size (AmbiqAI/ns-cmsis-nn#693). On the scalar legs it accumulates in float32, bias
+ * included, and rounds to float16 once (#645), the same on both entries. It clamps a NaN to the activation maximum
+ * (`arm_nn_clamp_f16h`) on every leg. Unifying these under the #334 promise is a separate issue.
  */
 arm_cmsis_nn_status arm_depthwise_conv_wrapper_f16(const cmsis_nn_context *ctx,
                                                    const cmsis_nn_dw_conv_params_f16 *dw_conv_params,
