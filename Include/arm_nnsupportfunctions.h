@@ -1693,7 +1693,7 @@ __STATIC_FORCEINLINE int32_t arm_nn_convolve_groups_invalid(const cmsis_nn_dims 
  *          [0, UINT16_MAX] exactly when no bit above bit 15 is set, so they are checked with one OR; the filter C, a
  *          divisor of C_IN, then fits too.
  *        - The patch KW * KH * C is at most INT32_MAX / 4, since scratch offsets are formed from it in int32_t, and
- *          the filter, C_OUT patches, and the input and output, H * W * C each, at most INT32_MAX elements.
+ *          the filter, C_OUT patches, and the input and output, H * W and H * W * C each, at most INT32_MAX.
  *        - A tap index, stride * output index - padding + dilation * kernel index, is formed in int32_t: output W
  *          times stride W is at most INT32_MAX / 2 and (KW - 1) times dilation W lies within +-INT32_MAX / 2, and the
  *          same for H. Dilation is kept as int32_t, so on a 1x1 kernel any value is accepted.

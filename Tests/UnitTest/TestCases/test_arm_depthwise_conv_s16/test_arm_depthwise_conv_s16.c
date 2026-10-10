@@ -484,7 +484,7 @@ void dims_arg_errors_arm_depthwise_conv_s16(void)
 {
     const cmsis_nn_dw_conv_params unit_params = {0, 0, 1, {1, 1}, {0, 0}, {1, 1}, {-32768, 32767}};
     const cmsis_nn_dims unit_dims = {1, 1, 1, 1};
-    for (int c = 0; c < 29; c++)
+    for (int c = 0; c < 33; c++)
     {
         cmsis_nn_dw_conv_params params = unit_params;
         cmsis_nn_dims input_dims = unit_dims;
@@ -560,9 +560,32 @@ void dims_arg_errors_arm_depthwise_conv_s16(void)
         {
             params.padding.h = -1;
         }
-        else
+        else if (c == 28)
         {
             input_dims.c = -1;
+        }
+        else if (c == 29)
+        {
+            params.dilation.w = 0; /* would read before the input */
+        }
+        else if (c == 30)
+        {
+            /* A 2x2 filter of 65,535 * 8,193 channels is past INT32_MAX; the 1x1 output is not */
+            input_dims.c = UINT16_MAX;
+            params.ch_mult = 8193;
+            filter_dims.w = 2;
+            filter_dims.h = 2;
+        }
+        else if (c == 31)
+        {
+            input_dims = (cmsis_nn_dims){1, UINT16_MAX, UINT16_MAX, 0}; /* an input plane past INT32_MAX */
+        }
+        else
+        {
+            /* An output plane past INT32_MAX: stride 0 keeps the tap index in range */
+            input_dims.c = 0;
+            params.stride = (cmsis_nn_tile){0, 0};
+            output_dims = (cmsis_nn_dims){1, UINT16_MAX, UINT16_MAX, 0};
         }
         wide_dw_output[0] = 0x5555;
         wide_dw_output[1] = 0x5555;

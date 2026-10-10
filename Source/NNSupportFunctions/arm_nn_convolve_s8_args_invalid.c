@@ -41,7 +41,9 @@ int32_t arm_nn_convolve_s8_args_invalid(const cmsis_nn_conv_params *conv_params,
     const int64_t reach_h = ((int64_t)filter_dims->h - 1) * conv_params->dilation.h;
     return all > UINT16_MAX || arm_nn_convolve_groups_invalid(input_dims, filter_dims, output_dims) ||
         patch > INT32_MAX / 4 || patch * (uint32_t)output_dims->c > INT32_MAX ||
+        (uint32_t)input_dims->w * (uint32_t)input_dims->h > INT32_MAX ||
         (uint64_t)((uint32_t)input_dims->w * (uint32_t)input_dims->h) * (uint32_t)input_dims->c > INT32_MAX ||
+        (uint32_t)output_dims->w * (uint32_t)output_dims->h > INT32_MAX ||
         (uint64_t)((uint32_t)output_dims->w * (uint32_t)output_dims->h) * (uint32_t)output_dims->c > INT32_MAX ||
         (uint32_t)output_dims->w * (uint32_t)conv_params->stride.w > INT32_MAX / 2 ||
         (uint32_t)output_dims->h * (uint32_t)conv_params->stride.h > INT32_MAX / 2 || reach_w > INT32_MAX / 2 ||

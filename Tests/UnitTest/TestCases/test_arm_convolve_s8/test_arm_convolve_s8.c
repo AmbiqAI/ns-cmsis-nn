@@ -4016,7 +4016,7 @@ void spatial_arg_errors_arm_convolve_s8(void)
             continue; /* arm_convolve_1x1_out_s8() exists on MVE builds only */
         }
 #endif
-        for (int field = 0; field < 27; field++)
+        for (int field = 0; field < 29; field++)
         {
             cmsis_nn_conv_params conv_params = unit_params;
             cmsis_nn_dims input_dims = unit_dims;
@@ -4118,9 +4118,19 @@ void spatial_arg_errors_arm_convolve_s8(void)
             {
                 input_dims.h = -1;
             }
-            else
+            else if (field == 26)
             {
                 conv_params.stride.h = -1;
+            }
+            else if (field == 27)
+            {
+                filter_dims.h = 2; /* (KH - 1) times a negative dilation past -INT32_MAX / 2 */
+                conv_params.dilation.h = INT32_MIN;
+            }
+            else
+            {
+                output_dims = (cmsis_nn_dims){1, UINT16_MAX, UINT16_MAX, 0}; /* an output plane past INT32_MAX */
+                filter_dims.n = 0;
             }
             int8_t output[2] = {0x55, 0x55};
             TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR,
@@ -4179,19 +4189,18 @@ void spatial_arg_errors_arm_convolve_s8(void)
 }
 
 /*
- * One output pixel of a patch of 65,538 weights, 1 x 2 x 32,769: the non-MVE kernels count the columns of a single
- * leftover row in int32_t, not uint16_t (#707). The weights alternate -1 and +1 over the first 65,536 columns and are
- * +1 on the last two, so the full dot of an all-ones input is 2 and a count truncated to 16 bits gives 0.
+ * One output pixel of a patch wider than 16 bits counts: the non-MVE kernels count the columns of a single leftover row
+ * in int32_t, not uint16_t (#707). A patch of 65,538 weights (1 x 2 x 32,769) truncates the plain count; the DSP count
+ * of column quads truncates only from a patch of 262,144, whose scratch the test images cannot hold. The weights
+ * alternate -1 and +1 except for the last two, +1, so the full dot of an all-ones input is 2 and a truncated count
+ * gives 0.
  */
-void patch_wider_than_16_bits_arm_convolve_s8(void)
+static void patch_wider_case(int32_t kernel_w, int32_t channels)
 {
-    enum
-    {
-        patch = 2 * 32769
-    };
+    const int32_t patch = kernel_w * channels;
     const cmsis_nn_conv_params conv_params = {0, 0, {1, 1}, {0, 0}, {1, 1}, {-128, 127}};
-    const cmsis_nn_dims input_dims = {1, 1, 2, 32769};
-    const cmsis_nn_dims filter_dims = {1, 1, 2, 32769};
+    const cmsis_nn_dims input_dims = {1, 1, kernel_w, channels};
+    const cmsis_nn_dims filter_dims = {1, 1, kernel_w, channels};
     const cmsis_nn_dims bias_dims = {1, 1, 1, 1};
     const cmsis_nn_dims output_dims = {1, 1, 1, 1};
     const int32_t bias[1] = {5};
@@ -4212,7 +4221,7 @@ void patch_wider_than_16_bits_arm_convolve_s8(void)
     for (int32_t i = 0; i < patch; i++)
     {
         input[i] = 1;
-        weights[i] = (i >= 65536 || (i & 1)) ? 1 : -1;
+        weights[i] = (i >= patch - 2 || (i & 1)) ? 1 : -1;
     }
     int8_t output[2] = {0x55, 0x55};
     const arm_cmsis_nn_status result = arm_convolve_s8(&ctx,
@@ -4234,4 +4243,9 @@ void patch_wider_than_16_bits_arm_convolve_s8(void)
     TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, result);
     TEST_ASSERT_EQUAL_INT8(2 + 5, output[0]);
     TEST_ASSERT_EQUAL_INT8(0x55, output[1]);
+}
+
+void patch_wider_than_16_bits_arm_convolve_s8(void)
+{
+    patch_wider_case(2, 32769);
 }
