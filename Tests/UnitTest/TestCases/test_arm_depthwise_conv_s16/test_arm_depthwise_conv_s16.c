@@ -485,7 +485,7 @@ void dims_arg_errors_arm_depthwise_conv_s16(void)
 {
     const cmsis_nn_dw_conv_params unit_params = {0, 0, 1, {1, 1}, {0, 0}, {1, 1}, {-32768, 32767}};
     const cmsis_nn_dims unit_dims = {1, 1, 1, 1};
-    for (int c = 0; c < 35; c++)
+    for (int c = 0; c < 38; c++)
     {
 #if defined(ARM_MATH_MVEI) && !defined(ARM_MATH_AUTOVECTORIZE)
         /* The MVE kernel indexes taps in int32_t and takes these 1x1 layers; case 34 tests the generic kernel's rule */
@@ -595,12 +595,32 @@ void dims_arg_errors_arm_depthwise_conv_s16(void)
         }
         else if (c == 33)
         {
-            /* An output plane past INT32_MAX: stride 0 keeps the tap index in range */
+            /* An output plane past INT32_MAX */
             input_dims.c = 0;
-            params.stride = (cmsis_nn_tile){0, 0};
             output_dims = (cmsis_nn_dims){1, UINT16_MAX, UINT16_MAX, 0};
         }
-        else
+        else if (c == 35)
+        {
+            params.stride.w = 0; /* the kernels divide by the stride */
+        }
+        else if (c == 36)
+        {
+            /* (output W - 1) * stride - padding past INT32_MAX: 39,999 * 65,535 - 32,768 */
+            input_dims = (cmsis_nn_dims){1, 1, 4, 1};
+            filter_dims = (cmsis_nn_dims){1, 1, 2, 1};
+            params.stride.w = UINT16_MAX;
+            params.padding.w = INT16_MAX + 1;
+            output_dims = (cmsis_nn_dims){1, 1, 40000, 1};
+        }
+        else if (c == 37)
+        {
+            input_dims = (cmsis_nn_dims){1, 4, 1, 1};
+            filter_dims = (cmsis_nn_dims){1, 2, 1, 1};
+            params.stride.h = UINT16_MAX;
+            params.padding.h = INT16_MAX + 1;
+            output_dims = (cmsis_nn_dims){1, 40000, 1, 1};
+        }
+        else if (c == 34)
         {
             /* 512 taps take the generic kernel on every build, and its tap index cannot hold a padding of 32,768 */
             filter_dims.w = 32;

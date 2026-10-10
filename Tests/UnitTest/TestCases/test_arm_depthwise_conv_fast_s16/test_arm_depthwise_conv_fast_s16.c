@@ -1238,6 +1238,69 @@ void dilated_1d_route_arm_depthwise_conv_fast_s16(void)
     TEST_ASSERT_EQUAL_INT16_ARRAY(dil_reference, dil_output, len * ch);
 }
 
+/* An output size times the stride past INT32_MAX / 2 is an argument error on every build, through the fast entry
+   and through the wrapper, with nothing written: the MVE kernel forms its tap indices in int32_t. */
+void stride_reach_arg_check_arm_depthwise_conv_fast_s16(void)
+{
+    const cmsis_nn_dims filter_w = {1, 1, 2, 1}, filter_h = {1, 2, 1, 1}, bias_dims = {1, 1, 1, 1};
+    const cmsis_nn_dims input_w = {1, 1, 4, 1}, input_h = {1, 4, 1, 1};
+    const cmsis_nn_dims output_w = {1, 1, 40000, 1}, output_h = {1, 40000, 1, 1};
+    const cmsis_nn_per_channel_quant_params quant = {dil_mult, dil_shift};
+    const cmsis_nn_context ctx = {dil_scratch, (int32_t)sizeof(dil_scratch)};
+    for (int32_t axis = 0; axis < 2; axis++)
+    {
+        cmsis_nn_dw_conv_params params = {.input_offset = 0,
+                                          .output_offset = 0,
+                                          .ch_mult = 1,
+                                          .stride = {1, 1},
+                                          .padding = {0, 0},
+                                          .dilation = {1, 1},
+                                          .activation = {-32768, 32767}};
+        if (axis == 0)
+        {
+            params.stride.w = UINT16_MAX;
+            params.padding.w = INT16_MAX + 1;
+        }
+        else
+        {
+            params.stride.h = UINT16_MAX;
+            params.padding.h = INT16_MAX + 1;
+        }
+        const cmsis_nn_dims *input_dims = axis == 0 ? &input_w : &input_h;
+        const cmsis_nn_dims *filter_dims = axis == 0 ? &filter_w : &filter_h;
+        const cmsis_nn_dims *output_dims = axis == 0 ? &output_w : &output_h;
+        for (int32_t route = 0; route < 2; route++)
+        {
+            dil_output[0] = 0x5A5A;
+            const arm_cmsis_nn_status status = route == 0
+                ? arm_depthwise_conv_fast_s16(&ctx,
+                                              &params,
+                                              &quant,
+                                              input_dims,
+                                              dil_input,
+                                              filter_dims,
+                                              dil_filter,
+                                              &bias_dims,
+                                              dil_bias,
+                                              output_dims,
+                                              dil_output)
+                : arm_depthwise_conv_wrapper_s16(&ctx,
+                                                 &params,
+                                                 &quant,
+                                                 input_dims,
+                                                 dil_input,
+                                                 filter_dims,
+                                                 dil_filter,
+                                                 &bias_dims,
+                                                 dil_bias,
+                                                 output_dims,
+                                                 dil_output);
+            TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR, status);
+            TEST_ASSERT_EQUAL_INT16(0x5A5A, dil_output[0]);
+        }
+    }
+}
+
 /* arm_depthwise_conv_fast_s16() steps only the horizontal tap index by dilation, so it rejects vertical dilation
    and a non-positive horizontal dilation instead of computing a wrong result. */
 void dilation_arg_check_arm_depthwise_conv_fast_s16(void)
@@ -1481,7 +1544,7 @@ static void wide_dw_fast_s16_case(int32_t w, int32_t h, int32_t pad_w, int32_t p
 
 void tap_index_arm_depthwise_conv_fast_s16(void)
 {
-#if defined(ARM_MATH_MVEI)
+#if defined(ARM_MATH_MVEI) && !defined(ARM_MATH_AUTOVECTORIZE)
     const arm_cmsis_nn_status wide = ARM_CMSIS_NN_SUCCESS;
 #else
     const arm_cmsis_nn_status wide = ARM_CMSIS_NN_ARG_ERROR;

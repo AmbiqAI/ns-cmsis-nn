@@ -1732,6 +1732,46 @@ __STATIC_FORCEINLINE int32_t arm_nn_depthwise_s16_tap_index_invalid(const cmsis_
 }
 
 /**
+ * @brief Whether arm_depthwise_conv_s16() or the MVE kernel of arm_depthwise_conv_fast_s16() cannot take a layer.
+ *        Every dimension, ch_mult, padding, stride and dilation must be in [0, UINT16_MAX], stride and dilation at
+ *        least 1, the input and output planes H * W and the input, filter and output (C * ch_mult channels) at most
+ *        INT32_MAX elements, a kernel size times its dilation at most INT32_MAX / 2, and an output size times its
+ *        stride at most INT32_MAX / 2, since the kernels form tensor and tap indices in int32_t and divide by the
+ *        stride and dilation. See AmbiqAI/ns-cmsis-nn#707.
+ *
+ * @param[in]      dw_conv_params  Depthwise convolution parameters
+ * @param[in]      input_dims      Input tensor dimensions. Format: [N, H, W, C_IN]
+ * @param[in]      filter_dims     Filter tensor dimensions. Format: [1, H, W, C_OUT]
+ * @param[in]      output_dims     Output tensor dimensions. Format: [N, H, W, C_OUT]
+ *
+ * @return         1 when the layer cannot be taken, 0 otherwise.
+ */
+__STATIC_FORCEINLINE int32_t arm_nn_depthwise_conv_s16_args_invalid(const cmsis_nn_dw_conv_params *dw_conv_params,
+                                                                    const cmsis_nn_dims *input_dims,
+                                                                    const cmsis_nn_dims *filter_dims,
+                                                                    const cmsis_nn_dims *output_dims)
+{
+    /* Unsigned throughout: nothing past the OR is used unless every value fits 16 bits */
+    const uint32_t all =
+        (uint32_t)(input_dims->n | input_dims->w | input_dims->h | input_dims->c | dw_conv_params->ch_mult |
+                   filter_dims->w | filter_dims->h | dw_conv_params->padding.w | dw_conv_params->padding.h |
+                   dw_conv_params->stride.w | dw_conv_params->stride.h | output_dims->w | output_dims->h |
+                   dw_conv_params->dilation.w | dw_conv_params->dilation.h);
+    const uint64_t out_ch = (uint64_t)((uint32_t)input_dims->c * (uint32_t)dw_conv_params->ch_mult);
+    return all > UINT16_MAX || dw_conv_params->stride.w < 1 || dw_conv_params->stride.h < 1 ||
+        dw_conv_params->dilation.w < 1 || dw_conv_params->dilation.h < 1 ||
+        (uint32_t)input_dims->w * (uint32_t)input_dims->h > INT32_MAX ||
+        (uint32_t)output_dims->w * (uint32_t)output_dims->h > INT32_MAX ||
+        (uint64_t)((uint32_t)input_dims->w * (uint32_t)input_dims->h) * (uint32_t)input_dims->c > INT32_MAX ||
+        (uint64_t)((uint32_t)filter_dims->w * (uint32_t)filter_dims->h) * out_ch > INT32_MAX ||
+        (uint64_t)((uint32_t)output_dims->w * (uint32_t)output_dims->h) * out_ch > INT32_MAX ||
+        (uint32_t)filter_dims->w * (uint32_t)dw_conv_params->dilation.w > INT32_MAX / 2 ||
+        (uint32_t)filter_dims->h * (uint32_t)dw_conv_params->dilation.h > INT32_MAX / 2 ||
+        (uint32_t)output_dims->w * (uint32_t)dw_conv_params->stride.w > INT32_MAX / 2 ||
+        (uint32_t)output_dims->h * (uint32_t)dw_conv_params->stride.h > INT32_MAX / 2;
+}
+
+/**
  * @brief Plane size in bytes that arm_nn_depthwise_conv_s8_planar() needs for a layer, or -1 when the layer is not
  *        one it takes. The rule is plain C and evaluates the same on every build.
  *
