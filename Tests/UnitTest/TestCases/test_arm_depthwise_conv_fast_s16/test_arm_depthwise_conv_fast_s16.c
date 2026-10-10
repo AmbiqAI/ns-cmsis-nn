@@ -1270,6 +1270,47 @@ void dilation_arg_check_arm_depthwise_conv_fast_s16(void)
     }
 }
 
+/* A channel multiplier other than 1 is an argument error with nothing written, even when the input and output
+   depths match. */
+void ch_mult_arg_check_arm_depthwise_conv_fast_s16(void)
+{
+    const cmsis_nn_dims input_dims = {1, 4, 4, 4}, filter_dims = {1, 3, 3, 4}, bias_dims = {1, 1, 1, 4},
+                        output_dims = {1, 4, 4, 4};
+    const cmsis_nn_per_channel_quant_params quant = {dil_mult, dil_shift};
+    const cmsis_nn_context ctx = {dil_scratch, (int32_t)sizeof(dil_scratch)};
+    static int16_t output[2 * 4 * 4 * 4];
+    for (int32_t ch_mult = 2; ch_mult <= 3; ch_mult++)
+    {
+        const cmsis_nn_dw_conv_params params = {.input_offset = 0,
+                                                .output_offset = 0,
+                                                .ch_mult = ch_mult,
+                                                .stride = {1, 1},
+                                                .padding = {1, 1},
+                                                .dilation = {1, 1},
+                                                .activation = {-32768, 32767}};
+        for (size_t i = 0; i < sizeof(output) / sizeof(output[0]); i++)
+        {
+            output[i] = 0x5A5A;
+        }
+        TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR,
+                          arm_depthwise_conv_fast_s16(&ctx,
+                                                      &params,
+                                                      &quant,
+                                                      &input_dims,
+                                                      dil_input,
+                                                      &filter_dims,
+                                                      dil_filter,
+                                                      &bias_dims,
+                                                      dil_bias,
+                                                      &output_dims,
+                                                      output));
+        for (size_t i = 0; i < sizeof(output) / sizeof(output[0]); i++)
+        {
+            TEST_ASSERT_EQUAL_INT16(0x5A5A, output[i]);
+        }
+    }
+}
+
 /* With a channel count that is not a multiple of 4, the MVE kernel must stay inside every operand, both in the
    four-pixel blocks and in the leftover pixels. Each operand in turn is placed against an MPU gap. */
 void operand_bounds_arm_depthwise_conv_fast_s16(void)

@@ -64,8 +64,8 @@ arm_cmsis_nn_status arm_depthwise_conv_fast_s16(const cmsis_nn_context *ctx,
     const int32_t input_ch = input_dims->c;
     const int32_t output_ch = output_dims->c;
 
-    /* Check input constraints input_ch == output_ch */
-    if (input_ch != output_ch)
+    /* Check input constraints input_ch == output_ch and ch_mult == 1 */
+    if (input_ch != output_ch || dw_conv_params->ch_mult != 1)
     {
         return ARM_CMSIS_NN_ARG_ERROR;
     }
