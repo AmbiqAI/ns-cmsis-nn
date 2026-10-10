@@ -4016,7 +4016,7 @@ void spatial_arg_errors_arm_convolve_s8(void)
             continue; /* arm_convolve_1x1_out_s8() exists on MVE builds only */
         }
 #endif
-        for (int field = 0; field < 29; field++)
+        for (int field = 0; field < 31; field++)
         {
             cmsis_nn_conv_params conv_params = unit_params;
             cmsis_nn_dims input_dims = unit_dims;
@@ -4127,10 +4127,22 @@ void spatial_arg_errors_arm_convolve_s8(void)
                 filter_dims.h = 2; /* (KH - 1) times a negative dilation past -INT32_MAX / 2 */
                 conv_params.dilation.h = INT32_MIN;
             }
-            else
+            else if (field == 28)
             {
                 output_dims = (cmsis_nn_dims){1, UINT16_MAX, UINT16_MAX, 0}; /* an output plane past INT32_MAX */
                 filter_dims.n = 0;
+            }
+            else if (field == 29)
+            {
+                /* An input of 32,768 * 32,768 * 2 elements: the plane fits, the tensor does not */
+                input_dims = (cmsis_nn_dims){1, 32768, 32768, 2};
+                filter_dims.c = 2;
+            }
+            else
+            {
+                /* An output of 32,768 * 32,768 * 2 elements: the plane fits, the tensor does not */
+                output_dims = (cmsis_nn_dims){1, 32768, 32768, 2};
+                filter_dims.n = 2;
             }
             int8_t output[2] = {0x55, 0x55};
             TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR,
@@ -4245,7 +4257,4 @@ static void patch_wider_case(int32_t kernel_w, int32_t channels)
     TEST_ASSERT_EQUAL_INT8(0x55, output[1]);
 }
 
-void patch_wider_than_16_bits_arm_convolve_s8(void)
-{
-    patch_wider_case(2, 32769);
-}
+void patch_wider_than_16_bits_arm_convolve_s8(void) { patch_wider_case(2, 32769); }

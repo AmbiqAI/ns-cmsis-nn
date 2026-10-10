@@ -484,7 +484,7 @@ void dims_arg_errors_arm_depthwise_conv_s16(void)
 {
     const cmsis_nn_dw_conv_params unit_params = {0, 0, 1, {1, 1}, {0, 0}, {1, 1}, {-32768, 32767}};
     const cmsis_nn_dims unit_dims = {1, 1, 1, 1};
-    for (int c = 0; c < 33; c++)
+    for (int c = 0; c < 34; c++)
     {
         cmsis_nn_dw_conv_params params = unit_params;
         cmsis_nn_dims input_dims = unit_dims;
@@ -579,6 +579,11 @@ void dims_arg_errors_arm_depthwise_conv_s16(void)
         else if (c == 31)
         {
             input_dims = (cmsis_nn_dims){1, UINT16_MAX, UINT16_MAX, 0}; /* an input plane past INT32_MAX */
+        }
+        else if (c == 32)
+        {
+            input_dims = (cmsis_nn_dims){1, 32768, 32768, 2}; /* the input plane fits, the tensor does not */
+            params.ch_mult = 1;
         }
         else
         {

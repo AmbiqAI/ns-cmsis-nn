@@ -1688,7 +1688,8 @@ arm_cmsis_nn_status arm_depthwise_convolve_weight_sum(int32_t *vector_sum_buf,
  * @param[in]     output_dims     Output tensor dimensions. Format: [N, 1, 1, C_OUT]
  * @param[out]    output_data     Pointer to output data. Data type: int8
  *
- * @return        <code>ARM_CMSIS_NN_ARG_ERROR</code> on bad args, or
+ * @return        <code>ARM_CMSIS_NN_ARG_ERROR</code> on an argument error that arm_convolve_s8() reports, a grouped
+ *                layer, an output other than 1x1, an undersized ctx->size or a NULL weight_sum_ctx->buf, or
  *                <code>ARM_CMSIS_NN_SUCCESS</code> on success.
  *
  * @details
@@ -1697,9 +1698,8 @@ arm_cmsis_nn_status arm_depthwise_convolve_weight_sum(int32_t *vector_sum_buf,
  *   - Constraints:
  *      -# @p output_dims->h and @p output_dims->w must equal 1
  *      -# @p output_dims->c is expected to be a multiple of 4 for best performance
- *      -# The depth rule of arm_convolve_s8() and one group: @p input_dims->c must equal @p filter_dims->c, else
- *         <code>ARM_CMSIS_NN_ARG_ERROR</code>;
- *         arm_convolve_s8() takes grouped layers
+ *      -# The argument check of arm_convolve_s8() and one group: @p input_dims->c must equal @p filter_dims->c,
+ *         else <code>ARM_CMSIS_NN_ARG_ERROR</code>; arm_convolve_s8() takes grouped layers
  */
 arm_cmsis_nn_status arm_convolve_1x1_out_s8(const cmsis_nn_context *ctx,
                                             const cmsis_nn_context *weight_sum_ctx,

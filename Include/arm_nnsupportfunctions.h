@@ -1687,8 +1687,8 @@ __STATIC_FORCEINLINE int32_t arm_nn_convolve_groups_invalid(const cmsis_nn_dims 
 }
 
 /**
- * @brief The argument check of arm_convolve_s8() and its direct entries. arm_nn_convolve_groups_invalid() must hold,
- *        and every value the kernels keep or form in a narrower type must fit it (AmbiqAI/ns-cmsis-nn#707):
+ * @brief The argument check of arm_convolve_s8() and its direct entries. arm_nn_convolve_groups_invalid() must return
+ *        0, and every value the kernels keep or form in a narrower type must fit it (AmbiqAI/ns-cmsis-nn#707):
  *        - C_IN, C_OUT, the input, filter and output W and H, padding and stride are kept as uint16_t. A value is in
  *          [0, UINT16_MAX] exactly when no bit above bit 15 is set, so they are checked with one OR; the filter C, a
  *          divisor of C_IN, then fits too.
