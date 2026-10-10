@@ -254,11 +254,22 @@ arm_cmsis_nn_status arm_depthwise_conv_s16(const cmsis_nn_context *ctx,
                                            const cmsis_nn_dims *output_dims,
                                            int16_t *output)
 {
-    const uint16_t dilation_x = dw_conv_params->dilation.w;
-    const uint16_t dilation_y = dw_conv_params->dilation.h;
-
     (void)bias_dims;
     (void)ctx;
+
+    /* The kernel keeps every dimension, padding, stride and dilation as uint16_t; a value is in [0, UINT16_MAX]
+       exactly when no bit above bit 15 is set. See AmbiqAI/ns-cmsis-nn#707. */
+    const uint32_t all =
+        (uint32_t)(input_dims->n | input_dims->w | input_dims->h | input_dims->c | dw_conv_params->ch_mult |
+                   filter_dims->w | filter_dims->h | dw_conv_params->padding.w | dw_conv_params->padding.h |
+                   dw_conv_params->stride.w | dw_conv_params->stride.h | output_dims->w | output_dims->h |
+                   dw_conv_params->dilation.w | dw_conv_params->dilation.h);
+    if (all > UINT16_MAX || arm_nn_depthwise_s16_tap_index_invalid(dw_conv_params, input_dims))
+    {
+        return ARM_CMSIS_NN_ARG_ERROR;
+    }
+    const uint16_t dilation_x = dw_conv_params->dilation.w;
+    const uint16_t dilation_y = dw_conv_params->dilation.h;
 
     depthwise_conv_s16_generic_s16(input,
                                    input_dims->n,

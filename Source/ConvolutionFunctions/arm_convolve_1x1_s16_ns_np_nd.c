@@ -54,6 +54,13 @@ arm_cmsis_nn_status arm_convolve_1x1_s16_ns_np_nd(const cmsis_nn_context *ctx,
     (void)ctx;
     (void)bias_dims;
 
+    /* The rule arm_convolve_wrapper_s16() applies before it routes here; direct callers get it too.
+       See AmbiqAI/ns-cmsis-nn#763. */
+    if (arm_nn_convolve_groups_invalid(input_dims, filter_dims, output_dims))
+    {
+        return ARM_CMSIS_NN_ARG_ERROR;
+    }
+
     const int32_t input_batches = input_dims->n;
     const int32_t input_x = input_dims->w;
     const int32_t input_y = input_dims->h;

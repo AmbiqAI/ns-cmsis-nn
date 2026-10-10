@@ -65,6 +65,14 @@ arm_cmsis_nn_status arm_convolve_1x1_s8_fast(const cmsis_nn_context *ctx,
     {
         return ARM_CMSIS_NN_ARG_ERROR;
     }
+    /* A non-positive extent gives a pixel count the row loops never reach, and the count N * H * W is formed in
+       int32_t. See AmbiqAI/ns-cmsis-nn#680. */
+    if (input_dims->n < 1 || input_dims->h < 1 || input_dims->w < 1 || input_dims->c < 1 || output_dims->c < 1 ||
+        (int64_t)input_dims->h * input_dims->w > INT32_MAX ||
+        (int64_t)input_dims->n * (input_dims->h * input_dims->w) > INT32_MAX)
+    {
+        return ARM_CMSIS_NN_ARG_ERROR;
+    }
 
 #if defined(ARM_MATH_MVEI)
     /* Only the MVE path of arm_nn_mat_mult_nt_t_s8() reads the per-channel weight sums. Diagnose a

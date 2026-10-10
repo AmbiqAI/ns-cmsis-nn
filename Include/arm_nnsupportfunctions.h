@@ -1706,6 +1706,50 @@ __STATIC_FORCEINLINE int32_t arm_nn_convolve_s8_groups_invalid(const cmsis_nn_di
 }
 
 /**
+ * @brief Whether arm_convolve_s8() and arm_convolve_1x1_out_s8() would wrap a value: they keep the spatial dims,
+ *        padding and stride as uint16_t and form the patch size kernel W * H * C in int32_t. A value is in
+ *        [0, UINT16_MAX] exactly when no bit above bit 15 is set, so the values are checked together with one OR.
+ *        Call it after arm_nn_convolve_s8_groups_invalid(), which bounds the filter C to [1, UINT16_MAX].
+ *        See AmbiqAI/ns-cmsis-nn#707.
+ *
+ * @param[in]      conv_params     Convolution parameters
+ * @param[in]      input_dims      Input tensor dimensions. Format: [N, H, W, C_IN]
+ * @param[in]      filter_dims     Filter tensor dimensions. Format: [C_OUT, HK, WK, CK]
+ * @param[in]      output_dims     Output tensor dimensions. Format: [N, H, W, C_OUT]
+ *
+ * @return         1 when a value would wrap or the patch size overflows, 0 otherwise.
+ */
+__STATIC_FORCEINLINE int32_t arm_nn_convolve_s8_spatial_invalid(const cmsis_nn_conv_params *conv_params,
+                                                                const cmsis_nn_dims *input_dims,
+                                                                const cmsis_nn_dims *filter_dims,
+                                                                const cmsis_nn_dims *output_dims)
+{
+    const uint32_t all =
+        (uint32_t)(input_dims->w | input_dims->h | filter_dims->w | filter_dims->h | output_dims->w | output_dims->h |
+                   conv_params->padding.w | conv_params->padding.h | conv_params->stride.w | conv_params->stride.h);
+    return all > UINT16_MAX ||
+        (uint64_t)((uint32_t)filter_dims->w * (uint32_t)filter_dims->h) * (uint32_t)filter_dims->c > INT32_MAX;
+}
+
+/**
+ * @brief Whether arm_depthwise_conv_s16() and the DSP path of arm_depthwise_conv_fast_s16() would wrap the first tap
+ *        index of an output, stride * output index - padding, which they keep as int16_t. For an output that matches
+ *        the input, that index lies in [-padding, input size - 1], so input W and H and padding W and H up to
+ *        INT16_MAX keep it in range. See AmbiqAI/ns-cmsis-nn#727.
+ *
+ * @param[in]      dw_conv_params  Depthwise convolution parameters
+ * @param[in]      input_dims      Input tensor dimensions. Format: [N, H, W, C_IN]
+ *
+ * @return         1 when the index could wrap, 0 otherwise.
+ */
+__STATIC_FORCEINLINE int32_t arm_nn_depthwise_s16_tap_index_invalid(const cmsis_nn_dw_conv_params *dw_conv_params,
+                                                                    const cmsis_nn_dims *input_dims)
+{
+    return (uint32_t)(input_dims->w | input_dims->h | dw_conv_params->padding.w | dw_conv_params->padding.h) >
+        INT16_MAX;
+}
+
+/**
  * @brief Plane size in bytes that arm_nn_depthwise_conv_s8_planar() needs for a layer, or -1 when the layer is not
  *        one it takes. The rule is plain C and evaluates the same on every build.
  *

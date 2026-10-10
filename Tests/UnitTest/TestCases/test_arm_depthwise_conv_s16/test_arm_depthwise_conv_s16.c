@@ -17,6 +17,8 @@
  */
 
 #include <arm_nnfunctions.h>
+#include <arm_nnsupportfunctions.h>
+#include <string.h>
 #include <unity.h>
 
 #include "../TestData/dw_int16xint8/test_data.h"
@@ -439,4 +441,93 @@ void buffer_size_dsp_arm_depthwise_conv_s16(void)
 
     TEST_ASSERT_EQUAL(wrapper_buf_size, dsp_wrapper_buf_size);
 #endif
+}
+
+/* A 1 x W x 1 layer with a 1 x 1 kernel, so output pixel x is input pixel x scaled by the weight and requantized */
+#define WIDE_DW_S16_MAX_W 32768
+static int16_t wide_dw_input[WIDE_DW_S16_MAX_W];
+static int16_t wide_dw_output[WIDE_DW_S16_MAX_W];
+
+static arm_cmsis_nn_status wide_dw_s16(const cmsis_nn_dw_conv_params *dw_conv_params,
+                                       const cmsis_nn_dims *input_dims,
+                                       const cmsis_nn_dims *filter_dims,
+                                       const cmsis_nn_dims *output_dims)
+{
+    static const int8_t weight[1] = {3};
+    static const int64_t bias[1] = {-7};
+    static int32_t multiplier[1] = {1 << 30};
+    static int32_t shift[1] = {0};
+    const cmsis_nn_context ctx = {NULL, 0};
+    const cmsis_nn_per_channel_quant_params quant_params = {multiplier, shift};
+    const cmsis_nn_dims bias_dims = {1, 1, 1, 1};
+    return arm_depthwise_conv_s16(&ctx,
+                                  dw_conv_params,
+                                  &quant_params,
+                                  input_dims,
+                                  wide_dw_input,
+                                  filter_dims,
+                                  weight,
+                                  &bias_dims,
+                                  bias,
+                                  output_dims,
+                                  wide_dw_output);
+}
+
+/*
+ * arm_depthwise_conv_s16() keeps every dimension, padding, stride and dilation as uint16_t (#707) and the first tap
+ * index of an output as int16_t (#727). A value of 65,536, or an input W or H or a padding of 32,768, is an argument
+ * error with the output untouched; an input 32,767 wide still runs.
+ */
+void dims_arg_errors_arm_depthwise_conv_s16(void)
+{
+    const cmsis_nn_dw_conv_params unit_params = {0, 0, 1, {1, 1}, {0, 0}, {1, 1}, {-32768, 32767}};
+    const cmsis_nn_dims unit_dims = {1, 1, 1, 1};
+    for (int field = 0; field < 19; field++)
+    {
+        cmsis_nn_dw_conv_params params = unit_params;
+        cmsis_nn_dims input_dims = unit_dims;
+        cmsis_nn_dims filter_dims = unit_dims;
+        cmsis_nn_dims output_dims = unit_dims;
+        int32_t *const values[19] = {&input_dims.n,
+                                     &input_dims.w,
+                                     &input_dims.h,
+                                     &input_dims.c,
+                                     &params.ch_mult,
+                                     &filter_dims.w,
+                                     &filter_dims.h,
+                                     &params.padding.w,
+                                     &params.padding.h,
+                                     &params.stride.w,
+                                     &params.stride.h,
+                                     &output_dims.w,
+                                     &output_dims.h,
+                                     &params.dilation.w,
+                                     &params.dilation.h,
+                                     &input_dims.w,
+                                     &input_dims.h,
+                                     &params.padding.w,
+                                     &params.padding.h};
+        *values[field] = field < 15 ? UINT16_MAX + 1 : INT16_MAX + 1;
+        wide_dw_output[0] = 0x5555;
+        wide_dw_output[1] = 0x5555;
+        TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR, wide_dw_s16(&params, &input_dims, &filter_dims, &output_dims));
+        TEST_ASSERT_EQUAL_INT16(0x5555, wide_dw_output[0]);
+        TEST_ASSERT_EQUAL_INT16(0x5555, wide_dw_output[1]);
+    }
+
+    const cmsis_nn_dims wide_dims = {1, 1, INT16_MAX, 1};
+    for (int32_t x = 0; x < INT16_MAX; x++)
+    {
+        wide_dw_input[x] = (int16_t)(x % 2001 - 1000);
+    }
+    memset(wide_dw_output, 0x55, sizeof(wide_dw_output));
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, wide_dw_s16(&unit_params, &wide_dims, &unit_dims, &wide_dims));
+    const int32_t multiplier = 1 << 30;
+    const int32_t reduced_multiplier = REDUCE_MULTIPLIER(multiplier);
+    for (int32_t x = 0; x < INT16_MAX; x++)
+    {
+        const int32_t expected = arm_nn_requantize_s64((int64_t)wide_dw_input[x] * 3 - 7, reduced_multiplier, 0);
+        TEST_ASSERT_EQUAL_INT16(expected, wide_dw_output[x]);
+    }
+    TEST_ASSERT_EQUAL_INT16(0x5555, wide_dw_output[INT16_MAX]);
 }

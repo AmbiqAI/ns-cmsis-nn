@@ -96,7 +96,8 @@ arm_cmsis_nn_status arm_convolve_1x1_out_s8(const cmsis_nn_context *ctx,
 
     /* The group rule of arm_convolve_s8(), with one group only: the weight sums are read from their start, not per
        group. Checked before any division. */
-    if (arm_nn_convolve_s8_groups_invalid(input_dims, filter_dims, output_dims) || input_dims->c != filter_dims->c)
+    if (arm_nn_convolve_s8_groups_invalid(input_dims, filter_dims, output_dims) || input_dims->c != filter_dims->c ||
+        arm_nn_convolve_s8_spatial_invalid(conv_params, input_dims, filter_dims, output_dims))
     {
         return ARM_CMSIS_NN_ARG_ERROR;
     }

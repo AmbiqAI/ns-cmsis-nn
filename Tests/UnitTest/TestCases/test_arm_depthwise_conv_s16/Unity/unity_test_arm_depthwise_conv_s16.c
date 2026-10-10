@@ -50,3 +50,4 @@ void test_dw_int16xint8_mult4_arm_depthwise_conv_s16(void) { dw_int16xint8_mult4
 void test_arm_depthwise_conv_wrapper_s16_buffer(void) { arm_depthwise_conv_wrapper_s16_buffer(); }
 void test_buffer_size_mve_arm_depthwise_conv_s16(void) { buffer_size_mve_arm_depthwise_conv_s16(); }
 void test_buffer_size_dsp_arm_depthwise_conv_s16(void) { buffer_size_dsp_arm_depthwise_conv_s16(); }
+void test_dims_arg_errors_arm_depthwise_conv_s16(void) { dims_arg_errors_arm_depthwise_conv_s16(); }
