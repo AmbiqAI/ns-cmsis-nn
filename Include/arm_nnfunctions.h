@@ -1363,11 +1363,11 @@ arm_cmsis_nn_status arm_convolve_1x1_s4(const cmsis_nn_context *ctx,
  * @param[out]     output_data   Output data pointer. Data type: int8
  *
  * @return     The function returns either
- *                  <code>ARM_CMSIS_NN_ARG_ERROR</code> if argument constraints fail (among them a negative N, H, W,
- *                  C_IN or C_OUT, or a pixel count N * H * W above INT32_MAX), or
- *                  <code>ARM_CMSIS_NN_SUCCESS</code> on successful completion. When the input N, H, W or C_IN, or
- *                  C_OUT, is 0 it returns <code>ARM_CMSIS_NN_SUCCESS</code> at once and writes nothing, so with
- *                  only C_IN 0 the output is left unwritten. On MVE a NULL weight_sum_ctx->buf is still an error.
+ *                  <code>ARM_CMSIS_NN_ARG_ERROR</code> if argument constraints fail (among them a negative N, H, W
+ *                  or C_OUT, a C_IN below 1, or a pixel count N * H * W above INT32_MAX), or
+ *                  <code>ARM_CMSIS_NN_SUCCESS</code> on successful completion. When the input N, H or W, or C_OUT, is
+ *                  0 the output is empty and it returns <code>ARM_CMSIS_NN_SUCCESS</code> at once, writing nothing.
+ *                  On MVE a NULL weight_sum_ctx->buf is still an error.
  *
  * @details
  *   - Supported framework : TensorFlow Lite Micro

@@ -65,8 +65,9 @@ arm_cmsis_nn_status arm_convolve_1x1_s8_fast(const cmsis_nn_context *ctx,
     {
         return ARM_CMSIS_NN_ARG_ERROR;
     }
-    /* A negative extent would give the row loops a negative or wrapped count. See AmbiqAI/ns-cmsis-nn#680. */
-    if (input_dims->n < 0 || input_dims->h < 0 || input_dims->w < 0 || input_dims->c < 0 || output_dims->c < 0)
+    /* A negative extent would give the row loops a negative or wrapped count (AmbiqAI/ns-cmsis-nn#680), and C_IN must
+       be at least 1, as for arm_convolve_s8() */
+    if (input_dims->n < 0 || input_dims->h < 0 || input_dims->w < 0 || input_dims->c < 1 || output_dims->c < 0)
     {
         return ARM_CMSIS_NN_ARG_ERROR;
     }
@@ -80,8 +81,8 @@ arm_cmsis_nn_status arm_convolve_1x1_s8_fast(const cmsis_nn_context *ctx,
     }
 #endif
 
-    /* A zero extent returns at once and writes nothing, also when only C_IN is 0 */
-    if (input_dims->n == 0 || input_dims->h == 0 || input_dims->w == 0 || input_dims->c == 0 || output_dims->c == 0)
+    /* An empty output returns at once */
+    if (input_dims->n == 0 || input_dims->h == 0 || input_dims->w == 0 || output_dims->c == 0)
     {
         return ARM_CMSIS_NN_SUCCESS;
     }

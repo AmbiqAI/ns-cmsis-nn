@@ -835,10 +835,10 @@ void buffer_size_out_of_range_dsp_arm_convolve_1x1_s8_fast(void)
 }
 
 /*
- * A negative N, H, W, C_IN or C_OUT, or a pixel count N * H * W past INT32_MAX, is an argument error. A zero one
- * returns success, even with H * W past INT32_MAX, unless another extent is negative. Neither writes anything (#680):
- * a negative extent would give the row loops a negative or wrapped count. On MVE a NULL weight-sum buffer is an error
- * even for a zero extent.
+ * A negative N, H, W or C_OUT, a C_IN below 1, or a pixel count N * H * W past INT32_MAX, is an argument error. A zero
+ * N, H, W or C_OUT is an empty output and returns success, even with H * W past INT32_MAX, unless another extent is
+ * invalid. Neither writes anything (#680): a negative extent would give the row loops a negative or wrapped count. On
+ * MVE a NULL weight-sum buffer is an error even for an empty output.
  */
 void extent_checks_arm_convolve_1x1_s8_fast(void)
 {
@@ -869,7 +869,8 @@ void extent_checks_arm_convolve_1x1_s8_fast(void)
                  {{1, 1, -3, 1}, 1, ARM_CMSIS_NN_ARG_ERROR},
                  {{1, 1, 0, 1}, 1, ARM_CMSIS_NN_SUCCESS},
                  {{1, 1, 3, -1}, 1, ARM_CMSIS_NN_ARG_ERROR},
-                 {{1, 1, 3, 0}, 1, ARM_CMSIS_NN_SUCCESS},
+                 {{1, 1, 3, 0}, 1, ARM_CMSIS_NN_ARG_ERROR},
+                 {{0, 1, 3, 0}, 1, ARM_CMSIS_NN_ARG_ERROR},
                  {{1, 1, 3, 1}, -1, ARM_CMSIS_NN_ARG_ERROR},
                  {{1, 1, 3, 1}, 0, ARM_CMSIS_NN_SUCCESS},
                  {{2, 65536, 16384, 1}, 1, ARM_CMSIS_NN_ARG_ERROR},
