@@ -92,7 +92,8 @@ arm_convolve_s8_kernel(const cmsis_nn_context *ctx,
     const int32_t out_activation_max = conv_params->activation.max;
     const int32_t input_offset = conv_params->input_offset;
 
-    /* Checked by arm_convolve_s8() already; the repeat tells the compiler the depths divide evenly */
+    /* Never true here: the kernel is entered only through arm_convolve_s8(), which checks more. The test tells the
+       compiler that the depths divide evenly. */
     if (arm_nn_convolve_groups_invalid(input_dims, filter_dims, output_dims))
     {
         return ARM_CMSIS_NN_ARG_ERROR;
