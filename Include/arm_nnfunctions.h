@@ -2357,6 +2357,7 @@ int32_t arm_depthwise_conv_wrapper_s16_get_buffer_size_mve(const cmsis_nn_dw_con
  *                <code>ARM_CMSIS_NN_ARG_ERROR</code> - ctx-buff == NULL and
  *                                                      arm_depthwise_conv_fast_s16_get_buffer_size() != 0 or
  *                                                      input channel != output channel or
+ *                                                      dw_conv_params->ch_mult != 1 or
  *                                                      filter_dims->w * filter_dims->h >= MAX_COL_COUNT (512) or
  *                                                      dw_conv_params->dilation.h != 1 or
  *                                                      dw_conv_params->dilation.w < 1
