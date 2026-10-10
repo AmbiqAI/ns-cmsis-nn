@@ -65,13 +65,18 @@ arm_cmsis_nn_status arm_convolve_1x1_s8_fast(const cmsis_nn_context *ctx,
     {
         return ARM_CMSIS_NN_ARG_ERROR;
     }
-    /* A non-positive extent gives a pixel count the row loops never reach, and the count N * H * W is formed in
+    /* A negative extent gives a pixel count the row loops never reach, and the count N * H * W is formed in
        int32_t. See AmbiqAI/ns-cmsis-nn#680. */
-    if (input_dims->n < 1 || input_dims->h < 1 || input_dims->w < 1 || input_dims->c < 1 || output_dims->c < 1 ||
+    if (input_dims->n < 0 || input_dims->h < 0 || input_dims->w < 0 || input_dims->c < 0 || output_dims->c < 0 ||
         (int64_t)input_dims->h * input_dims->w > INT32_MAX ||
         (int64_t)input_dims->n * (input_dims->h * input_dims->w) > INT32_MAX)
     {
         return ARM_CMSIS_NN_ARG_ERROR;
+    }
+    /* An empty tensor has nothing to compute or write */
+    if (input_dims->n == 0 || input_dims->h == 0 || input_dims->w == 0 || input_dims->c == 0 || output_dims->c == 0)
+    {
+        return ARM_CMSIS_NN_SUCCESS;
     }
 
 #if defined(ARM_MATH_MVEI)

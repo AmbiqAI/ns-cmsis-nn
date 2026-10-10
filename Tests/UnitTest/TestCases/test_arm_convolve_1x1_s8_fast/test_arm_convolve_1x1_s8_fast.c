@@ -835,8 +835,9 @@ void buffer_size_out_of_range_dsp_arm_convolve_1x1_s8_fast(void)
 }
 
 /*
- * A non-positive N, H, W, C_IN or C_OUT, or a pixel count N * H * W past INT32_MAX, is an argument error with nothing
- * written (#680): the row loops would otherwise run on a negative or wrapped count.
+ * A negative N, H, W, C_IN or C_OUT, or a pixel count N * H * W past INT32_MAX, is an argument error, and a zero one
+ * is an empty tensor that returns success; neither writes anything (#680). The row loops would otherwise run on a
+ * negative or wrapped count.
  */
 void pixel_count_arg_errors_arm_convolve_1x1_s8_fast(void)
 {
@@ -853,28 +854,29 @@ void pixel_count_arg_errors_arm_convolve_1x1_s8_fast(void)
     const cmsis_nn_per_channel_quant_params quant_params = {multiplier, shift};
     const cmsis_nn_dims filter_dims = {1, 1, 1, 1};
     const cmsis_nn_dims bias_dims = {1, 1, 1, 1};
-    /* [N, H, W, C_IN] with C_OUT: one bad value each, then N * H * W of 2^31 and H * W of 2^32 */
+    /* [N, H, W, C_IN] with C_OUT: one negative or zero value each, then N * H * W of 2^31 and H * W of 2^32 */
     const struct
     {
         cmsis_nn_dims input;
         int32_t out_c;
-    } cases[] = {{{-1, 1, 3, 1}, 1},
-                 {{0, 1, 3, 1}, 1},
-                 {{1, -1, 3, 1}, 1},
-                 {{1, 0, 3, 1}, 1},
-                 {{1, 1, -3, 1}, 1},
-                 {{1, 1, 0, 1}, 1},
-                 {{1, 1, 3, -1}, 1},
-                 {{1, 1, 3, 0}, 1},
-                 {{1, 1, 3, 1}, -1},
-                 {{1, 1, 3, 1}, 0},
-                 {{2, 65536, 16384, 1}, 1},
-                 {{1, 65536, 65536, 1}, 1}};
+        arm_cmsis_nn_status expected;
+    } cases[] = {{{-1, 1, 3, 1}, 1, ARM_CMSIS_NN_ARG_ERROR},
+                 {{0, 1, 3, 1}, 1, ARM_CMSIS_NN_SUCCESS},
+                 {{1, -1, 3, 1}, 1, ARM_CMSIS_NN_ARG_ERROR},
+                 {{1, 0, 3, 1}, 1, ARM_CMSIS_NN_SUCCESS},
+                 {{1, 1, -3, 1}, 1, ARM_CMSIS_NN_ARG_ERROR},
+                 {{1, 1, 0, 1}, 1, ARM_CMSIS_NN_SUCCESS},
+                 {{1, 1, 3, -1}, 1, ARM_CMSIS_NN_ARG_ERROR},
+                 {{1, 1, 3, 0}, 1, ARM_CMSIS_NN_SUCCESS},
+                 {{1, 1, 3, 1}, -1, ARM_CMSIS_NN_ARG_ERROR},
+                 {{1, 1, 3, 1}, 0, ARM_CMSIS_NN_SUCCESS},
+                 {{2, 65536, 16384, 1}, 1, ARM_CMSIS_NN_ARG_ERROR},
+                 {{1, 65536, 65536, 1}, 1, ARM_CMSIS_NN_ARG_ERROR}};
     for (size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); i++)
     {
         const cmsis_nn_dims output_dims = {cases[i].input.n, cases[i].input.h, cases[i].input.w, cases[i].out_c};
         int8_t output[4] = {0x55, 0x55, 0x55, 0x55};
-        TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR,
+        TEST_ASSERT_EQUAL(cases[i].expected,
                           arm_convolve_1x1_s8_fast(&ctx,
                                                    &weight_sum_ctx,
                                                    &conv_params,
