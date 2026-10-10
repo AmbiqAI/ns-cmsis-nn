@@ -603,7 +603,8 @@ void transpose_wide_arm_transpose_s16(void)
 }
 
 #if defined(USING_FVP_CORSTONE_300) && defined(ARM_MATH_MVEI)
-/* MVE loads retired during one call, from the core PMU. The FVP counts MVE loads but not the gather subset. */
+/* MVE loads retired during one call, from the core PMU. The FVP counts all MVE loads, gathers included, but not
+ * the contiguous and gather breakdown events. */
 static uint32_t transpose_mve_loads_s16(const int32_t *in_dims, const uint32_t *perm, int32_t num_dims)
 {
     int32_t dims[4] = {1, 1, 1, 1};

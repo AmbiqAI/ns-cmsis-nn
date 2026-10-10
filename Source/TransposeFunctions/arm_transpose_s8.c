@@ -77,7 +77,7 @@ static arm_cmsis_nn_status arm_transpose_s8_nhcw(const int8_t *input,
             const uint8_t *input_c = (const uint8_t *)input_h;
             uint8_t *output_c = (uint8_t *)output_h;
 
-            /* Blocks are addressed from their column, so no pointer is formed past the tensor. */
+            /* Blocks are addressed from their column, so no pointer runs more than one past the tensor. */
             for (int32_t z = 0; z < src_cols; z++)
             {
                 for (int32_t row = 0; row < src_rows; row += 8)
