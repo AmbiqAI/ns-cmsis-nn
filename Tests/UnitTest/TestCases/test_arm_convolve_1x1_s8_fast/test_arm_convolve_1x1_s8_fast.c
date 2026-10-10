@@ -855,8 +855,8 @@ void extent_checks_arm_convolve_1x1_s8_fast(void)
     const cmsis_nn_per_channel_quant_params quant_params = {multiplier, shift};
     const cmsis_nn_dims filter_dims = {1, 1, 1, 1};
     const cmsis_nn_dims bias_dims = {1, 1, 1, 1};
-    /* [N, H, W, C_IN] with C_OUT: one negative or zero value each, N * H * W of 2^31, H * W of 2^32, a zero N with
-       H * W of 2^32, a zero with a negative, and INT32_MIN */
+    /* [N, H, W, C_IN] with C_OUT: one negative or zero value each, a zero C_IN with a zero N, N * H * W of 2^31,
+       H * W of 2^32, a zero N with H * W of 2^32, a zero with a negative, and INT32_MIN */
     const struct
     {
         cmsis_nn_dims input;
