@@ -1,5 +1,12 @@
 # Changelog
 
+## [7.43.1](https://github.com/AmbiqAI/ns-cmsis-nn/compare/v7.43.0...v7.43.1) (2026-10-10)
+
+
+### Bug Fixes
+
+* **api:** make enum-typed fields of public structs fixed-width ([#765](https://github.com/AmbiqAI/ns-cmsis-nn/issues/765)) ([9d8ea11](https://github.com/AmbiqAI/ns-cmsis-nn/commit/9d8ea110279b0d721b6f81f569234e0b3c382161)), closes [#764](https://github.com/AmbiqAI/ns-cmsis-nn/issues/764) [#693](https://github.com/AmbiqAI/ns-cmsis-nn/issues/693)
+
 ## [7.43.0](https://github.com/AmbiqAI/ns-cmsis-nn/compare/v7.42.0...v7.43.0) (2026-10-10)
 
 
