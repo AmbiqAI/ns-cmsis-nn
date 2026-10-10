@@ -93,8 +93,7 @@ arm_cmsis_nn_status arm_convolve_s8(const cmsis_nn_context *ctx,
     const int32_t input_offset = conv_params->input_offset;
 
     /* Checked before any division by the filter depth or the group count */
-    if (arm_nn_convolve_s8_groups_invalid(input_dims, filter_dims, output_dims) ||
-        arm_nn_convolve_s8_spatial_invalid(conv_params, input_dims, filter_dims, output_dims))
+    if (arm_nn_convolve_s8_args_invalid(conv_params, input_dims, filter_dims, output_dims))
     {
         return ARM_CMSIS_NN_ARG_ERROR;
     }
@@ -380,7 +379,7 @@ arm_cmsis_nn_status arm_convolve_s8(const cmsis_nn_context *ctx,
 
     #if defined(ARM_MATH_DSP)
                     /* 4 multiply and accumulates are done in one loop. */
-                    uint16_t col_count = rhs_cols / 4;
+                    int32_t col_count = rhs_cols / 4;
                     while (col_count)
                     {
                         int32_t ker_a1, ker_a2;
@@ -398,7 +397,7 @@ arm_cmsis_nn_status arm_convolve_s8(const cmsis_nn_context *ctx,
                     /* Handle left over mac */
                     col_count = rhs_cols & 0x3;
     #else
-                    uint16_t col_count = rhs_cols;
+                    int32_t col_count = rhs_cols;
 
     #endif
                     while (col_count)

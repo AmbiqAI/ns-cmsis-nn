@@ -54,9 +54,9 @@ arm_cmsis_nn_status arm_convolve_1x1_s16_ns_np_nd(const cmsis_nn_context *ctx,
     (void)ctx;
     (void)bias_dims;
 
-    /* The rule arm_convolve_wrapper_s16() applies before it routes here; direct callers get it too.
+    /* The wrapper's group rule, and one group only: the kernel reads C_IN weights per output channel.
        See AmbiqAI/ns-cmsis-nn#763. */
-    if (arm_nn_convolve_groups_invalid(input_dims, filter_dims, output_dims))
+    if (arm_nn_convolve_groups_invalid(input_dims, filter_dims, output_dims) || input_dims->c != filter_dims->c)
     {
         return ARM_CMSIS_NN_ARG_ERROR;
     }

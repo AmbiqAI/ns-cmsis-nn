@@ -3895,11 +3895,22 @@ void conv_1x1_out_grouped_arm_convolve_1x1_out_s8(void)
 }
 
 /*
- * arm_convolve_s8() and arm_convolve_1x1_out_s8() keep W, H, padding and stride as uint16_t and form the patch size
- * KW * KH * C in int32_t (#707). Each of those values at 65,536, and a patch past INT32_MAX, is an argument error with
- * the output untouched; stride and padding of 65,535 on a 1x1 layer still run.
+ * The argument check of arm_convolve_s8() and its direct entries (#707): a C_IN, C_OUT, W, H, padding or stride above
+ * UINT16_MAX, a patch above INT32_MAX / 4, a filter, input or output above INT32_MAX elements, an output size times
+ * stride above INT32_MAX / 2, or a (kernel size - 1) times dilation outside +-INT32_MAX / 2 is an argument error with
+ * the output untouched, on every entry and through the wrapper. A stride or padding of 65,535, and any dilation, on a
+ * 1x1 layer still run.
  */
-static arm_cmsis_nn_status spatial_conv_s8(int one_by_one_out,
+enum
+{
+    SPATIAL_CONV_S8,
+    SPATIAL_1X1_OUT,
+    SPATIAL_SMALL_CIN,
+    SPATIAL_3X3_C16,
+    SPATIAL_WRAPPER
+};
+
+static arm_cmsis_nn_status spatial_conv_s8(int entry,
                                            const cmsis_nn_conv_params *conv_params,
                                            const cmsis_nn_dims *input_dims,
                                            const cmsis_nn_dims *filter_dims,
@@ -3918,9 +3929,10 @@ static arm_cmsis_nn_status spatial_conv_s8(int one_by_one_out,
     const cmsis_nn_context weight_sum_ctx = {weight_sum, sizeof(weight_sum)};
     const cmsis_nn_per_channel_quant_params quant_params = {multiplier, shift};
     const cmsis_nn_dims bias_dims = {1, 1, 1, 1};
-#if defined(ARM_MATH_MVEI)
-    if (one_by_one_out)
+    switch (entry)
     {
+#if defined(ARM_MATH_MVEI)
+    case SPATIAL_1X1_OUT:
         return arm_convolve_1x1_out_s8(&ctx,
                                        &weight_sum_ctx,
                                        conv_params,
@@ -3933,43 +3945,84 @@ static arm_cmsis_nn_status spatial_conv_s8(int one_by_one_out,
                                        bias,
                                        output_dims,
                                        output);
-    }
-#else
-    (void)one_by_one_out;
 #endif
-    return arm_convolve_s8(&ctx,
-                           &weight_sum_ctx,
-                           conv_params,
-                           &quant_params,
-                           input_dims,
-                           input,
-                           filter_dims,
-                           weights,
-                           &bias_dims,
-                           bias,
-                           NULL,
-                           output_dims,
-                           output);
+    case SPATIAL_SMALL_CIN:
+        return arm_convolve_s8_small_cin(&ctx,
+                                         &weight_sum_ctx,
+                                         conv_params,
+                                         &quant_params,
+                                         input_dims,
+                                         input,
+                                         filter_dims,
+                                         weights,
+                                         &bias_dims,
+                                         bias,
+                                         NULL,
+                                         output_dims,
+                                         output);
+    case SPATIAL_3X3_C16:
+        return arm_convolve_s8_3x3_c16_s1(&ctx,
+                                          &weight_sum_ctx,
+                                          conv_params,
+                                          &quant_params,
+                                          input_dims,
+                                          input,
+                                          filter_dims,
+                                          weights,
+                                          &bias_dims,
+                                          bias,
+                                          NULL,
+                                          output_dims,
+                                          output);
+    case SPATIAL_WRAPPER:
+        return arm_convolve_wrapper_s8(&ctx,
+                                       &weight_sum_ctx,
+                                       conv_params,
+                                       &quant_params,
+                                       input_dims,
+                                       input,
+                                       filter_dims,
+                                       weights,
+                                       &bias_dims,
+                                       bias,
+                                       output_dims,
+                                       output);
+    default:
+        return arm_convolve_s8(&ctx,
+                               &weight_sum_ctx,
+                               conv_params,
+                               &quant_params,
+                               input_dims,
+                               input,
+                               filter_dims,
+                               weights,
+                               &bias_dims,
+                               bias,
+                               NULL,
+                               output_dims,
+                               output);
+    }
 }
 
 void spatial_arg_errors_arm_convolve_s8(void)
 {
     const cmsis_nn_conv_params unit_params = {0, 0, {1, 1}, {0, 0}, {1, 1}, {-128, 127}};
     const cmsis_nn_dims unit_dims = {1, 1, 1, 1};
-#if defined(ARM_MATH_MVEI)
-    const int entries = 2;
-#else
-    const int entries = 1;
-#endif
-    for (int entry = 0; entry < entries; entry++)
+    for (int entry = SPATIAL_CONV_S8; entry <= SPATIAL_3X3_C16; entry++)
     {
-        for (int field = 0; field < 11; field++)
+#if !defined(ARM_MATH_MVEI)
+        if (entry == SPATIAL_1X1_OUT)
+        {
+            continue; /* arm_convolve_1x1_out_s8() exists on MVE builds only */
+        }
+#endif
+        for (int field = 0; field < 27; field++)
         {
             cmsis_nn_conv_params conv_params = unit_params;
             cmsis_nn_dims input_dims = unit_dims;
             cmsis_nn_dims filter_dims = unit_dims;
             cmsis_nn_dims output_dims = unit_dims;
-            int32_t *const values[10] = {&input_dims.w,
+            int32_t *const values[14] = {&input_dims.w,
                                          &input_dims.h,
                                          &filter_dims.w,
                                          &filter_dims.h,
@@ -3978,16 +4031,96 @@ void spatial_arg_errors_arm_convolve_s8(void)
                                          &conv_params.padding.w,
                                          &conv_params.padding.h,
                                          &conv_params.stride.w,
-                                         &conv_params.stride.h};
-            if (field < 10)
+                                         &conv_params.stride.h,
+                                         &conv_params.dilation.w,
+                                         &conv_params.dilation.h,
+                                         &input_dims.c,
+                                         &output_dims.c};
+            if (field == 10 || field == 11)
+            {
+                /* Dilation is kept as int32_t: only its reach over the kernel is bounded */
+                filter_dims.w = 2;
+                filter_dims.h = 2;
+                conv_params.dilation.w = field == 10 ? INT32_MIN : 1;
+                conv_params.dilation.h = field == 11 ? INT32_MAX : 1;
+            }
+            else if (field < 14)
             {
                 *values[field] = UINT16_MAX + 1;
+                if (field == 12)
+                {
+                    filter_dims.c = UINT16_MAX + 1; /* one group */
+                }
+                if (field == 13)
+                {
+                    filter_dims.n = UINT16_MAX + 1;
+                }
+            }
+            else if (field == 14)
+            {
+                /* A patch of 32,768 * 16,385 is past INT32_MAX / 4 with every value inside 16 bits */
+                filter_dims.w = 32768;
+                filter_dims.h = 16385;
+            }
+            else if (field == 15)
+            {
+                /* 32,768 output channels of a 65,536-weight patch: the filter is past INT32_MAX */
+                filter_dims = (cmsis_nn_dims){32768, 256, 256, 1};
+                output_dims.c = 32768;
+            }
+            else if (field == 16)
+            {
+                output_dims.w = UINT16_MAX; /* output W times stride W past INT32_MAX / 2 */
+                conv_params.stride.w = 32769;
+            }
+            else if (field == 17)
+            {
+                output_dims.h = UINT16_MAX;
+                conv_params.stride.h = 32769;
+            }
+            else if (field == 18)
+            {
+                filter_dims.w = UINT16_MAX; /* KW times dilation W past INT32_MAX / 2 */
+                conv_params.dilation.w = 32769;
+            }
+            else if (field == 19)
+            {
+                filter_dims.h = UINT16_MAX;
+                conv_params.dilation.h = 32769;
+            }
+            else if (field == 20)
+            {
+                /* 16,384 * 16,384 * 4: past INT32_MAX / 4 only with C counted */
+                input_dims.c = 4;
+                filter_dims = (cmsis_nn_dims){1, 16384, 16384, 4};
+            }
+            else if (field == 21)
+            {
+                /* 65,535 * 65,535 * 32,768 wraps to 32,768 in 32 bits */
+                input_dims.c = 32768;
+                filter_dims = (cmsis_nn_dims){1, UINT16_MAX, UINT16_MAX, 32768};
+            }
+            else if (field == 22)
+            {
+                input_dims.w = UINT16_MAX; /* an input of 65,535 * 65,535 * 1 elements */
+                input_dims.h = UINT16_MAX;
+            }
+            else if (field == 23)
+            {
+                output_dims.w = UINT16_MAX; /* an output of 65,535 * 65,535 * 1 elements */
+                output_dims.h = UINT16_MAX;
+            }
+            else if (field == 24)
+            {
+                conv_params.padding.w = -1;
+            }
+            else if (field == 25)
+            {
+                input_dims.h = -1;
             }
             else
             {
-                /* 46,341 * 46,341 is past INT32_MAX with every value inside 16 bits */
-                filter_dims.w = 46341;
-                filter_dims.h = 46341;
+                conv_params.stride.h = -1;
             }
             int8_t output[2] = {0x55, 0x55};
             TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR,
@@ -3996,23 +4129,109 @@ void spatial_arg_errors_arm_convolve_s8(void)
             TEST_ASSERT_EQUAL_INT8(0x55, output[1]);
         }
 
-        /* Largest stride, then largest padding (the only tap then lies in the padding, which adds nothing). */
-        for (int pad = 0; pad < 2; pad++)
+        if (entry == SPATIAL_SMALL_CIN || entry == SPATIAL_3X3_C16)
+        {
+            continue; /* the unit layer is outside their gates */
+        }
+        /* Largest stride, then largest padding (the only tap then lies in the padding, which adds nothing), then
+           extreme dilations, which a 1x1 kernel never applies */
+        for (int which = 0; which < 3; which++)
         {
             cmsis_nn_conv_params conv_params = unit_params;
-            conv_params.stride.w = pad ? 1 : UINT16_MAX;
-            conv_params.stride.h = pad ? 1 : UINT16_MAX;
-            conv_params.padding.w = pad ? UINT16_MAX : 0;
-            conv_params.padding.h = pad ? UINT16_MAX : 0;
-            if (entry == 1 && pad)
+            if (which == 0)
             {
-                continue; /* arm_convolve_1x1_out_s8() reads its one input pixel at (0, 0) and takes no padding */
+                conv_params.stride = (cmsis_nn_tile){UINT16_MAX, UINT16_MAX};
+            }
+            else if (which == 1)
+            {
+                if (entry == SPATIAL_1X1_OUT)
+                {
+                    continue; /* arm_convolve_1x1_out_s8() reads its one input pixel at (0, 0) and takes no padding */
+                }
+                conv_params.padding = (cmsis_nn_tile){UINT16_MAX, UINT16_MAX};
+            }
+            else
+            {
+                conv_params.dilation = (cmsis_nn_tile){INT32_MIN, INT32_MAX};
             }
             int8_t output[2] = {0x55, 0x55};
             TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
                               spatial_conv_s8(entry, &conv_params, &unit_dims, &unit_dims, &unit_dims, output));
-            TEST_ASSERT_EQUAL_INT8(pad ? 5 : 35, output[0]);
+            TEST_ASSERT_EQUAL_INT8(which == 1 ? 5 : 35, output[0]);
             TEST_ASSERT_EQUAL_INT8(0x55, output[1]);
         }
     }
+
+    /* Through the wrapper with a 2x2 kernel, which it routes to arm_convolve_s8_small_cin() on MVE builds and to
+       arm_convolve_s8() otherwise */
+    const cmsis_nn_dims kernel_2x2 = {1, 2, 2, 1};
+    const cmsis_nn_tile bad[3][2] = {{{1, 1}, {65537, 0}}, {{1, 1}, {-1, 0}}, {{-1, 1}, {0, 0}}};
+    for (int i = 0; i < 3; i++)
+    {
+        cmsis_nn_conv_params conv_params = unit_params;
+        conv_params.stride = bad[i][0];
+        conv_params.padding = bad[i][1];
+        int8_t output[2] = {0x55, 0x55};
+        TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR,
+                          spatial_conv_s8(SPATIAL_WRAPPER, &conv_params, &unit_dims, &kernel_2x2, &unit_dims, output));
+        TEST_ASSERT_EQUAL_INT8(0x55, output[0]);
+    }
+}
+
+/*
+ * One output pixel of a patch of 65,538 weights, 1 x 2 x 32,769: the non-MVE kernels count the columns of a single
+ * leftover row in int32_t, not uint16_t (#707). The weights alternate -1 and +1 over the first 65,536 columns and are
+ * +1 on the last two, so the full dot of an all-ones input is 2 and a count truncated to 16 bits gives 0.
+ */
+void patch_wider_than_16_bits_arm_convolve_s8(void)
+{
+    enum
+    {
+        patch = 2 * 32769
+    };
+    const cmsis_nn_conv_params conv_params = {0, 0, {1, 1}, {0, 0}, {1, 1}, {-128, 127}};
+    const cmsis_nn_dims input_dims = {1, 1, 2, 32769};
+    const cmsis_nn_dims filter_dims = {1, 1, 2, 32769};
+    const cmsis_nn_dims bias_dims = {1, 1, 1, 1};
+    const cmsis_nn_dims output_dims = {1, 1, 1, 1};
+    const int32_t bias[1] = {5};
+    int32_t multiplier[1] = {1 << 30};
+    int32_t shift[1] = {1};
+    /* The MVE kernels take the bias folded into the weight sum; the input offset is 0 */
+    int32_t weight_sum[1] = {5};
+    const cmsis_nn_per_channel_quant_params quant_params = {multiplier, shift};
+    const cmsis_nn_context weight_sum_ctx = {weight_sum, sizeof(weight_sum)};
+    int8_t *input = malloc(patch);
+    int8_t *weights = malloc(patch);
+    const int32_t buf_size = arm_convolve_s8_get_buffer_size(&input_dims, &filter_dims);
+    TEST_ASSERT_TRUE(buf_size > 0);
+    const cmsis_nn_context ctx = {malloc(buf_size), buf_size};
+    TEST_ASSERT_NOT_NULL(input);
+    TEST_ASSERT_NOT_NULL(weights);
+    TEST_ASSERT_NOT_NULL(ctx.buf);
+    for (int32_t i = 0; i < patch; i++)
+    {
+        input[i] = 1;
+        weights[i] = (i >= 65536 || (i & 1)) ? 1 : -1;
+    }
+    int8_t output[2] = {0x55, 0x55};
+    const arm_cmsis_nn_status result = arm_convolve_s8(&ctx,
+                                                       &weight_sum_ctx,
+                                                       &conv_params,
+                                                       &quant_params,
+                                                       &input_dims,
+                                                       input,
+                                                       &filter_dims,
+                                                       weights,
+                                                       &bias_dims,
+                                                       bias,
+                                                       NULL,
+                                                       &output_dims,
+                                                       output);
+    free(ctx.buf);
+    free(weights);
+    free(input);
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, result);
+    TEST_ASSERT_EQUAL_INT8(2 + 5, output[0]);
+    TEST_ASSERT_EQUAL_INT8(0x55, output[1]);
 }

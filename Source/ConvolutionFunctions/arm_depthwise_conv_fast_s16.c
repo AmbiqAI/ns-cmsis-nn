@@ -218,7 +218,7 @@ arm_cmsis_nn_status arm_depthwise_conv_fast_s16(const cmsis_nn_context *ctx,
 
     #else // ARM_MATH_DSP
 
-    if (arm_nn_depthwise_s16_tap_index_invalid(dw_conv_params, input_dims))
+    if (arm_nn_depthwise_s16_tap_index_invalid(dw_conv_params, output_dims))
     {
         return ARM_CMSIS_NN_ARG_ERROR;
     }

@@ -445,6 +445,7 @@ void buffer_size_dsp_arm_depthwise_conv_s16(void)
 
 /* A 1 x W x 1 layer with a 1 x 1 kernel, so output pixel x is input pixel x scaled by the weight and requantized */
 #define WIDE_DW_S16_MAX_W 32768
+static const int32_t unit_multiplier = 1 << 30;
 static int16_t wide_dw_input[WIDE_DW_S16_MAX_W];
 static int16_t wide_dw_output[WIDE_DW_S16_MAX_W];
 
@@ -474,45 +475,133 @@ static arm_cmsis_nn_status wide_dw_s16(const cmsis_nn_dw_conv_params *dw_conv_pa
 }
 
 /*
- * arm_depthwise_conv_s16() keeps every dimension, padding, stride and dilation as uint16_t (#707) and the first tap
- * index of an output as int16_t (#727). A value of 65,536, or an input W or H or a padding of 32,768, is an argument
- * error with the output untouched; an input 32,767 wide still runs.
+ * arm_depthwise_conv_s16() keeps every dimension, padding, stride and dilation as uint16_t and forms tensor indices
+ * in int32_t (#707), and keeps the first tap index of an output as int16_t (#727). Each value it cannot hold is an
+ * argument error with the output untouched; a dilation of 65,535 on a 1x1 kernel and an input and output 32,767 wide
+ * still run.
  */
 void dims_arg_errors_arm_depthwise_conv_s16(void)
 {
     const cmsis_nn_dw_conv_params unit_params = {0, 0, 1, {1, 1}, {0, 0}, {1, 1}, {-32768, 32767}};
     const cmsis_nn_dims unit_dims = {1, 1, 1, 1};
-    for (int field = 0; field < 19; field++)
+    for (int c = 0; c < 29; c++)
     {
         cmsis_nn_dw_conv_params params = unit_params;
         cmsis_nn_dims input_dims = unit_dims;
         cmsis_nn_dims filter_dims = unit_dims;
         cmsis_nn_dims output_dims = unit_dims;
-        int32_t *const values[19] = {&input_dims.n,
-                                     &input_dims.w,
-                                     &input_dims.h,
-                                     &input_dims.c,
-                                     &params.ch_mult,
-                                     &filter_dims.w,
-                                     &filter_dims.h,
-                                     &params.padding.w,
-                                     &params.padding.h,
-                                     &params.stride.w,
-                                     &params.stride.h,
-                                     &output_dims.w,
-                                     &output_dims.h,
-                                     &params.dilation.w,
-                                     &params.dilation.h,
-                                     &input_dims.w,
-                                     &input_dims.h,
-                                     &params.padding.w,
-                                     &params.padding.h};
-        *values[field] = field < 15 ? UINT16_MAX + 1 : INT16_MAX + 1;
+        int32_t *const wide[15] = {&input_dims.n,
+                                   &input_dims.w,
+                                   &input_dims.h,
+                                   &input_dims.c,
+                                   &params.ch_mult,
+                                   &filter_dims.w,
+                                   &filter_dims.h,
+                                   &params.padding.w,
+                                   &params.padding.h,
+                                   &params.stride.w,
+                                   &params.stride.h,
+                                   &output_dims.w,
+                                   &output_dims.h,
+                                   &params.dilation.w,
+                                   &params.dilation.h};
+        if (c < 15)
+        {
+            *wide[c] = UINT16_MAX + 1;
+        }
+        else if (c < 19)
+        {
+            /* Padding or stride of 32,768: the first tap index leaves int16_t */
+            int32_t *const tap[4] = {&params.padding.w, &params.padding.h, &params.stride.w, &params.stride.h};
+            *tap[c - 15] = INT16_MAX + 1;
+        }
+        else if (c == 19)
+        {
+            output_dims.w = INT16_MAX + 2; /* (32,769 - 1) * 1 - 0 */
+        }
+        else if (c == 20)
+        {
+            output_dims.h = INT16_MAX + 2;
+        }
+        else if (c == 21)
+        {
+            /* An output wider than the input supports: 10 pixels, stride 2, 32,771 outputs */
+            input_dims.w = 10;
+            params.stride.w = 2;
+            output_dims.w = 32771;
+        }
+        else if (c == 22)
+        {
+            input_dims.c = UINT16_MAX; /* a filter of 65,535 * 32,769 channels */
+            params.ch_mult = 32769;
+        }
+        else if (c == 23)
+        {
+            input_dims.w = UINT16_MAX; /* an input of 65,535 * 65,535 elements */
+            input_dims.h = UINT16_MAX;
+        }
+        else if (c == 24)
+        {
+            output_dims.w = INT16_MAX; /* an output of 32,767 * 32,767 * 4 elements */
+            output_dims.h = INT16_MAX;
+            params.ch_mult = 4;
+        }
+        else if (c == 25)
+        {
+            filter_dims.w = UINT16_MAX; /* KW times dilation W past INT32_MAX / 2 */
+            params.dilation.w = 32769;
+        }
+        else if (c == 26)
+        {
+            filter_dims.h = UINT16_MAX;
+            params.dilation.h = 32769;
+        }
+        else if (c == 27)
+        {
+            params.padding.h = -1;
+        }
+        else
+        {
+            input_dims.c = -1;
+        }
         wide_dw_output[0] = 0x5555;
         wide_dw_output[1] = 0x5555;
         TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR, wide_dw_s16(&params, &input_dims, &filter_dims, &output_dims));
         TEST_ASSERT_EQUAL_INT16(0x5555, wide_dw_output[0]);
         TEST_ASSERT_EQUAL_INT16(0x5555, wide_dw_output[1]);
+    }
+
+    /* A dilation of 65,535 on a 1x1 kernel */
+    cmsis_nn_dw_conv_params dilated = unit_params;
+    dilated.dilation = (cmsis_nn_tile){UINT16_MAX, UINT16_MAX};
+    wide_dw_input[0] = 100;
+    wide_dw_output[0] = 0x5555;
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, wide_dw_s16(&dilated, &unit_dims, &unit_dims, &unit_dims));
+    TEST_ASSERT_EQUAL_INT16(arm_nn_requantize_s64(100 * 3 - 7, REDUCE_MULTIPLIER(unit_multiplier), 0),
+                            wide_dw_output[0]);
+
+    /* The largest padding and stride the int16_t tap index allows: padding 32,767 puts the one output's only tap in
+       the padding, and stride 32,767 over two outputs reads input pixels 0 and 32,767. */
+    for (int32_t x = 0; x < INT16_MAX + 1; x++)
+    {
+        wide_dw_input[x] = (int16_t)(x % 2001 - 1000);
+    }
+    cmsis_nn_dw_conv_params padded = unit_params;
+    padded.padding = (cmsis_nn_tile){INT16_MAX, INT16_MAX};
+    wide_dw_output[0] = 0x5555;
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, wide_dw_s16(&padded, &unit_dims, &unit_dims, &unit_dims));
+    TEST_ASSERT_EQUAL_INT16(arm_nn_requantize_s64(-7, REDUCE_MULTIPLIER(unit_multiplier), 0), wide_dw_output[0]);
+    cmsis_nn_dw_conv_params strided = unit_params;
+    strided.stride = (cmsis_nn_tile){INT16_MAX, INT16_MAX};
+    const cmsis_nn_dims strided_input = {1, 1, INT16_MAX + 1, 1};
+    const cmsis_nn_dims strided_output = {1, 1, 2, 1};
+    wide_dw_output[1] = 0x5555;
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, wide_dw_s16(&strided, &strided_input, &unit_dims, &strided_output));
+    for (int32_t x = 0; x < 2; x++)
+    {
+        TEST_ASSERT_EQUAL_INT16(
+            arm_nn_requantize_s64((int64_t)wide_dw_input[x * INT16_MAX] * 3 - 7, REDUCE_MULTIPLIER(unit_multiplier), 0),
+            wide_dw_output[x]);
     }
 
     const cmsis_nn_dims wide_dims = {1, 1, INT16_MAX, 1};
@@ -522,8 +611,7 @@ void dims_arg_errors_arm_depthwise_conv_s16(void)
     }
     memset(wide_dw_output, 0x55, sizeof(wide_dw_output));
     TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, wide_dw_s16(&unit_params, &wide_dims, &unit_dims, &wide_dims));
-    const int32_t multiplier = 1 << 30;
-    const int32_t reduced_multiplier = REDUCE_MULTIPLIER(multiplier);
+    const int32_t reduced_multiplier = REDUCE_MULTIPLIER(unit_multiplier);
     for (int32_t x = 0; x < INT16_MAX; x++)
     {
         const int32_t expected = arm_nn_requantize_s64((int64_t)wide_dw_input[x] * 3 - 7, reduced_multiplier, 0);

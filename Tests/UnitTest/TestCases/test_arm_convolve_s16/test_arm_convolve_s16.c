@@ -2367,8 +2367,9 @@ void group_arg_errors_arm_convolve_s16(void)
     }
 
     /* arm_convolve_1x1_s16_ns_np_nd() called directly over 3 pixels (#763): it must not write a negative output
-       depth's worth of values, nor divide by a filter depth of 0. {C_IN, filter C, C_OUT} */
-    static const int32_t direct_1x1[][3] = {{4, 4, -5}, {4, 4, -1}, {0, 0, 4}, {-4, -4, 4}, {6, 4, 4}};
+       depth's worth of values, divide by a filter depth of 0, or read C_IN weights per channel from a grouped
+       filter. {C_IN, filter C, C_OUT} */
+    static const int32_t direct_1x1[][3] = {{4, 4, -5}, {4, 4, -1}, {0, 0, 4}, {-4, -4, 4}, {6, 4, 4}, {8, 4, 4}};
     for (uint32_t c = 0; c < sizeof(direct_1x1) / sizeof(direct_1x1[0]); c++)
     {
         const cmsis_nn_dims input_dims = {1, 1, 3, direct_1x1[c][0]};

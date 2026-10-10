@@ -556,9 +556,13 @@ arm_cmsis_nn_status arm_convolve_even_s4(const cmsis_nn_context *ctx,
  *
  * @return     The function returns <code>ARM_CMSIS_NN_SUCCESS</code> if successful or
  *                                  <code>ARM_CMSIS_NN_ARG_ERROR</code> if incorrect arguments (among them a C_IN or
- *                                  CK that is not positive, a negative C_OUT, a C_IN or C_OUT above 65,535, a C_IN
- *                                  that is not a multiple of CK, a C_OUT that is not a multiple of the group count,
- *                                  or a grouped layer with an upscale factor of 2) or
+ *                                  CK that is not positive, a negative C_OUT, a C_IN that is not a multiple of CK, a
+ *                                  C_OUT that is not a multiple of the group count, a grouped layer with an upscale
+ *                                  factor of 2, or a value the kernel cannot hold: a C_IN, C_OUT, W, H, padding or
+ *                                  stride above 65,535, a patch KW * KH * CK above INT32_MAX / 4, a filter
+ *                                  C_OUT * KW * KH * CK or an input or output H * W * C above INT32_MAX, an output W
+ *                                  or H times the stride above INT32_MAX / 2, or a (KW - 1) or (KH - 1) times the
+ *                                  dilation outside +-INT32_MAX / 2) or
  *                                  <code>ARM_CMSIS_NN_NO_IMPL_ERROR</code>
  *
  * @details
@@ -655,11 +659,9 @@ arm_cmsis_nn_status arm_convolve_1x1_s8_short_k(const cmsis_nn_context *ctx,
  * @param[out]     output_data    Output data pointer. Data type: int8
  *
  * @return     The function returns one of the following
- *                <code>ARM_CMSIS_NN_ARG_ERROR</code> - an argument error that arm_convolve_s8() reports: ctx->buf is
- *                                                      NULL, C_IN or CK is not positive, C_OUT is negative, C_IN
- *                                                      or C_OUT exceeds 65,535, C_IN is not a multiple of CK or
- *                                                      C_OUT of the group count C_IN / CK, or
- *                                                      weight_sum_ctx->buf is NULL on builds with
+ *                <code>ARM_CMSIS_NN_ARG_ERROR</code> - an argument error that arm_convolve_s8() reports (ctx->buf is
+ *                                                      NULL, or a dimension, padding, stride or dilation it
+ *                                                      rejects), or weight_sum_ctx->buf is NULL on builds with
  *                                                      ARM_MATH_MVEI. These are checked before the gate.
  *                <code>ARM_CMSIS_NN_NO_IMPL_ERROR</code> - the layer is outside the gate below, or the build lacks
  *                                                          ARM_MATH_MVEI or defines ARM_MATH_AUTOVECTORIZE; nothing
@@ -1156,7 +1158,8 @@ arm_cmsis_nn_status arm_convolve_s16(const cmsis_nn_context *ctx,
  * @param[out]     output_data    Output data pointer. Data type: int16
  *
  * @return     The function returns <code>ARM_CMSIS_NN_SUCCESS</code> if successful or
- *                                  <code>ARM_CMSIS_NN_ARG_ERROR</code> if incorrect arguments or
+ *                                  <code>ARM_CMSIS_NN_ARG_ERROR</code> if incorrect arguments (among them a C_IN
+ *                                  that is not positive, a negative C_OUT, or a filter C other than C_IN) or
  *                                  <code>ARM_CMSIS_NN_NO_IMPL_ERROR</code>
  *
  * @details
@@ -1360,7 +1363,8 @@ arm_cmsis_nn_status arm_convolve_1x1_s4(const cmsis_nn_context *ctx,
  * @param[out]     output_data   Output data pointer. Data type: int8
  *
  * @return     The function returns either
- *                  <code>ARM_CMSIS_NN_ARG_ERROR</code> if argument constraints fail. or,
+ *                  <code>ARM_CMSIS_NN_ARG_ERROR</code> if argument constraints fail (among them a non-positive N, H,
+ *                  W, C_IN or C_OUT, or a pixel count N * H * W above INT32_MAX), or
  *                  <code>ARM_CMSIS_NN_SUCCESS</code> on successful completion.
  *
  * @details
@@ -2174,7 +2178,7 @@ arm_cmsis_nn_status arm_depthwise_conv_s4(const cmsis_nn_context *ctx,
                                           int8_t *output);
 
 /**
- * @brief Basic s16 depthwise convolution function that doesn't have any constraints on the input dimensions.
+ * @brief Basic s16 depthwise convolution function for any layer whose dimensions fit the limits under @return.
  *
  * @param[in]      ctx             Function context. This kernel uses no additional buffer, so ctx->buf may be NULL and
  *                                 there is deliberately no arm_depthwise_conv_s16_get_buffer_size(). If you reached
@@ -2188,7 +2192,7 @@ arm_cmsis_nn_status arm_depthwise_conv_s4(const cmsis_nn_context *ctx,
  *                                 It contains the multiplier and shift values to be applied to each
  *                                 output channel
  * @param[in]      input_dims      Input (activation) tensor dimensions. Format: [N, H, W, C_IN]
- *                                 Batch argument N is not used.
+ *                                 N, W, H and C are each at most 65,535.
  * @param[in]      input_data      Input (activation) data pointer. Data type: int8
  * @param[in]      filter_dims     Filter tensor dimensions. Format: [1, H, W, C_OUT]
  * @param[in]      filter_data     Filter data pointer. Data type: int8
@@ -2196,7 +2200,11 @@ arm_cmsis_nn_status arm_depthwise_conv_s4(const cmsis_nn_context *ctx,
  * @param[in]      bias_data       Bias data pointer. Data type: int64
  * @param[in]      output_dims     Output tensor dimensions. Format: [N, H, W, C_OUT]
  * @param[out]     output_data     Output data pointer. Data type: int16
- * @return     The function returns <code>ARM_CMSIS_NN_SUCCESS</code>
+ * @return     The function returns <code>ARM_CMSIS_NN_SUCCESS</code>, or <code>ARM_CMSIS_NN_ARG_ERROR</code> with
+ *             nothing written when a dimension, ch_mult, padding, stride or dilation is above 65,535, a padding or
+ *             stride is above 32,767, (output W or H - 1) * stride - padding is above 32,767 (the first tap index of
+ *             an output is kept as int16_t), the input, filter or output (C * ch_mult channels) holds more than
+ *             INT32_MAX elements, or a KW or KH times the dilation is above INT32_MAX / 2.
  *
  * @details
  *    - Supported framework: TensorFlow Lite
@@ -2246,7 +2254,8 @@ arm_cmsis_nn_status arm_depthwise_conv_s16(const cmsis_nn_context *ctx,
  * @param[in]      output_dims     Output tensor dimensions. Format: [1, H, W, C_OUT]
  * @param[out]     output_data     Output data pointer. Data type: int16
  * @return     The function returns
- *                <code>ARM_CMSIS_NN_SUCCESS</code>   -  Successful completion.
+ *                <code>ARM_CMSIS_NN_SUCCESS</code>   -  Successful completion, or
+ *                <code>ARM_CMSIS_NN_ARG_ERROR</code> -  an argument error of the function it picks.
  *
  * @details
  *    - Supported framework: TensorFlow Lite
@@ -2359,7 +2368,9 @@ int32_t arm_depthwise_conv_wrapper_s16_get_buffer_size_mve(const cmsis_nn_dw_con
  *                                                      input channel != output channel or
  *                                                      filter_dims->w * filter_dims->h >= MAX_COL_COUNT (512) or
  *                                                      dw_conv_params->dilation.h != 1 or
- *                                                      dw_conv_params->dilation.w < 1
+ *                                                      dw_conv_params->dilation.w < 1 or, on builds without
+ *                                                      MVE, a padding or stride above 32,767 or (output W or H - 1)
+ *                                                      * stride - padding above 32,767
  *
  *                <code>ARM_CMSIS_NN_SUCCESS</code> - Successful operation
  *
