@@ -45,7 +45,11 @@
 #define BA_BLOCK 32
 #define BA_NONE INT32_MAX
 
-#if defined(__clang__)
+// The short-dot relaxation follows the compiler that built the library, taken to be the test's own compiler unless
+// the harness says otherwise: NN_TEST_LIBRARY_CLANG=1 for a library built by clang, 0 for one built by GCC.
+#if defined(NN_TEST_LIBRARY_CLANG)
+    #define BA_EXACT_SHORT (!(NN_TEST_LIBRARY_CLANG))
+#elif defined(__clang__)
     #define BA_EXACT_SHORT 0
 #else
     #define BA_EXACT_SHORT 1
