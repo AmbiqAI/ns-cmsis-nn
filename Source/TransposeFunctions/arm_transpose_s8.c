@@ -54,15 +54,15 @@ static arm_cmsis_nn_status arm_transpose_s8_nhcw(const int8_t *input,
     const int8_t *input_n = input;
     int8_t *output_n = output;
 
-    const uint16_t src_rows = w;
-    const uint16_t src_cols = c;
+    const int32_t src_rows = w;
+    const int32_t src_cols = c;
 
 #if defined(ARM_MATH_MVEI)
     uint16x8_t vec_offsets;
     uint16x8_t vec_input;
 
     vec_offsets = vidupq_u16((uint32_t)0, 1);
-    vec_offsets = vec_offsets * src_cols;
+    vec_offsets = vec_offsets * (uint16_t)src_cols;
 #endif
 
     for (int32_t i = 0; i < n; i++)
@@ -77,39 +77,28 @@ static arm_cmsis_nn_status arm_transpose_s8_nhcw(const int8_t *input,
             const uint8_t *input_c = (const uint8_t *)input_h;
             uint8_t *output_c = (uint8_t *)output_h;
 
+            /* Blocks are addressed from their column, so no pointer runs more than one past the tensor. */
             for (int32_t z = 0; z < src_cols; z++)
             {
-                uint8_t const *input_w = (uint8_t const *)input_c;
-                uint8_t *output_w = (uint8_t *)output_c;
-
-                int32_t block_count = src_rows;
-                while (block_count > 0)
+                for (int32_t row = 0; row < src_rows; row += 8)
                 {
-                    mve_pred16_t p = vctp16q(block_count);
+                    const mve_pred16_t p = vctp16q((uint32_t)(src_rows - row));
 
-                    vec_input = vldrbq_gather_offset_z_u16(input_w, vec_offsets, p);
-                    vstrbq_p_u16(output_w, vec_input, p);
-
-                    input_w = input_w + src_cols * 8;
-                    output_w += 8;
-                    block_count -= 8;
+                    vec_input = vldrbq_gather_offset_z_u16(input_c + row * src_cols, vec_offsets, p);
+                    vstrbq_p_u16(output_c + row, vec_input, p);
                 }
 
                 input_c++;
                 output_c += src_rows;
             }
 #else
-            const uint8_t *input_w = (const uint8_t *)input_h;
-            uint8_t *output_w = (uint8_t *)output_h;
+            const int8_t *input_w = input_h;
 
             for (int32_t src_row_i = 0; src_row_i < src_rows; src_row_i++)
             {
-                output_w = (uint8_t *)output + src_row_i;
-
                 for (int32_t x = 0; x < src_cols; x++)
                 {
-                    *output_w = *input_w++;
-                    output_w += src_rows;
+                    output_h[x * src_rows + src_row_i] = *input_w++;
                 }
             }
 #endif
@@ -217,89 +206,59 @@ arm_cmsis_nn_status arm_transpose_s8(const int8_t *input,
                                      const cmsis_nn_dims *const output_dims,
                                      const cmsis_nn_transpose_params *const transpose_params)
 {
-    int32_t in_strides[4];
-    int32_t out_strides[4] = {0};
+    const int32_t num_dims = transpose_params->num_dims;
 
-    const uint32_t *const perm = transpose_params->permutations;
-
-    /* The in_strides products below are signed, so the extents are validated before any arithmetic
+    /* The stride products below are signed, so the extents are validated before any arithmetic
      * derives from them. see AmbiqAI/ns-cmsis-nn#443 */
-    if (arm_transpose_s8_check_dims(input_dims, output_dims, perm, transpose_params->num_dims) != ARM_CMSIS_NN_SUCCESS)
+    if (arm_transpose_s8_check_dims(input_dims, output_dims, transpose_params->permutations, num_dims) !=
+        ARM_CMSIS_NN_SUCCESS)
     {
         return ARM_CMSIS_NN_ARG_ERROR;
     }
 
-    const int32_t n = input_dims->n;
-    const int32_t h = input_dims->h;
-    const int32_t w = input_dims->w;
-    const int32_t c = input_dims->c;
+    /* Leading axes of extent 1 bring every rank to four, so one rule picks the path for all of them.
+     * see AmbiqAI/ns-cmsis-nn#757 */
+    const int32_t in_dims[4] = {input_dims->n, input_dims->h, input_dims->w, input_dims->c};
+    const int32_t pad = 4 - num_dims;
+    int32_t dims[4] = {1, 1, 1, 1};
+    uint32_t perm[4] = {0, 1, 2, 3};
 
-    in_strides[0] = h * w * c;
-    in_strides[1] = w * c;
-    in_strides[2] = c;
-    in_strides[3] = 1;
-
-    if (transpose_params->num_dims == 1)
+    for (int32_t i = 0; i < num_dims; i++)
     {
-        arm_memcpy_s8(output, input, input_dims->n);
+        dims[pad + i] = in_dims[i];
+        perm[pad + i] = transpose_params->permutations[i] + (uint32_t)pad;
+    }
+
+    if (perm[0] == 0 && perm[1] == 1 && perm[2] == 2)
+    {
+        arm_memcpy_s8(output, input, (uint32_t)dims[0] * (uint32_t)dims[1] * (uint32_t)dims[2] * (uint32_t)dims[3]);
 
         return ARM_CMSIS_NN_SUCCESS;
     }
-    else if (transpose_params->num_dims == 2)
-    {
-        /* The 2-D path transposes unconditionally, so the identity permutation has to be split off here.
-         * see AmbiqAI/ns-cmsis-nn#443 */
-        if (perm[0] == 0)
-        {
-            arm_memcpy_s8(output, input, (uint32_t)n * (uint32_t)h);
 
-            return ARM_CMSIS_NN_SUCCESS;
-        }
+    const cmsis_nn_dims padded_dims = {dims[0], dims[1], dims[2], dims[3]};
+    const int32_t in_strides[4] = {dims[1] * dims[2] * dims[3], dims[2] * dims[3], dims[3], 1};
+    int32_t out_strides[4];
 
-        const cmsis_nn_dims smaller_input_dims = {1, 1, n, h};
-
-        return arm_transpose_s8_nhcw(input, output, &smaller_input_dims, in_strides, out_strides);
-    }
-    else if (transpose_params->num_dims == 3)
-    {
-        const cmsis_nn_dims smaller_input_dims = {1, n, h, w};
-
-        in_strides[0] = 0;
-        in_strides[1] = h * w;
-        in_strides[2] = w;
-        in_strides[3] = 1;
-
-        if (perm[0] > 2 || perm[1] > 2 || perm[2] > 2)
-        {
-            return ARM_CMSIS_NN_ARG_ERROR;
-        }
-
-        out_strides[0] = 0;
-        out_strides[perm[0] + 1] = output_dims->h * output_dims->w;
-        out_strides[perm[1] + 1] = output_dims->w;
-        out_strides[perm[2] + 1] = 1;
-
-        return arm_transpose_s8_default(input, output, &smaller_input_dims, in_strides, out_strides);
-    }
-
-    if (perm[0] > 3 || perm[1] > 3 || perm[2] > 3 || perm[3] > 3)
-    {
-        return ARM_CMSIS_NN_ARG_ERROR;
-    }
-
-    out_strides[perm[0]] = output_dims->h * output_dims->w * output_dims->c;
-    out_strides[perm[1]] = output_dims->w * output_dims->c;
-    out_strides[perm[2]] = output_dims->c;
     out_strides[perm[3]] = 1;
+    out_strides[perm[2]] = dims[perm[3]];
+    out_strides[perm[1]] = dims[perm[3]] * dims[perm[2]];
+    out_strides[perm[0]] = dims[perm[3]] * dims[perm[2]] * dims[perm[1]];
 
+    /* The gather path holds the offsets of its 8 lanes, up to 7 * cols, in 16 bits. */
 #if defined(ARM_MATH_MVEI)
-    if (perm[0] == 0 && perm[1] == 1)
-    {
-        return arm_transpose_s8_nhcw(input, output, input_dims, in_strides, out_strides);
-    }
+    const int32_t max_swap_cols = UINT16_MAX / 7;
+#else
+    const int32_t max_swap_cols = INT32_MAX;
 #endif
 
-    return arm_transpose_s8_default(input, output, input_dims, in_strides, out_strides);
+    /* Not the identity, so this swaps the last two axes. */
+    if (perm[0] == 0 && perm[1] == 1 && dims[3] <= max_swap_cols)
+    {
+        return arm_transpose_s8_nhcw(input, output, &padded_dims, in_strides, out_strides);
+    }
+
+    return arm_transpose_s8_default(input, output, &padded_dims, in_strides, out_strides);
 }
 
 /**
