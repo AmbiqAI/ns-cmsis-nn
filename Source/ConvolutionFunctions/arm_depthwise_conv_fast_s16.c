@@ -70,7 +70,7 @@ arm_cmsis_nn_status arm_depthwise_conv_fast_s16(const cmsis_nn_context *ctx,
         return ARM_CMSIS_NN_ARG_ERROR;
     }
 
-    if (filter_dims->w * filter_dims->h >= MAX_COL_COUNT)
+    if ((int64_t)filter_dims->w * filter_dims->h >= MAX_COL_COUNT)
     {
         return ARM_CMSIS_NN_ARG_ERROR;
     }

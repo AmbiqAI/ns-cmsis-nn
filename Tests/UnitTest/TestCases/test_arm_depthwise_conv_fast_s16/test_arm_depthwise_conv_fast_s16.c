@@ -1301,6 +1301,47 @@ void stride_reach_arg_check_arm_depthwise_conv_fast_s16(void)
     }
 }
 
+/* A 65,535 x 65,535 filter is past the fast kernel's tap limit although its tap count wraps a 32-bit int: an argument
+   error through the fast entry and through the wrapper. The layer has no outputs, so only the checks reject it. */
+void tap_count_arg_check_arm_depthwise_conv_fast_s16(void)
+{
+    const cmsis_nn_dims input_dims = {1, 1, 1, 1}, filter_dims = {1, UINT16_MAX, UINT16_MAX, 1},
+                        bias_dims = {1, 1, 1, 1}, output_dims = {1, 1, 0, 1};
+    const cmsis_nn_dw_conv_params params = {.input_offset = 0,
+                                            .output_offset = 0,
+                                            .ch_mult = 1,
+                                            .stride = {1, 1},
+                                            .padding = {0, 0},
+                                            .dilation = {1, 1},
+                                            .activation = {-32768, 32767}};
+    const cmsis_nn_per_channel_quant_params quant = {dil_mult, dil_shift};
+    const cmsis_nn_context ctx = {dil_scratch, (int32_t)sizeof(dil_scratch)};
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR,
+                      arm_depthwise_conv_fast_s16(&ctx,
+                                                  &params,
+                                                  &quant,
+                                                  &input_dims,
+                                                  dil_input,
+                                                  &filter_dims,
+                                                  dil_filter,
+                                                  &bias_dims,
+                                                  dil_bias,
+                                                  &output_dims,
+                                                  dil_output));
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR,
+                      arm_depthwise_conv_wrapper_s16(&ctx,
+                                                     &params,
+                                                     &quant,
+                                                     &input_dims,
+                                                     dil_input,
+                                                     &filter_dims,
+                                                     dil_filter,
+                                                     &bias_dims,
+                                                     dil_bias,
+                                                     &output_dims,
+                                                     dil_output));
+}
+
 /* arm_depthwise_conv_fast_s16() steps only the horizontal tap index by dilation, so it rejects vertical dilation
    and a non-positive horizontal dilation instead of computing a wrong result. */
 void dilation_arg_check_arm_depthwise_conv_fast_s16(void)

@@ -45,7 +45,7 @@ extern "C" {
 #define USE_FAST_DW_CONV_S16_FUNCTION(dw_conv_params, filter_dims, input_dims, output_dims)                            \
     (dw_conv_params->ch_mult == 1 &&                                                                                   \
      arm_nn_dw_conv_opt_dilation_supported(dw_conv_params, input_dims, filter_dims, output_dims) &&                    \
-     filter_dims->w * filter_dims->h < 512)
+     (int64_t)filter_dims->w * filter_dims->h < 512)
 
 #define LEFT_SHIFT(_shift) (_shift > 0 ? _shift : 0)
 #define RIGHT_SHIFT(_shift) (_shift > 0 ? 0 : -_shift)
@@ -1735,9 +1735,10 @@ __STATIC_FORCEINLINE int32_t arm_nn_depthwise_s16_tap_index_invalid(const cmsis_
  * @brief Whether arm_depthwise_conv_s16() or the MVE kernel of arm_depthwise_conv_fast_s16() cannot take a layer.
  *        Every dimension, ch_mult, padding, stride and dilation must be in [0, UINT16_MAX], stride and dilation at
  *        least 1, the input and output planes H * W and the input, filter and output (C * ch_mult channels) at most
- *        INT32_MAX elements, a kernel size times its dilation at most INT32_MAX / 2, and an output size times its
- *        stride at most INT32_MAX / 2, since the kernels form tensor and tap indices in int32_t and divide by the
- *        stride and dilation. See AmbiqAI/ns-cmsis-nn#707.
+ *        INT32_MAX elements, a kernel size times its dilation at most INT32_MAX / 2, an output size times its
+ *        stride at most INT32_MAX / 2, and a tap step, dilation W times C or dilation H times W times C, at most
+ *        INT32_MAX, since the kernels form tensor and tap indices in int32_t and divide by the stride and dilation.
+ *        See AmbiqAI/ns-cmsis-nn#707.
  *
  * @param[in]      dw_conv_params  Depthwise convolution parameters
  * @param[in]      input_dims      Input tensor dimensions. Format: [N, H, W, C_IN]
@@ -1768,7 +1769,10 @@ __STATIC_FORCEINLINE int32_t arm_nn_depthwise_conv_s16_args_invalid(const cmsis_
         (uint32_t)filter_dims->w * (uint32_t)dw_conv_params->dilation.w > INT32_MAX / 2 ||
         (uint32_t)filter_dims->h * (uint32_t)dw_conv_params->dilation.h > INT32_MAX / 2 ||
         (uint32_t)output_dims->w * (uint32_t)dw_conv_params->stride.w > INT32_MAX / 2 ||
-        (uint32_t)output_dims->h * (uint32_t)dw_conv_params->stride.h > INT32_MAX / 2;
+        (uint32_t)output_dims->h * (uint32_t)dw_conv_params->stride.h > INT32_MAX / 2 ||
+        (uint64_t)(uint32_t)dw_conv_params->dilation.w * (uint32_t)input_dims->c > INT32_MAX ||
+        (uint64_t)((uint32_t)dw_conv_params->dilation.h * (uint32_t)input_dims->w) * (uint32_t)input_dims->c >
+        INT32_MAX;
 }
 
 /**

@@ -485,7 +485,7 @@ void dims_arg_errors_arm_depthwise_conv_s16(void)
 {
     const cmsis_nn_dw_conv_params unit_params = {0, 0, 1, {1, 1}, {0, 0}, {1, 1}, {-32768, 32767}};
     const cmsis_nn_dims unit_dims = {1, 1, 1, 1};
-    for (int c = 0; c < 38; c++)
+    for (int c = 0; c < 40; c++)
     {
 #if defined(ARM_MATH_MVEI) && !defined(ARM_MATH_AUTOVECTORIZE)
         /* The MVE kernel indexes taps in int32_t and takes these 1x1 layers; case 34 tests the generic kernel's rule */
@@ -605,7 +605,7 @@ void dims_arg_errors_arm_depthwise_conv_s16(void)
         }
         else if (c == 36)
         {
-            /* (output W - 1) * stride - padding past INT32_MAX: 39,999 * 65,535 - 32,768 */
+            /* Output W times stride past INT32_MAX / 2: 40,000 * 65,535, so the reach would wrap int32_t */
             input_dims = (cmsis_nn_dims){1, 1, 4, 1};
             filter_dims = (cmsis_nn_dims){1, 1, 2, 1};
             params.stride.w = UINT16_MAX;
@@ -619,6 +619,20 @@ void dims_arg_errors_arm_depthwise_conv_s16(void)
             params.stride.h = UINT16_MAX;
             params.padding.h = INT16_MAX + 1;
             output_dims = (cmsis_nn_dims){1, 40000, 1, 1};
+        }
+        else if (c == 38)
+        {
+            /* A horizontal tap step, dilation W * C, past INT32_MAX; no outputs, so only the check rejects it */
+            input_dims.c = 32769;
+            params.dilation.w = UINT16_MAX;
+            output_dims.w = 0;
+        }
+        else if (c == 39)
+        {
+            /* A vertical tap step, dilation H * W * C, past INT32_MAX */
+            input_dims = (cmsis_nn_dims){1, 1, 256, 256};
+            params.dilation.h = UINT16_MAX;
+            output_dims.w = 0;
         }
         else if (c == 34)
         {

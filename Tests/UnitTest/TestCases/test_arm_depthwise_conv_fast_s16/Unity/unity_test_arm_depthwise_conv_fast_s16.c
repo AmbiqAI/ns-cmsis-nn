@@ -96,5 +96,7 @@ void test_stride_reach_arg_check_arm_depthwise_conv_fast_s16(void)
     stride_reach_arg_check_arm_depthwise_conv_fast_s16();
 }
 
+void test_tap_count_arg_check_arm_depthwise_conv_fast_s16(void) { tap_count_arg_check_arm_depthwise_conv_fast_s16(); }
+
 void test_operand_bounds_arm_depthwise_conv_fast_s16(void) { operand_bounds_arm_depthwise_conv_fast_s16(); }
 void test_tap_index_arm_depthwise_conv_fast_s16(void) { tap_index_arm_depthwise_conv_fast_s16(); }
