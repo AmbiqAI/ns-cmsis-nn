@@ -9,9 +9,9 @@
 #include "Internal/arm_nn_activation_flt.h"
 #include "arm_nnfunctions.h"
 
-#if ARM_NN_ENABLE_F32
+#if ARM_NN_ENABLE_F16
 
-arm_cmsis_nn_status arm_nn_gelu_f32(const float32_t *input, float32_t *output, int32_t size)
+arm_cmsis_nn_status arm_nn_gelu_f16(const float16_t *input, float16_t *output, int32_t size)
 {
     if (size < 0 || (size > 0 && (!input || !output)))
     {
@@ -20,9 +20,10 @@ arm_cmsis_nn_status arm_nn_gelu_f32(const float32_t *input, float32_t *output, i
 
     for (int32_t i = 0; i < size; ++i)
     {
-        output[i] = arm_nn_gelu_scalar_f32(input[i]);
+        /* The float32 exact expression, rounded to float16 once. */
+        output[i] = (float16_t)arm_nn_gelu_scalar_f32((float32_t)input[i]);
     }
     return ARM_CMSIS_NN_SUCCESS;
 }
 
-#endif /* ARM_NN_ENABLE_F32 */
+#endif /* ARM_NN_ENABLE_F16 */
