@@ -30,28 +30,28 @@
  * @{
  */
 
-/*
- * s8 convolution function for Bx1x1xC output tensors.
- *
- * Refer header file for details. Optimal use case for the DSP/MVE implementation is when input and output channels
- * are multiples of 4 or atleast greater than 4.
- *
- */
-
 #if defined(ARM_MATH_MVEI)
 
-arm_cmsis_nn_status arm_convolve_1x1_out_s8(const cmsis_nn_context *ctx,
-                                            const cmsis_nn_context *weight_sum_ctx,
-                                            const cmsis_nn_conv_params *conv_params,
-                                            const cmsis_nn_per_channel_quant_params *quant_params,
-                                            const cmsis_nn_dims *input_dims,
-                                            const int8_t *input_data,
-                                            const cmsis_nn_dims *filter_dims,
-                                            const int8_t *filter_data,
-                                            const cmsis_nn_dims *bias_dims,
-                                            const int32_t *bias_data,
-                                            const cmsis_nn_dims *output_dims,
-                                            int8_t *output_data)
+    /* The convolution after the argument check. It is kept out of line, and GCC is kept from cloning it, so the check's
+       call does not change the register allocation of its loops. */
+    #if defined(__GNUC__) && !defined(__clang__)
+        #define ARM_CONVOLVE_1X1_OUT_S8_KERNEL_ATTR __attribute__((noinline, noipa))
+    #else
+        #define ARM_CONVOLVE_1X1_OUT_S8_KERNEL_ATTR __attribute__((noinline))
+    #endif
+static ARM_CONVOLVE_1X1_OUT_S8_KERNEL_ATTR arm_cmsis_nn_status
+arm_convolve_1x1_out_s8_kernel(const cmsis_nn_context *ctx,
+                               const cmsis_nn_context *weight_sum_ctx,
+                               const cmsis_nn_conv_params *conv_params,
+                               const cmsis_nn_per_channel_quant_params *quant_params,
+                               const cmsis_nn_dims *input_dims,
+                               const int8_t *input_data,
+                               const cmsis_nn_dims *filter_dims,
+                               const int8_t *filter_data,
+                               const cmsis_nn_dims *bias_dims,
+                               const int32_t *bias_data,
+                               const cmsis_nn_dims *output_dims,
+                               int8_t *output_data)
 {
     (void)bias_dims;
 
@@ -94,10 +94,10 @@ arm_cmsis_nn_status arm_convolve_1x1_out_s8(const cmsis_nn_context *ctx,
     const int32_t out_activation_max = conv_params->activation.max;
     const int32_t input_offset = conv_params->input_offset;
 
-    /* The argument check of arm_convolve_s8(), with one group only: the weight sums are read from their start, not
-       per group. Checked before any division. */
-    if (arm_nn_convolve_s8_args_invalid(conv_params, input_dims, filter_dims, output_dims) ||
-        input_dims->c != filter_dims->c)
+    /* Never true here: the kernel is entered only through arm_convolve_1x1_out_s8(), which checks more. The test
+       tells the compiler that the depths fit 16 bits and divide evenly. */
+    if (input_dims->c > UINT16_MAX || output_dims->c > UINT16_MAX ||
+        arm_nn_convolve_groups_invalid(input_dims, filter_dims, output_dims) || input_dims->c != filter_dims->c)
     {
         return ARM_CMSIS_NN_ARG_ERROR;
     }
@@ -233,6 +233,48 @@ arm_cmsis_nn_status arm_convolve_1x1_out_s8(const cmsis_nn_context *ctx,
 
     /* Return to application */
     return ARM_CMSIS_NN_SUCCESS;
+}
+
+/*
+ * s8 convolution function for Bx1x1xC output tensors.
+ *
+ * Refer header file for details. Optimal use case for the DSP/MVE implementation is when input and output channels
+ * are multiples of 4 or atleast greater than 4.
+ *
+ */
+
+arm_cmsis_nn_status arm_convolve_1x1_out_s8(const cmsis_nn_context *ctx,
+                                            const cmsis_nn_context *weight_sum_ctx,
+                                            const cmsis_nn_conv_params *conv_params,
+                                            const cmsis_nn_per_channel_quant_params *quant_params,
+                                            const cmsis_nn_dims *input_dims,
+                                            const int8_t *input_data,
+                                            const cmsis_nn_dims *filter_dims,
+                                            const int8_t *filter_data,
+                                            const cmsis_nn_dims *bias_dims,
+                                            const int32_t *bias_data,
+                                            const cmsis_nn_dims *output_dims,
+                                            int8_t *output_data)
+{
+    /* The argument check of arm_convolve_s8(), with one group only: the weight sums are read from their start, not
+       per group. Checked before the kernel divides by the depths. */
+    if (arm_nn_convolve_s8_args_invalid(conv_params, input_dims, filter_dims, output_dims) ||
+        input_dims->c != filter_dims->c)
+    {
+        return ARM_CMSIS_NN_ARG_ERROR;
+    }
+    return arm_convolve_1x1_out_s8_kernel(ctx,
+                                          weight_sum_ctx,
+                                          conv_params,
+                                          quant_params,
+                                          input_dims,
+                                          input_data,
+                                          filter_dims,
+                                          filter_data,
+                                          bias_dims,
+                                          bias_data,
+                                          output_dims,
+                                          output_data);
 }
 
 #endif // defined(ARM_MATH_MVEI)
