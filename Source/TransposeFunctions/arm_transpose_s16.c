@@ -79,42 +79,29 @@ static arm_cmsis_nn_status arm_transpose_s16_nhcw(const int16_t *input,
             const uint16_t *input_c = (const uint16_t *)input_h;
             uint16_t *output_c = (uint16_t *)output_h;
 
+            /* Blocks are addressed from their column, so no pointer is formed past the tensor. */
             for (int32_t z = 0; z < src_cols; z++)
             {
-                uint16_t const *input_w = (uint16_t const *)input_c;
-                uint16_t *output_w = (uint16_t *)output_c;
-
-                int32_t block_count = src_rows;
-                while (block_count > 0)
+                for (int32_t row = 0; row < src_rows; row += 8)
                 {
-                    mve_pred16_t p = vctp16q(block_count);
-                    /* Gather 8 int16 values from input_w using the computed byte offsets */
-                    vec_input = vldrhq_gather_shifted_offset_z_u16(input_w, vec_offsets, p);
-                    /* Store the gathered vector to output_w with predication */
-                    vstrhq_p_u16(output_w, vec_input, p);
+                    const mve_pred16_t p = vctp16q((uint32_t)(src_rows - row));
 
-                    /* Advance the input pointer by 8 rows. Since each row is src_cols int16 values,
-                       we add (src_cols * 8) elements. The output pointer is advanced by 8 elements. */
-                    input_w = input_w + src_cols * 8;
-                    output_w += 8;
-                    block_count -= 8;
+                    /* Gather 8 int16 values, src_cols elements apart, starting at this block's row */
+                    vec_input = vldrhq_gather_shifted_offset_z_u16(input_c + row * src_cols, vec_offsets, p);
+                    vstrhq_p_u16(output_c + row, vec_input, p);
                 }
 
                 input_c++;            /* Next column */
                 output_c += src_rows; /* Advance output pointer by the number of rows */
             }
 #else
-            const uint16_t *input_w = (const uint16_t *)input_h;
-            uint16_t *output_w = (uint16_t *)output_h;
+            const int16_t *input_w = input_h;
 
             for (int32_t src_row_i = 0; src_row_i < src_rows; src_row_i++)
             {
-                output_w = (uint16_t *)output_h + src_row_i;
-
                 for (int32_t x = 0; x < src_cols; x++)
                 {
-                    *output_w = *input_w++;
-                    output_w += src_rows;
+                    output_h[x * src_rows + src_row_i] = *input_w++;
                 }
             }
 #endif
@@ -247,7 +234,7 @@ arm_cmsis_nn_status arm_transpose_s16(const int16_t *input,
 
     if (perm[0] == 0 && perm[1] == 1 && perm[2] == 2)
     {
-        arm_memcpy_s16(output, input, (uint32_t)(dims[0] * dims[1] * dims[2] * dims[3]));
+        arm_memcpy_s16(output, input, (uint32_t)dims[0] * (uint32_t)dims[1] * (uint32_t)dims[2] * (uint32_t)dims[3]);
 
         return ARM_CMSIS_NN_SUCCESS;
     }

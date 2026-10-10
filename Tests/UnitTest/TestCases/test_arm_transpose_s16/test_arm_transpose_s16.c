@@ -419,8 +419,9 @@ void transpose_zero_extent_arm_transpose_s16(void)
     #define TRANSPOSE_WIDE_SECTION
 #endif
 
-/* Fits [1,1,8,9363], one column past the 16-bit gather offset limit, and [65537,1], a row count past 16 bits. */
-#define TRANSPOSE_WIDE_SIZE (8 * 9363)
+/* Fits [1,1,8,9363], one column past the 16-bit gather offset limit, and [65537,1] and [1,1,2,65537], a row and a
+ * column count past 16 bits. */
+#define TRANSPOSE_WIDE_SIZE (2 * 65537)
 static int16_t transpose_wide_input[TRANSPOSE_WIDE_SIZE] TRANSPOSE_WIDE_SECTION;
 static int16_t transpose_wide_output[TRANSPOSE_WIDE_SIZE + TRANSPOSE_CANARY_SIZE] TRANSPOSE_WIDE_SECTION;
 static int16_t transpose_wide_ref[TRANSPOSE_WIDE_SIZE] TRANSPOSE_WIDE_SECTION;
@@ -591,12 +592,14 @@ void transpose_wide_arm_transpose_s16(void)
     const int32_t widest_gather[4] = {1, 1, 8, 9362};
     const int32_t past_gather[4] = {1, 1, 8, 9363};
     const int32_t long_rows[2] = {65537, 1};
+    const int32_t long_cols[4] = {1, 1, 2, 65537};
 
     transpose_fill_s16(transpose_wide_input, TRANSPOSE_WIDE_SIZE);
 
     transpose_check_s16(transpose_wide_input, transpose_wide_output, transpose_wide_ref, widest_gather, swap_last, 4);
     transpose_check_s16(transpose_wide_input, transpose_wide_output, transpose_wide_ref, past_gather, swap_last, 4);
     transpose_check_s16(transpose_wide_input, transpose_wide_output, transpose_wide_ref, long_rows, swap_2d, 2);
+    transpose_check_s16(transpose_wide_input, transpose_wide_output, transpose_wide_ref, long_cols, swap_last, 4);
 }
 
 #if defined(USING_FVP_CORSTONE_300) && defined(ARM_MATH_MVEI)
@@ -630,9 +633,9 @@ static uint32_t transpose_mve_loads_s16(const int32_t *in_dims, const uint32_t *
 #endif
 
 /*
- * Numerics agree on either path, so the route is checked by load count. Swapping the last two axes on the gather path
- * issues outer * cols * ceil(rows / 8) gathers; the general loop issues no MVE loads and a copy issues size / 8, both
- * fewer than the gathers that shape would take.
+ * Numerics agree on either path, so the route is checked by MVE load count. Swapping the last two axes on the gather
+ * path issues outer * cols * ceil(rows / 8) gathers, and a copy issues one load per 16 bytes. Other routes are left to
+ * the numeric tests, since a compiler may vectorize the general loop.
  */
 void transpose_route_arm_transpose_s16(void)
 {
@@ -640,22 +643,24 @@ void transpose_route_arm_transpose_s16(void)
     const uint32_t swap_last[4] = {0, 1, 3, 2};
     const uint32_t identity[4] = {0, 1, 2, 3};
     const uint32_t swap_last_3d[3] = {0, 2, 1};
-    const uint32_t swap_first_3d[3] = {1, 0, 2};
     const int32_t small[4] = {2, 3, 11, 5};
     const int32_t small_3d[3] = {2, 11, 5};
     const int32_t history[3] = {1, 256, 57};
-    const int32_t past_gather[4] = {1, 1, 8, 9363};
+    const int32_t widest_gather[4] = {1, 1, 8, 9362};
 
-    /* 2 * 3 * 5 * 2, 1 * 57 * 32 and 2 * 5 * 2 gathers. */
+    /* 2 * 3 * 5 * 2, 1 * 57 * 32, 2 * 5 * 2 and 1 * 9362 * 1 gathers. */
     TEST_ASSERT_GREATER_OR_EQUAL_UINT32(60, transpose_mve_loads_s16(small, swap_last, 4));
     TEST_ASSERT_GREATER_OR_EQUAL_UINT32(1824, transpose_mve_loads_s16(history, swap_last_3d, 3));
     TEST_ASSERT_GREATER_OR_EQUAL_UINT32(20, transpose_mve_loads_s16(small_3d, swap_last_3d, 3));
+    TEST_ASSERT_GREATER_OR_EQUAL_UINT32(9362, transpose_mve_loads_s16(widest_gather, swap_last, 4));
 
-    /* Fewer loads than the gathers each shape would take on the swap path. */
-    TEST_ASSERT_LESS_THAN_UINT32(60, transpose_mve_loads_s16(small, identity, 4));
-    TEST_ASSERT_LESS_THAN_UINT32(22, transpose_mve_loads_s16(small, identity, 3));
-    TEST_ASSERT_LESS_THAN_UINT32(20, transpose_mve_loads_s16(small_3d, swap_first_3d, 3));
-    TEST_ASSERT_LESS_THAN_UINT32(9363, transpose_mve_loads_s16(past_gather, swap_last, 4));
+    /* Identities copy 660 and 132 bytes, fewer loads than the 60 and 22 gathers a swap of those shapes takes. */
+    const uint32_t rank4_copy = transpose_mve_loads_s16(small, identity, 4);
+    const uint32_t rank3_copy = transpose_mve_loads_s16(small, identity, 3);
+    TEST_ASSERT_GREATER_OR_EQUAL_UINT32(41, rank4_copy);
+    TEST_ASSERT_LESS_THAN_UINT32(60, rank4_copy);
+    TEST_ASSERT_GREATER_OR_EQUAL_UINT32(8, rank3_copy);
+    TEST_ASSERT_LESS_THAN_UINT32(22, rank3_copy);
 #else
     TEST_IGNORE_MESSAGE("The gather route exists only on MVE targets, and the PMU is read only on the FVP.");
 #endif

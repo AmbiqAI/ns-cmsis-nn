@@ -77,39 +77,28 @@ static arm_cmsis_nn_status arm_transpose_s8_nhcw(const int8_t *input,
             const uint8_t *input_c = (const uint8_t *)input_h;
             uint8_t *output_c = (uint8_t *)output_h;
 
+            /* Blocks are addressed from their column, so no pointer is formed past the tensor. */
             for (int32_t z = 0; z < src_cols; z++)
             {
-                uint8_t const *input_w = (uint8_t const *)input_c;
-                uint8_t *output_w = (uint8_t *)output_c;
-
-                int32_t block_count = src_rows;
-                while (block_count > 0)
+                for (int32_t row = 0; row < src_rows; row += 8)
                 {
-                    mve_pred16_t p = vctp16q(block_count);
+                    const mve_pred16_t p = vctp16q((uint32_t)(src_rows - row));
 
-                    vec_input = vldrbq_gather_offset_z_u16(input_w, vec_offsets, p);
-                    vstrbq_p_u16(output_w, vec_input, p);
-
-                    input_w = input_w + src_cols * 8;
-                    output_w += 8;
-                    block_count -= 8;
+                    vec_input = vldrbq_gather_offset_z_u16(input_c + row * src_cols, vec_offsets, p);
+                    vstrbq_p_u16(output_c + row, vec_input, p);
                 }
 
                 input_c++;
                 output_c += src_rows;
             }
 #else
-            const uint8_t *input_w = (const uint8_t *)input_h;
-            uint8_t *output_w = (uint8_t *)output_h;
+            const int8_t *input_w = input_h;
 
             for (int32_t src_row_i = 0; src_row_i < src_rows; src_row_i++)
             {
-                output_w = (uint8_t *)output_h + src_row_i;
-
                 for (int32_t x = 0; x < src_cols; x++)
                 {
-                    *output_w = *input_w++;
-                    output_w += src_rows;
+                    output_h[x * src_rows + src_row_i] = *input_w++;
                 }
             }
 #endif
@@ -242,7 +231,7 @@ arm_cmsis_nn_status arm_transpose_s8(const int8_t *input,
 
     if (perm[0] == 0 && perm[1] == 1 && perm[2] == 2)
     {
-        arm_memcpy_s8(output, input, (uint32_t)(dims[0] * dims[1] * dims[2] * dims[3]));
+        arm_memcpy_s8(output, input, (uint32_t)dims[0] * (uint32_t)dims[1] * (uint32_t)dims[2] * (uint32_t)dims[3]);
 
         return ARM_CMSIS_NN_SUCCESS;
     }
