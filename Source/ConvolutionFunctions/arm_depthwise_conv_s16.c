@@ -131,29 +131,36 @@ static void UNUSED_ATTR depthwise_conv_s16_mult_4_s16(const int16_t *input,
     }
 }
 
-static void depthwise_conv_s16_generic_s16(const int16_t *input,
-                                           const uint16_t input_batches,
-                                           const uint16_t input_x,
-                                           const uint16_t input_y,
-                                           const uint16_t input_ch,
-                                           const int8_t *kernel,
-                                           const uint16_t ch_mult,
-                                           const uint16_t kernel_x,
-                                           const uint16_t kernel_y,
-                                           const uint16_t pad_x,
-                                           const uint16_t pad_y,
-                                           const uint16_t stride_x,
-                                           const uint16_t stride_y,
-                                           const int64_t *bias,
-                                           int16_t *output,
-                                           const int32_t *output_shift,
-                                           const int32_t *output_mult,
-                                           const uint16_t output_x,
-                                           const uint16_t output_y,
-                                           const int32_t output_activation_min,
-                                           const int32_t output_activation_max,
-                                           const uint16_t dilation_x,
-                                           const uint16_t dilation_y)
+/* Measured per compiler: GCC keeps the kernel's loops tight only when the entry's argument check stays out of its
+   function (out of line, not cloned); clang does best with the kernel inlined. */
+#if defined(__GNUC__) && !defined(__clang__)
+    #define ARM_DEPTHWISE_CONV_S16_GENERIC_ATTR __attribute__((noinline, noipa))
+#else
+    #define ARM_DEPTHWISE_CONV_S16_GENERIC_ATTR __attribute__((always_inline)) inline
+#endif
+static ARM_DEPTHWISE_CONV_S16_GENERIC_ATTR void depthwise_conv_s16_generic_s16(const int16_t *input,
+                                                                               const uint16_t input_batches,
+                                                                               const uint16_t input_x,
+                                                                               const uint16_t input_y,
+                                                                               const uint16_t input_ch,
+                                                                               const int8_t *kernel,
+                                                                               const uint16_t ch_mult,
+                                                                               const uint16_t kernel_x,
+                                                                               const uint16_t kernel_y,
+                                                                               const uint16_t pad_x,
+                                                                               const uint16_t pad_y,
+                                                                               const uint16_t stride_x,
+                                                                               const uint16_t stride_y,
+                                                                               const int64_t *bias,
+                                                                               int16_t *output,
+                                                                               const int32_t *output_shift,
+                                                                               const int32_t *output_mult,
+                                                                               const uint16_t output_x,
+                                                                               const uint16_t output_y,
+                                                                               const int32_t output_activation_min,
+                                                                               const int32_t output_activation_max,
+                                                                               const uint16_t dilation_x,
+                                                                               const uint16_t dilation_y)
 
 {
     for (int i_batch = 0; i_batch < input_batches; i_batch++)
