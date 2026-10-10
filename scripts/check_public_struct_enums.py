@@ -30,11 +30,18 @@ CLANG_ARGS = ("-fsyntax-only", "-w", "-Wno-error=implicit-function-declaration",
               "-DARM_NN_ENABLE_F32=1", "-Xclang", "-ast-dump=json")
 
 
-def scalar_type(type_json: dict) -> str:
-    """The field's type with qualifiers and array bounds removed, desugared where clang gives the desugared form."""
-    name = type_json.get("desugaredQualType", type_json["qualType"])
+def scalar_type(name: str) -> str:
+    """A type name with qualifiers and array bounds removed."""
     name = re.sub(r"(\[\d*\])+$", "", name).strip()
-    return re.sub(r"^((const|volatile)\s+)+", "", name)
+    return re.sub(r"^((const|volatile)\s+)+", "", re.sub(r"\s+(const|volatile)$", "", name))
+
+
+def names_enum(type_node: dict) -> bool:
+    """Whether a type node of the AST resolves to an enum (or an array of one) rather than a pointer or function."""
+    kind = type_node.get("kind", "")
+    if kind in ("PointerType", "FunctionProtoType", "FunctionNoProtoType", "BlockPointerType"):
+        return False
+    return kind == "EnumType" or any(names_enum(child) for child in type_node.get("inner", []))
 
 
 def main(include_dir: Path = INCLUDE_DIR) -> int:
@@ -59,7 +66,9 @@ def main(include_dir: Path = INCLUDE_DIR) -> int:
 
     ast = json.loads(result.stdout)
     root = Path(include_dir).resolve()
-    typedefs: dict[str, str] = {}
+    # Typedefs that resolve to an enum, by name and by id. Decided from the type nodes, not from printed type names,
+    # which differ between clang releases.
+    enum_typedefs: set[str] = set()
     # A "typedef struct { ... } name;" record is anonymous; name it after its typedef
     record_names: dict[str, str] = {}
 
@@ -74,7 +83,7 @@ def main(include_dir: Path = INCLUDE_DIR) -> int:
         if decl.get("kind") == "TypedefDecl":
             owned_tags(decl, decl["name"])
 
-    fields: list[tuple[str, str, str, str]] = []  # (header, record, field, scalar type)
+    fields: list[tuple[str, str, str, dict]] = []  # (header, record, field, clang type)
     records = set()
     current_file = ""
 
@@ -88,30 +97,31 @@ def main(include_dir: Path = INCLUDE_DIR) -> int:
         kind = node.get("kind")
         in_headers = Path(current_file).resolve().is_relative_to(root) if current_file else False
         if kind == "TypedefDecl":
-            typedefs[node["name"]] = scalar_type(node["type"])
+            if any(names_enum(child) for child in node.get("inner", [])):
+                enum_typedefs.update((node["name"], node["id"]))
         elif kind == "RecordDecl" and in_headers and node.get("completeDefinition"):
             record = node.get("name") or record_names.get(node["id"]) or f"anonymous {node['tagUsed']} in {record}"
             records.add(node["id"])
         elif kind == "FieldDecl" and in_headers:
-            fields.append((current_file, record, node.get("name", "(unnamed)"), scalar_type(node["type"])))
+            fields.append((current_file, record, node.get("name", "(unnamed)"), node["type"]))
         for child in node.get("inner", []):
             walk(child, record)
 
     walk(ast, "")
 
-    def is_enum(name: str) -> bool:
-        seen = set()
-        while name in typedefs and name not in seen and "*" not in name and "(" not in name:
-            seen.add(name)
-            name = typedefs[name]
-        return name.startswith("enum ") and "*" not in name
+    def is_enum(type_json: dict) -> bool:
+        names = [scalar_type(type_json[key]) for key in ("qualType", "desugaredQualType") if key in type_json]
+        if any("*" in name or "(" in name.replace("(unnamed at", "").replace("(anonymous at", "") for name in names):
+            return False
+        return (type_json.get("typeAliasDeclId") in enum_typedefs or
+                any(name.startswith("enum ") or name in enum_typedefs for name in names))
 
     if not fields:
         print("no struct or union fields found under the headers; the check would pass vacuously", file=sys.stderr)
         return 1
 
-    failures = [f"{Path(h).resolve().relative_to(root.parent)}: {record} field {field} has enum type {type_}; use "
-                "int32_t and name the enum in the field's comment"
+    failures = [f"{Path(h).resolve().relative_to(root.parent)}: {record} field {field} has enum type "
+                f"{type_['qualType']}; use int32_t and name the enum in the field's comment"
                 for h, record, field, type_ in fields if is_enum(type_)]
     for failure in failures:
         print(failure, file=sys.stderr)
