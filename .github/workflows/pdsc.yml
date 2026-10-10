@@ -216,13 +216,17 @@ jobs:
     # enums short and ATfE/armclang size them as int, so such a field gives a
     # caller and a library built with different conventions different struct
     # layouts. That misrouted the FP16 fully connected and batch matmul
-    # entries (#693, #764).
+    # entries (#693, #764). The check parses the headers with the runner
+    # image's clang.
     name: Public struct enum fields
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
       - name: Checkout
         uses: actions/checkout@v7
+
+      - name: Show clang version
+        run: clang --version
 
       - name: Run public struct enum check
         run: python3 scripts/check_public_struct_enums.py
@@ -288,6 +292,11 @@ jobs:
       # float_cmsis_components job, which runs the checker itself.
       - name: Install dependencies
         run: python -m pip install pyyaml==6.0.3
+
+      # test_check_public_struct_enums.py parses headers with the runner
+      # image's clang.
+      - name: Show clang version
+        run: clang --version
 
       - name: Run every scripts/tests/test_check_*.py
         run: |
