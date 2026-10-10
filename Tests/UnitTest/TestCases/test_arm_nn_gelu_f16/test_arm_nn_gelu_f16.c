@@ -7,6 +7,7 @@
 #include <math.h>
 #include <stdbool.h>
 #include <stdint.h>
+#include <stdio.h>
 #include <string.h>
 #include <unity.h>
 
@@ -50,10 +51,17 @@ static bool gelu_equal(uint16_t expected, uint16_t actual)
     return expected == actual;
 }
 
+/* x * Phi(x) in double, independent of the float32 erfcf the kernel and producer share. */
+static double gelu_reference(uint16_t u)
+{
+    const double x = (double)(float)gelu_half(u);
+    return 0.5 * x * erfc(-x / sqrt(2.0));
+}
+
 /* Every float16 bit pattern, one scalar call each: an array call may take a vectorized libm. */
 void gelu_f16_exhaustive(void)
 {
-    uint32_t mismatches = 0;
+    uint32_t mismatches = 0, first = 0;
     for (uint32_t u = 0; u <= 0xffffU; ++u)
     {
         const float16_t input = gelu_half((uint16_t)u);
@@ -61,10 +69,37 @@ void gelu_f16_exhaustive(void)
         if (arm_nn_gelu_f16(&input, &output, 1) != ARM_CMSIS_NN_SUCCESS ||
             !gelu_equal(gelu_producer((uint16_t)u), gelu_bits(output)))
         {
-            ++mismatches;
+            first = mismatches++ ? first : u;
         }
     }
-    TEST_ASSERT_EQUAL_UINT32(0, mismatches);
+    char message[48];
+    snprintf(message, sizeof(message), "first mismatch at input 0x%04lx", (unsigned long)first);
+    TEST_ASSERT_EQUAL_UINT32_MESSAGE(0, mismatches, message);
+}
+
+/* The documented bound, |out - ref| <= 2^-10 * |ref| + 2^-24, for every finite input. */
+void gelu_f16_accuracy(void)
+{
+    uint32_t violations = 0, first = 0;
+    for (uint32_t u = 0; u <= 0xffffU; ++u)
+    {
+        if ((u & 0x7c00U) == 0x7c00U)
+        {
+            continue;
+        }
+        const float16_t input = gelu_half((uint16_t)u);
+        float16_t output;
+        const double ref = gelu_reference((uint16_t)u);
+        const bool ok = arm_nn_gelu_f16(&input, &output, 1) == ARM_CMSIS_NN_SUCCESS &&
+            fabs((double)(float)output - ref) <= ldexp(fabs(ref), -10) + ldexp(1.0, -24);
+        if (!ok)
+        {
+            first = violations++ ? first : u;
+        }
+    }
+    char message[48];
+    snprintf(message, sizeof(message), "first violation at input 0x%04lx", (unsigned long)first);
+    TEST_ASSERT_EQUAL_UINT32_MESSAGE(0, violations, message);
 }
 
 /* Fixed points of the contract that do not depend on the producer. */
@@ -164,13 +199,10 @@ void gelu_f16_arguments(void)
 }
 
 /*
- * With FPSCR.FZ16 set, a result whose reference is float16-subnormal may come back as a zero of the same sign;
- * every other result must be unchanged. Expectations are taken with FZ16 clear.
+ * With FPSCR.FZ16 set, a result whose reference is below 2^-14 in magnitude may come back as a zero of the same
+ * sign; every other result must be unchanged. Expectations are taken with FZ16 clear. The FVP's scalar VCVTB does
+ * not apply FZ16, so there this checks that nothing changes.
  */
-#if defined(USING_FVP_CORSTONE_300) && defined(__FPU_PRESENT) && (__FPU_PRESENT == 1U)
-static bool gelu_is_subnormal(uint16_t u) { return (u & 0x7c00U) == 0 && (u & 0x03ffU) != 0; }
-#endif
-
 void gelu_f16_flush_to_zero(void)
 {
 #if defined(USING_FVP_CORSTONE_300) && defined(__FPU_PRESENT) && (__FPU_PRESENT == 1U)
@@ -188,7 +220,7 @@ void gelu_f16_flush_to_zero(void)
         __set_FPSCR(fpscr);
 
         const uint16_t actual = gelu_bits(output);
-        const bool flushed = gelu_is_subnormal(expected) && actual == (expected & 0x8000U);
+        const bool flushed = fabs(gelu_reference((uint16_t)u)) < ldexp(1.0, -14) && actual == (expected & 0x8000U);
         if (status != ARM_CMSIS_NN_SUCCESS || !(gelu_equal(expected, actual) || flushed))
         {
             ++violations;

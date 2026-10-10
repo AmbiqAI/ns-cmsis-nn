@@ -3771,9 +3771,9 @@ arm_cmsis_nn_status arm_hard_swish_f16(const float16_t *input, float16_t *output
  *
  * Widens each element to float32, evaluates the exact-mode expression of
  * @ref arm_nn_gelu_f32, 0.5f * x * erfcf(x * -float(1/sqrt(2))), and rounds to
- * float16 once; this is not the tanh approximation. With FPSCR.FZ16 clear, every
- * finite result is within 2^-10 * |ref| + 2^-24 of x * Phi(x). With FZ16 set, a
- * result whose reference is float16-subnormal may instead be a zero of the same
+ * float16 once; this is not the tanh approximation. With ref = x * Phi(x) and
+ * FPSCR.FZ16 clear, every finite result is within 2^-10 * |ref| + 2^-24 of ref.
+ * With FZ16 set, a result with |ref| < 2^-14 may instead be a zero of the same
  * sign. Results depend on the compiler, libm and floating-point environment.
  * NaN propagates, +Inf maps to +Inf and -Inf to NaN, and the sign of zero is
  * kept; NaN payloads and exception flags are not specified. No scratch or vector
@@ -3783,7 +3783,7 @@ arm_cmsis_nn_status arm_hard_swish_f16(const float16_t *input, float16_t *output
  * @param[out] output  Output vector; exact alias with input is supported.
  *                     Partial overlap is not supported.
  * @param[in]  size    Element count. Zero succeeds without accessing either pointer,
- *                    which may then be NULL. Negative counts are invalid.
+ *                     which may then be NULL. Negative counts are invalid.
  *
  * @return ARM_CMSIS_NN_SUCCESS, or ARM_CMSIS_NN_ARG_ERROR for a negative count
  *         or a NULL pointer with a positive count. Invalid arguments write nothing.

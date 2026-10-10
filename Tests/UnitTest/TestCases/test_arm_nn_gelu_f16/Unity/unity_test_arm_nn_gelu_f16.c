@@ -16,6 +16,7 @@ void setUp(void)
 }
 void tearDown(void) {}
 void test_gelu_f16_exhaustive(void) { gelu_f16_exhaustive(); }
+void test_gelu_f16_accuracy(void) { gelu_f16_accuracy(); }
 void test_gelu_f16_special(void) { gelu_f16_special(); }
 void test_gelu_f16_counts(void) { gelu_f16_counts(); }
 void test_gelu_f16_in_place(void) { gelu_f16_in_place(); }
