@@ -835,11 +835,11 @@ void buffer_size_out_of_range_dsp_arm_convolve_1x1_s8_fast(void)
 }
 
 /*
- * A negative N, H, W, C_IN or C_OUT, or a pixel count N * H * W past INT32_MAX, is an argument error, and a zero one
- * is an empty tensor that returns success; neither writes anything (#680). The row loops would otherwise run on a
- * negative or wrapped count.
+ * A negative N, H, W, C_IN or C_OUT, or a pixel count N * H * W past INT32_MAX, is an argument error. A zero one
+ * returns success, even with H * W past INT32_MAX. Neither writes anything (#680): the row loops would otherwise run
+ * on a negative or wrapped count. On MVE a NULL weight-sum buffer is an error even for a zero extent.
  */
-void pixel_count_arg_errors_arm_convolve_1x1_s8_fast(void)
+void extent_checks_arm_convolve_1x1_s8_fast(void)
 {
     const int8_t input[4] = {1, 2, 3, 4};
     const int8_t weights[4] = {1, 1, 1, 1};
@@ -854,7 +854,8 @@ void pixel_count_arg_errors_arm_convolve_1x1_s8_fast(void)
     const cmsis_nn_per_channel_quant_params quant_params = {multiplier, shift};
     const cmsis_nn_dims filter_dims = {1, 1, 1, 1};
     const cmsis_nn_dims bias_dims = {1, 1, 1, 1};
-    /* [N, H, W, C_IN] with C_OUT: one negative or zero value each, then N * H * W of 2^31 and H * W of 2^32 */
+    /* [N, H, W, C_IN] with C_OUT: one negative or zero value each, N * H * W of 2^31, H * W of 2^32, then a zero N
+       with H * W of 2^32 */
     const struct
     {
         cmsis_nn_dims input;
@@ -871,7 +872,8 @@ void pixel_count_arg_errors_arm_convolve_1x1_s8_fast(void)
                  {{1, 1, 3, 1}, -1, ARM_CMSIS_NN_ARG_ERROR},
                  {{1, 1, 3, 1}, 0, ARM_CMSIS_NN_SUCCESS},
                  {{2, 65536, 16384, 1}, 1, ARM_CMSIS_NN_ARG_ERROR},
-                 {{1, 65536, 65536, 1}, 1, ARM_CMSIS_NN_ARG_ERROR}};
+                 {{1, 65536, 65536, 1}, 1, ARM_CMSIS_NN_ARG_ERROR},
+                 {{0, 65536, 65536, 1}, 1, ARM_CMSIS_NN_SUCCESS}};
     for (size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); i++)
     {
         const cmsis_nn_dims output_dims = {cases[i].input.n, cases[i].input.h, cases[i].input.w, cases[i].out_c};
@@ -894,4 +896,27 @@ void pixel_count_arg_errors_arm_convolve_1x1_s8_fast(void)
             TEST_ASSERT_EQUAL_INT8(0x55, output[j]);
         }
     }
+#if defined(ARM_MATH_MVEI)
+    const cmsis_nn_context no_sum_ctx = {NULL, 0};
+    const cmsis_nn_dims empty_input = {0, 1, 3, 1};
+    const cmsis_nn_dims empty_output = {0, 1, 3, 1};
+    int8_t output[4] = {0x55, 0x55, 0x55, 0x55};
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR,
+                      arm_convolve_1x1_s8_fast(&ctx,
+                                               &no_sum_ctx,
+                                               &conv_params,
+                                               &quant_params,
+                                               &empty_input,
+                                               input,
+                                               &filter_dims,
+                                               weights,
+                                               &bias_dims,
+                                               bias,
+                                               &empty_output,
+                                               output));
+    for (int j = 0; j < 4; j++)
+    {
+        TEST_ASSERT_EQUAL_INT8(0x55, output[j]);
+    }
+#endif
 }

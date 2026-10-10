@@ -1366,7 +1366,8 @@ arm_cmsis_nn_status arm_convolve_1x1_s4(const cmsis_nn_context *ctx,
  *                  <code>ARM_CMSIS_NN_ARG_ERROR</code> if argument constraints fail (among them a negative N, H, W,
  *                  C_IN or C_OUT, or a pixel count N * H * W above INT32_MAX), or
  *                  <code>ARM_CMSIS_NN_SUCCESS</code> on successful completion. When N, H, W, C_IN or C_OUT is 0 it
- *                  returns <code>ARM_CMSIS_NN_SUCCESS</code> at once and writes nothing.
+ *                  returns <code>ARM_CMSIS_NN_SUCCESS</code> at once and writes nothing, so with only C_IN 0
+ *                  the output is left unwritten. The NULL weight_sum_ctx->buf check comes first.
  *
  * @details
  *   - Supported framework : TensorFlow Lite Micro
