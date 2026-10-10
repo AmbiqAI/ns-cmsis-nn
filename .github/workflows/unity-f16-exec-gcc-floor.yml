@@ -75,8 +75,8 @@ jobs:
       # test_arm_hard_swish_f16 is listed too and is not derived: that
       # kernel's MVE leg is pure half precision and reaches no conversion at
       # all. It stays here as a plain float16 execution suite on the oldest
-      # gated compiler, which is worth having on its own. The ARG, sqrt and
-      # rsqrt f16 suites are listed on the same footing: pull requests ran
+      # gated compiler, which is worth having on its own. The ARG, GELU, sqrt
+      # and rsqrt f16 suites are listed on the same footing: pull requests ran
       # them only on the host (host-sanitizer.yml), and on an Arm target only
       # nightly and at release (AmbiqAI/ns-cmsis-nn#511, #400).
       #
@@ -96,6 +96,7 @@ jobs:
         test_arm_f16_block_accum
         test_arm_fully_connected_f16
         test_arm_hard_swish_f16
+        test_arm_nn_gelu_f16
         test_arm_nn_mean_f16
         test_arm_nn_sqrt_f16
         test_arm_reduce_sum_f16

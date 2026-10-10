@@ -77,7 +77,7 @@ void gelu_f16_exhaustive(void)
     TEST_ASSERT_EQUAL_UINT32_MESSAGE(0, mismatches, message);
 }
 
-/* The documented bound, |out - ref| <= 2^-10 * |ref| + 2^-24, for every finite input. */
+/* The documented bound, |out - ref| <= 2^-10 * |ref| + 2^-24 with FPSCR.FZ16 clear, for every finite input. */
 void gelu_f16_accuracy(void)
 {
     uint32_t violations = 0, first = 0;
@@ -200,8 +200,8 @@ void gelu_f16_arguments(void)
 
 /*
  * With FPSCR.FZ16 set, a result whose reference is below 2^-14 in magnitude may come back as a zero of the same
- * sign; every other result must be unchanged. Expectations are taken with FZ16 clear. The FVP's scalar VCVTB does
- * not apply FZ16, so there this checks that nothing changes.
+ * sign; every other result must be unchanged. Expectations are taken with FZ16 clear. Armv8.1-M conversions between
+ * half and single precision do not apply FZ16, so on those targets this checks that nothing changes.
  */
 void gelu_f16_flush_to_zero(void)
 {
