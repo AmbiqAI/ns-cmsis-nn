@@ -632,4 +632,9 @@ void positive_shift_arm_depthwise_conv_s16(void)
         edge_quant(out_ch, 0, shifts[i]);
         TEST_ASSERT_TRUE(edge_run(&cases[i]) > 0);
     }
+
+    /* Full-range products: shifted left in 32 bits they would wrap, not saturate */
+    const edge_case wide = {5, 6, 5, 1, 3, 3, 1, 1, 1, 16384, 127};
+    edge_quant(5, 0, 10);
+    (void)edge_run(&wide);
 }
