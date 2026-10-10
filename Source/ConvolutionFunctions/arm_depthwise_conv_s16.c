@@ -131,8 +131,9 @@ static void UNUSED_ATTR depthwise_conv_s16_mult_4_s16(const int16_t *input,
     }
 }
 
-/* Measured per compiler: GCC keeps the kernel's loops tight only when the entry's argument check stays out of its
-   function (out of line, not cloned); clang does best with the kernel inlined. */
+/* Measured per compiler on the Corstone-300 FVP: GCC keeps the kernel's loops tight only when the entry's argument
+   check stays out of its function (out of line, not cloned); the other compilers, clang among them, do best with
+   the kernel inlined. */
 #if defined(__GNUC__) && !defined(__clang__)
     #define ARM_DEPTHWISE_CONV_S16_GENERIC_ATTR __attribute__((noinline, noipa))
 #else
