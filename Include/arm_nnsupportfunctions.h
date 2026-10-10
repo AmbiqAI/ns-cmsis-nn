@@ -22,8 +22,8 @@
  * Title:        arm_nnsupportfunctions.h
  * Description:  Public header file of support functions for CMSIS NN Library
  *
- * $Date:        15 June 2026
- * $Revision:    V.22.11.0
+ * $Date:        8 October 2026
+ * $Revision:    V.22.12.0
  *
  * Target :  Arm(R) M-Profile Architecture
  * -------------------------------------------------------------------- */
@@ -1711,8 +1711,9 @@ int32_t arm_nn_convolve_s8_args_invalid(const cmsis_nn_conv_params *conv_params,
                                         const cmsis_nn_dims *output_dims);
 
 /**
- * @brief Whether arm_depthwise_conv_s16() and the DSP path of arm_depthwise_conv_fast_s16() could wrap the first tap
- *        index of an output, stride * output index - padding, which they keep as int16_t: it stays in
+ * @brief Whether the generic kernel of arm_depthwise_conv_s16() and the DSP path of arm_depthwise_conv_fast_s16()
+ *        could wrap the first tap index of an output, stride * output index - padding, which they keep as int16_t
+ *        (the MVE kernel keeps it as int32_t): it stays in
  *        [-INT16_MAX, INT16_MAX] when padding and stride are in [0, INT16_MAX] and (output size - 1) * stride -
  *        padding is at most INT16_MAX, in W and in H. See AmbiqAI/ns-cmsis-nn#727.
  *
@@ -3275,6 +3276,35 @@ __STATIC_FORCEINLINE int8x16_t arm_narrow_mve_from_int32x4x4_to_int8x16(int32x4_
 
     return out;
 }
+
+    #if !defined(ARM_MATH_AUTOVECTORIZE)
+/**
+ * @brief           MVE s16 depthwise convolution for any channel multiplier, used by
+ *                  arm_depthwise_conv_s16() and arm_depthwise_conv_fast_s16().
+ *
+ * @param[in]       dw_conv_params  Depthwise convolution parameters
+ * @param[in]       quant_params    Per-channel quantization parameters
+ * @param[in]       input_dims      Input tensor dimensions, NHWC
+ * @param[in]       input           Input data pointer
+ * @param[in]       filter_dims     Filter tensor dimensions, 1HWC
+ * @param[in]       kernel          Filter data pointer
+ * @param[in]       bias            Per-channel s64 bias, or NULL
+ * @param[in]       output_dims     Output tensor dimensions, NHWC
+ * @param[out]      output          Output data pointer
+ *
+ * @return          false, with no output written, when the filter has MAX_COL_COUNT or more taps. The caller
+ *                  then runs its own path.
+ */
+bool arm_nn_depthwise_conv_s16_mve(const cmsis_nn_dw_conv_params *dw_conv_params,
+                                   const cmsis_nn_per_channel_quant_params *quant_params,
+                                   const cmsis_nn_dims *input_dims,
+                                   const int16_t *input,
+                                   const cmsis_nn_dims *filter_dims,
+                                   const int8_t *kernel,
+                                   const int64_t *bias,
+                                   const cmsis_nn_dims *output_dims,
+                                   int16_t *output);
+    #endif
 
 #endif
 

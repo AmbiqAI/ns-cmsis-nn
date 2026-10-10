@@ -2205,10 +2205,11 @@ arm_cmsis_nn_status arm_depthwise_conv_s4(const cmsis_nn_context *ctx,
  * @param[out]     output_data     Output data pointer. Data type: int16
  * @return     The function returns <code>ARM_CMSIS_NN_SUCCESS</code>, or <code>ARM_CMSIS_NN_ARG_ERROR</code> with
  *             nothing written when a dimension, ch_mult, padding, stride or dilation is outside [0, 65,535], a
- *             dilation is 0, a padding or stride is outside [0, 32,767], (output W or H - 1) * stride - padding is
- *             above 32,767 (the first tap index of an output is kept as int16_t), an input or output plane H * W or
- *             the input, filter or output (C * ch_mult channels) holds more than INT32_MAX elements, or a KW or KH
- *             times the dilation is above INT32_MAX / 2.
+ *             dilation is 0, an input or output plane H * W or the input, filter or output (C * ch_mult channels)
+ *             holds more than INT32_MAX elements, or a KW or KH times the dilation is above INT32_MAX / 2. Where the
+ *             generic kernel runs (builds without the MVE kernel, and filters of 512 or more taps), it is also an
+ *             argument error when a padding or stride is outside [0, 32,767] or (output W or H - 1) * stride -
+ *             padding is above 32,767: that kernel keeps the first tap index of an output as int16_t.
  *
  * @details
  *    - Supported framework: TensorFlow Lite
@@ -2370,12 +2371,14 @@ int32_t arm_depthwise_conv_wrapper_s16_get_buffer_size_mve(const cmsis_nn_dw_con
  *                <code>ARM_CMSIS_NN_ARG_ERROR</code> - ctx-buff == NULL and
  *                                                      arm_depthwise_conv_fast_s16_get_buffer_size() != 0 or
  *                                                      input channel != output channel or
+ *                                                      dw_conv_params->ch_mult != 1 or
  *                                                      filter_dims->w * filter_dims->h >= MAX_COL_COUNT (512) or
  *                                                      dw_conv_params->dilation.h != 1 or
- *                                                      dw_conv_params->dilation.w < 1 or, on DSP builds without
- *                                                      MVE, a padding or stride outside [0, 32,767] or (output W
- *                                                      or H - 1) * stride - padding above 32,767; builds without
- *                                                      DSP run arm_depthwise_conv_s16() and return its errors
+ *                                                      dw_conv_params->dilation.w < 1 or, on the DSP path (DSP
+ *                                                      builds without the MVE kernel), a padding or stride
+ *                                                      outside [0, 32,767] or (output W or H - 1) * stride -
+ *                                                      padding above 32,767; builds without DSP run
+ *                                                      arm_depthwise_conv_s16() and return its errors
  *
  *                <code>ARM_CMSIS_NN_SUCCESS</code> - Successful operation
  *

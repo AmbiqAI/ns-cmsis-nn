@@ -51,3 +51,14 @@ void test_arm_depthwise_conv_wrapper_s16_buffer(void) { arm_depthwise_conv_wrapp
 void test_buffer_size_mve_arm_depthwise_conv_s16(void) { buffer_size_mve_arm_depthwise_conv_s16(); }
 void test_buffer_size_dsp_arm_depthwise_conv_s16(void) { buffer_size_dsp_arm_depthwise_conv_s16(); }
 void test_dims_arg_errors_arm_depthwise_conv_s16(void) { dims_arg_errors_arm_depthwise_conv_s16(); }
+
+void test_channel_tail_arm_depthwise_conv_s16(void) { channel_tail_arm_depthwise_conv_s16(); }
+void test_zero_taps_arm_depthwise_conv_s16(void) { zero_taps_arm_depthwise_conv_s16(); }
+void test_wide_bias_arm_depthwise_conv_s16(void) { wide_bias_arm_depthwise_conv_s16(); }
+void test_positive_shift_arm_depthwise_conv_s16(void) { positive_shift_arm_depthwise_conv_s16(); }
+
+void test_tap_limit_arm_depthwise_conv_s16(void) { tap_limit_arm_depthwise_conv_s16(); }
+
+void test_s32_shift_arm_depthwise_conv_s16(void) { s32_shift_arm_depthwise_conv_s16(); }
+
+void test_s32_bound_arm_depthwise_conv_s16(void) { s32_bound_arm_depthwise_conv_s16(); }
