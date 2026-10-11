@@ -40,8 +40,8 @@ arm_cmsis_nn_status
 arm_dequantize_s8_f32(const int8_t *input, float *output, int32_t size, int32_t zero_point, float scale)
 {
 
-#if defined(ARM_MATH_MVEI)
-
+#if defined(ARM_MATH_MVEF) && !defined(ARM_MATH_AUTOVECTORIZE)
+    /* vcvt.f32 and vmul.f32 need the MVE floating-point extension; integer-only MVE takes the loop below */
     __ASM volatile(" .p2align 2                                 \n"
                    "   wlstp.32         lr, %[size], 1f         \n"
                    "   vdup.32           q4, %[zero_point]      \n"
