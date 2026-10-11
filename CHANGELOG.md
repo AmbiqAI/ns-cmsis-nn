@@ -1,5 +1,38 @@
 # Changelog
 
+## [7.44.1](https://github.com/AmbiqAI/ns-cmsis-nn/compare/v7.44.0...v7.44.1) (2026-10-11)
+
+
+### Notes for integrators
+
+This patch fixes out-of-bounds writes and reads and wrong output in depthwise and s16 convolution kernels, mostly on builds without MVE. The library also builds for integer-only MVE now. Scratch sizes are unchanged.
+
+* **Depthwise im2col fills ([#766](https://github.com/AmbiqAI/ns-cmsis-nn/issues/766), [#781](https://github.com/AmbiqAI/ns-cmsis-nn/pull/781)).** These im2col paths wrote past their scratch buffer when padding was taller than the filter, when an output row lay wholly below the input, or when the input was empty:
+  * the DSP path of `arm_depthwise_conv_fast_s16()` (builds with DSP and without MVE, and MVE builds with `ARM_MATH_AUTOVECTORIZE`);
+  * the DSP channel path of `arm_depthwise_conv_s8_opt()` and `arm_depthwise_conv_s8_opt_channelwise()` (builds with DSP and without MVE);
+  * the non-MVE path of `arm_depthwise_conv_s4_opt()` (every build without MVE, including Cortex-M0).
+
+  They now fill exactly the filter's rows, and their outputs equal the generic kernels' outputs. The `arm_depthwise_conv_wrapper_*` functions that route to them are covered.
+
+  `arm_depthwise_conv_s4_opt()` now also returns `ARM_CMSIS_NN_ARG_ERROR`, on every build, for a negative channel count, filter width or filter height.
+* **s16 convolution past 512 columns ([#777](https://github.com/AmbiqAI/ns-cmsis-nn/issues/777), [#782](https://github.com/AmbiqAI/ns-cmsis-nn/pull/782)).** On builds without MVE, `arm_convolve_s16()` with an int64 bias and more than 512 filter columns per group had two defects:
+  * **Leftover pixel:** the output pixel left over from an odd number of output pixels accumulated in int32. Near-full-scale inputs overflowed it and gave wrong output.
+  * **Last odd channel (DSP builds):** the last of an odd number of output channels read up to three columns past the filter and im2col rows, and added them to the output, when the column count was not a multiple of 4.
+
+  The leftover pixel now accumulates past 512 columns in int64, as the other outputs already did, and the odd channel takes its tail count from the first 512 columns only. MVE builds are unchanged.
+
+  With an int32 bias, accumulation stays int32, as in TFLite's reference, so full-scale filters of about 517 columns or more can still overflow in both (#777).
+* **Integer-only MVE builds ([#778](https://github.com/AmbiqAI/ns-cmsis-nn/issues/778), [#783](https://github.com/AmbiqAI/ns-cmsis-nn/pull/783)).** The library now builds for a Cortex-M55 without the MVE floating-point extension, for example `-mcpu=cortex-m55+nomve.fp`. `arm_dequantize_s8_f32()` and `arm_dequantize_s16_f32()` use their scalar loop there, as on builds without MVE. Full-MVE builds without `ARM_MATH_AUTOVECTORIZE` are unchanged.
+
+  With `ARM_MATH_AUTOVECTORIZE`, these two functions now also use the scalar loop. It can be slower where the compiler does not vectorize it (GCC 14.2 does not). Outputs match for normal scales in the default rounding mode.
+
+
+### Bug Fixes
+
+* **conv:** accumulate s16 convolutions in int64 past 512 columns ([#782](https://github.com/AmbiqAI/ns-cmsis-nn/issues/782)) ([d7ee593](https://github.com/AmbiqAI/ns-cmsis-nn/commit/d7ee593f8937ba240a9322bd9e7702a495d9294e)); Refs [#777](https://github.com/AmbiqAI/ns-cmsis-nn/issues/777)
+* **conv:** keep the depthwise DSP im2col fills inside their buffers ([#781](https://github.com/AmbiqAI/ns-cmsis-nn/issues/781)) ([9dbd61e](https://github.com/AmbiqAI/ns-cmsis-nn/commit/9dbd61e3e5ebd9182d5f42774431e720076688d8)); Refs [#766](https://github.com/AmbiqAI/ns-cmsis-nn/issues/766)
+* **quant:** build the s8 and s16 dequantize kernels for integer-only MVE ([#783](https://github.com/AmbiqAI/ns-cmsis-nn/issues/783)) ([3758fa6](https://github.com/AmbiqAI/ns-cmsis-nn/commit/3758fa6397e5ef2bc5b85251b8eb11a5dd7843f1)); Refs [#778](https://github.com/AmbiqAI/ns-cmsis-nn/issues/778)
+
 ## [7.44.0](https://github.com/AmbiqAI/ns-cmsis-nn/compare/v7.43.0...v7.44.0) (2026-10-11)
 
 
