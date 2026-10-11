@@ -1786,29 +1786,27 @@ __STATIC_FORCEINLINE int32_t arm_nn_depthwise_conv_s16_index_invalid(const cmsis
 }
 
 /**
- * @brief Whether the generic kernel of arm_depthwise_conv_s16() cannot take a layer: the bounds of
- *        arm_nn_depthwise_conv_s16_index_invalid(), and every dimension, ch_mult, padding, stride and dilation in
- *        [0, UINT16_MAX], since the kernel takes them as uint16_t. See AmbiqAI/ns-cmsis-nn#707.
+ * @brief Whether the generic kernel of arm_depthwise_conv_s16() cannot take a layer that
+ *        arm_nn_depthwise_conv_s16_index_invalid() accepts: it takes every dimension, ch_mult, padding, stride and
+ *        dilation as uint16_t, so each must be in [0, UINT16_MAX]. See AmbiqAI/ns-cmsis-nn#707.
  *
  * @param[in]      dw_conv_params  Depthwise convolution parameters
  * @param[in]      input_dims      Input tensor dimensions. Format: [N, H, W, C_IN]
  * @param[in]      filter_dims     Filter tensor dimensions. Format: [1, H, W, C_OUT]
  * @param[in]      output_dims     Output tensor dimensions. Format: [N, H, W, C_OUT]
  *
- * @return         1 when the layer cannot be taken, 0 otherwise.
+ * @return         1 when a value is outside [0, UINT16_MAX], 0 otherwise.
  */
 __STATIC_FORCEINLINE int32_t arm_nn_depthwise_conv_s16_args_invalid(const cmsis_nn_dw_conv_params *dw_conv_params,
                                                                     const cmsis_nn_dims *input_dims,
                                                                     const cmsis_nn_dims *filter_dims,
                                                                     const cmsis_nn_dims *output_dims)
 {
-    const uint32_t all =
-        (uint32_t)(input_dims->n | input_dims->w | input_dims->h | input_dims->c | dw_conv_params->ch_mult |
-                   filter_dims->w | filter_dims->h | dw_conv_params->padding.w | dw_conv_params->padding.h |
-                   dw_conv_params->stride.w | dw_conv_params->stride.h | output_dims->w | output_dims->h |
-                   dw_conv_params->dilation.w | dw_conv_params->dilation.h);
-    return all > UINT16_MAX ||
-        arm_nn_depthwise_conv_s16_index_invalid(dw_conv_params, input_dims, filter_dims, output_dims);
+    /* A value is in range exactly when no bit above bit 15 is set, so they are checked with one OR */
+    return (uint32_t)(input_dims->n | input_dims->w | input_dims->h | input_dims->c | dw_conv_params->ch_mult |
+                      filter_dims->w | filter_dims->h | dw_conv_params->padding.w | dw_conv_params->padding.h |
+                      dw_conv_params->stride.w | dw_conv_params->stride.h | output_dims->w | output_dims->h |
+                      dw_conv_params->dilation.w | dw_conv_params->dilation.h) > UINT16_MAX;
 }
 
 /**

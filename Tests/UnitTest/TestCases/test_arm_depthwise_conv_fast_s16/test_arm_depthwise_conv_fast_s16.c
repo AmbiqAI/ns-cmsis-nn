@@ -1847,6 +1847,24 @@ void large_dims_arm_depthwise_conv_fast_s16(void)
         TEST_ASSERT_EQUAL_INT16(expected == ARM_CMSIS_NN_SUCCESS ? 6000 : 0x5A5A, large_dw_output[0]);
     }
 
+    /* Values that fit 16 bits whose input, 32,770 * 65,535 elements, is past INT32_MAX; no outputs */
+    const cmsis_nn_dims deep_dims = {1, 32770, 1, 65535}, deep_out_dims = {1, 0, 1, 65535};
+    const cmsis_nn_dims deep_filter_dims = {1, 1, 1, 65535};
+    cmsis_nn_dw_conv_params deep_params = params;
+    deep_params.dilation.w = 1;
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR,
+                      arm_depthwise_conv_fast_s16(&ctx,
+                                                  &deep_params,
+                                                  &quant,
+                                                  &deep_dims,
+                                                  large_dw_input,
+                                                  &deep_filter_dims,
+                                                  weights,
+                                                  &bias_dims,
+                                                  bias,
+                                                  &deep_out_dims,
+                                                  large_dw_output));
+
 #if defined(ARM_MATH_DSP) && !(defined(ARM_MATH_MVEI) && !defined(ARM_MATH_AUTOVECTORIZE))
     /* 65,536 channels in one pixel; every operand would fit the buffers above */
     const cmsis_nn_dw_conv_params wide_params = {.input_offset = 0,

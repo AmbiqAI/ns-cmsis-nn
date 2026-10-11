@@ -486,7 +486,7 @@ void dims_arg_errors_arm_depthwise_conv_s16(void)
 {
     const cmsis_nn_dw_conv_params unit_params = {0, 0, 1, {1, 1}, {0, 0}, {1, 1}, {-32768, 32767}};
     const cmsis_nn_dims unit_dims = {1, 1, 1, 1};
-    for (int c = 0; c < 50; c++)
+    for (int c = 0; c < 56; c++)
     {
 #if defined(ARM_MATH_MVEI) && !defined(ARM_MATH_AUTOVECTORIZE)
         /* The MVE kernel indexes taps in int32_t and takes these 1x1 layers; case 34 tests the generic kernel's rule */
@@ -705,6 +705,46 @@ void dims_arg_errors_arm_depthwise_conv_s16(void)
             input_dims.c = 32768;
             params.ch_mult = 32768;
             filter_dims.w = 0;
+            output_dims.w = 0;
+        }
+        else if (c == 50)
+        {
+            /* Values above 65,535 whose products are past INT32_MAX, which the MVE kernel would otherwise take: an
+               input plane of 65,536 * 65,536 */
+            input_dims = (cmsis_nn_dims){1, 65536, 65536, 1};
+        }
+        else if (c == 51)
+        {
+            output_dims = (cmsis_nn_dims){1, 65536, 65536, 1}; /* an output plane of 65,536 * 65,536 */
+        }
+        else if (c == 52)
+        {
+            /* An empty filter still spans one column: dilation W * C, 32,769 * 65,536, past INT32_MAX */
+            input_dims.c = 65536;
+            filter_dims.w = 0;
+            params.dilation.w = 32769;
+            output_dims.w = 0;
+        }
+        else if (c == 53)
+        {
+            input_dims.c = 65536; /* and one row: dilation H * W * C, 32,769 * 65,536 */
+            filter_dims.h = 0;
+            params.dilation.h = 32769;
+            output_dims.w = 0;
+        }
+        else if (c == 54)
+        {
+            /* An input row, W * C = 2^56, past INT32_MAX with no rows; times dilation H it would wrap 64 bits */
+            input_dims = (cmsis_nn_dims){1, 0, 1 << 28, 1 << 28};
+            params.dilation.h = 1 << 28;
+            output_dims.w = 0;
+        }
+        else if (c == 55)
+        {
+            /* 512 taps take the generic kernel on every build, and it takes an input W of 65,537 as 1 */
+            filter_dims.w = 32;
+            filter_dims.h = 16;
+            input_dims.w = 65537;
             output_dims.w = 0;
         }
         else if (c == 34)
