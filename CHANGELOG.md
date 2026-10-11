@@ -3,9 +3,40 @@
 ## [7.44.0](https://github.com/AmbiqAI/ns-cmsis-nn/compare/v7.43.0...v7.44.0) (2026-10-11)
 
 
+### Notes for integrators
+
+This release changes ABI and argument behavior under a minor version; read these notes before upgrading.
+
+* **ABI: enum-valued fields in public structs are now `int32_t` ([#764](https://github.com/AmbiqAI/ns-cmsis-nn/issues/764), [#765](https://github.com/AmbiqAI/ns-cmsis-nn/pull/765)).** This covers the weight-format, layout and activation-type fields of the conv, fully connected, batch matmul, transpose and LSTM parameter structs (f32, f16 and the int8 LSTM gate). Their size no longer depends on the compiler's enum convention.
+  * **Who must rebuild:** every caller or library compiled with short enums: arm-none-eabi-gcc by default, or any compiler given `-fshort-enums`, as heliaRT gives armclang and ATfE. Each of these fields grows from 1 to 4 bytes.
+  * **Size and offset changes:** two f16 structs change size or offset. `cmsis_nn_fc_params_f16` goes from 6 to 8 bytes. `cmsis_nn_bmm_params_f16` goes from 8 to 12 bytes, with `rhs_format` moving from offset 6 to 8.
+  * **Why same-size structs still need a rebuild:** in every other struct the field now fills former padding, so the size is the same. An old caller still leaves three bytes of the field undefined, and the new library reads them.
+  * **Unaffected builds:** builds with int-sized enums (the default for armclang, ATfE and host compilers) are unchanged.
+  * **Source compatibility:** C code that assigns the enum constants compiles unchanged. C++ code that reads one of these fields back into an enum-typed variable needs a cast.
+* **Convolution argument checks ([#773](https://github.com/AmbiqAI/ns-cmsis-nn/pull/773)).** These entries now return `ARM_CMSIS_NN_ARG_ERROR` and write nothing for arguments their kernels would narrow, wrap or overflow. Accepted calls produce the same output as before, except that a non-MVE `arm_convolve_s8()` patch wider than 65,535 values, which was truncated, is now computed correctly.
+  * **`arm_convolve_s8()`** and its direct entries `arm_convolve_1x1_out_s8()`, `arm_convolve_s8_small_cin()` and `arm_convolve_s8_3x3_c16_s1()` reject:
+    * dimensions, padding or strides outside [0, 65,535];
+    * filter, input or output tensors or planes above INT32_MAX elements;
+    * a patch above INT32_MAX / 4 values, or an output size times stride or a dilated kernel span above INT32_MAX / 2.
+  * **`arm_depthwise_conv_s16()` and `arm_depthwise_conv_fast_s16()`** reject:
+    * dimensions, padding, strides or dilations outside [0, 65,535];
+    * a stride or dilation of 0;
+    * sizes past the kernels' int32 indices.
+
+    Where a kernel keeps the first tap index in int16, they also reject padding or stride above 32,767 and a first-tap index above 32,767. That covers builds without the MVE kernel, filters of 512 or more taps, and the DSP path of `arm_depthwise_conv_fast_s16()`.
+  * **`arm_convolve_1x1_s8_fast()`** rejects a negative N, H, W or C_OUT, a C_IN below 1, and a pixel count above INT32_MAX. It returns success without writing when N, H, W or C_OUT is 0.
+  * **`arm_convolve_1x1_s16_ns_np_nd()`** rejects a negative C_OUT, which wrote uninitialized accumulators ([#763](https://github.com/AmbiqAI/ns-cmsis-nn/issues/763)). It also rejects a C_IN or filter depth below 1, grouped layers, and a C_IN that differs from the filter depth.
+  * **Support header:** `arm_nn_convolve_s8_groups_invalid()` in `arm_nnsupportfunctions.h` is replaced by the out-of-line `arm_nn_convolve_s8_args_invalid(conv_params, input_dims, filter_dims, output_dims)`, defined in the new `Source/NNSupportFunctions/arm_nn_convolve_s8_args_invalid.c`. The CMake, pack and module lists include the file; hand-maintained source lists must add it.
+* **s16 depthwise on MVE ([#751](https://github.com/AmbiqAI/ns-cmsis-nn/pull/751)).** `arm_depthwise_conv_s16()` and `arm_depthwise_conv_fast_s16()` share a vectorized MVE kernel with identical outputs.
+  * **Speed:** across 28 cases on Apollo510, the geometric mean speed-up is 2.8–3.4x depending on toolchain and memory, and the slowest case is 1.7x.
+  * **Size:** adds 3,128 bytes of `.text` with GCC 14.2 and 2,158 bytes with ATfE 22.1 on Cortex-M55.
+  * **Buffer:** MVE builds still size and require the fast kernel's im2col buffer, which the MVE kernel does not read.
+* **`arm_depthwise_conv_fast_s16()` and `ch_mult`.** It now returns `ARM_CMSIS_NN_ARG_ERROR` on every build when `ch_mult` is not 1, as documented ([#751](https://github.com/AmbiqAI/ns-cmsis-nn/pull/751)).
+
+
 ### Bug Fixes
 
-* **api:** make enum-typed fields of public structs fixed-width ([#765](https://github.com/AmbiqAI/ns-cmsis-nn/issues/765)) ([9d8ea11](https://github.com/AmbiqAI/ns-cmsis-nn/commit/9d8ea110279b0d721b6f81f569234e0b3c382161)), closes [#764](https://github.com/AmbiqAI/ns-cmsis-nn/issues/764) [#693](https://github.com/AmbiqAI/ns-cmsis-nn/issues/693)
+* **api:** make enum-typed fields of public structs fixed-width ([#765](https://github.com/AmbiqAI/ns-cmsis-nn/issues/765)) ([9d8ea11](https://github.com/AmbiqAI/ns-cmsis-nn/commit/9d8ea110279b0d721b6f81f569234e0b3c382161)); Refs [#764](https://github.com/AmbiqAI/ns-cmsis-nn/issues/764) [#693](https://github.com/AmbiqAI/ns-cmsis-nn/issues/693)
 * **conv:** reject s8 and s16 convolution arguments that wrap their sizes and indices ([#773](https://github.com/AmbiqAI/ns-cmsis-nn/issues/773)) ([4a84143](https://github.com/AmbiqAI/ns-cmsis-nn/commit/4a84143e478f3882f3cd38424c9c2c4fcaf7891d))
 
 
@@ -16,7 +47,7 @@
 
 ### Chores
 
-* **release:** retype the pending release as 7.44.0 ([#776](https://github.com/AmbiqAI/ns-cmsis-nn/issues/776)) ([09d42e8](https://github.com/AmbiqAI/ns-cmsis-nn/commit/09d42e80f58e08b05dc2272df67a9144f3b8c15f)), closes [#762](https://github.com/AmbiqAI/ns-cmsis-nn/issues/762)
+* **release:** retype the pending release as 7.44.0 ([#776](https://github.com/AmbiqAI/ns-cmsis-nn/issues/776)) ([09d42e8](https://github.com/AmbiqAI/ns-cmsis-nn/commit/09d42e80f58e08b05dc2272df67a9144f3b8c15f)); Refs [#762](https://github.com/AmbiqAI/ns-cmsis-nn/issues/762)
 
 ## [7.43.0](https://github.com/AmbiqAI/ns-cmsis-nn/compare/v7.42.0...v7.43.0) (2026-10-10)
 
