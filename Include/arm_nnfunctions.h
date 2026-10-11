@@ -2207,8 +2207,8 @@ arm_cmsis_nn_status arm_depthwise_conv_s4(const cmsis_nn_context *ctx,
  *             nothing written when a dimension, ch_mult, padding, stride or dilation is outside [0, 65,535], a
  *             stride or dilation is 0, an input or output plane H * W or the input, filter or output (C * ch_mult
  *             channels) holds more than INT32_MAX elements, a KW or KH times the dilation or an output W or H times
- *             the stride is above INT32_MAX / 2, or C * ch_mult, KW * KH, KW * C * ch_mult, stride W * C,
- *             max(KW, 1) * dilation W * C or max(KH, 1) * dilation H * W * C is above INT32_MAX. Where the
+ *             the stride or C * ch_mult is above INT32_MAX / 2, or KW * KH, KW * C * ch_mult, stride W * C,
+ *             max(KW, 1) * dilation W * C or max(KH, 1) * dilation H * W * max(C, 1) is above INT32_MAX. Where the
  *             generic kernel runs (builds without the MVE kernel, and filters of 512 or more taps), it is also an
  *             argument error when a padding or stride is outside [0, 32,767] or (output W or H - 1) * stride -
  *             padding is above 32,767: that kernel keeps the first tap index of an output as int16_t.
@@ -2251,8 +2251,8 @@ arm_cmsis_nn_status arm_depthwise_conv_s16(const cmsis_nn_context *ctx,
  * @param[in]      quant_params    Per-channel quantization info.
  *                                 It contains the multiplier and shift values to be applied to each
  *                                 output channel
- * @param[in]      input_dims      Input (activation) tensor dimensions. Format: [H, W, C_IN]
- *                                 Batch argument N is not used and assumed to be 1.
+ * @param[in]      input_dims      Input (activation) tensor dimensions. Format: [N, H, W, C_IN]
+ *                                 N is at most 65,535.
  * @param[in]      input_data      Input (activation) data pointer. Data type: int16
  * @param[in]      filter_dims     Filter tensor dimensions. Format: [1, H, W, C_OUT]
  * @param[in]      filter_data     Filter data pointer. Data type: int8
@@ -2360,7 +2360,7 @@ int32_t arm_depthwise_conv_wrapper_s16_get_buffer_size_mve(const cmsis_nn_dw_con
  *                                 It contains the multiplier and shift values to be applied to each
  *                                 output channel
  * @param[in]      input_dims      Input (activation) tensor dimensions. Format: [N, H, W, C_IN]
- *                                 Batch argument N is not used.
+ *                                 N is at most 65,535.
  * @param[in]      input_data      Input (activation) data pointer. Data type: int16
  * @param[in]      filter_dims     Filter tensor dimensions. Format: [1, H, W, C_OUT]
  * @param[in]      filter_data     Filter data pointer. Data type: int8

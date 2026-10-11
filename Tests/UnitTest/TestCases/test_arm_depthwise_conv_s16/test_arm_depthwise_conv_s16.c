@@ -485,7 +485,7 @@ void dims_arg_errors_arm_depthwise_conv_s16(void)
 {
     const cmsis_nn_dw_conv_params unit_params = {0, 0, 1, {1, 1}, {0, 0}, {1, 1}, {-32768, 32767}};
     const cmsis_nn_dims unit_dims = {1, 1, 1, 1};
-    for (int c = 0; c < 48; c++)
+    for (int c = 0; c < 50; c++)
     {
 #if defined(ARM_MATH_MVEI) && !defined(ARM_MATH_AUTOVECTORIZE)
         /* The MVE kernel indexes taps in int32_t and takes these 1x1 layers; case 34 tests the generic kernel's rule */
@@ -557,12 +557,12 @@ void dims_arg_errors_arm_depthwise_conv_s16(void)
         else if (c == 25)
         {
             filter_dims.w = UINT16_MAX; /* KW times dilation W past INT32_MAX / 2 */
-            params.dilation.w = 32769;
+            params.dilation.w = 16385;
         }
         else if (c == 26)
         {
             filter_dims.h = UINT16_MAX;
-            params.dilation.h = 32769;
+            params.dilation.h = 16385;
         }
         else if (c == 27)
         {
@@ -685,6 +685,21 @@ void dims_arg_errors_arm_depthwise_conv_s16(void)
             input_dims.c = 32768;
             filter_dims.h = 2;
             params.dilation.h = 32768;
+            output_dims.w = 0;
+        }
+        else if (c == 48)
+        {
+            /* Dilation H * W past INT32_MAX with no channels */
+            input_dims = (cmsis_nn_dims){1, 1, UINT16_MAX, 0};
+            params.dilation.h = 48104;
+            output_dims.w = 0;
+        }
+        else if (c == 49)
+        {
+            /* C * ch_mult past INT32_MAX / 2 with an empty filter and output plane */
+            input_dims.c = 32768;
+            params.ch_mult = 32768;
+            filter_dims.w = 0;
             output_dims.w = 0;
         }
         else if (c == 34)
