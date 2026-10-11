@@ -433,7 +433,8 @@ static void dw_s16_mve(const int16_t *input,
     const int32_t in_row = dil_y * input_x * input_ch;
     const int32_t ker_col = output_ch;
     const int32_t ker_row = kernel_x * output_ch;
-    const int32_t span_x = (kernel_x - 1) * dil_x;
+    /* A zero-width filter spans one column, so unclipped pixels stay inside the input row */
+    const int32_t span_x = (ARM_NN_MAX(kernel_x, 1) - 1) * dil_x;
     const int32_t span_y = (kernel_y - 1) * dil_y;
     const int32_t px_step = stride_x * input_ch;
 

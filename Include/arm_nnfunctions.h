@@ -2258,7 +2258,7 @@ arm_cmsis_nn_status arm_depthwise_conv_s16(const cmsis_nn_context *ctx,
  * @param[in]      filter_data     Filter data pointer. Data type: int8
  * @param[in]      bias_dims       Bias tensor dimensions. Format: [C_OUT]
  * @param[in]      bias_data       Bias data pointer. Data type: int64
- * @param[in]      output_dims     Output tensor dimensions. Format: [1, H, W, C_OUT]
+ * @param[in]      output_dims     Output tensor dimensions. Format: [N, H, W, C_OUT]
  * @param[out]     output_data     Output data pointer. Data type: int16
  * @return     The function returns
  *                <code>ARM_CMSIS_NN_SUCCESS</code>   -  Successful completion, or

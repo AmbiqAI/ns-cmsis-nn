@@ -3333,7 +3333,9 @@ __STATIC_FORCEINLINE int8x16_t arm_narrow_mve_from_int32x4x4_to_int8x16(int32x4_
     #if !defined(ARM_MATH_AUTOVECTORIZE)
 /**
  * @brief           MVE s16 depthwise convolution for any channel multiplier, used by
- *                  arm_depthwise_conv_s16() and arm_depthwise_conv_fast_s16().
+ *                  arm_depthwise_conv_s16() and arm_depthwise_conv_fast_s16(). The caller first rejects the
+ *                  layers that arm_nn_depthwise_conv_s16_args_invalid() reports; the kernel forms its indices in
+ *                  int32_t on that bound.
  *
  * @param[in]       dw_conv_params  Depthwise convolution parameters
  * @param[in]       quant_params    Per-channel quantization parameters
