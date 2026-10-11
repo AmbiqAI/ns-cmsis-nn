@@ -793,3 +793,59 @@ void padding_beyond_filter_arm_depthwise_conv_s4_opt(void)
         TEST_ASSERT_EQUAL_INT8_ARRAY(reference, output, out_size);
     }
 }
+
+/* A negative filter height, filter width or channel count is an argument error with nothing written: the im2col fill
+   clamps its rows to the filter height (#766). */
+void arg_errors_arm_depthwise_conv_s4_opt(void)
+{
+    enum
+    {
+        ch = 4,
+        guard_bytes = 256,
+        scratch_bytes = 8192
+    };
+    static int8_t input[4 * 4 * ch];
+    static int8_t filter[(3 * 3 * ch + 1) / 2];
+    static int32_t bias[ch];
+    static int32_t mult[ch] = {0x40000000, 0x40000000, 0x40000000, 0x40000000};
+    static int32_t shift[ch] = {-2, -2, -2, -2};
+    static int8_t output[4 * 4 * ch];
+    static uint32_t scratch_words[(scratch_bytes + guard_bytes) / 4];
+    uint8_t *const scratch = (uint8_t *)scratch_words;
+    const cmsis_nn_per_channel_quant_params quant = {mult, shift};
+    const cmsis_nn_dims bias_dims = {1, 1, 1, ch};
+    const cmsis_nn_dw_conv_params params = {.input_offset = 0,
+                                            .output_offset = 0,
+                                            .ch_mult = 1,
+                                            .stride = {1, 1},
+                                            .padding = {1, 1},
+                                            .dilation = {1, 1},
+                                            .activation = {-128, 127}};
+    /* filter H, filter W, channels */
+    const int32_t cases[3][3] = {{-1, 3, ch}, {3, -1, ch}, {3, 3, -4}};
+    for (int32_t c = 0; c < 3; c++)
+    {
+        const cmsis_nn_dims input_dims = {1, 4, 4, cases[c][2]}, output_dims = {1, 4, 4, cases[c][2]};
+        const cmsis_nn_dims filter_dims = {1, cases[c][0], cases[c][1], cases[c][2]};
+        memset(scratch, 0xA5, scratch_bytes + guard_bytes);
+        memset(output, 0x5A, sizeof(output));
+        const cmsis_nn_context ctx = {scratch, scratch_bytes};
+        TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR,
+                          arm_depthwise_conv_s4_opt(&ctx,
+                                                    &params,
+                                                    &quant,
+                                                    &input_dims,
+                                                    input,
+                                                    &filter_dims,
+                                                    filter,
+                                                    &bias_dims,
+                                                    bias,
+                                                    &output_dims,
+                                                    output));
+        for (int32_t i = 0; i < scratch_bytes + guard_bytes; i++)
+        {
+            TEST_ASSERT_EQUAL_HEX8(0xA5, scratch[i]);
+        }
+        TEST_ASSERT_EQUAL_HEX8(0x5A, (uint8_t)output[0]);
+    }
+}

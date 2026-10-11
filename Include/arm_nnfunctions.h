@@ -2809,7 +2809,8 @@ int32_t arm_depthwise_conv_s8_opt_3x3_get_buffer_size(const cmsis_nn_dims *input
  *
  * @return     The function returns one of the following
  *                <code>ARM_CMSIS_NN_ARG_ERROR</code> - input channel != output channel or
- *                                                      ch_mult != 1
+ *                                                      ch_mult != 1 or
+ *                                                      a negative channel count, filter width or filter height
  *                <code>ARM_CMSIS_NN_SUCCESS</code> - Successful operation
  *
  * @note       MVE channel tail loads and stores are predicated, so channel-indexed arrays are not accessed beyond

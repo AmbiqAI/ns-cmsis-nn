@@ -161,7 +161,9 @@ arm_cmsis_nn_status arm_depthwise_conv_s4_opt(const cmsis_nn_context *ctx,
         return ARM_CMSIS_NN_ARG_ERROR;
     }
 
-    if (ctx->buf == NULL)
+    /* Every leg sizes its loops and buffers from these: the im2col fill clamps its rows to [0, filter H], and the MVE
+       leg forms its tap count from filter W * H */
+    if (ctx->buf == NULL || input_ch < 0 || filter_dims->w < 0 || filter_dims->h < 0)
     {
         return ARM_CMSIS_NN_ARG_ERROR;
     }
