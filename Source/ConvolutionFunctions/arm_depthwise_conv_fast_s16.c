@@ -295,6 +295,13 @@ depthwise_conv_fast_s16_dsp(const cmsis_nn_context *ctx,
         input += (input_x * input_y * input_ch);
     }
 }
+
+/* A copy of the dims with each value narrowed to uint16_t, for a layer whose values are known to fit */
+__STATIC_FORCEINLINE cmsis_nn_dims depthwise_conv_fast_s16_dims_u16(const cmsis_nn_dims *dims)
+{
+    const cmsis_nn_dims narrowed = {(uint16_t)dims->n, (uint16_t)dims->h, (uint16_t)dims->w, (uint16_t)dims->c};
+    return narrowed;
+}
 #endif
 
 /*
@@ -360,8 +367,29 @@ arm_cmsis_nn_status arm_depthwise_conv_fast_s16(const cmsis_nn_context *ctx,
         return ARM_CMSIS_NN_ARG_ERROR;
     }
 
-    depthwise_conv_fast_s16_dsp(
-        ctx, dw_conv_params, quant_params, input_dims, input, filter_dims, kernel, bias, output_dims, output);
+    if (!arm_nn_depthwise_conv_s16_args_invalid(dw_conv_params, input_dims, filter_dims, output_dims))
+    {
+        /* Measured on the Corstone-300 FVP: a compiler that inlines the kernel keeps its loops tighter when it can see
+           that every value fits 16 bits, as nearly every layer's does, so those layers pass it narrowed copies */
+        const cmsis_nn_dims input_u16 = depthwise_conv_fast_s16_dims_u16(input_dims);
+        const cmsis_nn_dims filter_u16 = depthwise_conv_fast_s16_dims_u16(filter_dims);
+        const cmsis_nn_dims output_u16 = depthwise_conv_fast_s16_dims_u16(output_dims);
+        cmsis_nn_dw_conv_params params_u16 = *dw_conv_params;
+        params_u16.ch_mult = (uint16_t)params_u16.ch_mult;
+        params_u16.padding.w = (uint16_t)params_u16.padding.w;
+        params_u16.padding.h = (uint16_t)params_u16.padding.h;
+        params_u16.stride.w = (uint16_t)params_u16.stride.w;
+        params_u16.stride.h = (uint16_t)params_u16.stride.h;
+        params_u16.dilation.w = (uint16_t)params_u16.dilation.w;
+        params_u16.dilation.h = (uint16_t)params_u16.dilation.h;
+        depthwise_conv_fast_s16_dsp(
+            ctx, &params_u16, quant_params, &input_u16, input, &filter_u16, kernel, bias, &output_u16, output);
+    }
+    else
+    {
+        depthwise_conv_fast_s16_dsp(
+            ctx, dw_conv_params, quant_params, input_dims, input, filter_dims, kernel, bias, output_dims, output);
+    }
 #else
     /* Run the following code as reference implementation for Cortex-M0 and Cortex-M3 */
     return arm_depthwise_conv_s16(ctx,
