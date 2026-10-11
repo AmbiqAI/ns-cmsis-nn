@@ -42,61 +42,28 @@
  * @{
  */
 
-/*
- * Optimized s16 depthwise convolution function with constraint that in_channel equals out_channel
- *
- *  Refer prototype header file for details.
- *
- */
-
-arm_cmsis_nn_status arm_depthwise_conv_fast_s16(const cmsis_nn_context *ctx,
-                                                const cmsis_nn_dw_conv_params *dw_conv_params,
-                                                const cmsis_nn_per_channel_quant_params *quant_params,
-                                                const cmsis_nn_dims *input_dims,
-                                                const int16_t *input,
-                                                const cmsis_nn_dims *filter_dims,
-                                                const int8_t *kernel,
-                                                const cmsis_nn_dims *bias_dims,
-                                                const int64_t *bias,
-                                                const cmsis_nn_dims *output_dims,
-                                                int16_t *output)
+#if defined(ARM_MATH_DSP) && !(defined(ARM_MATH_MVEI) && !defined(ARM_MATH_AUTOVECTORIZE))
+/* GCC keeps the DSP kernel out of line so the entry checks do not change the register allocation of its loops;
+   other compilers keep it inlined. */
+    #if defined(__GNUC__) && !defined(__clang__)
+        #define ARM_DEPTHWISE_CONV_FAST_S16_DSP_ATTR __attribute__((noinline, noipa))
+    #else
+        #define ARM_DEPTHWISE_CONV_FAST_S16_DSP_ATTR __attribute__((always_inline)) inline
+    #endif
+static ARM_DEPTHWISE_CONV_FAST_S16_DSP_ATTR void
+depthwise_conv_fast_s16_dsp(const cmsis_nn_context *ctx,
+                            const cmsis_nn_dw_conv_params *dw_conv_params,
+                            const cmsis_nn_per_channel_quant_params *quant_params,
+                            const cmsis_nn_dims *input_dims,
+                            const int16_t *input,
+                            const cmsis_nn_dims *filter_dims,
+                            const int8_t *kernel,
+                            const int64_t *bias,
+                            const cmsis_nn_dims *output_dims,
+                            int16_t *output)
 {
     const int32_t input_ch = input_dims->c;
     const int32_t output_ch = output_dims->c;
-
-    /* Check input constraints input_ch == output_ch and ch_mult == 1 */
-    if (input_ch != output_ch || dw_conv_params->ch_mult != 1)
-    {
-        return ARM_CMSIS_NN_ARG_ERROR;
-    }
-
-    if ((int64_t)filter_dims->w * filter_dims->h >= MAX_COL_COUNT)
-    {
-        return ARM_CMSIS_NN_ARG_ERROR;
-    }
-
-    /* The optimized paths step the horizontal tap index by dilation.w and have no vertical dilation */
-    if (dw_conv_params->dilation.h != 1 || dw_conv_params->dilation.w < 1)
-    {
-        return ARM_CMSIS_NN_ARG_ERROR;
-    }
-
-    if (ctx->buf == NULL && arm_depthwise_conv_fast_s16_get_buffer_size(input_dims, filter_dims) != 0)
-    {
-        return ARM_CMSIS_NN_ARG_ERROR;
-    }
-
-#if defined(ARM_MATH_MVEI) && !defined(ARM_MATH_AUTOVECTORIZE)
-    (void)bias_dims;
-    /* Shared MVE kernel needs no im2col; it forms its indices in int32_t and divides by the stride */
-    if (arm_nn_depthwise_conv_s16_args_invalid(dw_conv_params, input_dims, filter_dims, output_dims) ||
-        !arm_nn_depthwise_conv_s16_mve(
-            dw_conv_params, quant_params, input_dims, input, filter_dims, kernel, bias, output_dims, output))
-    {
-        return ARM_CMSIS_NN_ARG_ERROR;
-    }
-#elif defined(ARM_MATH_DSP)
-    (void)bias_dims;
     const int32_t input_x = input_dims->w;
     const int32_t input_y = input_dims->h;
     const int32_t input_batches = input_dims->n;
@@ -114,12 +81,6 @@ arm_cmsis_nn_status arm_depthwise_conv_fast_s16(const cmsis_nn_context *ctx,
     const int32_t output_activation_min = dw_conv_params->activation.min;
     const int32_t output_activation_max = dw_conv_params->activation.max;
     int16_t *buffer_a = (int16_t *)ctx->buf;
-
-    if (arm_nn_depthwise_conv_s16_args_invalid(dw_conv_params, input_dims, filter_dims, output_dims) ||
-        arm_nn_depthwise_s16_tap_index_invalid(dw_conv_params, output_dims))
-    {
-        return ARM_CMSIS_NN_ARG_ERROR;
-    }
 
     /* Run the following code in cores using DSP extension */
     int16_t *const col_buffer_start = buffer_a;
@@ -331,6 +292,72 @@ arm_cmsis_nn_status arm_depthwise_conv_fast_s16(const cmsis_nn_context *ctx,
         /* Advance to the next batch */
         input += (input_x * input_y * input_ch);
     }
+}
+#endif
+
+/*
+ * Optimized s16 depthwise convolution function with constraint that in_channel equals out_channel
+ *
+ *  Refer prototype header file for details.
+ *
+ */
+
+arm_cmsis_nn_status arm_depthwise_conv_fast_s16(const cmsis_nn_context *ctx,
+                                                const cmsis_nn_dw_conv_params *dw_conv_params,
+                                                const cmsis_nn_per_channel_quant_params *quant_params,
+                                                const cmsis_nn_dims *input_dims,
+                                                const int16_t *input,
+                                                const cmsis_nn_dims *filter_dims,
+                                                const int8_t *kernel,
+                                                const cmsis_nn_dims *bias_dims,
+                                                const int64_t *bias,
+                                                const cmsis_nn_dims *output_dims,
+                                                int16_t *output)
+{
+    const int32_t input_ch = input_dims->c;
+    const int32_t output_ch = output_dims->c;
+
+    /* Check input constraints input_ch == output_ch and ch_mult == 1 */
+    if (input_ch != output_ch || dw_conv_params->ch_mult != 1)
+    {
+        return ARM_CMSIS_NN_ARG_ERROR;
+    }
+
+    if ((int64_t)filter_dims->w * filter_dims->h >= MAX_COL_COUNT)
+    {
+        return ARM_CMSIS_NN_ARG_ERROR;
+    }
+
+    /* The optimized paths step the horizontal tap index by dilation.w and have no vertical dilation */
+    if (dw_conv_params->dilation.h != 1 || dw_conv_params->dilation.w < 1)
+    {
+        return ARM_CMSIS_NN_ARG_ERROR;
+    }
+
+    if (ctx->buf == NULL && arm_depthwise_conv_fast_s16_get_buffer_size(input_dims, filter_dims) != 0)
+    {
+        return ARM_CMSIS_NN_ARG_ERROR;
+    }
+
+#if defined(ARM_MATH_MVEI) && !defined(ARM_MATH_AUTOVECTORIZE)
+    (void)bias_dims;
+    /* Shared MVE kernel needs no im2col; it forms its indices in int32_t and divides by the stride */
+    if (arm_nn_depthwise_conv_s16_args_invalid(dw_conv_params, input_dims, filter_dims, output_dims) ||
+        !arm_nn_depthwise_conv_s16_mve(
+            dw_conv_params, quant_params, input_dims, input, filter_dims, kernel, bias, output_dims, output))
+    {
+        return ARM_CMSIS_NN_ARG_ERROR;
+    }
+#elif defined(ARM_MATH_DSP)
+    (void)bias_dims;
+    if (arm_nn_depthwise_conv_s16_args_invalid(dw_conv_params, input_dims, filter_dims, output_dims) ||
+        arm_nn_depthwise_s16_tap_index_invalid(dw_conv_params, output_dims))
+    {
+        return ARM_CMSIS_NN_ARG_ERROR;
+    }
+
+    depthwise_conv_fast_s16_dsp(
+        ctx, dw_conv_params, quant_params, input_dims, input, filter_dims, kernel, bias, output_dims, output);
 #else
     /* Run the following code as reference implementation for Cortex-M0 and Cortex-M3 */
     return arm_depthwise_conv_s16(ctx,
