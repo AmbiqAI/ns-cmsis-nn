@@ -24,31 +24,16 @@ struct uint32x4_t
 };
 typedef uint16_t mve_pred16_t;
 
-constexpr int32_t shim_sat(int64_t x, int64_t lo, int64_t hi)
-{
-    return (int32_t)(x < lo ? lo : (x > hi ? hi : x));
-}
-constexpr int32_t shim_wrap(int64_t x)
-{
-    return (int32_t)(uint32_t)(uint64_t)x;
-}
-constexpr bool shim_on(mve_pred16_t p, int lane, int bytes)
-{
-    return (p >> (lane * bytes)) & 1;
-}
+constexpr int32_t shim_sat(int64_t x, int64_t lo, int64_t hi) { return (int32_t)(x < lo ? lo : (x > hi ? hi : x)); }
+constexpr int32_t shim_wrap(int64_t x) { return (int32_t)(uint32_t)(uint64_t)x; }
+constexpr bool shim_on(mve_pred16_t p, int lane, int bytes) { return (p >> (lane * bytes)) & 1; }
 constexpr mve_pred16_t shim_ctp(uint32_t n, uint32_t lanes, int bytes)
 {
     const uint32_t k = n < lanes ? n : lanes;
     return (mve_pred16_t)(k * bytes >= 16 ? 0xFFFF : (1u << (k * bytes)) - 1);
 }
-constexpr mve_pred16_t vctp16q(uint32_t n)
-{
-    return shim_ctp(n, 8, 2);
-}
-constexpr mve_pred16_t vctp32q(uint32_t n)
-{
-    return shim_ctp(n, 4, 4);
-}
+constexpr mve_pred16_t vctp16q(uint32_t n) { return shim_ctp(n, 8, 2); }
+constexpr mve_pred16_t vctp32q(uint32_t n) { return shim_ctp(n, 4, 4); }
 constexpr int32_t shim_shl(int32_t x, int32_t s)
 {
     if (s >= 32)
@@ -70,14 +55,8 @@ constexpr int32_t shim_qrdmulh(int32_t a, int32_t b)
     return shim_sat(((int64_t)a * b + ((int64_t)1 << 30)) >> 31, INT32_MIN, INT32_MAX);
 }
 
-constexpr int16x8_t vdupq_n_s16(int16_t a)
-{
-    return {{a, a, a, a, a, a, a, a}};
-}
-constexpr int32x4_t vdupq_n_s32(int32_t a)
-{
-    return {{a, a, a, a}};
-}
+constexpr int16x8_t vdupq_n_s16(int16_t a) { return {{a, a, a, a, a, a, a, a}}; }
+constexpr int32x4_t vdupq_n_s32(int32_t a) { return {{a, a, a, a}}; }
 constexpr int16x8_t vldrbq_z_s16(const int8_t *base, mve_pred16_t p)
 {
     int16x8_t r = {};
@@ -160,10 +139,7 @@ constexpr int32x4_t vaddq_s32(int32x4_t a, int32x4_t b)
         a.v[i] = shim_wrap((int64_t)a.v[i] + b.v[i]);
     return a;
 }
-constexpr int32x4_t vaddq_n_s32(int32x4_t a, int32_t b)
-{
-    return vaddq_s32(a, vdupq_n_s32(b));
-}
+constexpr int32x4_t vaddq_n_s32(int32x4_t a, int32_t b) { return vaddq_s32(a, vdupq_n_s32(b)); }
 constexpr int32x4_t vqaddq_s32(int32x4_t a, int32x4_t b)
 {
     for (int i = 0; i < 4; ++i)
@@ -188,14 +164,8 @@ constexpr int32x4_t vshlq_s32(int32x4_t a, int32x4_t s)
         a.v[i] = shim_shl(a.v[i], s.v[i]);
     return a;
 }
-constexpr int32x4_t vshlq_r_s32(int32x4_t a, int32_t s)
-{
-    return vshlq_s32(a, vdupq_n_s32(s));
-}
-constexpr int32x4_t vshrq_n_s32(int32x4_t a, int n)
-{
-    return vshlq_s32(a, vdupq_n_s32(-n));
-}
+constexpr int32x4_t vshlq_r_s32(int32x4_t a, int32_t s) { return vshlq_s32(a, vdupq_n_s32(s)); }
+constexpr int32x4_t vshrq_n_s32(int32x4_t a, int n) { return vshlq_s32(a, vdupq_n_s32(-n)); }
 constexpr int32x4_t vrshlq_s32(int32x4_t a, int32x4_t s)
 {
     for (int i = 0; i < 4; ++i)

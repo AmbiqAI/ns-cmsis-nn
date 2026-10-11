@@ -31,11 +31,9 @@ constexpr int32x4_t arm_divide_by_nonzero_power_of_two_mve(const int32x4_t divid
 constexpr int32x4_t arm_requantize_mve(const int32x4_t val, const int32_t multiplier, const int32_t shift)
 {
     const int32x4_t neg_exp = vdupq_n_s32(-RIGHT_SHIFT(shift));
-    const int32x4_t fixup = vshrq_n_s32(vandq_s32(vqrdmulhq_n_s32(vshlq_r_s32(val, LEFT_SHIFT(shift)), multiplier),
-                                                  neg_exp),
-                                        31);
-    return vrshlq_s32(
-        vqaddq_s32(vqrdmulhq_n_s32(vshlq_r_s32(val, LEFT_SHIFT(shift)), multiplier), fixup), neg_exp);
+    const int32x4_t fixup =
+        vshrq_n_s32(vandq_s32(vqrdmulhq_n_s32(vshlq_r_s32(val, LEFT_SHIFT(shift)), multiplier), neg_exp), 31);
+    return vrshlq_s32(vqaddq_s32(vqrdmulhq_n_s32(vshlq_r_s32(val, LEFT_SHIFT(shift)), multiplier), fixup), neg_exp);
 }
 constexpr int32_t probe_requantize(int32_t val, int32_t mult, int32_t shift)
 {
@@ -69,11 +67,27 @@ template <bool Add, int N, int H, int W, int C> constexpr bool row_broadcast(boo
     const int32_t off1 = 3, off2 = -5, mult1 = 1623821475, shift1 = swap ? -1 : 0, mult2 = 1310720000, shift2 = -2,
                   left_shift = 20, out_mult = 1173388748, out_offset = -2;
     if (Add)
-        arm_add_s8_row_broadcast_rows(in1, dims1, in2, dims2, off1, mult1, shift1, off2, mult2, shift2, left_shift,
-                                      out, &out_dims, out_offset, out_mult, out_shift, -128, 127);
+        arm_add_s8_row_broadcast_rows(in1,
+                                      dims1,
+                                      in2,
+                                      dims2,
+                                      off1,
+                                      mult1,
+                                      shift1,
+                                      off2,
+                                      mult2,
+                                      shift2,
+                                      left_shift,
+                                      out,
+                                      &out_dims,
+                                      out_offset,
+                                      out_mult,
+                                      out_shift,
+                                      -128,
+                                      127);
     else
-        arm_mul_s8_row_broadcast_rows(in1, dims1, in2, dims2, off1, off2, out, &out_dims, out_offset, out_mult,
-                                      out_shift, -128, 127);
+        arm_mul_s8_row_broadcast_rows(
+            in1, dims1, in2, dims2, off1, off2, out, &out_dims, out_offset, out_mult, out_shift, -128, 127);
     for (int i = 0; i < N * H * W * C; ++i)
     {
         const int32_t a = in1 == full ? full[i] : row[(i / (W * C)) * C + i % C];
