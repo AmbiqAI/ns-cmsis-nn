@@ -7805,11 +7805,12 @@ arm_cmsis_nn_status arm_requantize_s16_s16(const int16_t *input,
  * @brief Dequantize an int8_t array back to floating-point format.
  * @param[in]   input       Pointer to the input int8_t array.
  * @param[out]  output      Pointer to the output float array.
- * @param[in]   size        Number of elements in the arrays.
- * @param[in]   zero_point  Zero point (offset) that was used during quantization.
+ * @param[in]   size        Number of elements in the arrays. Zero performs no accesses.
+ * @param[in]   zero_point  Zero point (offset) that was used during quantization, within the int8_t range.
  * @param[in]   scale       Scale factor that was used during quantization.
  *
- * @return     The function returns <code>ARM_CMSIS_NN_SUCCESS</CODE>
+ * @return     ARM_CMSIS_NN_SUCCESS, or ARM_CMSIS_NN_ARG_ERROR, with nothing written, when @p size is negative or
+ *             @p zero_point lies outside the int8_t range.
  */
 arm_cmsis_nn_status
 arm_dequantize_s8_f32(const int8_t *input, float *output, int32_t size, int32_t zero_point, float scale);
@@ -7818,11 +7819,12 @@ arm_dequantize_s8_f32(const int8_t *input, float *output, int32_t size, int32_t 
  * @brief Dequantize an int16_t array back to floating-point format.
  * @param[in]   input       Pointer to the input int16_t array.
  * @param[out]  output      Pointer to the output float array.
- * @param[in]   size        Number of elements in the arrays.
- * @param[in]   zero_point  Zero point (offset) that was used during quantization.
+ * @param[in]   size        Number of elements in the arrays. Zero performs no accesses.
+ * @param[in]   zero_point  Zero point (offset) that was used during quantization, within the int16_t range.
  * @param[in]   scale       Scale factor that was used during quantization.
  *
- * @return     The function returns <code>ARM_CMSIS_NN_SUCCESS</CODE>
+ * @return     ARM_CMSIS_NN_SUCCESS, or ARM_CMSIS_NN_ARG_ERROR, with nothing written, when @p size is negative or
+ *             @p zero_point lies outside the int16_t range.
  */
 arm_cmsis_nn_status
 arm_dequantize_s16_f32(const int16_t *input, float *output, int32_t size, int32_t zero_point, float scale);
