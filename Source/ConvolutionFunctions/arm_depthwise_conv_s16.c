@@ -682,7 +682,7 @@ arm_cmsis_nn_status arm_depthwise_conv_s16(const cmsis_nn_context *ctx,
     (void)ctx;
 
     /* Bounds for the MVE kernel and the generic kernel alike */
-    if (arm_nn_depthwise_conv_s16_args_invalid(dw_conv_params, input_dims, filter_dims, output_dims))
+    if (arm_nn_depthwise_conv_s16_index_invalid(dw_conv_params, input_dims, filter_dims, output_dims))
     {
         return ARM_CMSIS_NN_ARG_ERROR;
     }
@@ -695,8 +695,10 @@ arm_cmsis_nn_status arm_depthwise_conv_s16(const cmsis_nn_context *ctx,
     }
 #endif
 
-    /* The generic kernel keeps the first tap index in int16_t (AmbiqAI/ns-cmsis-nn#727) */
-    if (arm_nn_depthwise_s16_tap_index_invalid(dw_conv_params, output_dims))
+    /* Past the bounds above, the generic kernel takes its values as uint16_t and keeps the first tap index in
+       int16_t (AmbiqAI/ns-cmsis-nn#727) */
+    if (arm_nn_depthwise_conv_s16_args_invalid(dw_conv_params, input_dims, filter_dims, output_dims) ||
+        arm_nn_depthwise_s16_tap_index_invalid(dw_conv_params, output_dims))
     {
         return ARM_CMSIS_NN_ARG_ERROR;
     }

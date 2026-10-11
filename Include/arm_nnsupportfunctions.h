@@ -1732,56 +1732,81 @@ __STATIC_FORCEINLINE int32_t arm_nn_depthwise_s16_tap_index_invalid(const cmsis_
 }
 
 /**
- * @brief Whether arm_depthwise_conv_s16() or the MVE kernel of arm_depthwise_conv_fast_s16() cannot take a layer.
- *        Every dimension, ch_mult, padding, stride and dilation must be in [0, UINT16_MAX], stride and dilation at
- *        least 1, the input and output planes H * W and the input, filter and output (C * ch_mult channels) at most
- *        INT32_MAX elements, a kernel size times its dilation at most INT32_MAX / 2, an output size times its
- *        stride at most INT32_MAX / 2, C * ch_mult at most INT32_MAX / 2, and the MVE kernel's other steps at
- *        most INT32_MAX: filter W * H, filter W * C * ch_mult, stride W * C, and max(KW, 1) * dilation W * C and
- *        max(KH, 1) * dilation H * W * max(C, 1) for its tap rows. The kernels form these in int32_t and divide by
- *        the stride and dilation.
- *        See AmbiqAI/ns-cmsis-nn#707.
+ * @brief Whether the int32_t index arithmetic of the s16 depthwise kernels could overflow for a layer: the MVE kernel
+ *        shared by arm_depthwise_conv_s16() and arm_depthwise_conv_fast_s16(), and the DSP kernel of the latter.
+ *        Every dimension, ch_mult, padding, stride and dilation must be in [0, INT32_MAX / 4], so a sum of four of
+ *        them fits int32_t; stride and dilation at least 1; the input and output planes H * W and the input,
+ *        filter and output (C * ch_mult channels) at most INT32_MAX elements; a kernel size times its dilation and
+ *        an output size times its stride at most INT32_MAX / 2; C * ch_mult at most INT32_MAX / 2; and the MVE
+ *        kernel's other steps at most INT32_MAX: filter W * H, filter W * C * ch_mult, stride W * C, and
+ *        max(KW, 1) * dilation W * C and max(KH, 1) * dilation H * W * max(C, 1) for its tap rows. The kernels
+ *        form these in int32_t and divide by the stride and dilation. See AmbiqAI/ns-cmsis-nn#707 and #787.
  *
  * @param[in]      dw_conv_params  Depthwise convolution parameters
  * @param[in]      input_dims      Input tensor dimensions. Format: [N, H, W, C_IN]
  * @param[in]      filter_dims     Filter tensor dimensions. Format: [1, H, W, C_OUT]
  * @param[in]      output_dims     Output tensor dimensions. Format: [N, H, W, C_OUT]
  *
- * @return         1 when the layer cannot be taken, 0 otherwise.
+ * @return         1 when an index could overflow, 0 otherwise.
+ */
+__STATIC_FORCEINLINE int32_t arm_nn_depthwise_conv_s16_index_invalid(const cmsis_nn_dw_conv_params *dw_conv_params,
+                                                                     const cmsis_nn_dims *input_dims,
+                                                                     const cmsis_nn_dims *filter_dims,
+                                                                     const cmsis_nn_dims *output_dims)
+{
+    /* INT32_MAX / 4 is 2^29 - 1, so a value is in range exactly when no bit above bit 28 is set (a negative value
+       sets bit 31): one OR checks them all. Each product below is formed in 64 bits from values under 2^29, and a
+       product of three is formed only once its first two factors are known to be at most INT32_MAX. */
+    const uint32_t all =
+        (uint32_t)(input_dims->n | input_dims->w | input_dims->h | input_dims->c | dw_conv_params->ch_mult |
+                   filter_dims->w | filter_dims->h | dw_conv_params->padding.w | dw_conv_params->padding.h |
+                   dw_conv_params->stride.w | dw_conv_params->stride.h | output_dims->w | output_dims->h |
+                   dw_conv_params->dilation.w | dw_conv_params->dilation.h);
+    if (all > INT32_MAX / 4)
+    {
+        return 1;
+    }
+    const uint64_t in_plane = (uint64_t)input_dims->w * (uint64_t)input_dims->h;
+    const uint64_t out_plane = (uint64_t)output_dims->w * (uint64_t)output_dims->h;
+    const uint64_t out_ch = (uint64_t)input_dims->c * (uint64_t)dw_conv_params->ch_mult;
+    const uint64_t taps = (uint64_t)filter_dims->w * (uint64_t)filter_dims->h;
+    const uint64_t reach_w = (uint64_t)ARM_NN_MAX(filter_dims->w, 1) * (uint64_t)dw_conv_params->dilation.w;
+    const uint64_t reach_h = (uint64_t)ARM_NN_MAX(filter_dims->h, 1) * (uint64_t)dw_conv_params->dilation.h;
+    const uint64_t in_row = (uint64_t)input_dims->w * (uint64_t)ARM_NN_MAX(input_dims->c, 1);
+    return dw_conv_params->stride.w < 1 || dw_conv_params->stride.h < 1 || dw_conv_params->dilation.w < 1 ||
+        dw_conv_params->dilation.h < 1 || in_plane > INT32_MAX || in_plane * (uint64_t)input_dims->c > INT32_MAX ||
+        out_plane > INT32_MAX || out_ch > INT32_MAX / 2 || out_plane * out_ch > INT32_MAX || taps > INT32_MAX ||
+        taps * out_ch > INT32_MAX || (uint64_t)filter_dims->w * (uint64_t)dw_conv_params->dilation.w > INT32_MAX / 2 ||
+        (uint64_t)filter_dims->h * (uint64_t)dw_conv_params->dilation.h > INT32_MAX / 2 ||
+        (uint64_t)output_dims->w * (uint64_t)dw_conv_params->stride.w > INT32_MAX / 2 ||
+        (uint64_t)output_dims->h * (uint64_t)dw_conv_params->stride.h > INT32_MAX / 2 ||
+        (uint64_t)filter_dims->w * out_ch > INT32_MAX ||
+        (uint64_t)dw_conv_params->stride.w * (uint64_t)input_dims->c > INT32_MAX ||
+        reach_w * (uint64_t)input_dims->c > INT32_MAX || in_row > INT32_MAX || reach_h * in_row > INT32_MAX;
+}
+
+/**
+ * @brief Whether the generic kernel of arm_depthwise_conv_s16() cannot take a layer that
+ *        arm_nn_depthwise_conv_s16_index_invalid() accepts: it takes every dimension, ch_mult, padding, stride and
+ *        dilation as uint16_t, so each must be in [0, UINT16_MAX]. See AmbiqAI/ns-cmsis-nn#707.
+ *
+ * @param[in]      dw_conv_params  Depthwise convolution parameters
+ * @param[in]      input_dims      Input tensor dimensions. Format: [N, H, W, C_IN]
+ * @param[in]      filter_dims     Filter tensor dimensions. Format: [1, H, W, C_OUT]
+ * @param[in]      output_dims     Output tensor dimensions. Format: [N, H, W, C_OUT]
+ *
+ * @return         1 when a value is outside [0, UINT16_MAX], 0 otherwise.
  */
 __STATIC_FORCEINLINE int32_t arm_nn_depthwise_conv_s16_args_invalid(const cmsis_nn_dw_conv_params *dw_conv_params,
                                                                     const cmsis_nn_dims *input_dims,
                                                                     const cmsis_nn_dims *filter_dims,
                                                                     const cmsis_nn_dims *output_dims)
 {
-    /* Unsigned throughout: nothing past the OR is used unless every value fits 16 bits */
-    const uint32_t all =
-        (uint32_t)(input_dims->n | input_dims->w | input_dims->h | input_dims->c | dw_conv_params->ch_mult |
-                   filter_dims->w | filter_dims->h | dw_conv_params->padding.w | dw_conv_params->padding.h |
-                   dw_conv_params->stride.w | dw_conv_params->stride.h | output_dims->w | output_dims->h |
-                   dw_conv_params->dilation.w | dw_conv_params->dilation.h);
-    const uint64_t out_ch = (uint64_t)((uint32_t)input_dims->c * (uint32_t)dw_conv_params->ch_mult);
-    const uint64_t tap_row_w =
-        (uint64_t)((uint32_t)ARM_NN_MAX(filter_dims->w, 1) * (uint32_t)dw_conv_params->dilation.w) *
-        (uint32_t)input_dims->c;
-    const uint64_t tap_row_h =
-        (uint64_t)((uint32_t)ARM_NN_MAX(filter_dims->h, 1) * (uint32_t)dw_conv_params->dilation.h) *
-        ((uint64_t)(uint32_t)input_dims->w * (uint32_t)ARM_NN_MAX(input_dims->c, 1));
-    return all > UINT16_MAX || dw_conv_params->stride.w < 1 || dw_conv_params->stride.h < 1 ||
-        dw_conv_params->dilation.w < 1 || dw_conv_params->dilation.h < 1 ||
-        (uint32_t)input_dims->w * (uint32_t)input_dims->h > INT32_MAX ||
-        (uint32_t)output_dims->w * (uint32_t)output_dims->h > INT32_MAX ||
-        (uint64_t)((uint32_t)input_dims->w * (uint32_t)input_dims->h) * (uint32_t)input_dims->c > INT32_MAX ||
-        (uint64_t)((uint32_t)filter_dims->w * (uint32_t)filter_dims->h) * out_ch > INT32_MAX ||
-        (uint64_t)((uint32_t)output_dims->w * (uint32_t)output_dims->h) * out_ch > INT32_MAX ||
-        (uint32_t)filter_dims->w * (uint32_t)dw_conv_params->dilation.w > INT32_MAX / 2 ||
-        (uint32_t)filter_dims->h * (uint32_t)dw_conv_params->dilation.h > INT32_MAX / 2 ||
-        (uint32_t)output_dims->w * (uint32_t)dw_conv_params->stride.w > INT32_MAX / 2 ||
-        (uint32_t)output_dims->h * (uint32_t)dw_conv_params->stride.h > INT32_MAX / 2 || out_ch > INT32_MAX / 2 ||
-        (uint32_t)filter_dims->w * (uint32_t)filter_dims->h > INT32_MAX ||
-        (uint64_t)(uint32_t)filter_dims->w * out_ch > INT32_MAX ||
-        (uint64_t)(uint32_t)dw_conv_params->stride.w * (uint32_t)input_dims->c > INT32_MAX || tap_row_w > INT32_MAX ||
-        tap_row_h > INT32_MAX;
+    /* A value is in range exactly when no bit above bit 15 is set, so they are checked with one OR */
+    return (uint32_t)(input_dims->n | input_dims->w | input_dims->h | input_dims->c | dw_conv_params->ch_mult |
+                      filter_dims->w | filter_dims->h | dw_conv_params->padding.w | dw_conv_params->padding.h |
+                      dw_conv_params->stride.w | dw_conv_params->stride.h | output_dims->w | output_dims->h |
+                      dw_conv_params->dilation.w | dw_conv_params->dilation.h) > UINT16_MAX;
 }
 
 /**
@@ -3334,7 +3359,7 @@ __STATIC_FORCEINLINE int8x16_t arm_narrow_mve_from_int32x4x4_to_int8x16(int32x4_
 /**
  * @brief           MVE s16 depthwise convolution for any channel multiplier, used by
  *                  arm_depthwise_conv_s16() and arm_depthwise_conv_fast_s16(). The caller first rejects the
- *                  layers that arm_nn_depthwise_conv_s16_args_invalid() reports; the kernel forms its indices in
+ *                  layers that arm_nn_depthwise_conv_s16_index_invalid() reports; the kernel forms its indices in
  *                  int32_t on that bound.
  *
  * @param[in]       dw_conv_params  Depthwise convolution parameters
