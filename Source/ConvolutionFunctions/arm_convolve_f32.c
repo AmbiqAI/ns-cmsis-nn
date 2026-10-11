@@ -128,7 +128,7 @@ __STATIC_INLINE bool arm_conv_nhwc_use_1xn_f32(const cmsis_nn_context *ctx,
                                                const cmsis_nn_dims *filter_dims,
                                                const cmsis_nn_dims *output_dims)
 {
-    if (!ctx || !ctx->buf || ctx->size <= 0 || !conv_params || !input_dims || !filter_dims || !output_dims)
+    if (!ctx || !ctx->buf || ctx->size <= 0 || !input_dims || !filter_dims || !output_dims)
     {
         return false;
     }
