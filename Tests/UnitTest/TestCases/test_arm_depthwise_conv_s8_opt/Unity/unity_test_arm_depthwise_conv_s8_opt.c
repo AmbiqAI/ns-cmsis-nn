@@ -97,3 +97,5 @@ void test_dw3_buffer_size_arm_depthwise_conv_s8_opt(void) { dw3_buffer_size_arm_
 void test_dw3_bounds_arm_depthwise_conv_s8_opt(void) { dw3_bounds_arm_depthwise_conv_s8_opt(); }
 
 void test_undersized_context_arm_depthwise_conv_s8_opt(void) { undersized_context_arm_depthwise_conv_s8_opt(); }
+
+void test_padding_beyond_filter_arm_depthwise_conv_s8_opt(void) { padding_beyond_filter_arm_depthwise_conv_s8_opt(); }

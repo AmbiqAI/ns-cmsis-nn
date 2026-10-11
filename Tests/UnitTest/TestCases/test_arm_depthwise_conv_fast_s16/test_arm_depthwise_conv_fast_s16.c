@@ -1663,3 +1663,99 @@ void tap_index_arm_depthwise_conv_fast_s16(void)
     wide_dw_fast_s16_case(2, 1, INT16_MAX + 1, 0, wide);
     wide_dw_fast_s16_case(1, 2, 0, INT16_MAX + 1, wide);
 }
+
+/*
+ * Padding taller than the filter, and output rows wholly below the input, are zero rows of the im2col buffer: the
+ * DSP path fills exactly the filter's rows and writes nothing past the scratch size it reports (#766). The outputs
+ * equal arm_depthwise_conv_s16().
+ */
+void padding_beyond_filter_arm_depthwise_conv_fast_s16(void)
+{
+    enum
+    {
+        ch = 4,
+        in_h = 4,
+        in_w = 4,
+        max_out = 40 * 4 * ch,
+        guard_words = 64
+    };
+    static int16_t input[in_h * in_w * ch];
+    static int8_t filter[3 * 3 * ch];
+    static int64_t bias[ch];
+    static int32_t mult[ch];
+    static int32_t shift[ch];
+    static int16_t output[max_out];
+    static int16_t reference[max_out];
+    static uint32_t scratch[(3 * 3 * ch * 4 * sizeof(int16_t) + 8) / sizeof(uint32_t) + guard_words];
+    for (int32_t i = 0; i < in_h * in_w * ch; i++)
+    {
+        input[i] = (int16_t)(i * 97 % 2001 - 1000);
+    }
+    for (int32_t i = 0; i < 3 * 3 * ch; i++)
+    {
+        filter[i] = (int8_t)(i * 37 % 255 - 127);
+    }
+    for (int32_t i = 0; i < ch; i++)
+    {
+        bias[i] = 1000 * i - 1500;
+        mult[i] = 0x40000000 + i * 0x1000000;
+        shift[i] = -4;
+    }
+    const cmsis_nn_per_channel_quant_params quant = {mult, shift};
+    const cmsis_nn_dims input_dims = {1, in_h, in_w, ch}, bias_dims = {1, 1, 1, ch};
+    /* filter H x W, padding H, output H: padding above the filter height, a 1x1 filter under deep padding, and an
+       output taller than the input supports */
+    const int32_t cases[3][4] = {{3, 3, 5, 12}, {1, 1, 5, 14}, {3, 3, 1, 40}};
+    for (int32_t c = 0; c < 3; c++)
+    {
+        const cmsis_nn_dims filter_dims = {1, cases[c][0], cases[c][1], ch};
+        const cmsis_nn_dims output_dims = {1, cases[c][3], in_w + 2 - cases[c][1] + 1, ch};
+        const cmsis_nn_dw_conv_params params = {.input_offset = 0,
+                                                .output_offset = 0,
+                                                .ch_mult = 1,
+                                                .stride = {1, 1},
+                                                .padding = {1, cases[c][2]},
+                                                .dilation = {1, 1},
+                                                .activation = {-32768, 32767}};
+        const int32_t out_size = output_dims.h * output_dims.w * ch;
+        const cmsis_nn_context none = {NULL, 0};
+        TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
+                          arm_depthwise_conv_s16(&none,
+                                                 &params,
+                                                 &quant,
+                                                 &input_dims,
+                                                 input,
+                                                 &filter_dims,
+                                                 filter,
+                                                 &bias_dims,
+                                                 bias,
+                                                 &output_dims,
+                                                 reference));
+
+        const int32_t scratch_size = arm_depthwise_conv_fast_s16_get_buffer_size(&input_dims, &filter_dims);
+        TEST_ASSERT_TRUE(scratch_size >= 0 && scratch_size % 4 == 0 &&
+                         scratch_size + guard_words * 4 <= (int32_t)sizeof(scratch));
+        for (size_t i = 0; i < sizeof(scratch) / sizeof(scratch[0]); i++)
+        {
+            scratch[i] = 0xA5A5A5A5u;
+        }
+        const cmsis_nn_context ctx = {scratch, scratch_size};
+        TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
+                          arm_depthwise_conv_fast_s16(&ctx,
+                                                      &params,
+                                                      &quant,
+                                                      &input_dims,
+                                                      input,
+                                                      &filter_dims,
+                                                      filter,
+                                                      &bias_dims,
+                                                      bias,
+                                                      &output_dims,
+                                                      output));
+        for (size_t i = (size_t)scratch_size / 4; i < sizeof(scratch) / sizeof(scratch[0]); i++)
+        {
+            TEST_ASSERT_EQUAL_HEX32(0xA5A5A5A5u, scratch[i]);
+        }
+        TEST_ASSERT_EQUAL_INT16_ARRAY(reference, output, out_size);
+    }
+}
