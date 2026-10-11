@@ -20,6 +20,7 @@
 #include <stdlib.h>
 
 #include <arm_nnfunctions.h>
+#include <arm_nnsupportfunctions.h>
 #include <unity.h>
 
 #include "../Utils/mpu_guard.h"
@@ -2433,5 +2434,92 @@ void group_arg_errors_arm_convolve_s16(void)
                                                    &bias_data,
                                                    &output_dims,
                                                    output));
+    }
+}
+
+/*
+ * A 3x3x64 filter has 576 columns. With an int64 bias every output accumulates in int64 past the first 512 columns,
+ * including the leftover output of an odd output count: full-scale inputs and weights of +-127 sum past INT32_MAX.
+ */
+void wide_columns_int64_bias_arm_convolve_s16(void)
+{
+    enum
+    {
+        in_ch = 64,
+        out_ch = 2,
+        k = 3,
+        in_w = 5,
+        out_w = in_w - k + 1,
+        cols = k * k * in_ch
+    };
+    static int16_t input[k * in_w * in_ch];
+    static int8_t kernel[out_ch * cols];
+    int64_t bias[out_ch] = {-1000, 2000};
+    int32_t multiplier[out_ch] = {1 << 30, 1 << 30};
+    int32_t shift[out_ch] = {-16, -16};
+    int16_t output[out_w * out_ch];
+    for (int i = 0; i < k * in_w * in_ch; i++)
+    {
+        input[i] = (int16_t)(i % 64 == 5 ? 32767 : -32768);
+    }
+    for (int i = 0; i < cols; i++)
+    {
+        kernel[i] = -127;
+        kernel[cols + i] = 127;
+    }
+    const cmsis_nn_dims input_dims = {1, k, in_w, in_ch};
+    const cmsis_nn_dims filter_dims = {out_ch, k, k, in_ch};
+    const cmsis_nn_dims bias_dims = {1, 1, 1, out_ch};
+    const cmsis_nn_dims output_dims = {1, 1, out_w, out_ch};
+    const cmsis_nn_conv_params conv_params = {
+        .input_offset = 0,
+        .output_offset = 0,
+        .stride = {1, 1},
+        .padding = {0, 0},
+        .dilation = {1, 1},
+        .activation = {-32768, 32767},
+    };
+    const cmsis_nn_per_channel_quant_params quant_params = {multiplier, shift};
+    const cmsis_nn_bias_data bias_data = {bias, false};
+    const int32_t buffer_size = arm_convolve_s16_get_buffer_size(&input_dims, &filter_dims);
+    cmsis_nn_context ctx = {malloc(buffer_size), buffer_size};
+    TEST_ASSERT_TRUE(buffer_size == 0 || ctx.buf != NULL);
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
+                      arm_convolve_s16(&ctx,
+                                       &conv_params,
+                                       &quant_params,
+                                       &input_dims,
+                                       input,
+                                       &filter_dims,
+                                       kernel,
+                                       &bias_dims,
+                                       &bias_data,
+                                       &output_dims,
+                                       output));
+    for (int x = 0; x < out_w; x++)
+    {
+        for (int oc = 0; oc < out_ch; oc++)
+        {
+            int64_t acc = bias[oc];
+            for (int ky = 0; ky < k; ky++)
+            {
+                for (int kx = 0; kx < k; kx++)
+                {
+                    for (int c = 0; c < in_ch; c++)
+                    {
+                        acc += (int64_t)kernel[oc * cols + (ky * k + kx) * in_ch + c] *
+                            input[(ky * in_w + x + kx) * in_ch + c];
+                    }
+                }
+            }
+            TEST_ASSERT_TRUE(acc > INT32_MAX || acc < INT32_MIN);
+            const int32_t expected = arm_nn_requantize_s64(acc, REDUCE_MULTIPLIER(multiplier[oc]), shift[oc]);
+            TEST_ASSERT_EQUAL_INT16(ARM_NN_MIN(ARM_NN_MAX(expected, -32768), 32767), output[x * out_ch + oc]);
+        }
+    }
+    if (ctx.buf)
+    {
+        memset(ctx.buf, 0, buffer_size);
+        free(ctx.buf);
     }
 }
