@@ -106,12 +106,12 @@ __STATIC_FORCEINLINE void arm_mul_s8_row_broadcast(const int8_t *vec,
     {
         const mve_pred16_t p = vctp16q((uint32_t)(c - c0));
         const int16x8_t r = vaddq_n_s16(vldrbq_z_s16(row + c0, p), (int16_t)row_offset);
-        const int8_t *v_ptr = vec + c0;
-        int8_t *o_ptr = output + c0;
 
+        /* Rows are addressed from the bases, so no pointer is formed past the last row */
         for (int32_t i = 0; i < n_rows; i++)
         {
-            const int16x8_t v = vaddq_n_s16(vldrbq_z_s16(v_ptr, p), (int16_t)vec_offset);
+            const int32_t off = i * c + c0;
+            const int16x8_t v = vaddq_n_s16(vldrbq_z_s16(vec + off, p), (int16_t)vec_offset);
             int32x4_t res_a = vmullbq_int_s16(v, r);
             int32x4_t res_b = vmulltq_int_s16(v, r);
 
@@ -133,10 +133,7 @@ __STATIC_FORCEINLINE void arm_mul_s8_row_broadcast(const int8_t *vec,
             res = vmaxq_s16(res, act_min);
             res = vminq_s16(res, act_max);
 
-            vstrbq_p_s16(o_ptr, res, p);
-
-            v_ptr += c;
-            o_ptr += c;
+            vstrbq_p_s16(output + off, res, p);
         }
     }
 }
