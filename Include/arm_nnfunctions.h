@@ -2362,7 +2362,8 @@ int32_t arm_depthwise_conv_wrapper_s16_get_buffer_size_mve(const cmsis_nn_dw_con
  *                                 It contains the multiplier and shift values to be applied to each
  *                                 output channel
  * @param[in]      input_dims      Input (activation) tensor dimensions. Format: [N, H, W, C_IN]
- *                                 N, W, H and C are each at most 65,535 on builds without DSP.
+ *                                 N, W, H and C are each at most 65,535 on builds without DSP, and C on DSP
+ *                                 builds without the MVE kernel.
  * @param[in]      input_data      Input (activation) data pointer. Data type: int16
  * @param[in]      filter_dims     Filter tensor dimensions. Format: [1, H, W, C_OUT]
  * @param[in]      filter_data     Filter data pointer. Data type: int8

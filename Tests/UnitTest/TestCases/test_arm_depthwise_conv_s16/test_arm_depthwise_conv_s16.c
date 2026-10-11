@@ -710,12 +710,13 @@ void dims_arg_errors_arm_depthwise_conv_s16(void)
         else if (c == 50)
         {
             /* Values above 65,535 whose products are past INT32_MAX, which the MVE kernel would otherwise take: an
-               input plane of 65,536 * 65,536 */
-            input_dims = (cmsis_nn_dims){1, 65536, 65536, 1};
+               input plane of 65,536 * 65,536, with no channels */
+            input_dims = (cmsis_nn_dims){1, 65536, 65536, 0};
         }
         else if (c == 51)
         {
-            output_dims = (cmsis_nn_dims){1, 65536, 65536, 1}; /* an output plane of 65,536 * 65,536 */
+            input_dims.c = 0; /* an output plane of 65,536 * 65,536, with no channels */
+            output_dims = (cmsis_nn_dims){1, 65536, 65536, 0};
         }
         else if (c == 52)
         {

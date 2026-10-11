@@ -296,12 +296,14 @@ depthwise_conv_fast_s16_dsp(const cmsis_nn_context *ctx,
     }
 }
 
+    #if !(defined(__GNUC__) && !defined(__clang__))
 /* A copy of the dims with each value narrowed to uint16_t, for a layer whose values are known to fit */
 __STATIC_FORCEINLINE cmsis_nn_dims depthwise_conv_fast_s16_dims_u16(const cmsis_nn_dims *dims)
 {
     const cmsis_nn_dims narrowed = {(uint16_t)dims->n, (uint16_t)dims->h, (uint16_t)dims->w, (uint16_t)dims->c};
     return narrowed;
 }
+    #endif
 #endif
 
 /*
@@ -367,6 +369,11 @@ arm_cmsis_nn_status arm_depthwise_conv_fast_s16(const cmsis_nn_context *ctx,
         return ARM_CMSIS_NN_ARG_ERROR;
     }
 
+    #if defined(__GNUC__) && !defined(__clang__)
+    /* GCC keeps the kernel out of line, so the narrowed copies below would gain it nothing */
+    depthwise_conv_fast_s16_dsp(
+        ctx, dw_conv_params, quant_params, input_dims, input, filter_dims, kernel, bias, output_dims, output);
+    #else
     if (!arm_nn_depthwise_conv_s16_args_invalid(dw_conv_params, input_dims, filter_dims, output_dims))
     {
         /* Measured on the Corstone-300 FVP: a compiler that inlines the kernel keeps its loops tighter when it can see
@@ -390,6 +397,7 @@ arm_cmsis_nn_status arm_depthwise_conv_fast_s16(const cmsis_nn_context *ctx,
         depthwise_conv_fast_s16_dsp(
             ctx, dw_conv_params, quant_params, input_dims, input, filter_dims, kernel, bias, output_dims, output);
     }
+    #endif
 #else
     /* Run the following code as reference implementation for Cortex-M0 and Cortex-M3 */
     return arm_depthwise_conv_s16(ctx,
