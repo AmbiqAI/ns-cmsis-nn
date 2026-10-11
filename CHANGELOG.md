@@ -1,5 +1,23 @@
 # Changelog
 
+## [7.44.0](https://github.com/AmbiqAI/ns-cmsis-nn/compare/v7.43.0...v7.44.0) (2026-10-11)
+
+
+### Bug Fixes
+
+* **api:** make enum-typed fields of public structs fixed-width ([#765](https://github.com/AmbiqAI/ns-cmsis-nn/issues/765)) ([9d8ea11](https://github.com/AmbiqAI/ns-cmsis-nn/commit/9d8ea110279b0d721b6f81f569234e0b3c382161)), closes [#764](https://github.com/AmbiqAI/ns-cmsis-nn/issues/764) [#693](https://github.com/AmbiqAI/ns-cmsis-nn/issues/693)
+* **conv:** reject s8 and s16 convolution arguments that wrap their sizes and indices ([#773](https://github.com/AmbiqAI/ns-cmsis-nn/issues/773)) ([4a84143](https://github.com/AmbiqAI/ns-cmsis-nn/commit/4a84143e478f3882f3cd38424c9c2c4fcaf7891d))
+
+
+### Performance
+
+* **conv:** vectorize s16 depthwise with a shared MVE kernel ([#751](https://github.com/AmbiqAI/ns-cmsis-nn/issues/751)) ([074a3ac](https://github.com/AmbiqAI/ns-cmsis-nn/commit/074a3ac493759ca1c0cb67135016bfec59a07a18))
+
+
+### Chores
+
+* **release:** retype the pending release as 7.44.0 ([#776](https://github.com/AmbiqAI/ns-cmsis-nn/issues/776)) ([09d42e8](https://github.com/AmbiqAI/ns-cmsis-nn/commit/09d42e80f58e08b05dc2272df67a9144f3b8c15f)), closes [#762](https://github.com/AmbiqAI/ns-cmsis-nn/issues/762)
+
 ## [7.43.0](https://github.com/AmbiqAI/ns-cmsis-nn/compare/v7.42.0...v7.43.0) (2026-10-10)
 
 
