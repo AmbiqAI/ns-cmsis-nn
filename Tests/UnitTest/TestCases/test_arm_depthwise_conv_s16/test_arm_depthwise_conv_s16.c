@@ -476,10 +476,11 @@ static arm_cmsis_nn_status wide_dw_s16(const cmsis_nn_dw_conv_params *dw_conv_pa
 }
 
 /*
- * arm_depthwise_conv_s16() keeps every dimension, padding, stride and dilation as uint16_t and forms tensor indices
- * in int32_t (#707). Its generic kernel, used without MVE and for 512 or more taps, keeps the first tap index of an
- * output as int16_t (#727). Each value it cannot hold is an argument error with the output untouched; a dilation of
- * 65,535 on a 1x1 kernel and an input and output 32,767 wide still run.
+ * arm_depthwise_conv_s16() forms tensor indices in int32_t (#707). Its generic kernel, used without MVE and for 512
+ * or more taps, keeps every dimension, padding, stride and dilation as uint16_t and the first tap index of an output
+ * as int16_t (#727); the MVE kernel holds each value up to INT32_MAX / 4 (#787). Each value a kernel cannot hold is an
+ * argument error with the output untouched; a dilation of 65,535 on a 1x1 kernel and an input and output 32,767 wide
+ * still run.
  */
 void dims_arg_errors_arm_depthwise_conv_s16(void)
 {
@@ -515,7 +516,11 @@ void dims_arg_errors_arm_depthwise_conv_s16(void)
                                    &params.dilation.h};
         if (c < 15)
         {
+#if defined(ARM_MATH_MVEI) && !defined(ARM_MATH_AUTOVECTORIZE)
+            *wide[c] = INT32_MAX / 4 + 1;
+#else
             *wide[c] = UINT16_MAX + 1;
+#endif
         }
         else if (c < 19)
         {

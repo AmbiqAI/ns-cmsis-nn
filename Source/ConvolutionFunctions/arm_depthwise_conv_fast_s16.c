@@ -344,7 +344,7 @@ arm_cmsis_nn_status arm_depthwise_conv_fast_s16(const cmsis_nn_context *ctx,
 #if defined(ARM_MATH_MVEI) && !defined(ARM_MATH_AUTOVECTORIZE)
     (void)bias_dims;
     /* Shared MVE kernel needs no im2col; it forms its indices in int32_t and divides by the stride */
-    if (arm_nn_depthwise_conv_s16_args_invalid(dw_conv_params, input_dims, filter_dims, output_dims) ||
+    if (arm_nn_depthwise_conv_s16_index_invalid(dw_conv_params, input_dims, filter_dims, output_dims) ||
         !arm_nn_depthwise_conv_s16_mve(
             dw_conv_params, quant_params, input_dims, input, filter_dims, kernel, bias, output_dims, output))
     {
@@ -352,8 +352,10 @@ arm_cmsis_nn_status arm_depthwise_conv_fast_s16(const cmsis_nn_context *ctx,
     }
 #elif defined(ARM_MATH_DSP)
     (void)bias_dims;
-    if (arm_nn_depthwise_conv_s16_args_invalid(dw_conv_params, input_dims, filter_dims, output_dims) ||
-        arm_nn_depthwise_s16_tap_index_invalid(dw_conv_params, output_dims))
+    /* The DSP kernel forms its indices in int32_t, except the channel counters, kept as uint16_t, and the first tap
+       index, kept as int16_t */
+    if (arm_nn_depthwise_conv_s16_index_invalid(dw_conv_params, input_dims, filter_dims, output_dims) ||
+        input_ch > UINT16_MAX || arm_nn_depthwise_s16_tap_index_invalid(dw_conv_params, output_dims))
     {
         return ARM_CMSIS_NN_ARG_ERROR;
     }

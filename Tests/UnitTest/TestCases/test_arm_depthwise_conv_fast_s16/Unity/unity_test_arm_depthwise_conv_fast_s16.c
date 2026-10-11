@@ -110,3 +110,5 @@ void test_padding_beyond_filter_arm_depthwise_conv_fast_s16(void)
 {
     padding_beyond_filter_arm_depthwise_conv_fast_s16();
 }
+
+void test_large_dims_arm_depthwise_conv_fast_s16(void) { large_dims_arm_depthwise_conv_fast_s16(); }

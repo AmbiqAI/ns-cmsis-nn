@@ -2195,7 +2195,7 @@ arm_cmsis_nn_status arm_depthwise_conv_s4(const cmsis_nn_context *ctx,
  *                                 It contains the multiplier and shift values to be applied to each
  *                                 output channel
  * @param[in]      input_dims      Input (activation) tensor dimensions. Format: [N, H, W, C_IN]
- *                                 N, W, H and C are each at most 65,535.
+ *                                 N, W, H and C are each at most 65,535 where the generic kernel runs.
  * @param[in]      input_data      Input (activation) data pointer. Data type: int8
  * @param[in]      filter_dims     Filter tensor dimensions. Format: [1, H, W, C_OUT]
  * @param[in]      filter_data     Filter data pointer. Data type: int8
@@ -2204,14 +2204,15 @@ arm_cmsis_nn_status arm_depthwise_conv_s4(const cmsis_nn_context *ctx,
  * @param[in]      output_dims     Output tensor dimensions. Format: [N, H, W, C_OUT]
  * @param[out]     output_data     Output data pointer. Data type: int16
  * @return     The function returns <code>ARM_CMSIS_NN_SUCCESS</code>, or <code>ARM_CMSIS_NN_ARG_ERROR</code> with
- *             nothing written when a dimension, ch_mult, padding, stride or dilation is outside [0, 65,535], a
- *             stride or dilation is 0, an input or output plane H * W or the input, filter or output (C * ch_mult
+ *             nothing written when a dimension, ch_mult, padding, stride or dilation is outside [0, INT32_MAX / 4],
+ *             a stride or dilation is 0, an input or output plane H * W or the input, filter or output (C * ch_mult
  *             channels) holds more than INT32_MAX elements, a KW or KH times the dilation or an output W or H times
  *             the stride or C * ch_mult is above INT32_MAX / 2, or KW * KH, KW * C * ch_mult, stride W * C,
  *             max(KW, 1) * dilation W * C or max(KH, 1) * dilation H * W * max(C, 1) is above INT32_MAX. Where the
  *             generic kernel runs (builds without the MVE kernel, and filters of 512 or more taps), it is also an
- *             argument error when a padding or stride is outside [0, 32,767] or (output W or H - 1) * stride -
- *             padding is above 32,767: that kernel keeps the first tap index of an output as int16_t.
+ *             argument error when a dimension, ch_mult, padding, stride or dilation is above 65,535, since that
+ *             kernel takes them as uint16_t, or a padding or stride is above 32,767 or (output W or H - 1) * stride
+ *             - padding is above 32,767, since it keeps the first tap index of an output as int16_t.
  *
  * @details
  *    - Supported framework: TensorFlow Lite
@@ -2252,7 +2253,7 @@ arm_cmsis_nn_status arm_depthwise_conv_s16(const cmsis_nn_context *ctx,
  *                                 It contains the multiplier and shift values to be applied to each
  *                                 output channel
  * @param[in]      input_dims      Input (activation) tensor dimensions. Format: [N, H, W, C_IN]
- *                                 N is at most 65,535.
+ *                                 N is at most 65,535 where the generic kernel of arm_depthwise_conv_s16() runs.
  * @param[in]      input_data      Input (activation) data pointer. Data type: int16
  * @param[in]      filter_dims     Filter tensor dimensions. Format: [1, H, W, C_OUT]
  * @param[in]      filter_data     Filter data pointer. Data type: int8
@@ -2360,7 +2361,7 @@ int32_t arm_depthwise_conv_wrapper_s16_get_buffer_size_mve(const cmsis_nn_dw_con
  *                                 It contains the multiplier and shift values to be applied to each
  *                                 output channel
  * @param[in]      input_dims      Input (activation) tensor dimensions. Format: [N, H, W, C_IN]
- *                                 N is at most 65,535.
+ *                                 N is at most 65,535 on builds without DSP.
  * @param[in]      input_data      Input (activation) data pointer. Data type: int16
  * @param[in]      filter_dims     Filter tensor dimensions. Format: [1, H, W, C_OUT]
  * @param[in]      filter_data     Filter data pointer. Data type: int8
@@ -2377,12 +2378,12 @@ int32_t arm_depthwise_conv_wrapper_s16_get_buffer_size_mve(const cmsis_nn_dw_con
  *                                                      filter_dims->w * filter_dims->h >= MAX_COL_COUNT (512) or
  *                                                      dw_conv_params->dilation.h != 1 or
  *                                                      dw_conv_params->dilation.w < 1 or the bounds of
- *                                                      arm_depthwise_conv_s16() other than its first tap rule
- *                                                      or, on the DSP path (DSP builds without the MVE
- *                                                      kernel), a padding or stride outside [0, 32,767] or
- *                                                      (output W or H - 1) * stride - padding above 32,767;
- *                                                      builds without DSP run arm_depthwise_conv_s16() and return
- *                                                      its errors
+ *                                                      arm_depthwise_conv_s16() other than those of its generic
+ *                                                      kernel or, on the DSP path (DSP builds without the MVE
+ *                                                      kernel), more than 65,535 channels, a padding or stride
+ *                                                      above 32,767 or (output W or H - 1) * stride - padding
+ *                                                      above 32,767; builds without DSP run
+ *                                                      arm_depthwise_conv_s16() and return its errors
  *
  *                <code>ARM_CMSIS_NN_SUCCESS</code> - Successful operation
  *
