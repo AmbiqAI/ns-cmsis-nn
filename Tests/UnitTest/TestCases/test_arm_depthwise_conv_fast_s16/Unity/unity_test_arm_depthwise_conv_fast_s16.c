@@ -91,4 +91,17 @@ void test_dilation_arg_check_arm_depthwise_conv_fast_s16(void) { dilation_arg_ch
 
 void test_ch_mult_arg_check_arm_depthwise_conv_fast_s16(void) { ch_mult_arg_check_arm_depthwise_conv_fast_s16(); }
 
+void test_stride_reach_arg_check_arm_depthwise_conv_fast_s16(void)
+{
+    stride_reach_arg_check_arm_depthwise_conv_fast_s16();
+}
+
+void test_tap_count_arg_check_arm_depthwise_conv_fast_s16(void) { tap_count_arg_check_arm_depthwise_conv_fast_s16(); }
+
+void test_shared_bounds_arg_check_arm_depthwise_conv_fast_s16(void)
+{
+    shared_bounds_arg_check_arm_depthwise_conv_fast_s16();
+}
+
 void test_operand_bounds_arm_depthwise_conv_fast_s16(void) { operand_bounds_arm_depthwise_conv_fast_s16(); }
+void test_tap_index_arm_depthwise_conv_fast_s16(void) { tap_index_arm_depthwise_conv_fast_s16(); }

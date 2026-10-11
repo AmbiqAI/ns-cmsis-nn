@@ -344,6 +344,7 @@
         <file category="source" name="Source/NNSupportFunctions/arm_nn_conv1d_k5_f32.c"/>
         <file category="source" name="Source/NNSupportFunctions/arm_nn_conv1d_k5_packed_f16.c"/>
         <file category="source" name="Source/NNSupportFunctions/arm_nn_conv1d_k5_packed_f32.c"/>
+        <file category="source" name="Source/NNSupportFunctions/arm_nn_convolve_s8_args_invalid.c"/>
         <file category="source" name="Source/NNSupportFunctions/arm_nn_depthwise_conv1d_k3_f16.c"/>
         <file category="source" name="Source/NNSupportFunctions/arm_nn_depthwise_conv1d_k3_f32.c"/>
         <file category="source" name="Source/NNSupportFunctions/arm_nn_depthwise_conv2x5_f16.c"/>

@@ -41,29 +41,37 @@
  * @{
  */
 
-static void depthwise_conv_s16_generic_s16(const int16_t *input,
-                                           const uint16_t input_batches,
-                                           const uint16_t input_x,
-                                           const uint16_t input_y,
-                                           const uint16_t input_ch,
-                                           const int8_t *kernel,
-                                           const uint16_t ch_mult,
-                                           const uint16_t kernel_x,
-                                           const uint16_t kernel_y,
-                                           const uint16_t pad_x,
-                                           const uint16_t pad_y,
-                                           const uint16_t stride_x,
-                                           const uint16_t stride_y,
-                                           const int64_t *bias,
-                                           int16_t *output,
-                                           const int32_t *output_shift,
-                                           const int32_t *output_mult,
-                                           const uint16_t output_x,
-                                           const uint16_t output_y,
-                                           const int32_t output_activation_min,
-                                           const int32_t output_activation_max,
-                                           const uint16_t dilation_x,
-                                           const uint16_t dilation_y)
+/* Measured per compiler on the Corstone-300 FVP: GCC keeps the kernel's loops tight only when the entry's argument
+   check stays out of its function (out of line, not cloned); the other compilers, clang among them, do best with
+   the kernel inlined. */
+#if defined(__GNUC__) && !defined(__clang__)
+    #define ARM_DEPTHWISE_CONV_S16_GENERIC_ATTR __attribute__((noinline, noipa))
+#else
+    #define ARM_DEPTHWISE_CONV_S16_GENERIC_ATTR __attribute__((always_inline)) inline
+#endif
+static ARM_DEPTHWISE_CONV_S16_GENERIC_ATTR void depthwise_conv_s16_generic_s16(const int16_t *input,
+                                                                               const uint16_t input_batches,
+                                                                               const uint16_t input_x,
+                                                                               const uint16_t input_y,
+                                                                               const uint16_t input_ch,
+                                                                               const int8_t *kernel,
+                                                                               const uint16_t ch_mult,
+                                                                               const uint16_t kernel_x,
+                                                                               const uint16_t kernel_y,
+                                                                               const uint16_t pad_x,
+                                                                               const uint16_t pad_y,
+                                                                               const uint16_t stride_x,
+                                                                               const uint16_t stride_y,
+                                                                               const int64_t *bias,
+                                                                               int16_t *output,
+                                                                               const int32_t *output_shift,
+                                                                               const int32_t *output_mult,
+                                                                               const uint16_t output_x,
+                                                                               const uint16_t output_y,
+                                                                               const int32_t output_activation_min,
+                                                                               const int32_t output_activation_max,
+                                                                               const uint16_t dilation_x,
+                                                                               const uint16_t dilation_y)
 
 {
     for (int i_batch = 0; i_batch < input_batches; i_batch++)
@@ -425,7 +433,8 @@ static void dw_s16_mve(const int16_t *input,
     const int32_t in_row = dil_y * input_x * input_ch;
     const int32_t ker_col = output_ch;
     const int32_t ker_row = kernel_x * output_ch;
-    const int32_t span_x = (kernel_x - 1) * dil_x;
+    /* A zero-width filter spans one column, so unclipped pixels stay inside the input row */
+    const int32_t span_x = (ARM_NN_MAX(kernel_x, 1) - 1) * dil_x;
     const int32_t span_y = (kernel_y - 1) * dil_y;
     const int32_t px_step = stride_x * input_ch;
 
@@ -669,11 +678,14 @@ arm_cmsis_nn_status arm_depthwise_conv_s16(const cmsis_nn_context *ctx,
                                            const cmsis_nn_dims *output_dims,
                                            int16_t *output)
 {
-    const uint16_t dilation_x = dw_conv_params->dilation.w;
-    const uint16_t dilation_y = dw_conv_params->dilation.h;
-
     (void)bias_dims;
     (void)ctx;
+
+    /* Bounds for the MVE kernel and the generic kernel alike */
+    if (arm_nn_depthwise_conv_s16_args_invalid(dw_conv_params, input_dims, filter_dims, output_dims))
+    {
+        return ARM_CMSIS_NN_ARG_ERROR;
+    }
 
 #if defined(ARM_MATH_MVEI) && !defined(ARM_MATH_AUTOVECTORIZE)
     if (arm_nn_depthwise_conv_s16_mve(
@@ -682,6 +694,14 @@ arm_cmsis_nn_status arm_depthwise_conv_s16(const cmsis_nn_context *ctx,
         return ARM_CMSIS_NN_SUCCESS;
     }
 #endif
+
+    /* The generic kernel keeps the first tap index in int16_t (AmbiqAI/ns-cmsis-nn#727) */
+    if (arm_nn_depthwise_s16_tap_index_invalid(dw_conv_params, output_dims))
+    {
+        return ARM_CMSIS_NN_ARG_ERROR;
+    }
+    const uint16_t dilation_x = dw_conv_params->dilation.w;
+    const uint16_t dilation_y = dw_conv_params->dilation.h;
 
     depthwise_conv_s16_generic_s16(input,
                                    input_dims->n,
