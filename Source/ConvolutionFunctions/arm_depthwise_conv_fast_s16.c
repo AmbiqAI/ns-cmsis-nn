@@ -115,7 +115,8 @@ arm_cmsis_nn_status arm_depthwise_conv_fast_s16(const cmsis_nn_context *ctx,
     const int32_t output_activation_max = dw_conv_params->activation.max;
     int16_t *buffer_a = (int16_t *)ctx->buf;
 
-    if (arm_nn_depthwise_s16_tap_index_invalid(dw_conv_params, output_dims))
+    if (arm_nn_depthwise_conv_s16_args_invalid(dw_conv_params, input_dims, filter_dims, output_dims) ||
+        arm_nn_depthwise_s16_tap_index_invalid(dw_conv_params, output_dims))
     {
         return ARM_CMSIS_NN_ARG_ERROR;
     }

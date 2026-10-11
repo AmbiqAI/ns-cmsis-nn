@@ -1302,7 +1302,8 @@ void stride_reach_arg_check_arm_depthwise_conv_fast_s16(void)
 }
 
 /* A 65,535 x 65,535 filter is past the fast kernel's tap limit although its tap count wraps a 32-bit int: an argument
-   error through the fast entry and through the wrapper. The layer has no outputs, so only the checks reject it. */
+   error through the fast entry and through the wrapper, and the wrapper's sizers route it to arm_depthwise_conv_s16(),
+   which needs no buffer. The layer has no outputs, so only the checks reject it. */
 void tap_count_arg_check_arm_depthwise_conv_fast_s16(void)
 {
     const cmsis_nn_dims input_dims = {1, 1, 1, 1}, filter_dims = {1, UINT16_MAX, UINT16_MAX, 1},
@@ -1340,6 +1341,71 @@ void tap_count_arg_check_arm_depthwise_conv_fast_s16(void)
                                                      dil_bias,
                                                      &output_dims,
                                                      dil_output));
+    TEST_ASSERT_EQUAL(
+        0, arm_depthwise_conv_wrapper_s16_get_buffer_size_dsp(&params, &input_dims, &filter_dims, &output_dims));
+    TEST_ASSERT_EQUAL(
+        0, arm_depthwise_conv_wrapper_s16_get_buffer_size_mve(&params, &input_dims, &filter_dims, &output_dims));
+}
+
+/* The bounds of arm_depthwise_conv_s16() hold on every path of arm_depthwise_conv_fast_s16(): a stride of 0 or a
+   negative filter width is an argument error through the fast entry and through the wrapper, with nothing written. */
+void shared_bounds_arg_check_arm_depthwise_conv_fast_s16(void)
+{
+    const cmsis_nn_dims input_dims = {1, 4, 8, 4}, bias_dims = {1, 1, 1, 4}, output_dims = {1, 4, 8, 4};
+    const cmsis_nn_per_channel_quant_params quant = {dil_mult, dil_shift};
+    const cmsis_nn_context ctx = {dil_scratch, (int32_t)sizeof(dil_scratch)};
+    for (int32_t c = 0; c < 3; c++)
+    {
+        cmsis_nn_dw_conv_params params = {.input_offset = 0,
+                                          .output_offset = 0,
+                                          .ch_mult = 1,
+                                          .stride = {1, 1},
+                                          .padding = {1, 1},
+                                          .dilation = {1, 1},
+                                          .activation = {-32768, 32767}};
+        cmsis_nn_dims filter_dims = {1, 3, 3, 4};
+        if (c == 0)
+        {
+            params.stride.w = 0;
+        }
+        else if (c == 1)
+        {
+            params.stride.h = 0;
+        }
+        else
+        {
+            filter_dims.w = -4;
+        }
+        for (int32_t route = 0; route < 2; route++)
+        {
+            dil_output[0] = 0x5A5A;
+            const arm_cmsis_nn_status status = route == 0
+                ? arm_depthwise_conv_fast_s16(&ctx,
+                                              &params,
+                                              &quant,
+                                              &input_dims,
+                                              dil_input,
+                                              &filter_dims,
+                                              dil_filter,
+                                              &bias_dims,
+                                              dil_bias,
+                                              &output_dims,
+                                              dil_output)
+                : arm_depthwise_conv_wrapper_s16(&ctx,
+                                                 &params,
+                                                 &quant,
+                                                 &input_dims,
+                                                 dil_input,
+                                                 &filter_dims,
+                                                 dil_filter,
+                                                 &bias_dims,
+                                                 dil_bias,
+                                                 &output_dims,
+                                                 dil_output);
+            TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR, status);
+            TEST_ASSERT_EQUAL_INT16(0x5A5A, dil_output[0]);
+        }
+    }
 }
 
 /* arm_depthwise_conv_fast_s16() steps only the horizontal tap index by dilation, so it rejects vertical dilation

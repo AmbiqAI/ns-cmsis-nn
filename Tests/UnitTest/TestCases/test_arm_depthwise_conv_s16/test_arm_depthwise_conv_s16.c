@@ -485,7 +485,7 @@ void dims_arg_errors_arm_depthwise_conv_s16(void)
 {
     const cmsis_nn_dw_conv_params unit_params = {0, 0, 1, {1, 1}, {0, 0}, {1, 1}, {-32768, 32767}};
     const cmsis_nn_dims unit_dims = {1, 1, 1, 1};
-    for (int c = 0; c < 40; c++)
+    for (int c = 0; c < 48; c++)
     {
 #if defined(ARM_MATH_MVEI) && !defined(ARM_MATH_AUTOVECTORIZE)
         /* The MVE kernel indexes taps in int32_t and takes these 1x1 layers; case 34 tests the generic kernel's rule */
@@ -632,6 +632,59 @@ void dims_arg_errors_arm_depthwise_conv_s16(void)
             /* A vertical tap step, dilation H * W * C, past INT32_MAX */
             input_dims = (cmsis_nn_dims){1, 1, 256, 256};
             params.dilation.h = UINT16_MAX;
+            output_dims.w = 0;
+        }
+        else if (c == 40)
+        {
+            params.stride.h = 0;
+        }
+        else if (c == 41)
+        {
+            params.dilation.h = 0;
+        }
+        else if (c == 42)
+        {
+            /* A pixel step, stride W * C, past INT32_MAX */
+            input_dims.c = UINT16_MAX;
+            params.stride.w = UINT16_MAX;
+            output_dims.w = 0;
+        }
+        else if (c == 43)
+        {
+            /* C * ch_mult past INT32_MAX with an empty filter and output plane */
+            input_dims.c = UINT16_MAX;
+            params.ch_mult = UINT16_MAX;
+            filter_dims.w = 0;
+            output_dims.w = 0;
+        }
+        else if (c == 44)
+        {
+            /* A filter plane past INT32_MAX with no channels */
+            input_dims.c = 0;
+            filter_dims = (cmsis_nn_dims){1, UINT16_MAX, UINT16_MAX, 0};
+            output_dims.w = 0;
+        }
+        else if (c == 45)
+        {
+            /* A filter row, KW * C * ch_mult, past INT32_MAX with an empty filter plane */
+            params.ch_mult = UINT16_MAX;
+            filter_dims = (cmsis_nn_dims){1, 0, UINT16_MAX, 0};
+            output_dims.w = 0;
+        }
+        else if (c == 46)
+        {
+            /* A tap row, KW * dilation W * C, past INT32_MAX while dilation W * C is not */
+            input_dims.c = 32768;
+            filter_dims.w = 2;
+            params.dilation.w = 32768;
+            output_dims.w = 0;
+        }
+        else if (c == 47)
+        {
+            /* A tap column, KH * dilation H * W * C, past INT32_MAX while dilation H * W * C is not */
+            input_dims.c = 32768;
+            filter_dims.h = 2;
+            params.dilation.h = 32768;
             output_dims.w = 0;
         }
         else if (c == 34)

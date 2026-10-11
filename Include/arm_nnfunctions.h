@@ -2207,7 +2207,8 @@ arm_cmsis_nn_status arm_depthwise_conv_s4(const cmsis_nn_context *ctx,
  *             nothing written when a dimension, ch_mult, padding, stride or dilation is outside [0, 65,535], a
  *             stride or dilation is 0, an input or output plane H * W or the input, filter or output (C * ch_mult
  *             channels) holds more than INT32_MAX elements, a KW or KH times the dilation or an output W or H times
- *             the stride is above INT32_MAX / 2. Where the
+ *             the stride is above INT32_MAX / 2, or C * ch_mult, KW * KH, KW * C * ch_mult, stride W * C,
+ *             max(KW, 1) * dilation W * C or max(KH, 1) * dilation H * W * C is above INT32_MAX. Where the
  *             generic kernel runs (builds without the MVE kernel, and filters of 512 or more taps), it is also an
  *             argument error when a padding or stride is outside [0, 32,767] or (output W or H - 1) * stride -
  *             padding is above 32,767: that kernel keeps the first tap index of an output as int16_t.
@@ -2375,11 +2376,11 @@ int32_t arm_depthwise_conv_wrapper_s16_get_buffer_size_mve(const cmsis_nn_dw_con
  *                                                      dw_conv_params->ch_mult != 1 or
  *                                                      filter_dims->w * filter_dims->h >= MAX_COL_COUNT (512) or
  *                                                      dw_conv_params->dilation.h != 1 or
- *                                                      dw_conv_params->dilation.w < 1 or, with the MVE kernel,
- *                                                      the bounds of arm_depthwise_conv_s16() other than its
- *                                                      first tap rule or, on the DSP path (DSP builds without
- *                                                      the MVE kernel), a padding or stride outside [0, 32,767]
- *                                                      or (output W or H - 1) * stride - padding above 32,767;
+ *                                                      dw_conv_params->dilation.w < 1 or the bounds of
+ *                                                      arm_depthwise_conv_s16() other than its first tap rule
+ *                                                      or, on the DSP path (DSP builds without the MVE
+ *                                                      kernel), a padding or stride outside [0, 32,767] or
+ *                                                      (output W or H - 1) * stride - padding above 32,767;
  *                                                      builds without DSP run arm_depthwise_conv_s16() and return
  *                                                      its errors
  *
