@@ -1617,7 +1617,7 @@ __STATIC_INLINE bool arm_nn_conv_flt_is_1xn(const cmsis_nn_tile *stride,
 
 /**
  * @brief The float16 small-C route: fewer input channels than ARM_NN_CONV_SMALL_C_F16_LANES, a positive output
- *        depth and width, a positive filter width, stride and dilation, a non-negative padding and input width, and
+ *        depth and width, a positive input width, filter width, stride and dilation, a non-negative padding, and
  *        every gather and scatter offset within 16 bits.
  * @param[in] stride      Spatial stride
  * @param[in] padding     Spatial zero-padding
@@ -1635,7 +1635,7 @@ __STATIC_INLINE bool arm_nn_conv_f16_is_small_c(const cmsis_nn_tile *stride,
                                                 const cmsis_nn_dims *output_dims)
 {
     if (input_dims->c <= 0 || input_dims->c >= ARM_NN_CONV_SMALL_C_F16_LANES || output_dims->c <= 0 ||
-        output_dims->w <= 0 || input_dims->w < 0 || padding->w < 0 || stride->w <= 0 || dilation->w <= 0 ||
+        output_dims->w <= 0 || input_dims->w <= 0 || padding->w < 0 || stride->w <= 0 || dilation->w <= 0 ||
         filter_dims->w <= 0)
     {
         return false;
