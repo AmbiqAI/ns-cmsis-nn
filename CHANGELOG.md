@@ -1,5 +1,12 @@
 # Changelog
 
+## [7.44.2](https://github.com/AmbiqAI/ns-cmsis-nn/compare/v7.44.1...v7.44.2) (2026-10-11)
+
+
+### Bug Fixes
+
+* **conv:** let the s16 depthwise MVE and DSP kernels take values above 65,535 ([#789](https://github.com/AmbiqAI/ns-cmsis-nn/issues/789)) ([1d12780](https://github.com/AmbiqAI/ns-cmsis-nn/commit/1d12780be2d965b0fdb9adbc6260d19e5918565f)), closes [#787](https://github.com/AmbiqAI/ns-cmsis-nn/issues/787)
+
 ## [7.44.1](https://github.com/AmbiqAI/ns-cmsis-nn/compare/v7.44.0...v7.44.1) (2026-10-11)
 
 
