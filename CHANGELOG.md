@@ -1,5 +1,14 @@
 # Changelog
 
+## [7.44.1](https://github.com/AmbiqAI/ns-cmsis-nn/compare/v7.44.0...v7.44.1) (2026-10-11)
+
+
+### Bug Fixes
+
+* **conv:** accumulate s16 convolutions in int64 past 512 columns ([#782](https://github.com/AmbiqAI/ns-cmsis-nn/issues/782)) ([d7ee593](https://github.com/AmbiqAI/ns-cmsis-nn/commit/d7ee593f8937ba240a9322bd9e7702a495d9294e)), closes [#777](https://github.com/AmbiqAI/ns-cmsis-nn/issues/777)
+* **conv:** keep the depthwise DSP im2col fills inside their buffers ([#781](https://github.com/AmbiqAI/ns-cmsis-nn/issues/781)) ([9dbd61e](https://github.com/AmbiqAI/ns-cmsis-nn/commit/9dbd61e3e5ebd9182d5f42774431e720076688d8)), closes [#766](https://github.com/AmbiqAI/ns-cmsis-nn/issues/766)
+* **quant:** build the s8 and s16 dequantize kernels for integer-only MVE ([#783](https://github.com/AmbiqAI/ns-cmsis-nn/issues/783)) ([3758fa6](https://github.com/AmbiqAI/ns-cmsis-nn/commit/3758fa6397e5ef2bc5b85251b8eb11a5dd7843f1)), closes [#778](https://github.com/AmbiqAI/ns-cmsis-nn/issues/778)
+
 ## [7.44.0](https://github.com/AmbiqAI/ns-cmsis-nn/compare/v7.43.0...v7.44.0) (2026-10-11)
 
 
