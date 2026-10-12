@@ -5,16 +5,24 @@
 
 ### Notes for integrators
 
-This patch restores s16 depthwise convolution layers with a dimension, padding, stride or dilation above 65,535, which 7.44.0 and 7.44.1 rejected on MVE and DSP builds. Scratch sizes are unchanged.
+This patch restores s16 depthwise convolution layers that 7.44.0 and 7.44.1 rejected for having a dimension, padding, stride or dilation above 65,535. The fix applies fully where the MVE kernel runs (MVE builds without `ARM_MATH_AUTOVECTORIZE`), and on the DSP path within the limits below. Scratch sizes are unchanged.
 
-* **s16 depthwise layers above 65,535 ([#787](https://github.com/AmbiqAI/ns-cmsis-nn/issues/787), [#789](https://github.com/AmbiqAI/ns-cmsis-nn/pull/789)).** Since 7.44.0, `arm_depthwise_conv_fast_s16()` returned `ARM_CMSIS_NN_ARG_ERROR` on MVE and DSP builds for any layer with a value above 65,535. One example is a 1x3 filter dilated by 65,536 over an input 131,073 wide. Its kernels form their indices in int32_t and run such layers again, as in 7.43.0.
+* **s16 depthwise layers above 65,535 ([#787](https://github.com/AmbiqAI/ns-cmsis-nn/issues/787), [#789](https://github.com/AmbiqAI/ns-cmsis-nn/pull/789)).** Since 7.44.0, `arm_depthwise_conv_fast_s16()` returned `ARM_CMSIS_NN_ARG_ERROR` on MVE and DSP builds for any layer with a value above 65,535.
+  * For example, a 1x3 filter dilated by 65,536 over an input 131,073 wide: 7.43.0 computed it, and 7.44.2 computes it again.
+  * Both kernels of `arm_depthwise_conv_fast_s16()`, the MVE one and the DSP one, form their indices in int32_t. The DSP kernel keeps its channel counters as uint16_t and the first tap index of an output as int16_t.
   * **Limits by path:**
-    * MVE kernel: each value up to INT32_MAX / 4, within the existing int32_t product bounds.
-    * DSP path: also at most 65,535 channels and a first tap index within int16_t.
-    * Builds without DSP: run the generic kernel, which takes its values as uint16_t, so these layers remain an argument error there.
-  * `arm_depthwise_conv_s16()` takes the same layers on MVE builds when its filter has fewer than 512 taps.
+    * **MVE kernel:** each value up to INT32_MAX / 4, within the existing int32_t product bounds.
+    * **DSP path** (DSP builds without the MVE kernel, including Cortex-M55 with `ARM_MATH_AUTOVECTORIZE`): also at most 65,535 channels, padding and stride at most 32,767, and (output W or H - 1) * stride - padding at most 32,767.
+      * An input W or H above 65,535 therefore runs there only when the output extent is small, for example with a large stride or dilation.
+      * 7.43.0 could give wrong output for layers these limits reject.
+    * **Builds without DSP:** run the generic kernel, which takes its values as uint16_t, so these layers remain an argument error there.
+  * `arm_depthwise_conv_s16()` takes the same layers on MVE builds without `ARM_MATH_AUTOVECTORIZE` when its filter has fewer than 512 taps; otherwise it runs its generic kernel.
+  * `arm_depthwise_conv_wrapper_s16()` follows whichever function it routes to.
   * `arm_nn_depthwise_conv_s16_args_invalid()` in `arm_nnsupportfunctions.h` now holds only the generic kernel's 16-bit rule. The int32_t bounds moved to `arm_nn_depthwise_conv_s16_index_invalid()`.
-  * With compilers that inline the DSP kernel (clang-based ones such as ATfE and Arm Compiler 6), `arm_depthwise_conv_fast_s16()` grows by a second inlined copy of the kernel. With ATfE on Cortex-M4 that is about 1.5 KB at -Os and up to about 3 KB at -O3. GCC code is the same as in 7.44.1 apart from the argument checks.
+  * **Code size:**
+    * The new argument checks add about 0.2 to 0.4 KB to `arm_depthwise_conv_s16()` on every build, and about 0.2 KB to `arm_depthwise_conv_fast_s16()` on MVE and DSP builds.
+    * With compilers that inline the DSP kernel (clang-based ones such as ATfE and Arm Compiler 6), `arm_depthwise_conv_fast_s16()` also grows by a second inlined copy of the kernel. With ATfE on Cortex-M4 that is about 1.7 KB at -Os and up to about 3 KB at -O3.
+    * Under GCC the kernel itself is the same as in 7.44.1.
 
 
 ### Bug Fixes
