@@ -18,6 +18,7 @@
 
 #include "unity.h"
 #include <arm_nnfunctions.h>
+#include <arm_nnsupportfunctions.h>
 
 #include "../TestData/softmax/test_data.h"
 #include "../Utils/validate.h"
@@ -82,6 +83,37 @@ void softmax_long_equal_rows_arm_softmax_s8(void)
         for (int32_t i = 0; i < sizes[k]; i++)
         {
             TEST_ASSERT_EQUAL_INT8(expected[k], output[i]);
+        }
+    }
+}
+
+/* arm_nn_divide_by_power_of_two(), which the softmax kernels round with, for exponents 0 to 31 on edge and random
+   dividends against a 64-bit reference that rounds midpoints away from zero. Builds with
+   CMSIS_NN_USE_REQUANTIZE_INLINE_ASSEMBLY take its assembly branch. */
+void divide_by_power_of_two_arm_softmax_s8(void)
+{
+    const int32_t edges[] = {
+        INT32_MIN, INT32_MIN + 1, -1073741825, -65537, -3, -2, -1, 0, 1, 2, 3, 65535, 1073741824, INT32_MAX - 1, INT32_MAX};
+    const int32_t num_edges = (int32_t)(sizeof(edges) / sizeof(edges[0]));
+    uint32_t seed = 713u;
+    for (int32_t exponent = 0; exponent <= 31; exponent++)
+    {
+        for (int32_t i = 0; i < num_edges + 64; i++)
+        {
+            int32_t dividend;
+            if (i < num_edges)
+            {
+                dividend = edges[i];
+            }
+            else
+            {
+                seed = seed * 1664525u + 1013904223u;
+                dividend = (int32_t)seed;
+            }
+            const int64_t divisor = (int64_t)1 << exponent;
+            const int64_t magnitude = ((dividend < 0 ? -(int64_t)dividend : dividend) + divisor / 2) / divisor;
+            const int32_t expected = (int32_t)(dividend < 0 ? -magnitude : magnitude);
+            TEST_ASSERT_EQUAL_INT32(expected, arm_nn_divide_by_power_of_two(dividend, exponent));
         }
     }
 }
