@@ -108,8 +108,10 @@ arm_cmsis_nn_status arm_convolve_s16_group_ch_mult_1(const cmsis_nn_context *ctx
         const int32_t rhs_cols_0 = (rhs_cols <= 8) ? rhs_cols : 8;
         const int32_t rhs_cols_1 = rhs_cols - rhs_cols_0;
 
-        uint16x8_t offset_src_0;
-        uint16x8_t offset_src_1;
+        /* Zero-filled so unused lanes gather from input_ptr[0] rather than a junk offset.
+           Their weight lanes are zero (vldrbq_z_s16 below), so they cannot affect the result. */
+        uint16x8_t offset_src_0 = vdupq_n_u16(0);
+        uint16x8_t offset_src_1 = vdupq_n_u16(0);
         for (int32_t ky = 0; ky < kernel_y; ky++)
         {
             for (int32_t kx = 0; kx < kernel_x; kx++)
@@ -140,13 +142,19 @@ arm_cmsis_nn_status arm_convolve_s16_group_ch_mult_1(const cmsis_nn_context *ctx
             const int32_t *bs32 = bias_s32;
             const int64_t *bs64 = bias_s64;
 
+            /* Byte offsets of four consecutive output positions for the batched store. */
+            const uint32x4_t scatter_offsets = {
+                0u, (uint32_t)(output_ch * 2), (uint32_t)(output_ch * 4), (uint32_t)(output_ch * 6)};
+            const int32_t in_step = input_ch * stride_x;
+
             for (int32_t c = 0; c < output_ch; c++)
             {
                 int16_t *input_ptr = (int16_t *)input_data + c;
                 int16_t *out_c = output_data + c;
 
                 int16x8_t weight_0 = vldrbq_z_s16(filter_ptr, p0);
-                int16x8_t weight_1;
+                /* Initialized so the guarded uses below stay provable to the compiler. */
+                int16x8_t weight_1 = vdupq_n_s16(0);
                 if (rhs_cols_1 > 0)
                 {
                     weight_1 = vldrbq_z_s16(filter_ptr + 8, p1);
@@ -177,13 +185,45 @@ arm_cmsis_nn_status arm_convolve_s16_group_ch_mult_1(const cmsis_nn_context *ctx
 
                 for (int32_t i_out_y = 0; i_out_y < output_y; i_out_y++)
                 {
-                    for (int32_t i_out_x = 0; i_out_x < output_x - 1; i_out_x++)
+                    int32_t i_out_x = 0;
+
+                    /* vmladavq reduces into a scalar register, so four positions can be
+                       accumulated before paying for a single vectorized epilogue. */
+                    if (bias_is_s32)
                     {
-                        int16x8_t in_0 = vldrhq_gather_offset_z_s16(input_ptr, offset_src_0, p0);
+                        for (; i_out_x + 4 <= output_x - 1; i_out_x += 4)
+                        {
+                            int32_t acc4[4];
+
+                            for (int32_t k = 0; k < 4; k++)
+                            {
+                                int16x8_t in_0 = vldrhq_gather_offset_s16(input_ptr, offset_src_0);
+                                int32_t result = vmladavq_s16(weight_0, in_0);
+                                if (rhs_cols_1 > 0)
+                                {
+                                    int16x8_t in_1 = vldrhq_gather_offset_s16(input_ptr, offset_src_1);
+                                    result += vmladavq_s16(weight_1, in_1);
+                                }
+                                acc4[k] = result + bias_s32_val;
+                                input_ptr += in_step;
+                            }
+
+                            int32x4_t acc_v = vldrwq_s32(acc4);
+                            acc_v = arm_requantize_mve(acc_v, multiplier, shift);
+                            acc_v = vmaxq_s32(acc_v, vdupq_n_s32(activation_min));
+                            acc_v = vminq_s32(acc_v, vdupq_n_s32(activation_max));
+                            vstrhq_scatter_offset_s32(out_c, scatter_offsets, acc_v);
+                            out_c += 4 * output_ch;
+                        }
+                    }
+
+                    for (; i_out_x < output_x - 1; i_out_x++)
+                    {
+                        int16x8_t in_0 = vldrhq_gather_offset_s16(input_ptr, offset_src_0);
                         int32_t result = vmladavq_s16(weight_0, in_0);
                         if (rhs_cols_1 > 0)
                         {
-                            int16x8_t in_1 = vldrhq_gather_offset_z_s16(input_ptr, offset_src_1, p1);
+                            int16x8_t in_1 = vldrhq_gather_offset_s16(input_ptr, offset_src_1);
                             result += vmladavq_s16(weight_1, in_1);
                         }
                         input_ptr += input_ch * stride_x;
@@ -206,11 +246,11 @@ arm_cmsis_nn_status arm_convolve_s16_group_ch_mult_1(const cmsis_nn_context *ctx
                     }
                     /* Last column + advance to next row */
                     {
-                        int16x8_t in_0 = vldrhq_gather_offset_z_s16(input_ptr, offset_src_0, p0);
+                        int16x8_t in_0 = vldrhq_gather_offset_s16(input_ptr, offset_src_0);
                         int32_t result = vmladavq_s16(weight_0, in_0);
                         if (rhs_cols_1 > 0)
                         {
-                            int16x8_t in_1 = vldrhq_gather_offset_z_s16(input_ptr, offset_src_1, p1);
+                            int16x8_t in_1 = vldrhq_gather_offset_s16(input_ptr, offset_src_1);
                             result += vmladavq_s16(weight_1, in_1);
                         }
                         input_ptr += input_ch * stride_edge;
