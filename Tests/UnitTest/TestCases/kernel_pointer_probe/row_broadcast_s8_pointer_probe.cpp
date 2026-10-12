@@ -7,7 +7,7 @@
 #define ARM_MATH_MVEI 1
 #include "mve_shim.h"
 
-#include "Internal/arm_nn_broadcast_walk.h"
+#include "../../../../Include/Internal/arm_nn_broadcast_walk.h"
 #include "arm_nnfunctions.h"
 #define ARM_NNSUPPORTFUNCTIONS_H /* Use the constexpr helpers below instead of the runtime ones. */
 
