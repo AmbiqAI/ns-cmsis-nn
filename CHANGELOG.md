@@ -1,5 +1,26 @@
 # Changelog
 
+## [7.44.2](https://github.com/AmbiqAI/ns-cmsis-nn/compare/v7.44.1...v7.44.2) (2026-10-11)
+
+
+### Notes for integrators
+
+This patch restores s16 depthwise convolution layers with a dimension, padding, stride or dilation above 65,535, which 7.44.0 and 7.44.1 rejected on MVE and DSP builds. Scratch sizes are unchanged.
+
+* **s16 depthwise layers above 65,535 ([#787](https://github.com/AmbiqAI/ns-cmsis-nn/issues/787), [#789](https://github.com/AmbiqAI/ns-cmsis-nn/pull/789)).** Since 7.44.0, `arm_depthwise_conv_fast_s16()` returned `ARM_CMSIS_NN_ARG_ERROR` on MVE and DSP builds for any layer with a value above 65,535. One example is a 1x3 filter dilated by 65,536 over an input 131,073 wide. Its kernels form their indices in int32_t and run such layers again, as in 7.43.0.
+  * **Limits by path:**
+    * MVE kernel: each value up to INT32_MAX / 4, within the existing int32_t product bounds.
+    * DSP path: also at most 65,535 channels and a first tap index within int16_t.
+    * Builds without DSP: run the generic kernel, which takes its values as uint16_t, so these layers remain an argument error there.
+  * `arm_depthwise_conv_s16()` takes the same layers on MVE builds when its filter has fewer than 512 taps.
+  * `arm_nn_depthwise_conv_s16_args_invalid()` in `arm_nnsupportfunctions.h` now holds only the generic kernel's 16-bit rule. The int32_t bounds moved to `arm_nn_depthwise_conv_s16_index_invalid()`.
+  * With compilers that inline the DSP kernel (clang-based ones such as ATfE and Arm Compiler 6), `arm_depthwise_conv_fast_s16()` grows by a second inlined copy of the kernel. With ATfE on Cortex-M4 that is about 1.5 KB at -Os and up to about 3 KB at -O3. GCC code is the same as in 7.44.1 apart from the argument checks.
+
+
+### Bug Fixes
+
+* **conv:** let the s16 depthwise MVE and DSP kernels take values above 65,535 ([#789](https://github.com/AmbiqAI/ns-cmsis-nn/issues/789)) ([1d12780](https://github.com/AmbiqAI/ns-cmsis-nn/commit/1d12780be2d965b0fdb9adbc6260d19e5918565f)); Refs [#787](https://github.com/AmbiqAI/ns-cmsis-nn/issues/787)
+
 ## [7.44.1](https://github.com/AmbiqAI/ns-cmsis-nn/compare/v7.44.0...v7.44.1) (2026-10-11)
 
 
