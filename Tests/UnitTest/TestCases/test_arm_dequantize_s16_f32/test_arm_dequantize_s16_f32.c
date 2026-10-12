@@ -81,6 +81,11 @@ void dequantize_s16_f32_rejects_out_of_range_zero_point(void)
     {
         TEST_ASSERT_EQUAL_FLOAT(((float)input[i] - (float)INT16_MIN) * 0.5f, output[i]);
     }
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, arm_dequantize_s16_f32(input, output, 4, INT16_MAX, 0.5f));
+    for (int i = 0; i < 4; i++)
+    {
+        TEST_ASSERT_EQUAL_FLOAT(((float)input[i] - (float)INT16_MAX) * 0.5f, output[i]);
+    }
 }
 
 // A negative size is rejected and nothing is written; the Helium loop would read it as a huge count (issue #784).

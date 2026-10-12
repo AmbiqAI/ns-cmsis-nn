@@ -1053,8 +1053,9 @@ static void transpose_conv_s8_reference(const cmsis_nn_transpose_conv_params *pa
 /*
  * Input rows whose filter lies wholly outside the output (issue #775): with a short output, the skipped filter rows
  * of an input row exceed the filter height. Such rows contribute nothing, and the kernel must not step its filter
- * pointer past the filter for them. In the second shape the skipped rows of one output channel are 16,809,983 x 128
- * filter values, which overflows int32 (host UBSan).
+ * pointer past the filter for them. Both shapes are checked against a direct reference; the unfixed kernel's output
+ * is correct, so only the host sanitizer build fails before the fix, on the second shape, whose skipped rows of one
+ * output channel are 16,809,983 x 128 filter values and overflow int32.
  */
 void transpose_conv_rows_outside_output_arm_transpose_conv_s8(void)
 {
