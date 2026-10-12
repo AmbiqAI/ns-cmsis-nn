@@ -63,3 +63,5 @@ void test_buffer_size_out_of_range_dsp_arm_convolve_1x1_s8_fast(void)
     buffer_size_out_of_range_dsp_arm_convolve_1x1_s8_fast();
 }
 void test_extent_checks_arm_convolve_1x1_s8_fast(void) { extent_checks_arm_convolve_1x1_s8_fast(); }
+
+void test_stride_and_dims_arg_errors_arm_convolve_1x1_s8(void) { stride_and_dims_arg_errors_arm_convolve_1x1_s8(); }

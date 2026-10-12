@@ -449,7 +449,11 @@ int32_t arm_convolve_wrapper_s16_get_buffer_size_mve(const cmsis_nn_conv_params 
  * @param[in]      output_dims    Output tensor dimensions. Format: [N, H, W, C_OUT]
  * @param[out]     output_data    Output data pointer. Data type: int8
 
- * @return     The function returns <code>ARM_CMSIS_NN_SUCCESS</code>
+ * @return     The function returns one of the following
+ *                <code>ARM_CMSIS_NN_ARG_ERROR</code> - ctx->buf is NULL, or a dimension, padding, stride or
+ *                                                      dilation that arm_convolve_s8() rejects. The filter C is not
+ *                                                      read; it is taken to be C_IN.
+ *                <code>ARM_CMSIS_NN_SUCCESS</code> - Successful operation
  *
  * @details
  *    1. Supported framework: TensorFlow Lite micro
@@ -1159,7 +1163,8 @@ arm_cmsis_nn_status arm_convolve_s16(const cmsis_nn_context *ctx,
  *
  * @return     The function returns <code>ARM_CMSIS_NN_SUCCESS</code> if successful or
  *                                  <code>ARM_CMSIS_NN_ARG_ERROR</code> if incorrect arguments (among them a C_IN
- *                                  that is not positive, a negative C_OUT, or a filter C other than C_IN) or
+ *                                  that is not positive, a negative C_OUT, a filter C other than C_IN, a filter
+ *                                  other than 1x1, or an output H or W other than the input's) or
  *                                  <code>ARM_CMSIS_NN_NO_IMPL_ERROR</code>
  *
  * @details
@@ -1364,7 +1369,8 @@ arm_cmsis_nn_status arm_convolve_1x1_s4(const cmsis_nn_context *ctx,
  *
  * @return     The function returns either
  *                  <code>ARM_CMSIS_NN_ARG_ERROR</code> if argument constraints fail (among them a negative N, H, W
- *                  or C_OUT, a C_IN below 1, or a pixel count N * H * W above INT32_MAX), or
+ *                  or C_OUT, a C_IN below 1, an output H or W other than the input's, or a pixel count
+ *                  N * H * W above INT32_MAX), or
  *                  <code>ARM_CMSIS_NN_SUCCESS</code> on successful completion. When the input N, H or W, or C_OUT, is
  *                  0 and no other argument is in error, the output is empty and it returns
  *                  <code>ARM_CMSIS_NN_SUCCESS</code> at once, writing nothing.
@@ -1450,7 +1456,9 @@ int32_t arm_convolve_1x1_s8_fast_get_buffer_size(const cmsis_nn_dims *input_dims
  * @param[out]     output_data   Output data pointer. Data type: int8
  *
  * @return     The function returns either
- *                  <code>ARM_CMSIS_NN_ARG_ERROR</code> if argument constraints fail. or,
+ *                  <code>ARM_CMSIS_NN_ARG_ERROR</code> if argument constraints fail, among them a padding other
+ *                  than 0, a stride below 1, a negative output W or H, a C_IN below 1, or an output W or H whose
+ *                  last pixel, (W - 1) * stride, lies at or past the input's W or H, or,
  *                  <code>ARM_CMSIS_NN_SUCCESS</code> on successful completion.
  * @details
  *   - Supported framework : TensorFlow Lite Micro
@@ -1899,7 +1907,9 @@ int32_t arm_convolve_1_x_n_s4_get_buffer_size(const cmsis_nn_conv_params *conv_p
  *                (ARM_MATH_DSP and ARM_MATH_MVEI both defined), or if ctx->size is non-zero and below
  *                arm_depthwise_conv_s8_opt_get_buffer_size() for a layer its channel path runs, or if that sizer
  *                returns -1 (a negative dimension or a byte count it cannot represent), or on the MVE
- *                arm_convolve_wrapper_s8() diversion route if weight_sum_ctx->buf is NULL.
+ *                arm_convolve_wrapper_s8() diversion route if weight_sum_ctx->buf is NULL, or for any other
+ *                argument error of the function it picks, among them those of arm_depthwise_conv_s8()'s generic
+ *                kernel.
  *
  * @details
  *    - Supported framework: TensorFlow Lite
@@ -1936,7 +1946,7 @@ arm_cmsis_nn_status arm_depthwise_conv_wrapper_s8(const cmsis_nn_context *ctx,
  *                                 always matches the wrapper's own routing.
  *                                 The caller is expected to clear the buffer ,if applicable, for security reasons.
  * @param[in]      dw_conv_params  Depthwise convolution parameters (e.g. strides, dilations, pads,...)
- *                                 dw_conv_params->dilation is not used.
+ *                                 dw_conv_params->dilation is honoured.
  *                                 Range of dw_conv_params->input_offset : [-127, 128]
  *                                 Range of dw_conv_params->output_offset : [-128, 127]
  * @param[in]      quant_params    Per-channel quantization info.
@@ -1953,7 +1963,8 @@ arm_cmsis_nn_status arm_depthwise_conv_wrapper_s8(const cmsis_nn_context *ctx,
  * @param[in]      output_dims     Output tensor dimensions. Format: [1, H, W, C_OUT]
  * @param[out]     output_data     Output data pointer. Data type: int8
  * @return     The function returns
- *                <code>ARM_CMSIS_NN_SUCCESS</code>   -  Successful completion.
+ *                <code>ARM_CMSIS_NN_SUCCESS</code>   -  Successful completion, or
+ *                <code>ARM_CMSIS_NN_ARG_ERROR</code> -  an argument error of the function it picks.
  *
  * @details
  *    - Supported framework: TensorFlow Lite
@@ -2121,7 +2132,12 @@ int32_t arm_depthwise_conv_wrapper_s4_get_buffer_size_mve(const cmsis_nn_dw_conv
  * @param[in]      bias_data       Bias data pointer. Data type: int32
  * @param[in]      output_dims     Output tensor dimensions. Format: [N, H, W, C_OUT]
  * @param[out]     output_data     Output data pointer. Data type: int8
- * @return     The function returns <code>ARM_CMSIS_NN_SUCCESS</code>
+ * @return     The function returns <code>ARM_CMSIS_NN_SUCCESS</code>, or <code>ARM_CMSIS_NN_ARG_ERROR</code> with
+ *             nothing written when the generic kernel would run (a channel multiplier that is not a multiple of 4,
+ *             more than one batch, or a dilation other than 1) and a dimension, ch_mult, padding, stride or
+ *             dilation is outside [0, 65,535], a padding or stride is above 32,767, or (output W or H - 1) *
+ *             stride - padding is above 32,767: that kernel takes those values as uint16_t and keeps the first tap
+ *             index of an output as int16_t.
  *
  * @details
  *    - Supported framework: TensorFlow Lite
@@ -2147,7 +2163,7 @@ arm_cmsis_nn_status arm_depthwise_conv_s8(const cmsis_nn_context *ctx,
  *                                 arm_depthwise_conv_wrapper_s4_get_buffer_size() instead, because another route
  *                                 through that wrapper does require a buffer.
  * @param[in]      dw_conv_params  Depthwise convolution parameters (e.g. strides, dilations, pads,...)
- *                                 dw_conv_params->dilation is not used.
+ *                                 dw_conv_params->dilation is honoured.
  *                                 Range of dw_conv_params->input_offset : [-127, 128]
  *                                 Range of dw_conv_params->output_offset : [-128, 127]
  * @param[in]      quant_params    Per-channel quantization info.
@@ -2163,7 +2179,9 @@ arm_cmsis_nn_status arm_depthwise_conv_s8(const cmsis_nn_context *ctx,
  * @param[in]      bias            Bias data pointer. Data type: int32
  * @param[in]      output_dims     Output tensor dimensions. Format: [N, H, W, C_OUT]
  * @param[in, out] output          Output data pointer. Data type: int8
- * @return     The function returns <code>ARM_CMSIS_NN_SUCCESS</code>
+ * @return     The function returns <code>ARM_CMSIS_NN_SUCCESS</code>, or <code>ARM_CMSIS_NN_ARG_ERROR</code> with
+ *             nothing written when a padding or stride is outside [0, 32,767] or (output W or H - 1) * stride -
+ *             padding is above 32,767: the kernel keeps the first tap index of an output as int16_t.
  *
  * @details
  *    - Supported framework: TensorFlow Lite
@@ -2517,6 +2535,8 @@ arm_cmsis_nn_status arm_depthwise_conv_3x3_s8(const cmsis_nn_context *ctx,
  *
  * @return     The function returns one of the following
  *                <code>ARM_CMSIS_NN_ARG_ERROR</code> - input channel != output channel or ch_mult != 1, or
+ *                                                      on builds without DSP, an argument error of
+ *                                                      arm_depthwise_conv_s8(), which they run, or
  *                                                      dw_conv_params->dilation.h != 1 or
  *                                                      dw_conv_params->dilation.w < 1, or
  *                                                      ctx->buf is NULL when a scratch buffer is required, or
@@ -2526,7 +2546,9 @@ arm_cmsis_nn_status arm_depthwise_conv_3x3_s8(const cmsis_nn_context *ctx,
  *                                                      that sizer returns -1 (a negative dimension or a byte
  *                                                      count it cannot represent) on the channel path, or
  *                                                      weight_sum_ctx->buf is NULL on builds where it is read
- *                                                      (ARM_MATH_DSP and ARM_MATH_MVEI both defined)
+ *                                                      (ARM_MATH_DSP and ARM_MATH_MVEI both defined), or, on
+ *                                                      builds with DSP and without MVE, more than 65,535 channels
+ *                                                      or filter taps (W * H)
  *                <code>ARM_CMSIS_NN_SUCCESS</code> - Successful operation
  *
  * @note       ctx->size is optional: a caller that leaves it at zero opts out of the size check, as TFLM does. On
@@ -2790,7 +2812,8 @@ int32_t arm_depthwise_conv_s8_opt_3x3_get_buffer_size(const cmsis_nn_dims *input
  *
  * @param[in, out] ctx             Function context that contains the additional buffer required by the function.
  *                                 arm_depthwise_conv_s4_opt_get_buffer_size() will return the buffer_size. A NULL
- *                                 ctx->buf is diagnosed with <code>ARM_CMSIS_NN_ARG_ERROR</code>.
+ *                                 ctx->buf, or a non-zero ctx->size below that size, is diagnosed with
+ *                                 <code>ARM_CMSIS_NN_ARG_ERROR</code>; a ctx->size of zero opts out of the size check.
  *                                 The caller is expected to clear the buffer, if applicable, for security reasons.
  * @param[in]      dw_conv_params  Depthwise convolution parameters (e.g. strides, dilations, pads,...)
  *                                 dw_conv_params->dilation is not used.
@@ -2812,8 +2835,11 @@ int32_t arm_depthwise_conv_s8_opt_3x3_get_buffer_size(const cmsis_nn_dims *input
  *
  * @return     The function returns one of the following
  *                <code>ARM_CMSIS_NN_ARG_ERROR</code> - input channel != output channel or
- *                                                      ch_mult != 1 or
- *                                                      a negative channel count, filter width or filter height
+ *                                                      on builds without MVE, more than 65,535 channels or
+ *                                                      filter taps (W * H) or
+ *                                                      arm_depthwise_conv_s4_opt_get_buffer_size() returns -1
+ *                                                      (a negative channel count, filter width or filter height,
+ *                                                      or a size it cannot hold) or the ctx check above fails
  *                <code>ARM_CMSIS_NN_SUCCESS</code> - Successful operation
  *
  * @note       MVE channel tail loads and stores are predicated, so channel-indexed arrays are not accessed beyond

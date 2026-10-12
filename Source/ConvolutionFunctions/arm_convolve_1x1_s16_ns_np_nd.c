@@ -55,8 +55,11 @@ arm_cmsis_nn_status arm_convolve_1x1_s16_ns_np_nd(const cmsis_nn_context *ctx,
     (void)bias_dims;
 
     /* The wrapper's group rule, and one group only: the kernel reads C_IN weights per output channel.
-       See AmbiqAI/ns-cmsis-nn#763. */
-    if (arm_nn_convolve_groups_invalid(input_dims, filter_dims, output_dims) || input_dims->c != filter_dims->c)
+       See AmbiqAI/ns-cmsis-nn#763. A 1x1 filter with no stride or padding maps each input pixel to the output
+       pixel at the same place, so the output H and W must be the input's (AmbiqAI/ns-cmsis-nn#771). */
+    if (arm_nn_convolve_groups_invalid(input_dims, filter_dims, output_dims) || input_dims->c != filter_dims->c ||
+        filter_dims->w != 1 || filter_dims->h != 1 || output_dims->h != input_dims->h ||
+        output_dims->w != input_dims->w)
     {
         return ARM_CMSIS_NN_ARG_ERROR;
     }
@@ -77,25 +80,24 @@ arm_cmsis_nn_status arm_convolve_1x1_s16_ns_np_nd(const cmsis_nn_context *ctx,
     int32_t *output_shift = quant_params->shift;
 
     int32_t lhs_rows = output_x * output_y;
-    int16_t *out = output_data;
     for (int i_batch = 0; i_batch < input_batches; i_batch++)
     {
-        arm_nn_mat_mult_nt_t_s16(input_data,
-                                 filter_data,
-                                 bias_data,
-                                 out,
-                                 output_mult,
-                                 output_shift,
-                                 lhs_rows,
-                                 output_dims->c,
-                                 rhs_cols,
-                                 out_activation_min,
-                                 out_activation_max,
-                                 output_dims->c);
-
-        if (out == NULL)
+        /* Each batch writes its own slice of the output; builds without MVE get ARM_CMSIS_NN_NO_IMPL_ERROR */
+        const arm_cmsis_nn_status status = arm_nn_mat_mult_nt_t_s16(input_data,
+                                                                    filter_data,
+                                                                    bias_data,
+                                                                    output_data,
+                                                                    output_mult,
+                                                                    output_shift,
+                                                                    lhs_rows,
+                                                                    output_dims->c,
+                                                                    rhs_cols,
+                                                                    out_activation_min,
+                                                                    out_activation_max,
+                                                                    output_dims->c);
+        if (status != ARM_CMSIS_NN_SUCCESS)
         {
-            return ARM_CMSIS_NN_NO_IMPL_ERROR;
+            return status;
         }
 
         /* Advance to the next batch */

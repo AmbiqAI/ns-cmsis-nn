@@ -18,6 +18,7 @@
 
 #include <arm_nnfunctions.h>
 #include <stdlib.h>
+#include <string.h>
 #include <unity.h>
 
 #include "../TestData/kernel1x1/test_data.h"
@@ -925,4 +926,148 @@ void extent_checks_arm_convolve_1x1_s8_fast(void)
         TEST_ASSERT_EQUAL_INT8(0x55, output[j]);
     }
 #endif
+}
+
+/*
+ * #771: arm_convolve_1x1_s8() rejects a stride below 1, which stepped the input pointer backwards, and
+ * arm_convolve_1x1_s8_fast() rejects an output H or W other than the input's, which it wrote regardless. Both leave
+ * the output untouched.
+ */
+void stride_and_dims_arg_errors_arm_convolve_1x1_s8(void)
+{
+    static const int8_t input[3 * 2] = {1, -2, 3, -4, 5, -6};
+    static const int8_t weights[2 * 2] = {1, 2, 3, 4};
+    static const int32_t bias[2] = {10, -10};
+    static int32_t mult[2] = {1 << 30, 1 << 30};
+    static int32_t shift[2] = {0, 0};
+    static int32_t sums[2];
+    int8_t output[3 * 2 + 4];
+    const cmsis_nn_per_channel_quant_params quant = {mult, shift};
+    const cmsis_nn_dims input_dims = {1, 1, 3, 2}, filter_dims = {2, 1, 1, 2}, bias_dims = {1, 1, 1, 2};
+    static int16_t scratch[64];
+    const cmsis_nn_context ctx = {scratch, (int32_t)sizeof(scratch)};
+    const cmsis_nn_context sums_ctx = {sums, (int32_t)sizeof(sums)};
+    cmsis_nn_conv_params params = {.input_offset = 0,
+                                   .output_offset = 0,
+                                   .stride = {1, 1},
+                                   .padding = {0, 0},
+                                   .dilation = {1, 1},
+                                   .activation = {-128, 127}};
+
+    const cmsis_nn_tile bad_strides[4] = {{0, 1}, {-1, 1}, {1, 0}, {1, -1}};
+    const cmsis_nn_dims out_dims = {1, 1, 3, 2};
+    for (int32_t i = 0; i < 4; i++)
+    {
+        params.stride = bad_strides[i];
+        memset(output, 0x5A, sizeof(output));
+        TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR,
+                          arm_convolve_1x1_s8(&ctx,
+                                              &sums_ctx,
+                                              &params,
+                                              &quant,
+                                              &input_dims,
+                                              input,
+                                              &filter_dims,
+                                              weights,
+                                              &bias_dims,
+                                              bias,
+                                              &out_dims,
+                                              output));
+        for (size_t k = 0; k < sizeof(output); k++)
+        {
+            TEST_ASSERT_EQUAL_HEX8(0x5A, (uint8_t)output[k]);
+        }
+    }
+
+    /* Stride 2 over a 3-wide input gives 2 output columns; 3 would read the third at input column 4. Then stride 1
+       with 4 columns, whose last starts exactly at the input's W, and 65,536 columns of stride 65,536, whose reach
+       wraps int32_t. */
+    const cmsis_nn_tile strided_steps[5] = {{2, 1}, {2, 1}, {1, 1}, {65536, 1}, {2, 1}};
+    const cmsis_nn_dims strided_out[5] = {{1, 1, 3, 2}, {1, 2, 2, 2}, {1, 1, 4, 2}, {1, 1, 65536, 2}, {1, 1, 2, 2}};
+    for (int32_t i = 0; i < 5; i++)
+    {
+        params.stride = strided_steps[i];
+        memset(output, 0x5A, sizeof(output));
+        TEST_ASSERT_EQUAL(i < 4 ? ARM_CMSIS_NN_ARG_ERROR : ARM_CMSIS_NN_SUCCESS,
+                          arm_convolve_1x1_s8(&ctx,
+                                              &sums_ctx,
+                                              &params,
+                                              &quant,
+                                              &input_dims,
+                                              input,
+                                              &filter_dims,
+                                              weights,
+                                              &bias_dims,
+                                              bias,
+                                              &strided_out[i],
+                                              output));
+        for (size_t k = (i < 4 ? 0 : 2 * 2); k < sizeof(output); k++)
+        {
+            TEST_ASSERT_EQUAL_HEX8(0x5A, (uint8_t)output[k]);
+        }
+    }
+
+    /* A negative output H, no input channels, or a negative output W (which would run the row loop away) */
+    params.stride = (cmsis_nn_tile){1, 1};
+    const cmsis_nn_dims no_ch_dims = {1, 1, 3, 0};
+    const cmsis_nn_dims extent_in[3] = {input_dims, no_ch_dims, input_dims};
+    const cmsis_nn_dims extent_out[3] = {{1, -1, 3, 2}, {1, 1, 3, 2}, {1, 1, -1, 2}};
+    for (int32_t i = 0; i < 3; i++)
+    {
+        memset(output, 0x5A, sizeof(output));
+        TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR,
+                          arm_convolve_1x1_s8(&ctx,
+                                              &sums_ctx,
+                                              &params,
+                                              &quant,
+                                              &extent_in[i],
+                                              input,
+                                              &filter_dims,
+                                              weights,
+                                              &bias_dims,
+                                              bias,
+                                              &extent_out[i],
+                                              output));
+        for (size_t k = 0; k < sizeof(output); k++)
+        {
+            TEST_ASSERT_EQUAL_HEX8(0x5A, (uint8_t)output[k]);
+        }
+    }
+
+    TEST_ASSERT_TRUE(arm_convolve_1x1_s8_fast_get_buffer_size(&input_dims) <= (int32_t)sizeof(scratch));
+    const cmsis_nn_dims bad_out[3] = {{0, 0, 0, 2}, {1, 1, 2, 2}, {1, 2, 3, 2}};
+    for (int32_t i = 0; i < 3; i++)
+    {
+        memset(output, 0x5A, sizeof(output));
+        TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR,
+                          arm_convolve_1x1_s8_fast(&ctx,
+                                                   &sums_ctx,
+                                                   &params,
+                                                   &quant,
+                                                   &input_dims,
+                                                   input,
+                                                   &filter_dims,
+                                                   weights,
+                                                   &bias_dims,
+                                                   bias,
+                                                   &bad_out[i],
+                                                   output));
+        for (size_t k = 0; k < sizeof(output); k++)
+        {
+            TEST_ASSERT_EQUAL_HEX8(0x5A, (uint8_t)output[k]);
+        }
+    }
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
+                      arm_convolve_1x1_s8_fast(&ctx,
+                                               &sums_ctx,
+                                               &params,
+                                               &quant,
+                                               &input_dims,
+                                               input,
+                                               &filter_dims,
+                                               weights,
+                                               &bias_dims,
+                                               bias,
+                                               &out_dims,
+                                               output));
 }
