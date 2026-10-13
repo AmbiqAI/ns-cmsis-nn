@@ -58,7 +58,16 @@ __STATIC_INLINE bool arm_convolve_nhwc_f16_args_ok(const cmsis_nn_conv_params_f1
                                                    const cmsis_nn_dims *output_dims,
                                                    const float16_t *output_data)
 {
-    return conv_params && input_dims && filter_dims && output_dims && input_data && filter_data && output_data;
+    return conv_params && input_dims && filter_dims && output_dims && input_data && filter_data && output_data &&
+        arm_nn_conv_flt_dims_ok(&conv_params->stride,
+                                &conv_params->padding,
+                                &conv_params->dilation,
+                                input_dims,
+                                filter_dims,
+                                output_dims,
+                                sizeof(float16_t),
+                                8,
+                                conv_params->weight_format == ARM_NN_WEIGHT_FORMAT_NT_N_PACKED);
 }
 
 __STATIC_INLINE bool
@@ -80,9 +89,12 @@ arm_conv_nhwc_use_patch_gemm_f16(const cmsis_nn_context *ctx, int32_t patch_len,
 }
 
 __STATIC_INLINE bool arm_conv_nhwc_use_1x1_f16(const cmsis_nn_conv_params_f16 *conv_params,
-                                               const cmsis_nn_dims *filter_dims)
+                                               const cmsis_nn_dims *filter_dims,
+                                               const cmsis_nn_dims *input_dims,
+                                               const cmsis_nn_dims *output_dims)
 {
-    return conv_params && filter_dims && arm_nn_conv_flt_is_1x1(&conv_params->padding, filter_dims);
+    return conv_params && filter_dims && arm_nn_conv_flt_is_1x1(&conv_params->padding, filter_dims) &&
+        arm_nn_conv_flt_1x1_window_ok(&conv_params->stride, input_dims, output_dims);
 }
 
 __STATIC_FORCEINLINE arm_cmsis_nn_status arm_convolve_patch_mat_mul_f16(const float16_t *lhs,
@@ -661,9 +673,9 @@ __STATIC_FORCEINLINE int32_t arm_conv_f16_taps_in_range(int32_t base, int32_t di
     {
         return k_len;
     }
-    const int32_t lo = (base < 0) ? (dil - 1 - base) / dil : 0;
-    const int32_t hi = (in_len > base) ? ARM_NN_MIN(k_len, (in_len - base + dil - 1) / dil) : 0;
-    return (hi > lo) ? hi - lo : 0;
+    const int64_t lo = (base < 0) ? ((int64_t)dil - 1 - base) / dil : 0;
+    const int64_t hi = (in_len > base) ? ARM_NN_MIN((int64_t)k_len, ((int64_t)in_len - base + dil - 1) / dil) : 0;
+    return (hi > lo) ? (int32_t)(hi - lo) : 0;
 }
     #endif
 
@@ -938,10 +950,14 @@ __STATIC_FORCEINLINE arm_cmsis_nn_status arm_convolve_nhwc_f16_body(const cmsis_
     {
         return ARM_CMSIS_NN_ARG_ERROR;
     }
+    if (arm_nn_conv_flt_empty(output_dims))
+    {
+        return ARM_CMSIS_NN_SUCCESS;
+    }
 
     const int32_t patch_len = filter_dims->h * filter_dims->w * input_dims->c;
 
-    if (arm_conv_nhwc_use_1x1_f16(conv_params, filter_dims))
+    if (arm_conv_nhwc_use_1x1_f16(conv_params, filter_dims, input_dims, output_dims))
     {
         return (acc16 ? arm_convolve_1x1_nhwc_f16_acc16 : arm_convolve_1x1_nhwc_f16)(ctx,
                                                                                      conv_params,
@@ -1255,6 +1271,10 @@ arm_cmsis_nn_status arm_convolve_1d_k5_nhwc_ohwi_f16(const cmsis_nn_context *ctx
     {
         return ARM_CMSIS_NN_ARG_ERROR;
     }
+    if (arm_nn_conv_flt_empty(output_dims))
+    {
+        return ARM_CMSIS_NN_SUCCESS;
+    }
     if (conv_params->weight_format != ARM_NN_WEIGHT_FORMAT_STANDARD ||
         !arm_nn_conv_flt_is_1d_k(&conv_params->stride,
                                  &conv_params->padding,
@@ -1288,6 +1308,10 @@ arm_cmsis_nn_status arm_convolve_1d_k5_nhwc_ohwi_f16_acc16(const cmsis_nn_contex
             conv_params, input_dims, input_data, filter_dims, filter_data, output_dims, output_data))
     {
         return ARM_CMSIS_NN_ARG_ERROR;
+    }
+    if (arm_nn_conv_flt_empty(output_dims))
+    {
+        return ARM_CMSIS_NN_SUCCESS;
     }
     if (conv_params->weight_format != ARM_NN_WEIGHT_FORMAT_STANDARD ||
         !arm_nn_conv_flt_is_1d_k(&conv_params->stride,
@@ -1323,6 +1347,10 @@ arm_cmsis_nn_status arm_convolve_1d_k5_nhwc_packed_f16(const cmsis_nn_context *c
     {
         return ARM_CMSIS_NN_ARG_ERROR;
     }
+    if (arm_nn_conv_flt_empty(output_dims))
+    {
+        return ARM_CMSIS_NN_SUCCESS;
+    }
     if (conv_params->weight_format != ARM_NN_WEIGHT_FORMAT_NT_N_PACKED ||
         !arm_nn_conv_flt_is_1d_k(&conv_params->stride,
                                  &conv_params->padding,
@@ -1356,6 +1384,10 @@ arm_cmsis_nn_status arm_convolve_1d_k5_nhwc_packed_f16_acc16(const cmsis_nn_cont
             conv_params, input_dims, input_data, filter_dims, filter_data, output_dims, output_data))
     {
         return ARM_CMSIS_NN_ARG_ERROR;
+    }
+    if (arm_nn_conv_flt_empty(output_dims))
+    {
+        return ARM_CMSIS_NN_SUCCESS;
     }
     if (conv_params->weight_format != ARM_NN_WEIGHT_FORMAT_NT_N_PACKED ||
         !arm_nn_conv_flt_is_1d_k(&conv_params->stride,
@@ -1391,6 +1423,10 @@ arm_cmsis_nn_status arm_convolve_1d_k3_nhwc_ohwi_f16(const cmsis_nn_context *ctx
     {
         return ARM_CMSIS_NN_ARG_ERROR;
     }
+    if (arm_nn_conv_flt_empty(output_dims))
+    {
+        return ARM_CMSIS_NN_SUCCESS;
+    }
     if (conv_params->weight_format != ARM_NN_WEIGHT_FORMAT_STANDARD ||
         !arm_nn_conv_flt_is_1d_k(&conv_params->stride,
                                  &conv_params->padding,
@@ -1424,6 +1460,10 @@ arm_cmsis_nn_status arm_convolve_1d_k3_nhwc_ohwi_f16_acc16(const cmsis_nn_contex
             conv_params, input_dims, input_data, filter_dims, filter_data, output_dims, output_data))
     {
         return ARM_CMSIS_NN_ARG_ERROR;
+    }
+    if (arm_nn_conv_flt_empty(output_dims))
+    {
+        return ARM_CMSIS_NN_SUCCESS;
     }
     if (conv_params->weight_format != ARM_NN_WEIGHT_FORMAT_STANDARD ||
         !arm_nn_conv_flt_is_1d_k(&conv_params->stride,
@@ -1459,6 +1499,10 @@ arm_cmsis_nn_status arm_convolve_1d_k3_nhwc_packed_f16(const cmsis_nn_context *c
     {
         return ARM_CMSIS_NN_ARG_ERROR;
     }
+    if (arm_nn_conv_flt_empty(output_dims))
+    {
+        return ARM_CMSIS_NN_SUCCESS;
+    }
     if (conv_params->weight_format != ARM_NN_WEIGHT_FORMAT_NT_N_PACKED ||
         !arm_nn_conv_flt_is_1d_k(&conv_params->stride,
                                  &conv_params->padding,
@@ -1492,6 +1536,10 @@ arm_cmsis_nn_status arm_convolve_1d_k3_nhwc_packed_f16_acc16(const cmsis_nn_cont
             conv_params, input_dims, input_data, filter_dims, filter_data, output_dims, output_data))
     {
         return ARM_CMSIS_NN_ARG_ERROR;
+    }
+    if (arm_nn_conv_flt_empty(output_dims))
+    {
+        return ARM_CMSIS_NN_SUCCESS;
     }
     if (conv_params->weight_format != ARM_NN_WEIGHT_FORMAT_NT_N_PACKED ||
         !arm_nn_conv_flt_is_1d_k(&conv_params->stride,
@@ -1527,6 +1575,10 @@ arm_cmsis_nn_status arm_convolve_small_c_nhwc_f16(const cmsis_nn_context *ctx,
     {
         return ARM_CMSIS_NN_ARG_ERROR;
     }
+    if (arm_nn_conv_flt_empty(output_dims))
+    {
+        return ARM_CMSIS_NN_SUCCESS;
+    }
     if (!arm_nn_conv_f16_is_small_c(
             &conv_params->stride, &conv_params->padding, &conv_params->dilation, input_dims, filter_dims, output_dims))
     {
@@ -1557,6 +1609,10 @@ arm_cmsis_nn_status arm_convolve_patch_gemm_nhwc_ohwi_f16(const cmsis_nn_context
             conv_params, input_dims, input_data, filter_dims, filter_data, output_dims, output_data))
     {
         return ARM_CMSIS_NN_ARG_ERROR;
+    }
+    if (arm_nn_conv_flt_empty(output_dims))
+    {
+        return ARM_CMSIS_NN_SUCCESS;
     }
     if (conv_params->weight_format != ARM_NN_WEIGHT_FORMAT_STANDARD)
     {
@@ -1596,6 +1652,10 @@ arm_cmsis_nn_status arm_convolve_patch_gemm_nhwc_ohwi_f16_acc16(const cmsis_nn_c
     {
         return ARM_CMSIS_NN_ARG_ERROR;
     }
+    if (arm_nn_conv_flt_empty(output_dims))
+    {
+        return ARM_CMSIS_NN_SUCCESS;
+    }
     if (conv_params->weight_format != ARM_NN_WEIGHT_FORMAT_STANDARD)
     {
         return ARM_CMSIS_NN_NO_IMPL_ERROR;
@@ -1634,6 +1694,10 @@ arm_cmsis_nn_status arm_convolve_patch_gemm_nhwc_packed_f16(const cmsis_nn_conte
     {
         return ARM_CMSIS_NN_ARG_ERROR;
     }
+    if (arm_nn_conv_flt_empty(output_dims))
+    {
+        return ARM_CMSIS_NN_SUCCESS;
+    }
     if (conv_params->weight_format != ARM_NN_WEIGHT_FORMAT_NT_N_PACKED)
     {
         return ARM_CMSIS_NN_NO_IMPL_ERROR;
@@ -1671,6 +1735,10 @@ arm_cmsis_nn_status arm_convolve_patch_gemm_nhwc_packed_f16_acc16(const cmsis_nn
             conv_params, input_dims, input_data, filter_dims, filter_data, output_dims, output_data))
     {
         return ARM_CMSIS_NN_ARG_ERROR;
+    }
+    if (arm_nn_conv_flt_empty(output_dims))
+    {
+        return ARM_CMSIS_NN_SUCCESS;
     }
     if (conv_params->weight_format != ARM_NN_WEIGHT_FORMAT_NT_N_PACKED)
     {
@@ -1711,6 +1779,10 @@ arm_cmsis_nn_status arm_convolve_direct_nhwc_ohwi_f16(const cmsis_nn_context *ct
     {
         return ARM_CMSIS_NN_ARG_ERROR;
     }
+    if (arm_nn_conv_flt_empty(output_dims))
+    {
+        return ARM_CMSIS_NN_SUCCESS;
+    }
     if (conv_params->weight_format != ARM_NN_WEIGHT_FORMAT_STANDARD)
     {
         return ARM_CMSIS_NN_NO_IMPL_ERROR;
@@ -1744,6 +1816,10 @@ arm_cmsis_nn_status arm_convolve_direct_nhwc_ohwi_f16_acc16(const cmsis_nn_conte
             conv_params, input_dims, input_data, filter_dims, filter_data, output_dims, output_data))
     {
         return ARM_CMSIS_NN_ARG_ERROR;
+    }
+    if (arm_nn_conv_flt_empty(output_dims))
+    {
+        return ARM_CMSIS_NN_SUCCESS;
     }
     if (conv_params->weight_format != ARM_NN_WEIGHT_FORMAT_STANDARD)
     {
@@ -1779,6 +1855,10 @@ arm_cmsis_nn_status arm_convolve_direct_nhwc_packed_f16(const cmsis_nn_context *
     {
         return ARM_CMSIS_NN_ARG_ERROR;
     }
+    if (arm_nn_conv_flt_empty(output_dims))
+    {
+        return ARM_CMSIS_NN_SUCCESS;
+    }
     if (conv_params->weight_format != ARM_NN_WEIGHT_FORMAT_NT_N_PACKED)
     {
         return ARM_CMSIS_NN_NO_IMPL_ERROR;
@@ -1812,6 +1892,10 @@ arm_cmsis_nn_status arm_convolve_direct_nhwc_packed_f16_acc16(const cmsis_nn_con
             conv_params, input_dims, input_data, filter_dims, filter_data, output_dims, output_data))
     {
         return ARM_CMSIS_NN_ARG_ERROR;
+    }
+    if (arm_nn_conv_flt_empty(output_dims))
+    {
+        return ARM_CMSIS_NN_SUCCESS;
     }
     if (conv_params->weight_format != ARM_NN_WEIGHT_FORMAT_NT_N_PACKED)
     {

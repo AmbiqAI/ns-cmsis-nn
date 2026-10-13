@@ -210,6 +210,22 @@ __STATIC_FORCEINLINE arm_cmsis_nn_status arm_convolve_1x1_nhwc_f16_body(const cm
     {
         return ARM_CMSIS_NN_ARG_ERROR;
     }
+    if (!arm_nn_conv_flt_dims_ok(&conv_params->stride,
+                                 &conv_params->padding,
+                                 &conv_params->dilation,
+                                 input_dims,
+                                 filter_dims,
+                                 output_dims,
+                                 sizeof(float16_t),
+                                 8,
+                                 conv_params->weight_format == ARM_NN_WEIGHT_FORMAT_NT_N_PACKED))
+    {
+        return ARM_CMSIS_NN_ARG_ERROR;
+    }
+    if (arm_nn_conv_flt_empty(output_dims))
+    {
+        return ARM_CMSIS_NN_SUCCESS;
+    }
     if (packed != ARM_CONV_FORMAT_FROM_PARAMS &&
         conv_params->weight_format != (packed ? ARM_NN_WEIGHT_FORMAT_NT_N_PACKED : ARM_NN_WEIGHT_FORMAT_STANDARD))
     {
@@ -220,7 +236,8 @@ __STATIC_FORCEINLINE arm_cmsis_nn_status arm_convolve_1x1_nhwc_f16_body(const cm
     {
         return ARM_CMSIS_NN_ARG_ERROR;
     }
-    if (filter_dims->w != 1 || filter_dims->h != 1)
+    if (filter_dims->w != 1 || filter_dims->h != 1 ||
+        !arm_nn_conv_flt_1x1_window_ok(&conv_params->stride, input_dims, output_dims))
     {
         return ARM_CMSIS_NN_ARG_ERROR;
     }

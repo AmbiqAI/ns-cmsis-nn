@@ -210,6 +210,14 @@ int32_t arm_depthwise_conv_wrapper_f32_get_buffer_size(const cmsis_nn_dw_conv_pa
 /**
  * @brief Convolution, NHWC layout.
  *
+ * @note Dimensions must be nonnegative and batch/channel/filter metadata must agree. Stride and dilation
+ *       are positive; padding is nonnegative. Nonempty work requires positive input spatial/filter/channel
+ *       extents and representable accessed products and coordinates. Invalid arguments return ARG_ERROR
+ *       without output writes. Valid zero batch or output spatial extent returns SUCCESS without tensor access.
+ *       Generic output windows are explicit and out-of-input taps are clipped; an unsafe specialization is
+ *       declined rather than imposing a derived output shape. Pointer validity, aliasing and allocation lengths
+ *       remain the caller's responsibility. Bias may be NULL.
+ *
  * @param[in,out] ctx         Function context that may hold a temporary scratch buffer.
  * @param[in]     conv_params Convolution parameters (stride, padding, dilation and activation clamp).
  * @param[in]     input_dims  Input tensor dimensions. Format: [N, H, W, C_IN].
