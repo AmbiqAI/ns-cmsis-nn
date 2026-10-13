@@ -60,9 +60,13 @@ __STATIC_FORCEINLINE void arm_nn_mat_mult_nt_t_s8_mve(const int32_t *weight_sum_
                                                       const int32_t lhs_cols_offset,
                                                       const bool rshift_only)
 {
+    const int8_t *lhs_base = lhs;
+    int8_t *dst_base = dst;
     int i_items = 0;
     for (; i_items <= (lhs_rows - 4); i_items += 4)
     {
+        lhs = lhs_base + (size_t)i_items * (size_t)lhs_cols_offset;
+        dst = dst_base + (size_t)i_items * (size_t)row_address_offset;
         for (int i = 0; i < rhs_rows; i++)
         {
             int32_t acc_n0 = 0;
@@ -131,12 +135,12 @@ __STATIC_FORCEINLINE void arm_nn_mat_mult_nt_t_s8_mve(const int32_t *weight_sum_
             vstrbq_scatter_offset_s32(dst, scatter_offset, res);
             dst++;
         }
-        lhs += 4 * lhs_cols_offset;
-        dst += 4 * row_address_offset - rhs_rows;
     }
 
     for (; i_items < lhs_rows; i_items++)
     {
+        lhs = lhs_base + (size_t)i_items * (size_t)lhs_cols_offset;
+        dst = dst_base + (size_t)i_items * (size_t)row_address_offset;
         int32_t acc[4];
         const int32_t *multipliers = dst_multipliers;
         const int32_t *shifts = dst_shifts;
@@ -182,7 +186,6 @@ __STATIC_FORCEINLINE void arm_nn_mat_mult_nt_t_s8_mve(const int32_t *weight_sum_
                 dst += 4;
             }
         }
-        lhs += lhs_cols_offset;
         const int32_t tail_rows = rhs_rows & 0x3;
         for (int i = 0; i < tail_rows; i++)
         {
@@ -193,7 +196,6 @@ __STATIC_FORCEINLINE void arm_nn_mat_mult_nt_t_s8_mve(const int32_t *weight_sum_
             acc_n0 = ARM_NN_MIN(acc_n0, activation_max);
             *dst++ = (int8_t)acc_n0;
         }
-        dst += row_address_offset - rhs_rows;
     }
 }
 
@@ -303,9 +305,6 @@ arm_cmsis_nn_status arm_nn_mat_mult_nt_t_s8(const int32_t *weight_sum_buf,
 
     for (int32_t rhs_rows_idx = 0; rhs_rows_idx <= (rhs_rows - 2); rhs_rows_idx += 2)
     {
-        const int8_t *lhs_ptr = &lhs[0];
-        int8_t *dst_ptr = &dst[0];
-
         int32_t lhs_offset_contribution0 = 0;
         int32_t lhs_offset_contribution1 = 0;
         for (int32_t x = 0; x < rhs_cols; ++x)
@@ -320,9 +319,10 @@ arm_cmsis_nn_status arm_nn_mat_mult_nt_t_s8(const int32_t *weight_sum_buf,
             lhs_offset_contribution0 += bias[rhs_rows_idx];
             lhs_offset_contribution1 += bias[rhs_rows_idx + 1];
         }
-        int32_t lhs_rows_idx = lhs_rows >> 1;
-        while (lhs_rows_idx)
+        for (int32_t lhs_rows_idx = 0; lhs_rows_idx + 1 < lhs_rows; lhs_rows_idx += 2)
         {
+            const int8_t *lhs_ptr = lhs + (size_t)lhs_rows_idx * (size_t)lhs_cols_offset;
+            int8_t *dst_ptr = dst + (size_t)lhs_rows_idx * (size_t)rhs_rows;
             const int8_t *rhs_ptr = &rhs[0];
 
             int32_t res00 = lhs_offset_contribution0;
@@ -509,17 +509,13 @@ arm_cmsis_nn_status arm_nn_mat_mult_nt_t_s8(const int32_t *weight_sum_buf,
             dst_ptr += rhs_rows;
             dst_ptr[0] = (int8_t)res10;
             dst_ptr[1] = (int8_t)res11;
-            dst_ptr += rhs_rows;
-
-            lhs_ptr -= rhs_cols;
-            lhs_ptr += 2 * lhs_cols_offset;
-
-            lhs_rows_idx--;
         }
 
         // Left-over rows
         if (lhs_rows % 2)
         {
+            const int8_t *lhs_ptr = lhs + (size_t)(lhs_rows - 1) * (size_t)lhs_cols_offset;
+            int8_t *dst_ptr = dst + (size_t)(lhs_rows - 1) * (size_t)rhs_rows;
             const int8_t *rhs_ptr = &rhs[0];
 
             int32_t res00 = lhs_offset_contribution0;
@@ -652,11 +648,10 @@ arm_cmsis_nn_status arm_nn_mat_mult_nt_t_s8(const int32_t *weight_sum_buf,
 
     if (rhs_rows % 2)
     {
-        const int8_t *lhs_ptr = &lhs[0];
-        int8_t *dst_ptr = &dst[0];
-
         for (int32_t lhs_rows_idx = 0; lhs_rows_idx < lhs_rows; ++lhs_rows_idx)
         {
+            const int8_t *lhs_ptr = lhs + (size_t)lhs_rows_idx * (size_t)lhs_cols_offset;
+            int8_t *dst_ptr = dst + (size_t)lhs_rows_idx * (size_t)rhs_rows;
             const int8_t *rhs_ptr = &rhs[0];
             int32_t res00 = 0;
             if (bias)
@@ -674,8 +669,6 @@ arm_cmsis_nn_status arm_nn_mat_mult_nt_t_s8(const int32_t *weight_sum_buf,
                 ++rhs_ptr;
                 ++lhs_ptr;
             }
-            lhs_ptr -= rhs_cols;
-            lhs_ptr += lhs_cols_offset;
 
             // Quantize down
             res00 = arm_nn_requantize(res00, dst_multipliers[rhs_rows - 1], dst_shifts[rhs_rows - 1]);
@@ -688,7 +681,6 @@ arm_cmsis_nn_status arm_nn_mat_mult_nt_t_s8(const int32_t *weight_sum_buf,
             res00 = ARM_NN_MIN(res00, activation_max);
 
             dst_ptr[0] = (int8_t)res00;
-            dst_ptr += rhs_rows;
         }
     }
 #else
@@ -696,9 +688,6 @@ arm_cmsis_nn_status arm_nn_mat_mult_nt_t_s8(const int32_t *weight_sum_buf,
     (void)row_address_offset;
     for (int32_t rhs_rows_idx = 0; rhs_rows_idx <= (rhs_rows - 2); rhs_rows_idx += 2)
     {
-        const int8_t *lhs_ptr = &lhs[0];
-        int8_t *dst_ptr = &dst[0];
-
         int32_t lhs_offset_contribution0 = 0;
         int32_t lhs_offset_contribution1 = 0;
 
@@ -716,10 +705,10 @@ arm_cmsis_nn_status arm_nn_mat_mult_nt_t_s8(const int32_t *weight_sum_buf,
             lhs_offset_contribution1 += bias[rhs_rows_idx + 1];
         }
 
-        int32_t lhs_rows_idx = lhs_rows >> 1;
-
-        while (lhs_rows_idx)
+        for (int32_t lhs_rows_idx = 0; lhs_rows_idx + 1 < lhs_rows; lhs_rows_idx += 2)
         {
+            const int8_t *lhs_ptr = lhs + (size_t)lhs_rows_idx * (size_t)lhs_cols_offset;
+            int8_t *dst_ptr = dst + (size_t)lhs_rows_idx * (size_t)rhs_rows;
             const int8_t *rhs_ptr = &rhs[0];
 
             int32_t res00 = lhs_offset_contribution0;
@@ -771,17 +760,13 @@ arm_cmsis_nn_status arm_nn_mat_mult_nt_t_s8(const int32_t *weight_sum_buf,
             dst_ptr += rhs_rows;
             dst_ptr[0] = (int8_t)res10;
             dst_ptr[1] = (int8_t)res11;
-            dst_ptr += rhs_rows;
-
-            lhs_ptr -= rhs_cols;
-            lhs_ptr += 2 * lhs_cols_offset;
-
-            lhs_rows_idx--;
         }
 
         // Left-over rows
         if (lhs_rows % 2)
         {
+            const int8_t *lhs_ptr = lhs + (size_t)(lhs_rows - 1) * (size_t)lhs_cols_offset;
+            int8_t *dst_ptr = dst + (size_t)(lhs_rows - 1) * (size_t)rhs_rows;
             const int8_t *rhs_ptr = &rhs[0];
 
             int32_t res00 = lhs_offset_contribution0;
@@ -824,11 +809,10 @@ arm_cmsis_nn_status arm_nn_mat_mult_nt_t_s8(const int32_t *weight_sum_buf,
 
     if (rhs_rows % 2)
     {
-        const int8_t *lhs_ptr = &lhs[0];
-        int8_t *dst_ptr = &dst[0];
-
         for (int32_t lhs_rows_idx = 0; lhs_rows_idx < lhs_rows; ++lhs_rows_idx)
         {
+            const int8_t *lhs_ptr = lhs + (size_t)lhs_rows_idx * (size_t)lhs_cols_offset;
+            int8_t *dst_ptr = dst + (size_t)lhs_rows_idx * (size_t)rhs_rows;
             const int8_t *rhs_ptr = &rhs[0];
             int32_t res00 = 0;
             if (bias)
@@ -846,8 +830,6 @@ arm_cmsis_nn_status arm_nn_mat_mult_nt_t_s8(const int32_t *weight_sum_buf,
                 ++rhs_ptr;
                 ++lhs_ptr;
             }
-            lhs_ptr -= rhs_cols;
-            lhs_ptr += lhs_cols_offset;
 
             // Quantize down
             res00 = arm_nn_requantize(res00, dst_multipliers[rhs_rows - 1], dst_shifts[rhs_rows - 1]);
@@ -860,7 +842,6 @@ arm_cmsis_nn_status arm_nn_mat_mult_nt_t_s8(const int32_t *weight_sum_buf,
             res00 = ARM_NN_MIN(res00, activation_max);
 
             dst_ptr[0] = (int8_t)res00;
-            dst_ptr += rhs_rows;
         }
     }
 #endif

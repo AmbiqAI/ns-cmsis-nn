@@ -301,12 +301,12 @@ __STATIC_FORCEINLINE int32x4_t dw_s16_taps1(int32x4_t acc,
                                             const int32_t ker_col,
                                             const int32_t ker_row)
 {
-    for (int32_t ky = 0; ky < n_y; ky++, ip += in_row, rhs += ker_row)
+    for (int32_t ky = 0; ky < n_y; ky++)
     {
-        const int16_t *ipx = ip;
-        const int8_t *rhsx = rhs;
-        for (int32_t kx = 0; kx < n_x; kx++, ipx += in_col, rhsx += ker_col)
+        for (int32_t kx = 0; kx < n_x; kx++)
         {
+            const int16_t *ipx = ip + ky * in_row + kx * in_col;
+            const int8_t *rhsx = rhs + ky * ker_row + kx * ker_col;
             acc = dw_s16_mac(acc, ipx, dw_s16_ker(rhsx, mode, p), mode, offs, p);
         }
     }
@@ -334,28 +334,18 @@ __STATIC_FORCEINLINE void dw_s16_taps4(int32x4_t *acc,
     int32x4_t acc_1 = acc[1];
     int32x4_t acc_2 = acc[2];
     int32x4_t acc_3 = acc[3];
-    const int32_t row_step = in_row - n_x * in_col;
-    const int32_t ker_step = ker_row - n_x * ker_col;
     for (int32_t ky = 0; ky < n_y; ky++)
     {
         for (int32_t kx = 0; kx < n_x; kx++)
         {
-            const int32x4_t ker = dw_s16_ker(rhs, mode, p);
-            acc_0 = dw_s16_mac(acc_0, ip_0, ker, mode, offs, p);
-            acc_1 = dw_s16_mac(acc_1, ip_1, ker, mode, offs, p);
-            acc_2 = dw_s16_mac(acc_2, ip_2, ker, mode, offs, p);
-            acc_3 = dw_s16_mac(acc_3, ip_3, ker, mode, offs, p);
-            ip_0 += in_col;
-            ip_1 += in_col;
-            ip_2 += in_col;
-            ip_3 += in_col;
-            rhs += ker_col;
+            const int32_t in_index = ky * in_row + kx * in_col;
+            const int32_t ker_index = ky * ker_row + kx * ker_col;
+            const int32x4_t ker = dw_s16_ker(rhs + ker_index, mode, p);
+            acc_0 = dw_s16_mac(acc_0, ip_0 + in_index, ker, mode, offs, p);
+            acc_1 = dw_s16_mac(acc_1, ip_1 + in_index, ker, mode, offs, p);
+            acc_2 = dw_s16_mac(acc_2, ip_2 + in_index, ker, mode, offs, p);
+            acc_3 = dw_s16_mac(acc_3, ip_3 + in_index, ker, mode, offs, p);
         }
-        ip_0 += row_step;
-        ip_1 += row_step;
-        ip_2 += row_step;
-        ip_3 += row_step;
-        rhs += ker_step;
     }
     acc[0] = acc_0;
     acc[1] = acc_1;
@@ -469,8 +459,8 @@ static void dw_s16_mve(const int16_t *input,
         }
         const uint32x4_t offs = vld1q_u32(offs_buf);
         const int32_t in_off = mode == DW_S16_IN_VEC ? oc : (mode == DW_S16_IN_DUP ? oc / ch_mult : 0);
-        const int16_t *in_batch = input + in_off;
-        int16_t *out = output + oc;
+        const int16_t *in_batch = input;
+        int16_t *out = output;
 
         for (int32_t i_batch = 0; i_batch < input_batches; i_batch++)
         {
@@ -492,7 +482,7 @@ static void dw_s16_mve(const int16_t *input,
                     {
                         /* Two to four unclipped pixels */
                         int32x4_t acc[4] = {rq.bias, rq.bias, rq.bias, rq.bias};
-                        const int16_t *ip_0 = in_batch + (in_y + base_x) * input_ch;
+                        const int16_t *ip_0 = in_batch + (in_y + base_x) * input_ch + in_off;
                         const int16_t *ip_1 = ip_0 + px_step;
                         const int16_t *ip_2 = n > 2 ? ip_0 + 2 * px_step : ip_0;
                         const int16_t *ip_3 = n > 3 ? ip_0 + 3 * px_step : ip_0;
@@ -550,15 +540,15 @@ static void dw_s16_mve(const int16_t *input,
                                          ker_col,
                                          ker_row);
                         }
-                        vstrhq_s32(out, dw_s16_rq_apply(acc[0], &rq, act_min, act_max));
-                        vstrhq_s32(out + output_ch, dw_s16_rq_apply(acc[1], &rq, act_min, act_max));
+                        vstrhq_s32(out + oc, dw_s16_rq_apply(acc[0], &rq, act_min, act_max));
+                        vstrhq_s32(out + output_ch + oc, dw_s16_rq_apply(acc[1], &rq, act_min, act_max));
                         if (n > 2)
                         {
-                            vstrhq_s32(out + 2 * output_ch, dw_s16_rq_apply(acc[2], &rq, act_min, act_max));
+                            vstrhq_s32(out + 2 * output_ch + oc, dw_s16_rq_apply(acc[2], &rq, act_min, act_max));
                         }
                         if (n > 3)
                         {
-                            vstrhq_s32(out + 3 * output_ch, dw_s16_rq_apply(acc[3], &rq, act_min, act_max));
+                            vstrhq_s32(out + 3 * output_ch + oc, dw_s16_rq_apply(acc[3], &rq, act_min, act_max));
                         }
                         out += n * output_ch;
                         ox += n;
@@ -571,7 +561,7 @@ static void dw_s16_mve(const int16_t *input,
                         : ARM_NN_MIN(kernel_x, (input_x - base_x + dil_x - 1) / dil_x);
                     const int32_t n_x = ARM_NN_MAX(kx_end - kx_start, 0);
                     const int32_t in_x = ARM_NN_MIN(base_x + kx_start * dil_x, input_x - 1);
-                    const int16_t *ip = in_batch + (in_y + in_x) * input_ch;
+                    const int16_t *ip = in_batch + (in_y + in_x) * input_ch + in_off;
                     const int8_t *rhs = ker_y + ARM_NN_MIN(kx_start, kernel_x - 1) * ker_col;
                     int32x4_t acc = rq.bias;
                     if (mode_1 == DW_S16_IN_VEC)
@@ -600,7 +590,7 @@ static void dw_s16_mve(const int16_t *input,
                             acc, ip, rhs, DW_S16_IN_GATHER_P, offs, p, n_y, n_x, in_col, in_row, ker_col, ker_row);
                     }
                     vstrhq_p_s32(
-                        out, dw_s16_out(acc, &rq, slow, bias_oc, mult_oc, shift_oc, lanes, act_min, act_max), p);
+                        out + oc, dw_s16_out(acc, &rq, slow, bias_oc, mult_oc, shift_oc, lanes, act_min, act_max), p);
                     out += output_ch;
                     ox++;
                 }

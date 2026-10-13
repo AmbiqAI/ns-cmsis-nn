@@ -107,3 +107,38 @@ void transpose_zero_extent_arm_transpose_f32(void)
     }
     TEST_ASSERT_TRUE(output_untouched);
 }
+
+/* Complete row blocks, partial blocks and the scalar-size fallback preserve the permutation bit for bit. */
+void transpose_2d_tails_arm_transpose_f32(void)
+{
+    const int32_t shapes[][2] = {{16, 9}, {17, 9}, {9, 17}, {2, 3}};
+    uint32_t special[] = {0x80000000, 0x7f800000, 0xff800000, 0x7fc00001};
+    float32_t input[17 * 17];
+    float32_t output[17 * 17 + 1];
+    const cmsis_nn_context ctx = {NULL, 0};
+    const cmsis_nn_transpose_params_f32 params = {2, {1, 0, 2, 3}, ARM_NN_LAYOUT_NHWC};
+    for (size_t shape = 0; shape < sizeof(shapes) / sizeof(shapes[0]); shape++)
+    {
+        const int32_t rows = shapes[shape][0], cols = shapes[shape][1];
+        const cmsis_nn_dims input_dims = {rows, cols, 1, 1};
+        const cmsis_nn_dims output_dims = {cols, rows, 1, 1};
+        for (int32_t i = 0; i < rows * cols; i++)
+        {
+            input[i] = (float32_t)(i - 71);
+        }
+        memcpy(input, special, sizeof(special));
+        memset(output, 0xa5, sizeof(output));
+        TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
+                          arm_transpose_f32(&ctx, &params, &input_dims, input, &output_dims, output));
+        for (int32_t r = 0; r < rows; r++)
+        {
+            for (int32_t c = 0; c < cols; c++)
+            {
+                TEST_ASSERT_EQUAL_MEMORY(input + r * cols + c, output + c * rows + r, sizeof(input[0]));
+            }
+        }
+        uint32_t guard = 0;
+        memcpy(&guard, output + rows * cols, sizeof(guard));
+        TEST_ASSERT_EQUAL_HEX32(0xa5a5a5a5, guard);
+    }
+}

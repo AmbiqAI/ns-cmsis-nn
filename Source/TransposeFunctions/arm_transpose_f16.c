@@ -56,16 +56,13 @@ arm_transpose_2d_kernel_f16(const float16_t *input, float16_t *output, int32_t r
 
         for (int32_t c = 0; c < cols; ++c)
         {
-            const float16_t *input_col = input + c;
-            float16_t *output_col = output + (size_t)c * (size_t)rows;
-
             for (int32_t r = 0; r < rows; r += 8)
             {
+                const float16_t *input_col = input + (size_t)r * (size_t)cols + (size_t)c;
+                float16_t *output_col = output + (size_t)c * (size_t)rows + (size_t)r;
                 const mve_pred16_t p = vctp16q((uint32_t)(rows - r));
                 const float16x8_t vin = vldrhq_gather_shifted_offset_z(input_col, row_offsets, p);
                 vst1q_p(output_col, vin, p);
-                input_col += (size_t)8U * (size_t)cols;
-                output_col += 8;
             }
         }
 
