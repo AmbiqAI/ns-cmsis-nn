@@ -5,7 +5,10 @@
 
 #include "arm_nnsupportfunctions.h"
 #include "unity.h"
-#include <stdlib.h>
+#define REDUCTION_COLUMNS 65794
+
+/* One arena for this dedicated suite, within Corstone's DTCM rather than its 64 KiB heap. */
+static int8_t reduction_buffer[5 * REDUCTION_COLUMNS + 32];
 
 static int32_t wrap_reference(const int64_t sum)
 {
@@ -90,6 +93,23 @@ static void check_vector_wrap(const bool per_channel)
             }
         }
     }
+    const int long_columns = 131073;
+    int8_t *long_lhs = reduction_buffer;
+    int8_t *long_rhs = reduction_buffer + long_columns + 16;
+    memset(long_lhs, -128, long_columns + 16);
+    memset(long_rhs, 0, long_columns + 16);
+    const int32_t zero[1] = {0};
+    const int32_t multiplier[1] = {1073741824};
+    int8_t long_output[2] = {77, 77};
+    const arm_cmsis_nn_status status = per_channel
+        ? arm_nn_vec_mat_mult_t_per_ch_s8(
+              long_lhs, long_rhs, zero, zero, long_output, 0, 0, multiplier, zero, long_columns, 1, -128, 127, 2, 128)
+        : arm_nn_vec_mat_mult_t_s8(
+              long_lhs, long_rhs, zero, zero, long_output, 0, 0, multiplier[0], 0, long_columns, 1, -128, 127, 2, 128);
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, status);
+    TEST_ASSERT_EQUAL_INT8(quantized_reference(-INT64_C(16384) * long_columns, multiplier[0], -128, 127),
+                           long_output[0]);
+    TEST_ASSERT_EQUAL_INT8(77, long_output[1]);
 }
 
 void vec_mat_accumulator_wrap_s8(void) { check_vector_wrap(false); }
@@ -97,11 +117,9 @@ void per_ch_accumulator_wrap_s8(void) { check_vector_wrap(true); }
 
 void svdf_accumulator_wrap_s8(void)
 {
-    const int columns = 65794;
-    int8_t *lhs = malloc(columns + 16);
-    int8_t *rhs = malloc(3 * columns + 16);
-    TEST_ASSERT_NOT_NULL(lhs);
-    TEST_ASSERT_NOT_NULL(rhs);
+    const int columns = REDUCTION_COLUMNS;
+    int8_t *lhs = reduction_buffer;
+    int8_t *rhs = reduction_buffer + columns + 16;
     memset(lhs, -128, columns + 16);
     memset(rhs, -128, 3 * columns + 16);
     int16_t outputs[2][6] = {{0, 77, 0, 77, 0, 77}, {0, 77, 0, 77, 0, 77}};
@@ -111,8 +129,6 @@ void svdf_accumulator_wrap_s8(void)
         status[group] = arm_nn_vec_mat_mult_t_svdf_s8(
             lhs, rhs, outputs[group], -127, 2, 1073741824, 0, columns, 1 + 2 * group, -32768, 32767);
     }
-    free(lhs);
-    free(rhs); /* Release before assertions, including the expected baseline failure. */
     const int64_t sum = INT64_C(32640) * columns;
     for (int group = 0; group < 2; ++group)
     {
@@ -127,22 +143,29 @@ void svdf_accumulator_wrap_s8(void)
 
 void mat_mult_accumulator_wrap_s32(void)
 {
-    const int columns = 65794;
-    int8_t *lhs = malloc(3 * columns + 16);
-    int8_t *rhs = malloc(columns + 16);
-    TEST_ASSERT_NOT_NULL(lhs);
-    TEST_ASSERT_NOT_NULL(rhs);
-    memset(lhs, -128, 3 * columns + 16);
+    const int columns = REDUCTION_COLUMNS;
+    int8_t *lhs = reduction_buffer;
+    int8_t *rhs = reduction_buffer + 4 * columns + 16;
+    memset(lhs, -128, 4 * columns + 16);
     memset(rhs, -128, columns + 16);
-    int32_t output[9] = {0, 77, 77, 0, 77, 77, 0, 77, 77}; /* Owning contract requires zero initial output. */
-    const arm_cmsis_nn_status status = arm_nn_mat_mult_nt_t_s8_s32(lhs, rhs, output, 3, columns, 1, -127, 3);
-    free(lhs);
-    free(rhs);
-    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, status);
     const int32_t expected = wrap_reference(INT64_C(32640) * columns);
-    for (int i = 0; i < 9; ++i)
+    for (int rows = 3; rows <= 4; ++rows)
     {
-        TEST_ASSERT_EQUAL_INT32((i % 3 == 0) ? expected : 77, output[i]);
+        int32_t output[12];
+        for (int i = 0; i < 12; ++i)
+        {
+            output[i] = 77;
+        }
+        for (int row = 0; row < rows; ++row)
+        {
+            output[3 * row] = 0; /* Owning contract requires zero initial output. */
+        }
+        TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
+                          arm_nn_mat_mult_nt_t_s8_s32(lhs, rhs, output, rows, columns, 1, -127, 3));
+        for (int i = 0; i < 12; ++i)
+        {
+            TEST_ASSERT_EQUAL_INT32((i < 3 * rows && i % 3 == 0) ? expected : 77, output[i]);
+        }
     }
 }
 
