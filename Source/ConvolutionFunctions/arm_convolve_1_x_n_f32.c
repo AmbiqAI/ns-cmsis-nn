@@ -307,6 +307,22 @@ __STATIC_FORCEINLINE arm_cmsis_nn_status arm_convolve_1_x_n_nhwc_f32_body(const 
     {
         return ARM_CMSIS_NN_ARG_ERROR;
     }
+    if (!arm_nn_conv_flt_dims_ok(&conv_params->stride,
+                                 &conv_params->padding,
+                                 &conv_params->dilation,
+                                 input_dims,
+                                 filter_dims,
+                                 output_dims,
+                                 sizeof(float32_t),
+                                 4,
+                                 conv_params->weight_format == ARM_NN_WEIGHT_FORMAT_NT_N_PACKED))
+    {
+        return ARM_CMSIS_NN_ARG_ERROR;
+    }
+    if (arm_nn_conv_flt_empty(output_dims))
+    {
+        return ARM_CMSIS_NN_SUCCESS;
+    }
 
     if (!arm_nn_conv_flt_is_1xn(&conv_params->stride,
                                 &conv_params->padding,
