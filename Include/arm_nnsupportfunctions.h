@@ -2816,6 +2816,25 @@ __STATIC_FORCEINLINE int32_t arm_nn_nonneg_divide_by_pot_s32(int32_t dividend, i
 }
 
 /**
+ * @brief           Multiply-accumulate in int32_t that wraps as the hardware does instead of overflowing.
+ * @param[in]       acc     Accumulator
+ * @param[in]       a       Multiplicand. Product bits are accumulated modulo 2^32
+ * @param[in]       b       Multiplier
+ * @return          acc + a * b, wrapped to int32_t
+ *
+ * @details         A start value near INT32_MIN or INT32_MAX, such as a bias, can take a partial sum out of the int32_t
+ *                  range before the full sum returns to it. Adding in uint32_t keeps that defined and gives the same
+ *                  bits.
+ */
+__STATIC_FORCEINLINE int32_t arm_nn_mac_wrap_s32_bits(const int32_t acc, const int32_t a, const int32_t b)
+{
+    const uint32_t bits = (uint32_t)acc + (uint32_t)a * (uint32_t)b;
+    int32_t result;
+    memcpy(&result, &bits, sizeof(result));
+    return result;
+}
+
+/**
  * @brief           Requantize a given value.
  * @details         Essentially returns (val * multiplier)/(2 ^ shift) with different rounding depending if
  *                  CMSIS_NN_USE_SINGLE_ROUNDING is defined or not.
