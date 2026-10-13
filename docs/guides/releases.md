@@ -8,16 +8,24 @@ to manage versions. Every merge to `main` triggers `.github/workflows/release.ym
    or — when that PR is itself merged — to create a tag and a GitHub
    Release.
 2. **publish-staticlibs** builds static libraries and SDK tarballs for each
-   Cortex-M target across GCC, ATfE, and armclang, then publishes SDK tarballs
-   plus per-toolchain staticlib bundles with SHA-256 checksums.
+   Cortex-M target with GCC and ATfE; **publish-staticlibs-armclang** supplies
+   the licensed builds. **publish-staticlib-bundles** uploads the SDK tarballs
+   and per-toolchain staticlib bundles with SHA-256 checksums.
 3. **publish-ci-image** builds and pushes
    `ghcr.io/ambiqai/ns-cmsis-nn-ci:vX.Y.Z` so consumers can pin a
    reproducible build environment.
 4. **publish-pack** generates `Ambiq.NS-CMSIS-NN.<version>.pack`,
    schema-validates it against `PACK.xsd`, and uploads it.
-5. **release-unit-tests** and **release-helia-core-tester** run
-   against the freshly-built artifacts to verify the release actually
-   works before customers see it.
+5. **release-unit-tests** and **release-helia-core-tester** wait for the
+   versioned CI image and test the resolved release source. **release-verify**
+   waits for the asset-producing jobs and checks the published asset set.
+
+These jobs follow dependency edges, rather than running in the numbered order:
+CI-image publication and **publish-docs** can run alongside library builds;
+pack publication waits for the GCC/ATfE static libraries. The tag and non-draft
+GitHub Release are already public while assets and tests are still pending.
+A visible Release alone does not establish that publication or qualification
+has completed.
 
 ## Tag scheme
 
@@ -52,6 +60,12 @@ behind. Two checks close that gap, from opposite directions:
   allowlist of files whose job is to discuss release history (this page and
   the recovery commands below are on it). It sees the files that are *not*
   on the list.
+
+Review the stamps after release-please has updated the Release PR, then make
+any hand edits to its release notes. Before merging, check the notes against
+the final version and diff, including the annotated `extra-files` values.
+If release-please updates the version again, repeat that check before merging.
+Hand-editing notes does not stamp the source files or change the release tag.
 
 Adding a new file that hardcodes the version means adding it to
 `extra-files` **and** putting the annotation on the value's own line. Where
@@ -95,7 +109,7 @@ gap (see [AmbiqAI/ns-cmsis-nn#228](https://github.com/AmbiqAI/ns-cmsis-nn/issues
 | `ns-cmsis-nn-<cpu>-armclang-<version>.tar.gz`                          | **Optional** | Promoted to required only when the repository variable `ARMCLANG_REQUIRED` is `true`. Not keyed on whether a licence is configured. |
 | `ns-cmsis-nn-staticlibs-armclang-<version>.zip`                        | **Optional** | Same as above.                                                          |
 | `ghcr.io/ambiqai/ns-cmsis-nn-ci:vX.Y.Z` image                          | **Required** | Needed by `release-unit-tests` / `release-helia-core-tester`.           |
-| GitHub Pages docs update                                               | **Required** | Rides along with `publish-pack`.                                       |
+| GitHub Pages docs update                                               | **Required** | Separate `publish-docs` job on new releases; skipped in asset recovery. |
 
 Armclang is licensed through Arm's **User-Based Licensing**: the
 `ARM_UBL_LICENSE_IDENTIFIER` secret is an activation code, redeemed once per
