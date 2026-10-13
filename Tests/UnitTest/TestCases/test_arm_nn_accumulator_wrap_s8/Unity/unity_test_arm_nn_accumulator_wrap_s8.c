@@ -3,6 +3,8 @@
  * SPDX-License-Identifier: LicenseRef-Ambiq-Apollo-SDK
  */
 
+#include <stdlib.h>
+
 #include "../test_arm_nn_accumulator_wrap_s8.c"
 void setUp(void) {}
 void tearDown(void) {}
