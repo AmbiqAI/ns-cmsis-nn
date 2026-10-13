@@ -1142,7 +1142,7 @@ void transpose_conv_geometry_rejected_arm_transpose_conv_s8(void)
     const cmsis_nn_dims bias_dims = {0};
     const cmsis_nn_context unused_ctx = {NULL, 0};
 
-    for (int scenario = 0; scenario < 17; scenario++)
+    for (int scenario = 0; scenario < 18; scenario++)
     {
         cmsis_nn_dims input_dims = {1, 1, 1, 1};
         cmsis_nn_dims filter_dims = {1, 1, 1, 1};
@@ -1208,6 +1208,9 @@ void transpose_conv_geometry_rejected_arm_transpose_conv_s8(void)
         case 16:
             input_dims.c = filter_dims.c = 65536;
             input_dims.w = 65536;
+            break;
+        case 17:
+            input_dims.c = filter_dims.c = INT32_MAX;
             break;
         }
         int32_t scratch[4] = {12345, 12345, 12345, 12345};

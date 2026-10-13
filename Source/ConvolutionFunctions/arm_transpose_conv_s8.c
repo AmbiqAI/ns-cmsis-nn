@@ -91,9 +91,11 @@ arm_cmsis_nn_status arm_transpose_conv_s8(const cmsis_nn_context *ctx,
     const int32_t stride_x = transpose_conv_params->stride.w;
     const int32_t stride_y = transpose_conv_params->stride.h;
 
-    if (input_dims->n < 0 || input_x <= 0 || input_y <= 0 || input_ch <= 0 || filter_x <= 0 || filter_y <= 0 ||
-        output_x <= 0 || output_y <= 0 || output_ch <= 0 || stride_x <= 0 || stride_y <= 0 || pad_x < 0 || pad_y < 0 ||
-        output_dims->n != input_dims->n || filter_dims->c != input_ch || filter_dims->n != output_ch)
+    /* MVE rounds the channel count up with input_ch + 15; keep that expression representable in every build. */
+    if (input_dims->n < 0 || input_x <= 0 || input_y <= 0 || input_ch <= 0 || input_ch > INT32_MAX - 15 ||
+        filter_x <= 0 || filter_y <= 0 || output_x <= 0 || output_y <= 0 || output_ch <= 0 || stride_x <= 0 ||
+        stride_y <= 0 || pad_x < 0 || pad_y < 0 || output_dims->n != input_dims->n || filter_dims->c != input_ch ||
+        filter_dims->n != output_ch)
     {
         return ARM_CMSIS_NN_ARG_ERROR;
     }
