@@ -613,6 +613,8 @@ jobs:
             -DCMAKE_C_FLAGS=-DARM_NN_WORD_COPY \
             -DCMSIS_NN_TEST_LIBRARY="${GITHUB_WORKSPACE}/output/atfe/cortex-m4/libns-cmsis-nn-atfe-cortex-m4-${VERSION}.a" \
             -DARM_NN_ENABLE_F32=OFF -DARM_NN_ENABLE_F16=OFF
+          "${RUNNER_TEMP}/word-copy-env/bin/python" scripts/tests/test_unittest_targets_paths.py
+          python3 scripts/tests/test_check_atfe_word_copy.py
           python3 scripts/check_atfe_word_copy.py --build "${RUNNER_TEMP}/word-copy"
 
   armclang:

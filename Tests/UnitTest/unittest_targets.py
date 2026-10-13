@@ -25,6 +25,7 @@ import glob
 import time
 import queue
 import shutil
+import shlex
 import serial
 import argparse
 import threading
@@ -99,7 +100,7 @@ def run_command(command, error_msg=None, die=True):
     # https://os.mbed.com/questions/59636/STM-Nucleo-No-space-left-on-device-when-/
 
     # print(command)
-    command_list = command.split(' ')
+    command_list = shlex.split(command) if isinstance(command, str) else command
     process = subprocess.run(command_list)
     if die and process.returncode != 0:
         error_handler(process.returncode, error_msg)
@@ -356,7 +357,7 @@ def download_unity(force=False):
     unity_src = unity_dir + "src/"
     process = subprocess.run(['mktemp'], stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
     download_dir = process.stdout.strip()
-    run_command("rm -f {}".format(download_dir))
+    run_command(["rm", "-f", download_dir])
     download_dir += '/'
 
     # Check if already downloaded
@@ -393,7 +394,7 @@ def download_unity(force=False):
         error_handler(174, e)
     if not filename_base:
         error_handler(175)
-    run_command("tar xzf " + downloaded_file + " -C " + unity_dir + " --strip-components=1")
+    run_command(["tar", "xzf", downloaded_file, "-C", unity_dir, "--strip-components=1"])
     os.chdir(current_dir)
 
     # Cleanup
@@ -463,7 +464,7 @@ def parse_tests(targets, main_tests, specific_test=None, output_dir=None):
                     os.remove(old_files)
 
             # Generate test runners
-            run_command('ruby ' + UNITY_PATH + 'auto/generate_test_runner.rb ' + test_code + ' ' + test_runner)
+            run_command(["ruby", UNITY_PATH + "auto/generate_test_runner.rb", test_code, test_runner])
             test_found = parse_test(test_runner, targets)
             if not test_found:
                 return False

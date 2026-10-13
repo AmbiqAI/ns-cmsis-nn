@@ -16,9 +16,26 @@ SUITES = (
 )
 
 
-def unity_pass(text):
+def runner_cases(runner):
+    text = runner.read_text()
+    source = re.search(r'UnityBegin\("([^"\n]+)"\);', text)
+    cases = re.findall(r'run_test\(\w+, "([^"\n]+)", ([0-9]+)\);', text)
+    if source is None or not cases or len(set(cases)) != len(cases):
+        raise ValueError(f"No unique Unity cases in {runner}")
+    return [(source[1], line, name) for name, line in cases]
+
+
+def unity_pass(text, expected):
     text = text.replace("\r", "").replace("\0", "").rstrip("\x04\n ")
-    return bool(re.search(r"^[1-9][0-9]* Tests 0 Failures [0-9]+ Ignored[ \t]*\nOK\s*\Z", text, re.M))
+    lines = [line.rstrip() for line in text.splitlines() if line.strip()]
+    summaries = re.findall(r"^([0-9]+) Tests ([0-9]+) Failures ([0-9]+) Ignored[ \t]*$", text, re.M)
+    records = re.findall(r"^([^:\n]+):([0-9]+):([^:\n]+):(PASS|FAIL|IGNORE)(?::[^\n]*)?$", text, re.M)
+    return (bool(expected) and summaries == [(str(len(expected)), "0", "0")]
+            and [(file, line, name) for file, line, name, _ in records] == expected
+            and all(status == "PASS" for _, _, _, status in records)
+            and not re.search(r"(?:^|:)FAIL", text, re.M)
+            and len(re.findall(r"^(?:OK|FAIL)[ \t]*$", text, re.M)) == 1
+            and lines[-2:] == [f"{len(expected)} Tests 0 Failures 0 Ignored", "OK"])
 
 
 def main():
@@ -30,6 +47,8 @@ def main():
     logs.mkdir(exist_ok=True)
     failed = []
     for suite in SUITES:
+        runner = args.build / "generated" / "TestCases" / suite / "Unity" / "TestRunner" / f"unity_{suite}_runner.c"
+        expected = runner_cases(runner)
         uart = logs / f"{suite}.log"
         with uart.open("w") as out, (logs / f"{suite}.stderr").open("w") as err:
             proc = subprocess.Popen([
@@ -53,7 +72,7 @@ def main():
                     proc.wait()
         text = uart.read_text(errors="replace")
         print(text.replace("\0", "").replace("\r", ""))
-        if not unity_pass(text):
+        if not unity_pass(text, expected):
             failed.append(suite)
     if failed:
         print("Word-copy execution failed: " + ", ".join(failed))

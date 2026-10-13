@@ -11,13 +11,15 @@ normal library builds and strict links.
   and executes the eight suites named in
   [check_atfe_word_copy.py](../../scripts/check_atfe_word_copy.py).
   QEMU's `mps3-an547` Cortex-M55 model executes the M4-compiled DSP code; this
-  check does not qualify a physical Cortex-M4 board. A suite must report at
-  least one test and zero failures to pass.
+  check does not qualify a physical Cortex-M4 board. Every case in the generated
+  runner must report PASS with its expected source file, name and line. Exactly
+  one complete summary with zero failures and zero ignored cases must follow.
 
 The harness accepts an existing archive through `CMSIS_NN_TEST_LIBRARY` for
 this cross-toolchain check. Ordinary builds compile the library from source.
 The archive and harness must use compatible architecture and floating-point
-ABI flags.
+ABI flags. The imported target carries the requested F32/F16 definitions
+through the same feature-definition rule as source builds.
 
 Unity is downloaded under the build directory's `generated/Unity`, and its
 runners are generated under `generated/TestCases`. Independent build
