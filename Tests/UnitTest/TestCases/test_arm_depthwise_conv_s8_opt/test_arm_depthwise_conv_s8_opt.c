@@ -103,6 +103,7 @@ void basic_arm_depthwise_conv_s8_opt(void)
                                       lhs_offset,
                                       bias_data);
 
+    bias_dims = (cmsis_nn_dims){1, 1, 1, output_dims.c};
     arm_cmsis_nn_status result = arm_depthwise_conv_s8_opt(&ctx,
                                                            &weights_sum_ctx,
                                                            &dw_conv_params,
@@ -234,6 +235,7 @@ void depthwise_null_weight_sum_arm_depthwise_conv_s8_opt(void)
     ctx.buf = malloc((size_t)ctx.size);
     TEST_ASSERT_TRUE(ctx.size == 0 || ctx.buf != NULL);
 
+    bias_dims = (cmsis_nn_dims){1, 1, 1, output_dims.c};
     /* weight_sum_ctx is left as {0} (buf == NULL) on purpose: this is the precondition the NULL guard exists to
      * diagnose, so ctx must otherwise be entirely valid. */
     arm_cmsis_nn_status result = arm_depthwise_conv_s8_opt(&ctx,
@@ -326,6 +328,7 @@ void depthwise_eq_in_out_ch_arm_depthwise_conv_s8_opt(void)
                                       lhs_offset,
                                       bias_data);
 
+    bias_dims = (cmsis_nn_dims){1, 1, 1, output_dims.c};
     arm_cmsis_nn_status result = arm_depthwise_conv_s8_opt(&ctx,
                                                            &weights_sum_ctx,
                                                            &dw_conv_params,
@@ -470,6 +473,7 @@ void depthwise_sub_block_arm_depthwise_conv_s8_opt(void)
                                       lhs_offset,
                                       bias_data);
 
+    bias_dims = (cmsis_nn_dims){1, 1, 1, output_dims.c};
     arm_cmsis_nn_status result = arm_depthwise_conv_s8_opt(&ctx,
                                                            &weights_sum_ctx,
                                                            &dw_conv_params,
@@ -901,6 +905,7 @@ void depthwise_x_stride_arm_depthwise_conv_s8_opt(void)
                                       lhs_offset,
                                       bias_data);
 
+    bias_dims = (cmsis_nn_dims){1, 1, 1, output_dims.c};
     arm_cmsis_nn_status result = arm_depthwise_conv_s8_opt(&ctx,
                                                            &weights_sum_ctx,
                                                            &dw_conv_params,
