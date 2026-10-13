@@ -2109,7 +2109,7 @@ int32_t arm_depthwise_conv_wrapper_s4_get_buffer_size_mve(const cmsis_nn_dw_conv
                                                           const cmsis_nn_dims *output_dims);
 
 /**
- * @brief Basic s8 depthwise convolution function that doesn't have any constraints on the input dimensions.
+ * @brief Basic s8 depthwise convolution function subject to the route-specific limits under @return.
  *
  * @param[in]      ctx             Function context. This kernel uses no additional buffer, so ctx->buf may be NULL and
  *                                 there is deliberately no arm_depthwise_conv_s8_get_buffer_size(). If you reached this
@@ -2155,7 +2155,7 @@ arm_cmsis_nn_status arm_depthwise_conv_s8(const cmsis_nn_context *ctx,
                                           int8_t *output_data);
 
 /**
- * @brief Basic s4 depthwise convolution function that doesn't have any constraints on the input dimensions.
+ * @brief Basic s4 depthwise convolution function subject to the limits under @return.
  *
  * @param[in]      ctx             Function context. This kernel uses no additional buffer, so ctx->buf may be NULL and
  *                                 there is deliberately no arm_depthwise_conv_s4_get_buffer_size(). If you reached this
