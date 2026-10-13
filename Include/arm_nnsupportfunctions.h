@@ -2763,7 +2763,8 @@ __STATIC_FORCEINLINE int32_t arm_nn_divide_by_power_of_two(const int32_t dividen
                    : "=r"(result)
                    : "r"(temp), "r"(exponent)
                    : "cc");
-    return result;
+    // A register shift of 0 leaves the carry flag unchanged, so the rounding above adds a stale carry
+    return exponent == 0 ? dividend : result;
 #else
     int32_t result = 0;
     /* Unsigned, so that exponent 31 gives INT32_MAX rather than overflowing */
