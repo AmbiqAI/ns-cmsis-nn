@@ -1488,3 +1488,33 @@ void convolve_clipped_windows_f16(void)
         }
     }
 }
+
+/* A fully clipped window is computable even when ceiling-count intermediates exceed int32. */
+void convolve_large_padding_fold_f16(void)
+{
+    float16_t x[33], w[33], y[2], bias[1] = {3};
+    const cmsis_nn_dims in = {1, 1, 1, 33}, flt = {1, 1, 1, 33}, out = {1, 1, 1, 1}, bd = {0};
+    cmsis_nn_conv_params_f16 cp = {0};
+    cp.stride.h = cp.stride.w = cp.dilation.h = 1;
+    cp.dilation.w = 2;
+    cp.padding.w = INT32_MAX;
+    cp.activation.min = -1000;
+    cp.activation.max = 1000;
+    for (int32_t i = 0; i < 33; ++i)
+        x[i] = w[i] = 1;
+    for (int32_t biased = 0; biased < 2; ++biased)
+    {
+        const float16_t *b = biased ? bias : NULL;
+        const float32_t expected = biased ? 3.0f : 0.0f;
+        y[0] = y[1] = 77;
+        TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
+                          arm_convolve_nhwc_f16(NULL, &cp, &in, x, &flt, w, &bd, b, &out, y));
+        TEST_ASSERT_EQUAL_FLOAT(expected, (float32_t)y[0]);
+        TEST_ASSERT_EQUAL_FLOAT(77, (float32_t)y[1]);
+        y[0] = y[1] = 77;
+        TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
+                          arm_convolve_direct_nhwc_ohwi_f16(NULL, &cp, &in, x, &flt, w, &bd, b, &out, y));
+        TEST_ASSERT_EQUAL_FLOAT(expected, (float32_t)y[0]);
+        TEST_ASSERT_EQUAL_FLOAT(77, (float32_t)y[1]);
+    }
+}
