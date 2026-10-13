@@ -1212,6 +1212,9 @@ void transpose_conv_geometry_rejected_arm_transpose_conv_s8(void)
         case 17:
             input_dims.c = filter_dims.c = INT32_MAX;
             break;
+        default:
+            TEST_FAIL_MESSAGE("Unexpected geometry scenario");
+            break;
         }
         int32_t scratch[4] = {12345, 12345, 12345, 12345};
         const int32_t scratch_before[4] = {12345, 12345, 12345, 12345};
