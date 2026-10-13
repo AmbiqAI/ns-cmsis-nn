@@ -58,9 +58,11 @@ def parse_args():
                         action='store_true',
                         help="Just download Unity and generate test runners if needed")
 
-    required_arguments = parser.add_argument_group('required named arguments')
+    parser.add_argument('--output-dir', type=str, help='Generate Unity and runners under this directory.')
 
     args = parser.parse_args()
+    if args.output_dir and not args.download_and_generate:
+        parser.error("--output-dir requires --download-and-generate-test-runners")
     return args
 
 
@@ -327,9 +329,13 @@ def test_targets(args):
             print("No targets detected!")
             return 3
 
+    global UNITY_PATH
+    if args.output_dir:
+        UNITY_PATH = path.join(path.abspath(args.output_dir), "Unity") + "/"
+        os.makedirs(args.output_dir, exist_ok=True)
     download_unity()
 
-    if not parse_tests(targets, main_tests, args.specific_test):
+    if not parse_tests(targets, main_tests, args.specific_test, args.output_dir):
         print("No tests found?!")
         return 4
 
@@ -419,7 +425,7 @@ def parse_generated_test_runner(test_runner):
                     f.write(line)
 
 
-def parse_tests(targets, main_tests, specific_test=None):
+def parse_tests(targets, main_tests, specific_test=None, output_dir=None):
     """
     Generate test runners, extract and return path to unit test(s).
     Also parse generated test runners to avoid warning: redundant redeclaration.
@@ -448,8 +454,9 @@ def parse_tests(targets, main_tests, specific_test=None):
             ut_test_file_runner = path.splitext(ut_test_file)[0] + '_runner' + path.splitext(ut_test_file)[1]
             test_code = testpath + ut_test_file
             test_runner_path = testpath + 'TestRunner/'
-            if not os.path.exists(test_runner_path):
-                os.mkdir(test_runner_path)
+            if output_dir:
+                test_runner_path = path.join(path.abspath(output_dir), test_runner_path)
+            os.makedirs(test_runner_path, exist_ok=True)
             test_runner = test_runner_path + ut_test_file_runner
             for old_files in glob.glob(test_runner_path + '/*'):
                 if not old_files.endswith('readme.txt'):

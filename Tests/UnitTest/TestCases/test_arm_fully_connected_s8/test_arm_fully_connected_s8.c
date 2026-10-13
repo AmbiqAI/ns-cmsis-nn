@@ -84,6 +84,7 @@ void fully_connected_arm_fully_connected_s8(void)
                                         bias_data));
 #endif
 
+    bias_dims = (cmsis_nn_dims){1, 1, 1, output_dims.c};
     arm_cmsis_nn_status result = arm_fully_connected_s8(&ctx,
                                                         &fc_params,
                                                         &quant_params,
@@ -159,6 +160,7 @@ void fully_connected_w_zp_arm_fully_connected_s8(void)
                                         bias_data));
 #endif
 
+    bias_dims = (cmsis_nn_dims){1, 1, 1, output_dims.c};
     arm_cmsis_nn_status result = arm_fully_connected_s8(&ctx,
                                                         &fc_params,
                                                         &quant_params,
@@ -229,6 +231,7 @@ void fully_connected_mve_0_arm_fully_connected_s8(void)
                                         bias_data));
 #endif
 
+    bias_dims = (cmsis_nn_dims){1, 1, 1, output_dims.c};
     arm_cmsis_nn_status result = arm_fully_connected_s8(&ctx,
                                                         &fc_params,
                                                         &quant_params,
@@ -298,6 +301,7 @@ void fully_connected_mve_1_arm_fully_connected_s8(void)
                                         bias_data));
 #endif
 
+    bias_dims = (cmsis_nn_dims){1, 1, 1, output_dims.c};
     arm_cmsis_nn_status result = arm_fully_connected_s8(&ctx,
                                                         &fc_params,
                                                         &quant_params,
@@ -378,6 +382,7 @@ void fully_connected_null_bias_0_arm_fully_connected_s8(void)
                                         bias_data));
 #endif
 
+    bias_dims = (cmsis_nn_dims){1, 1, 1, output_dims.c};
     arm_cmsis_nn_status result = arm_fully_connected_s8(&ctx,
                                                         &fc_params,
                                                         &quant_params,
@@ -447,6 +452,7 @@ void fully_connected_out_activation_arm_fully_connected_s8(void)
                                         bias_data));
 #endif
 
+    bias_dims = (cmsis_nn_dims){1, 1, 1, output_dims.c};
     arm_cmsis_nn_status result = arm_fully_connected_s8(&ctx,
                                                         &fc_params,
                                                         &quant_params,
@@ -515,6 +521,7 @@ void fc_per_ch_arm_fully_connected_s8(void)
         buf, filter_dims.n, output_dims.c, kernel_data, fc_params.input_offset, fc_params.filter_offset, bias_data);
 #endif
 
+    bias_dims = (cmsis_nn_dims){1, 1, 1, output_dims.c};
     arm_cmsis_nn_status result = arm_fully_connected_per_channel_s8(&ctx,
                                                                     &fc_params,
                                                                     &quant_params,

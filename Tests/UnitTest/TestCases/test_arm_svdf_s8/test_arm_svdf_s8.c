@@ -109,6 +109,7 @@ void svdf_int8_arm_svdf_s8(void)
 
     memset(state_data, initial_data, state_data_size);
 
+    bias_dims = (cmsis_nn_dims){1, 1, 1, weights_feature_dims.n / svdf_int8_params.rank};
     for (int i = 0; i < REPEAT_NUM; i++)
     {
         memcpy(state_data, svdf_int8_state, sizeof(svdf_int8_state));
@@ -238,6 +239,7 @@ void svdf_int8_2_arm_svdf_s8(void)
     int8_t *input_data = malloc(input_round_size);
     int8_t *state_data = malloc(state_data_size);
 
+    bias_dims = (cmsis_nn_dims){1, 1, 1, weights_feature_dims.n / svdf_int8_2_params.rank};
     for (int i = 0; i < REPEAT_NUM; i++)
     {
         memcpy(state_data, svdf_int8_2_state, sizeof(svdf_int8_2_state));
