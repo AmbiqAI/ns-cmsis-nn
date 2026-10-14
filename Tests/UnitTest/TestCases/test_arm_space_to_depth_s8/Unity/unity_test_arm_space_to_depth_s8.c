@@ -43,3 +43,5 @@ void test_space_to_depth_bs2_batch(void)            { space_to_depth_bs2_batch_s
 void test_space_to_depth_bs2_channels(void)         { space_to_depth_bs2_channels_s8_arm_space_to_depth_s8(); }
 void test_space_to_depth_bs2_rectangular(void)      { space_to_depth_bs2_rectangular_s8_arm_space_to_depth_s8(); }
 void test_space_to_depth_min_spatial(void)           { space_to_depth_min_spatial_s8_arm_space_to_depth_s8(); }
+
+void test_space_to_depth_permutations_s8(void) { space_to_depth_permutations_s8(); }
