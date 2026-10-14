@@ -2668,6 +2668,9 @@ arm_cmsis_nn_status arm_depthwise_conv_s8_opt_channelwise(const cmsis_nn_context
                                                           const cmsis_nn_dims *output_dims,
                                                           int8_t *output_data);
 
+/** Both s8 3x3 direct entries decline without writing output when ARM_MATH_AUTOVECTORIZE is defined. */
+#define ARM_NN_DEPTHWISE_CONV_S8_OPT_3X3_AUTOVECTORIZE_DECLINES 1
+
 /**
  * @brief s8 3x3 depthwise convolution that reads the input in place, without the im2col copy of
  *        arm_depthwise_conv_s8_opt(), for layers in its gate. It computes three output rows per weight load.
