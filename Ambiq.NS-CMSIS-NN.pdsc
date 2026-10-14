@@ -85,6 +85,7 @@
         <file category="header" name="Include/Internal/arm_nn_arg_extrema_flt.h"/>
         <file category="header" name="Include/Internal/arm_nn_broadcast_walk.h"/>
         <file category="header" name="Include/Internal/arm_nn_reduce_extrema_flt.h"/>
+        <file category="header" name="Include/Internal/arm_nn_resize_bilinear.h"/>
         <file category="header" name="Include/Internal/arm_nn_s4_decode.h"/>
         <file category="header" name="Include/Internal/arm_nn_sqrt_flt.h"/>
         <file category="header" name="Include/Internal/arm_minmax_f16_common.h"/>
@@ -97,7 +98,6 @@
         <file category="header" name="Include/Internal/arm_nn_axis_copy_common.h"/>
         <file category="header" name="Include/Internal/arm_nn_compiler.h"/>
         <file category="header" name="Include/Internal/arm_nn_config.h"/>
-        <file category="header" name="Include/Internal/arm_nn_resize_bilinear.h"/>
         <file category="header" name="Include/Internal/arm_nn_gather_common.h"/>
         <file category="header" name="Include/Internal/arm_nn_pool_window_common.h"/>
         <file category="header" name="Include/Internal/arm_nn_vcvt_f16.h"/>
