@@ -74,24 +74,24 @@ arm_cmsis_nn_status arm_depth_to_space_s8(const int8_t *input_data,
         return ARM_CMSIS_NN_ARG_ERROR;
     }
 
-    /* Each horizontal block contributes one contiguous slice on both sides. */
+    /* Copy each horizontal block at once while traversing the input in order. */
     const uint32_t copy_size = (uint32_t)block_size * (uint32_t)Co;
     for (int32_t n = 0; n < N; ++n)
     {
         for (int32_t ih = 0; ih < H; ++ih)
         {
-            const size_t in_row = ((size_t)n * H + (size_t)ih) * W * Ci;
-            for (int32_t kh = 0; kh < block_size; ++kh)
+            const size_t out_row = ((size_t)n * OH + (size_t)ih * block_size) * OW * Co;
+            for (int32_t iw = 0; iw < W; ++iw)
             {
                 /* Keep dynamic copy setup compact, especially on Cortex-M0. */
 #if defined(__clang__)
     #pragma clang loop unroll(disable)
 #endif
-                for (int32_t iw = 0; iw < W; ++iw)
+                for (int32_t kh = 0; kh < block_size; ++kh)
                 {
-                    const size_t in_offset = in_row + (size_t)iw * Ci + (size_t)kh * copy_size;
-                    arm_memcpy_s8(output_data, input_data + in_offset, copy_size);
-                    output_data += copy_size;
+                    const size_t out_offset = out_row + (size_t)kh * OW * Co + (size_t)iw * copy_size;
+                    arm_memcpy_s8(output_data + out_offset, input_data, copy_size);
+                    input_data += copy_size;
                 }
             }
         }
