@@ -60,7 +60,7 @@
   <components>
     <!-- heliaCORE NN — Source variant: build the 200+ kernel sources in-tree. -->
     <component Cclass="Machine Learning" Cgroup="NN Lib" Csub="heliaCORE" Cvariant="Source" Cvendor="Ambiq" Cversion="7.44.2" condition="CMSIS-NN"> <!-- x-release-please-version -->
-      <description>heliaCORE NN — Ambiq's optimized superset of Arm CMSIS-NN, tuned for Apollo SoCs.</description>
+      <description>heliaCORE NN - Ambiq's optimized superset of Arm CMSIS-NN, tuned for Apollo SoCs.</description>
       <files>
         <file category="doc" name="Documentation/html/index.html"/>
         <!-- The pack root, for the Include/-prefixed spelling that TFLM-based runtimes use
@@ -477,7 +477,7 @@
          supported core; CMSIS-Pack pickers (Keil/CMSIS-Toolbox) resolve the
          right archive via the Dcore + Tcompiler conditions above. -->
     <component Cclass="Machine Learning" Cgroup="NN Lib" Csub="heliaCORE" Cvariant="Prebuilt" Cvendor="Ambiq" Cversion="7.44.2" condition="CMSIS-NN"> <!-- x-release-please-version -->
-      <description>heliaCORE NN — Ambiq's prebuilt GCC archive for Cortex-M0/M0+/M4/M55.</description>
+      <description>heliaCORE NN - Ambiq's prebuilt GCC archive for Cortex-M0/M0+/M4/M55.</description>
       <files>
         <file category="doc"    name="Documentation/html/index.html"/>
         <!-- The pack root, for the Include/-prefixed spelling (see the Source variant). -->
