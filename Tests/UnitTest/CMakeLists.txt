@@ -379,6 +379,7 @@ if(NOT BUILD_CMSIS_NN_UNIT_TESTS_FOR_FVP_BASED_CORSTONE_300
     add_subdirectory(TestCases/int4_decode_probe)
     add_subdirectory(TestCases/hard_swish_compat_probe)
     add_subdirectory(TestCases/softmax_shift_probe)
+    add_subdirectory(TestCases/resize_bilinear_wide_probe)
 endif()
 
 find_package(Python3 COMPONENTS Interpreter REQUIRED)
