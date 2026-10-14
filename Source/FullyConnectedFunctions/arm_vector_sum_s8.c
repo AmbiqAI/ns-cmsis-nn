@@ -84,23 +84,19 @@ arm_cmsis_nn_status arm_vector_sum_s8(int32_t *vector_sum_buf,
             uint32_t col_cnt = (uint32_t)vector_cols;
             for (int i = 0; i < col_loop_cnt; i++)
             {
+                const size_t col_offset = (size_t)i * 16U;
                 mve_pred16_t p = vctp8q(col_cnt);
                 col_cnt -= 16;
-                const int8x16_t ker_0 = vldrbq_z_s8(vector_0, p);
+                const int8x16_t ker_0 = vldrbq_z_s8(vector_0 + col_offset, p);
                 vector_sum_0 = vaddvaq_s8(vector_sum_0, ker_0);
-                const int8x16_t ker_1 = vldrbq_z_s8(vector_1, p);
+                const int8x16_t ker_1 = vldrbq_z_s8(vector_1 + col_offset, p);
                 vector_sum_1 = vaddvaq_s8(vector_sum_1, ker_1);
-                const int8x16_t ker_2 = vldrbq_z_s8(vector_2, p);
+                const int8x16_t ker_2 = vldrbq_z_s8(vector_2 + col_offset, p);
                 vector_sum_2 = vaddvaq_s8(vector_sum_2, ker_2);
-                const int8x16_t ker_3 = vldrbq_z_s8(vector_3, p);
+                const int8x16_t ker_3 = vldrbq_z_s8(vector_3 + col_offset, p);
                 vector_sum_3 = vaddvaq_s8(vector_sum_3, ker_3);
-                const int8x16_t ker_4 = vldrbq_z_s8(vector_4, p);
+                const int8x16_t ker_4 = vldrbq_z_s8(vector_4 + col_offset, p);
                 vector_sum_4 = vaddvaq_s8(vector_sum_4, ker_4);
-                vector_0 += 16;
-                vector_1 += 16;
-                vector_2 += 16;
-                vector_3 += 16;
-                vector_4 += 16;
             }
             vector_data += 5 * vector_cols;
 
@@ -135,11 +131,11 @@ arm_cmsis_nn_status arm_vector_sum_s8(int32_t *vector_sum_buf,
             uint32_t col_cnt = (uint32_t)vector_cols;
             for (int i = 0; i < col_loop_cnt; i++)
             {
+                const size_t col_offset = (size_t)i * 16U;
                 mve_pred16_t p = vctp8q(col_cnt);
                 col_cnt -= 16;
-                const int8x16_t ker_0 = vldrbq_z_s8(vector_0, p);
+                const int8x16_t ker_0 = vldrbq_z_s8(vector_0 + col_offset, p);
                 vector_sum_0 = vaddvaq_s8(vector_sum_0, ker_0);
-                vector_0 += 16;
             }
             vector_data += vector_cols;
             if (rhs_offset)
