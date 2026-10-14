@@ -121,7 +121,7 @@ __STATIC_FORCEINLINE void dw3_block_any(const dw3_layer *L,
         r[k] = rows[k] - ch;
     }
     int32_t g = 0;
-    for (; g + 4 <= n_ch; g += 4)
+    for (; g < (n_ch & ~3); g += 4)
     {
         const int32x4_t base = vldrwq_s32((const int32_t *)(const void *)(pk + 36));
         int32x4_t a0 = base;
