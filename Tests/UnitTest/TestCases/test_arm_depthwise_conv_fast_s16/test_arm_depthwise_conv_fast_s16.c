@@ -87,6 +87,7 @@ void dw_int16xint8_fast_arm_depthwise_conv_fast_s16(void)
     int buf_size = arm_depthwise_conv_fast_s16_get_buffer_size(&input_dims, &filter_dims);
     ctx.buf = malloc(buf_size);
 
+    bias_dims = (cmsis_nn_dims){1, 1, 1, output_dims.c};
     arm_cmsis_nn_status result = arm_depthwise_conv_fast_s16(&ctx,
                                                              &dw_conv_params,
                                                              &quant_params,
@@ -184,6 +185,7 @@ void dw_int16xint8_fast_spill_arm_depthwise_conv_fast_s16(void)
     int buf_size = arm_depthwise_conv_fast_s16_get_buffer_size(&input_dims, &filter_dims);
     ctx.buf = malloc(buf_size);
 
+    bias_dims = (cmsis_nn_dims){1, 1, 1, output_dims.c};
     arm_cmsis_nn_status result = arm_depthwise_conv_fast_s16(&ctx,
                                                              &dw_conv_params,
                                                              &quant_params,
@@ -280,6 +282,7 @@ void dw_int16xint8_fast_stride_arm_depthwise_conv_fast_s16(void)
     int buf_size = arm_depthwise_conv_fast_s16_get_buffer_size(&input_dims, &filter_dims);
     ctx.buf = malloc(buf_size);
 
+    bias_dims = (cmsis_nn_dims){1, 1, 1, output_dims.c};
     arm_cmsis_nn_status result = arm_depthwise_conv_fast_s16(&ctx,
                                                              &dw_conv_params,
                                                              &quant_params,
@@ -377,6 +380,7 @@ void dw_int16xint8_fast_null_bias_arm_depthwise_conv_fast_s16(void)
     int buf_size = arm_depthwise_conv_fast_s16_get_buffer_size(&input_dims, &filter_dims);
     ctx.buf = malloc(buf_size);
 
+    bias_dims = (cmsis_nn_dims){1, 1, 1, output_dims.c};
     arm_cmsis_nn_status result = arm_depthwise_conv_fast_s16(&ctx,
                                                              &dw_conv_params,
                                                              &quant_params,
@@ -474,6 +478,7 @@ void dw_int16xint8_fast_stride_null_bias_arm_depthwise_conv_fast_s16(void)
     int buf_size = arm_depthwise_conv_fast_s16_get_buffer_size(&input_dims, &filter_dims);
     ctx.buf = malloc(buf_size);
 
+    bias_dims = (cmsis_nn_dims){1, 1, 1, output_dims.c};
     arm_cmsis_nn_status result = arm_depthwise_conv_fast_s16(&ctx,
                                                              &dw_conv_params,
                                                              &quant_params,
@@ -571,6 +576,7 @@ void dw_int16xint8_fast_spill_null_bias_arm_depthwise_conv_fast_s16(void)
     int buf_size = arm_depthwise_conv_fast_s16_get_buffer_size(&input_dims, &filter_dims);
     ctx.buf = malloc(buf_size);
 
+    bias_dims = (cmsis_nn_dims){1, 1, 1, output_dims.c};
     arm_cmsis_nn_status result = arm_depthwise_conv_fast_s16(&ctx,
                                                              &dw_conv_params,
                                                              &quant_params,
@@ -668,6 +674,7 @@ void dw_int16xint8_fast_test_bias_arm_depthwise_conv_fast_s16(void)
     int buf_size = arm_depthwise_conv_fast_s16_get_buffer_size(&input_dims, &filter_dims);
     ctx.buf = malloc(buf_size);
 
+    bias_dims = (cmsis_nn_dims){1, 1, 1, output_dims.c};
     arm_cmsis_nn_status result = arm_depthwise_conv_fast_s16(&ctx,
                                                              &dw_conv_params,
                                                              &quant_params,
@@ -765,6 +772,7 @@ void dw_int16xint8_fast_multiple_batches_uneven_buffers_arm_depthwise_conv_fast_
     int buf_size = arm_depthwise_conv_fast_s16_get_buffer_size(&input_dims, &filter_dims);
     ctx.buf = malloc(buf_size);
 
+    bias_dims = (cmsis_nn_dims){1, 1, 1, output_dims.c};
     arm_cmsis_nn_status result = arm_depthwise_conv_fast_s16(&ctx,
                                                              &dw_conv_params,
                                                              &quant_params,
@@ -863,6 +871,7 @@ void dw_int16xint8_fast_multiple_batches_uneven_buffers_null_bias_arm_depthwise_
     int buf_size = arm_depthwise_conv_fast_s16_get_buffer_size(&input_dims, &filter_dims);
     ctx.buf = malloc(buf_size);
 
+    bias_dims = (cmsis_nn_dims){1, 1, 1, output_dims.c};
     arm_cmsis_nn_status result = arm_depthwise_conv_fast_s16(&ctx,
                                                              &dw_conv_params,
                                                              &quant_params,

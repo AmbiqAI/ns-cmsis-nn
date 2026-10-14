@@ -140,6 +140,24 @@ class StaleVersionRefs(unittest.TestCase):
             any("toolchains.md:1" in f and "7.29.2" in f for f in failures), failures
         )
 
+    def test_version_bump_rejects_stale_test_and_help_refs(self):
+        refs = {
+            "scripts/tests/test_release_example.py": 'expected_tag = "v7.30.0"\n',
+            "scripts/release_example.py": 'help = "recover --tag v7.30.0"\n',
+        }
+        for rel, content in refs.items():
+            self.write(rel, content)
+        self.assertEqual(self.run_check(), [])
+        self.write("Include/arm_nn_types.h", HEADER.replace("MINOR (30)", "MINOR (31)"))
+        self.write("CHANGELOG.md", "## [7.31.0](x) (2026-09-01)\n\n" + CHANGELOG)
+        failures = self.run_check()
+        for rel in refs:
+            self.assertTrue(any(f"{rel}:1" in f for f in failures), failures)
+        self.module.failures.clear()
+        for rel, content in refs.items():
+            self.write(rel, content.replace("7.30.0", "7.31.0"))
+        self.assertEqual(self.run_check(), [])
+
     def test_tag_form_is_rejected(self):
         self.write("docs/y.md", "      revision: v7.29.2\n")
         failures = self.run_check()

@@ -2763,7 +2763,8 @@ __STATIC_FORCEINLINE int32_t arm_nn_divide_by_power_of_two(const int32_t dividen
                    : "=r"(result)
                    : "r"(temp), "r"(exponent)
                    : "cc");
-    return result;
+    // A register shift of 0 leaves the carry flag unchanged, so the rounding above adds a stale carry
+    return exponent == 0 ? dividend : result;
 #else
     int32_t result = 0;
     /* Unsigned, so that exponent 31 gives INT32_MAX rather than overflowing */
@@ -2813,6 +2814,25 @@ __STATIC_FORCEINLINE int32_t arm_nn_nonneg_divide_by_pot_s32(int32_t dividend, i
     uint32_t t = (uint32_t)dividend + (uint32_t)(1u << (exponent - 1));
     return (int32_t)(t >> exponent);
 #endif
+}
+
+/**
+ * @brief           Multiply-accumulate in int32_t that wraps as the hardware does instead of overflowing.
+ * @param[in]       acc     Accumulator
+ * @param[in]       a       Multiplicand. Product bits are accumulated modulo 2^32
+ * @param[in]       b       Multiplier
+ * @return          acc + a * b, wrapped to int32_t
+ *
+ * @details         A start value near INT32_MIN or INT32_MAX, such as a bias, can take a partial sum out of the int32_t
+ *                  range before the full sum returns to it. Adding in uint32_t keeps that defined and gives the same
+ *                  bits.
+ */
+__STATIC_FORCEINLINE int32_t arm_nn_mac_wrap_s32_bits(const int32_t acc, const int32_t a, const int32_t b)
+{
+    const uint32_t bits = (uint32_t)acc + (uint32_t)a * (uint32_t)b;
+    int32_t result;
+    memcpy(&result, &bits, sizeof(result));
+    return result;
 }
 
 /**

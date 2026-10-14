@@ -307,6 +307,22 @@ __STATIC_FORCEINLINE arm_cmsis_nn_status arm_convolve_1_x_n_nhwc_f32_body(const 
     {
         return ARM_CMSIS_NN_ARG_ERROR;
     }
+    if (!arm_nn_conv_flt_dims_ok(&conv_params->stride,
+                                 &conv_params->padding,
+                                 &conv_params->dilation,
+                                 input_dims,
+                                 filter_dims,
+                                 output_dims,
+                                 sizeof(float32_t),
+                                 4,
+                                 conv_params->weight_format == ARM_NN_WEIGHT_FORMAT_NT_N_PACKED))
+    {
+        return ARM_CMSIS_NN_ARG_ERROR;
+    }
+    if (arm_nn_conv_flt_empty(output_dims))
+    {
+        return ARM_CMSIS_NN_SUCCESS;
+    }
 
     if (!arm_nn_conv_flt_is_1xn(&conv_params->stride,
                                 &conv_params->padding,
@@ -358,7 +374,7 @@ __STATIC_FORCEINLINE arm_cmsis_nn_status arm_convolve_1_x_n_nhwc_f32_body(const 
         const float32_t *input_b = input_data + (size_t)b * input_w * input_c;
         float32_t *output_b = output_data + (size_t)b * output_w * output_c;
 
-        for (int32_t row = 0; row < left_pad_num; row += tile_rows)
+        for (int32_t row = 0; row < left_pad_num;)
         {
             const int32_t rows = ARM_NN_MIN(tile_rows, left_pad_num - row);
             arm_convolve_1_x_n_pack_rows_f32(scratch, input_b, conv_params, input_dims, filter_dims, row, rows);
@@ -370,13 +386,14 @@ __STATIC_FORCEINLINE arm_cmsis_nn_status arm_convolve_1_x_n_nhwc_f32_body(const 
                 return st;
             }
             output_b += (size_t)rows * output_c;
+            row += rows;
         }
 
         if (no_pad_num > 0 && ARM_CONV_FORMAT_PACKED(packed, conv_params))
         {
             /* The no-padding paths below read OHWI filters straight from the input; packed filters take the
              * same pack-rows tile loop as the padded regions so the format-aware matmul can consume them. */
-            for (int32_t row = 0; row < no_pad_num; row += tile_rows)
+            for (int32_t row = 0; row < no_pad_num;)
             {
                 const int32_t rows = ARM_NN_MIN(tile_rows, no_pad_num - row);
                 arm_convolve_1_x_n_pack_rows_f32(
@@ -389,6 +406,7 @@ __STATIC_FORCEINLINE arm_cmsis_nn_status arm_convolve_1_x_n_nhwc_f32_body(const 
                     return st;
                 }
                 output_b += (size_t)rows * output_c;
+                row += rows;
             }
         }
         else if (no_pad_num > 0 && arm_convolve_1_x_n_rows_in_place_f32(output_c, rhs_cols))
@@ -427,7 +445,7 @@ __STATIC_FORCEINLINE arm_cmsis_nn_status arm_convolve_1_x_n_nhwc_f32_body(const 
             output_b += (size_t)no_pad_num * output_c;
         }
 
-        for (int32_t row = 0; row < right_pad_num; row += tile_rows)
+        for (int32_t row = 0; row < right_pad_num;)
         {
             const int32_t rows = ARM_NN_MIN(tile_rows, right_pad_num - row);
             const int32_t start_out_x = left_pad_num + no_pad_num + row;
@@ -440,6 +458,7 @@ __STATIC_FORCEINLINE arm_cmsis_nn_status arm_convolve_1_x_n_nhwc_f32_body(const 
                 return st;
             }
             output_b += (size_t)rows * output_c;
+            row += rows;
         }
     }
 

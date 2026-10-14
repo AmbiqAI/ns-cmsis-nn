@@ -6230,10 +6230,10 @@ void arm_softmax_s8_s16(const int8_t *input,
 /**
  * @brief S16 softmax function
  * @param[in]  input           Pointer to the input tensor
- * @param[in]  num_rows        Number of rows in the input tensor
- * @param[in]  row_size        Number of elements in each input row
+ * @param[in]  num_rows        Nonnegative number of rows in the input tensor
+ * @param[in]  row_size        Nonnegative number of elements in each input row
  * @param[in]  mult            Input quantization multiplier
- * @param[in]  shift           Input quantization shift within the range [0, 31]
+ * @param[in]  shift           Input quantization shift within the range [-31, 31]
  * @param[in]  softmax_params  Softmax s16 layer parameters with two pointers to LUTs speficied below.
  *                             For indexing the high 9 bits are used and 7 remaining for interpolation.
  *                             That means 512 entries for the 9-bit indexing and 1 extra for interpolation, i.e. 513
@@ -6244,6 +6244,11 @@ void arm_softmax_s8_s16(const int8_t *input,
  * @return                        The function returns
  *                                    <code>ARM_CMSIS_NN_ARG_ERROR</code> Argument error check failed
  *                                    <code>ARM_CMSIS_NN_SUCCESS</code> - Successful operation
+ *
+ * @note Negative dimensions and missing LUT pointers return an argument error. With valid LUT pointers, a zero
+ *       extent succeeds without accessing the input or output. Quantization parameters remain the caller's
+ *       responsibility: shifts below 31 retain arm_nn_requantize's intermediate representability requirements.
+ *       At shift 31, the exact wide product is saturated to the exp LUT's input domain before recentering.
  *
  * @note Supported framework: TensorFlow Lite micro (bit-accurate)
  *
