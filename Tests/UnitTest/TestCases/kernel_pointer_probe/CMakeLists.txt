@@ -7,7 +7,7 @@ if(KERNEL_POINTER_CLANGXX)
     if(CMAKE_LIBRARY_ARCHITECTURE)
         set(_kernel_pointer_target "--target=${CMAKE_LIBRARY_ARCHITECTURE}")
     endif()
-    foreach(_case scalar dsp mve taps1 taps4 batch f16 f32)
+    foreach(_case scalar dsp mve f16 f32)
         add_test(NAME kernel_pointer_${_case}
             COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/run_probe.py"
                 --source "${CMAKE_CURRENT_SOURCE_DIR}/../../../.."

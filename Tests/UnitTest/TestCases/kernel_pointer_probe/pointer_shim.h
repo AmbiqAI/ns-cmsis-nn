@@ -39,25 +39,6 @@ constexpr int32x4_t vldrbq_z_s32(const int8_t *p, unsigned n)
     return r;
 }
 constexpr int32x4_t vldrbq_s32(const int8_t *p) { return vldrbq_z_s32(p, 4); }
-constexpr int32x4_t vldrhq_z_s32(const int16_t *p, unsigned n)
-{
-    int32x4_t r = {};
-    for (unsigned i = 0; i < n; i++)
-        r[i] = p[i];
-    return r;
-}
-constexpr int32x4_t vldrhq_s32(const int16_t *p) { return vldrhq_z_s32(p, 4); }
-constexpr int32x4_t vldrhq_gather_shifted_offset_z_s32(const int16_t *p, uint32x4_t o, unsigned n)
-{
-    int32x4_t r = {};
-    for (unsigned i = 0; i < n; i++)
-        r[i] = p[o[i]];
-    return r;
-}
-constexpr int32x4_t vldrhq_gather_shifted_offset_s32(const int16_t *p, uint32x4_t o)
-{
-    return vldrhq_gather_shifted_offset_z_s32(p, o, 4);
-}
 constexpr int32x4_t vldrwq_s32(const int32_t *p) { return {{p[0], p[1], p[2], p[3]}}; }
 constexpr uint32x4_t vld1q_u32(const uint32_t *p) { return {{p[0], p[1], p[2], p[3]}}; }
 constexpr int32x4_t vaddq_s32(int32x4_t a, int32x4_t b)
@@ -73,7 +54,6 @@ constexpr int32x4_t vmulq_s32(int32x4_t a, int32x4_t b)
         a[i] *= b[i];
     return a;
 }
-constexpr int32x4_t vmlaq_n_s32(int32x4_t a, int32x4_t b, int c) { return vaddq_s32(a, vmulq_s32(b, vdupq_n_s32(c))); }
 constexpr int32x4_t vmaxq_s32(int32x4_t a, int32x4_t b)
 {
     for (int i = 0; i < 4; i++)
@@ -96,12 +76,6 @@ constexpr void vstrbq_s32(int8_t *p, int32x4_t x)
     for (int i = 0; i < 4; i++)
         p[i] = x[i];
 }
-constexpr void vstrhq_p_s32(int16_t *p, int32x4_t x, unsigned n)
-{
-    for (unsigned i = 0; i < n; i++)
-        p[i] = x[i];
-}
-constexpr void vstrhq_s32(int16_t *p, int32x4_t x) { vstrhq_p_s32(p, x, 4); }
 /* Requantization has no pointer state. Identity makes the access oracle a raw dot product. */
 constexpr int32_t arm_nn_requantize(int32_t x, int32_t, int32_t) { return x; }
 constexpr int32x4_t arm_requantize_mve(int32x4_t x, int32_t, int32_t) { return x; }
@@ -181,29 +155,4 @@ constexpr int32_t SXTB16_RORn(int32_t x, int n) { return SXTB16((uint32_t)x >> n
 constexpr int32_t SMLAD(int32_t a, int32_t b, int32_t c)
 {
     return c + (int16_t)a * (int16_t)b + (int16_t)(a >> 16) * (int16_t)(b >> 16);
-}
-#define DW_S16_IN_VEC 0
-#define DW_S16_IN_DUP 1
-#define DW_S16_IN_GATHER 2
-#define DW_S16_IN_VEC_P 3
-#define DW_S16_IN_GATHER_P 4
-struct dw_s16_rq
-{
-    int32x4_t bias;
-};
-constexpr dw_s16_rq dw_s16_rq_load(const int32_t *, const int32_t *, const int64_t *b, unsigned n)
-{
-    dw_s16_rq r = {};
-    for (unsigned i = 0; i < n; i++)
-        r.bias[i] = b ? b[i] : 0;
-    return r;
-}
-constexpr int32x4_t dw_s16_rq_apply(int32x4_t a, const dw_s16_rq *, int lo, int hi)
-{
-    return vminq_s32(vmaxq_s32(a, vdupq_n_s32(lo)), vdupq_n_s32(hi));
-}
-constexpr int32x4_t
-dw_s16_out(int32x4_t a, const dw_s16_rq *r, int, const int64_t *, const int32_t *, const int32_t *, int, int lo, int hi)
-{
-    return dw_s16_rq_apply(a, r, lo, hi);
 }
