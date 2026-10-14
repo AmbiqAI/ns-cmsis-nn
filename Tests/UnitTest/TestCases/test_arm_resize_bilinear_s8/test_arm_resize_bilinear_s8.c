@@ -105,7 +105,7 @@ void resize_bilinear_shapes(void)
     for (unsigned i = 0; i < sizeof(channels) / sizeof(channels[0]); i++)
     {
         int c = channels[i];
-        check_case((cmsis_nn_dims){2, 3, 5, c}, (cmsis_nn_dims){2, 6, 40, c}, half, 1);
+        check_case((cmsis_nn_dims){2, 3, 3, c}, (cmsis_nn_dims){2, 6, 24, c}, half, 1);
         check_case((cmsis_nn_dims){1, 1, 3, c}, (cmsis_nn_dims){1, 8, 12, c}, half, 1);
         check_case((cmsis_nn_dims){1, 3, 1, c}, (cmsis_nn_dims){1, 3, 2, c}, half, 1);
         check_case((cmsis_nn_dims){1, 3, 5, c}, (cmsis_nn_dims){1, 3, 5, c}, half, 1);
@@ -119,11 +119,12 @@ void resize_bilinear_shapes(void)
     }
 }
 
-void resize_bilinear_measured_shapes(void)
+void resize_bilinear_scale_channel_pairs(void)
 {
     const cmsis_nn_resize_params p = {.align_corners = 0, .half_pixel_centers = 1};
-    check_case((cmsis_nn_dims){1, 12, 12, 64}, (cmsis_nn_dims){1, 96, 96, 64}, p, 1);
-    check_case((cmsis_nn_dims){1, 96, 96, 2}, (cmsis_nn_dims){1, 192, 192, 2}, p, 1);
+    /* Keep the scale/channel tuples within the Corstone harness's 64 KiB heap. */
+    check_case((cmsis_nn_dims){1, 2, 3, 64}, (cmsis_nn_dims){1, 16, 24, 64}, p, 1);
+    check_case((cmsis_nn_dims){1, 16, 17, 2}, (cmsis_nn_dims){1, 32, 34, 2}, p, 1);
 }
 
 void resize_bilinear_signed_ties(void)

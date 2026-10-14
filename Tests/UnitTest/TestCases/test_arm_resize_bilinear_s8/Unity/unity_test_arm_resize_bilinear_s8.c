@@ -17,6 +17,6 @@ void setUp(void)
 }
 void tearDown(void) {}
 void test_resize_bilinear_shapes(void) { resize_bilinear_shapes(); }
-void test_resize_bilinear_measured_shapes(void) { resize_bilinear_measured_shapes(); }
+void test_resize_bilinear_scale_channel_pairs(void) { resize_bilinear_scale_channel_pairs(); }
 void test_resize_bilinear_signed_ties(void) { resize_bilinear_signed_ties(); }
 void test_resize_bilinear_invalid(void) { resize_bilinear_invalid(); }
