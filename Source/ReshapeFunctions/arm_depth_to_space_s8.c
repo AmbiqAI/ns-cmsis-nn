@@ -74,27 +74,24 @@ arm_cmsis_nn_status arm_depth_to_space_s8(const int8_t *input_data,
         return ARM_CMSIS_NN_ARG_ERROR;
     }
 
-    // Depth to space
+    /* Each horizontal block contributes one contiguous slice on both sides. */
+    const uint32_t copy_size = (uint32_t)block_size * (uint32_t)Co;
     for (int32_t n = 0; n < N; ++n)
     {
         for (int32_t ih = 0; ih < H; ++ih)
         {
-            for (int32_t iw = 0; iw < W; ++iw)
+            const size_t in_row = ((size_t)n * H + (size_t)ih) * W * Ci;
+            for (int32_t kh = 0; kh < block_size; ++kh)
             {
-                size_t in_pix = (((size_t)n * H + (size_t)ih) * W + (size_t)iw) * (size_t)Ci;
-
-                for (int32_t kh = 0; kh < block_size; ++kh)
+                /* Keep dynamic copy setup compact, especially on Cortex-M0. */
+#if defined(__clang__)
+    #pragma clang loop unroll(disable)
+#endif
+                for (int32_t iw = 0; iw < W; ++iw)
                 {
-                    const int32_t oh = ih * block_size + kh;
-                    for (int32_t kw = 0; kw < block_size; ++kw)
-                    {
-                        const int32_t ow = iw * block_size + kw;
-
-                        size_t out_pix = (((size_t)n * OH + (size_t)oh) * OW + (size_t)ow) * (size_t)Co;
-                        size_t in_chg = ((size_t)kh * (size_t)block_size + (size_t)kw) * (size_t)Co;
-
-                        arm_memcpy_s8(output_data + out_pix, input_data + in_pix + in_chg, (uint32_t)Co);
-                    }
+                    const size_t in_offset = in_row + (size_t)iw * Ci + (size_t)kh * copy_size;
+                    arm_memcpy_s8(output_data, input_data + in_offset, copy_size);
+                    output_data += copy_size;
                 }
             }
         }
