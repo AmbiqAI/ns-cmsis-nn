@@ -41,7 +41,7 @@ __STATIC_FORCEINLINE int64_t dw3_scratch_bytes(const cmsis_nn_dims *input_dims)
     return (DW3_CB / 4) * (3 * DW3_GRP + 32) + (int64_t)input_dims->w * input_dims->c + 16;
 }
 
-#if defined(ARM_MATH_MVEI)
+#if defined(ARM_MATH_MVEI) && !defined(ARM_MATH_AUTOVECTORIZE)
 
 /* A block is three output rows at one output column; each 4-channel group loads its nine weight vectors once for the
    three rows and reads the input rows in place. Parameters are repacked per 4-channel group as [9 taps x 4 weights][ws]
@@ -120,7 +120,8 @@ __STATIC_FORCEINLINE void dw3_block_any(const dw3_layer *L,
     {
         r[k] = rows[k] - ch;
     }
-    for (int32_t g = 0; g < n_ch; g += 4)
+    int32_t g = 0;
+    for (; g + 4 <= n_ch; g += 4)
     {
         const int32x4_t base = vldrwq_s32((const int32_t *)(const void *)(pk + 36));
         int32x4_t a0 = base;
@@ -158,6 +159,37 @@ __STATIC_FORCEINLINE void dw3_block_any(const dw3_layer *L,
         pk += DW3_GRP;
         qm += 8;
         out += 4;
+    }
+    /* Only the final partial vector is predicated; full groups keep the aligned loop. */
+    if (g < n_ch)
+    {
+        const mve_pred16_t active = vctp32q((uint32_t)(n_ch - g));
+        const int32x4_t base = vldrwq_s32((const int32_t *)(const void *)(pk + 36));
+        int32x4_t a0 = base;
+        int32x4_t a1 = base;
+        int32x4_t a2 = base;
+        for (int32_t kx = 0; kx < 3; kx++)
+        {
+            for (int32_t ky = 0; ky < 3; ky++)
+            {
+                const int32x4_t wv = vldrbq_s32(pk + 4 * (ky * 3 + kx));
+                a0 = vaddq_s32(a0, vmulq_s32(vldrbq_z_s32(r[ky] + kx * ch, active), wv));
+                if (nb > 1)
+                {
+                    a1 = vaddq_s32(a1, vmulq_s32(vldrbq_z_s32(r[sy + ky] + kx * ch, active), wv));
+                    a2 = vaddq_s32(a2, vmulq_s32(vldrbq_z_s32(r[2 * sy + ky] + kx * ch, active), wv));
+                }
+                DW3_PIN();
+            }
+        }
+        const int32x4_t mult = vldrwq_s32(qm);
+        const int32x4_t shift = vldrwq_s32(qm + 4);
+        vstrbq_p_s32(out, dw3_requant(a0, mult, shift, out_offset, act_min, act_max), active);
+        if (nb > 1)
+        {
+            vstrbq_p_s32(out + out_stride, dw3_requant(a1, mult, shift, out_offset, act_min, act_max), active);
+            vstrbq_p_s32(out + 2 * out_stride, dw3_requant(a2, mult, shift, out_offset, act_min, act_max), active);
+        }
     }
 }
 
@@ -357,13 +389,12 @@ __attribute__((noinline)) static arm_cmsis_nn_status dw3_s8(const cmsis_nn_conte
     const int32_t pad_y = p->padding.h;
 
     if (filter_dims->w != 3 || filter_dims->h != 3 || p->dilation.w != 1 || p->dilation.h != 1 || input_dims->n != 1 ||
-        ch != output_dims->c || ch < 16 || ch > 2048 || (ch & 3) != 0 || sx < 1 || sx > 2 || sy < 1 || sy > 2 ||
-        pad_x < 0 || pad_x > 1 || pad_y < 0 || pad_y > 1 || input_x < 3 || input_y < 1 || output_x < 1 ||
-        output_y < DW3_NB || input_x > 4096 || input_y > 4096 || output_x > 4096 || output_y > 4096 ||
-        output_x * output_y < 16 || (int64_t)input_x * input_y * ch > INT32_MAX ||
-        (int64_t)output_x * output_y * ch > INT32_MAX || ctx == NULL || ctx->buf == NULL || weight_sum_ctx == NULL ||
-        weight_sum_ctx->buf == NULL || dw3_scratch_bytes(input_dims) > ctx->size ||
-        (output_x - 1) * sx - pad_x + 1 >= input_x)
+        ch != output_dims->c || ch < 16 || ch > 2048 || sx < 1 || sx > 2 || sy < 1 || sy > 2 || pad_x < 0 ||
+        pad_x > 1 || pad_y < 0 || pad_y > 1 || input_x < 3 || input_y < 1 || output_x < 1 || output_y < DW3_NB ||
+        input_x > 4096 || input_y > 4096 || output_x > 4096 || output_y > 4096 || output_x * output_y < 16 ||
+        (int64_t)input_x * input_y * ch > INT32_MAX || (int64_t)output_x * output_y * ch > INT32_MAX || ctx == NULL ||
+        ctx->buf == NULL || weight_sum_ctx == NULL || weight_sum_ctx->buf == NULL ||
+        dw3_scratch_bytes(input_dims) > ctx->size || (output_x - 1) * sx - pad_x + 1 >= input_x)
     {
         /* With pad_x <= 1 and input_x >= 3, a last window centre inside the row makes every column's tap mask full,
            left edge or right edge. */
@@ -386,8 +417,9 @@ __attribute__((noinline)) static arm_cmsis_nn_status dw3_s8(const cmsis_nn_conte
     {
         const int32_t n_ch = ARM_NN_MIN(DW3_CB, ch - c0);
         const int32_t *ws = (const int32_t *)weight_sum_ctx->buf + c0;
-        for (int32_t g = 0; g < n_ch / 4; g++)
+        for (int32_t g = 0; g < (n_ch + 3) / 4; g++)
         {
+            const mve_pred16_t active = vctp32q((uint32_t)(n_ch - g * 4));
             const int8_t *kw = kernel + c0 + g * 4;
             int8_t *f = pk_full + g * DW3_GRP;
             int8_t *l = pk_left + g * DW3_GRP;
@@ -396,9 +428,9 @@ __attribute__((noinline)) static arm_cmsis_nn_status dw3_s8(const cmsis_nn_conte
             int32x4_t col2 = zero;
             for (int32_t ky = 0; ky < 3; ky++)
             {
-                const int32x4_t w0 = vldrbq_s32(kw + (ky * 3 + 0) * ch);
-                const int32x4_t w1 = vldrbq_s32(kw + (ky * 3 + 1) * ch);
-                const int32x4_t w2 = vldrbq_s32(kw + (ky * 3 + 2) * ch);
+                const int32x4_t w0 = vldrbq_z_s32(kw + (ky * 3 + 0) * ch, active);
+                const int32x4_t w1 = vldrbq_z_s32(kw + (ky * 3 + 1) * ch, active);
+                const int32x4_t w2 = vldrbq_z_s32(kw + (ky * 3 + 2) * ch, active);
                 col0 = vaddq_s32(col0, w0);
                 col2 = vaddq_s32(col2, w2);
                 vstrbq_s32(f + (ky * 3 + 0) * 4, w0);
@@ -411,12 +443,12 @@ __attribute__((noinline)) static arm_cmsis_nn_status dw3_s8(const cmsis_nn_conte
                 vstrbq_s32(rt + (ky * 3 + 1) * 4, w0);
                 vstrbq_s32(rt + (ky * 3 + 2) * 4, w1);
             }
-            const int32x4_t wsv = vldrwq_s32(ws + g * 4);
+            const int32x4_t wsv = vldrwq_z_s32(ws + g * 4, active);
             vstrwq_s32((int32_t *)(void *)(f + 36), wsv);
             vstrwq_s32((int32_t *)(void *)(l + 36), vmlaq_n_s32(wsv, col0, pad_val));
             vstrwq_s32((int32_t *)(void *)(rt + 36), vmlaq_n_s32(wsv, col2, pad_val));
-            vstrwq_s32(qm + g * 8, vldrwq_s32(q->multiplier + c0 + g * 4));
-            vstrwq_s32(qm + g * 8 + 4, vldrwq_s32(q->shift + c0 + g * 4));
+            vstrwq_s32(qm + g * 8, vldrwq_z_s32(q->multiplier + c0 + g * 4, active));
+            vstrwq_s32(qm + g * 8 + 4, vldrwq_z_s32(q->shift + c0 + g * 4, active));
         }
 
         const dw3_layer L = {pk_full,
@@ -466,7 +498,7 @@ arm_cmsis_nn_status arm_depthwise_conv_s8_opt_3x3(const cmsis_nn_context *ctx,
 {
     (void)bias_dims;
     (void)bias;
-#if defined(ARM_MATH_MVEI)
+#if defined(ARM_MATH_MVEI) && !defined(ARM_MATH_AUTOVECTORIZE)
     return dw3_s8(ctx,
                   weight_sum_ctx,
                   dw_conv_params,
@@ -514,7 +546,7 @@ arm_cmsis_nn_status arm_depthwise_conv_s8_opt_3x3_c64_s1(const cmsis_nn_context 
 {
     (void)bias_dims;
     (void)bias;
-#if defined(ARM_MATH_MVEI)
+#if defined(ARM_MATH_MVEI) && !defined(ARM_MATH_AUTOVECTORIZE)
     if (input_dims->c != 64 || dw_conv_params->stride.h != 1)
     {
         return ARM_CMSIS_NN_NO_IMPL_ERROR;

@@ -2688,14 +2688,14 @@ arm_cmsis_nn_status arm_depthwise_conv_s8_opt_channelwise(const cmsis_nn_context
  *
  * @return     The function returns one of the following
  *                <code>ARM_CMSIS_NN_NO_IMPL_ERROR</code> - the layer or a buffer is outside the gate below, or the
- *                                                          build lacks ARM_MATH_MVEI; nothing is written
+ *                                                          build lacks explicit MVE intrinsics; nothing is written
  *                <code>ARM_CMSIS_NN_SUCCESS</code> - Successful operation
  *
  * @details
  *    - The output is identical to arm_depthwise_conv_s8_opt() and arm_depthwise_conv_s8(). The bias is read through
  *      the weight sums, which arm_depthwise_convolve_weight_sum() fills as for arm_depthwise_conv_s8_opt();
  *      bias_dims and bias_data are unused.
- *    - Gate: filter 3x3, dilation 1, N 1, C_IN equal to C_OUT with 16 <= C <= 2048 and C % 4 == 0, stride 1 or 2 and
+ *    - Gate: filter 3x3, dilation 1, N 1, C_IN equal to C_OUT with 16 <= C <= 2048, stride 1 or 2 and
  *      padding 0 or 1 in each dimension, input W >= 3 and H >= 1, output H >= 3 and W x H >= 16, every dimension at
  *      most 4096 and each tensor at most INT32_MAX elements, and the centre of the last output column's window inside
  *      the input: (output W - 1) x stride.w - padding.w + 1 < input W. Input rows above or below the input count as
