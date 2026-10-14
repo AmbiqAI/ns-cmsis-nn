@@ -111,7 +111,9 @@ void transpose_zero_extent_arm_transpose_f32(void)
 /* Complete row blocks, partial blocks and the scalar-size fallback preserve the permutation bit for bit. */
 void transpose_2d_tails_arm_transpose_f32(void)
 {
-    const int32_t shapes[][2] = {{16, 9}, {17, 9}, {9, 17}, {2, 3}};
+    const int32_t shapes[][2] = {{16, 9}, {17, 9}, {9, 17}, {2, 3},
+                                  {1, 128}, {2, 64}, {3, 43}, {4, 32}, {5, 26}, {6, 22}, {7, 19}, {8, 16},
+                                  {10, 17}, {11, 17}, {12, 17}, {13, 17}, {14, 17}, {15, 17}};
     uint32_t special[] = {0x80000000, 0x7f800000, 0xff800000, 0x7fc00001};
     float32_t input[17 * 17];
     float32_t output[17 * 17 + 1];

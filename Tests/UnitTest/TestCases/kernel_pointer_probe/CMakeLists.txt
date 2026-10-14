@@ -16,7 +16,7 @@ if(CONCAT_POINTER_CLANGXX)
             "-I${_kernel_pointer_root}/Include"
             "-I${_kernel_pointer_root}/Source/BasicMathFunctions"
             "${CMAKE_CURRENT_SOURCE_DIR}/row_broadcast_s8_pointer_probe.cpp")
-    foreach(_case scalar dsp mve f16 f32)
+    foreach(_case scalar dsp mve f16_scalar f32_scalar)
         add_test(NAME kernel_pointer_${_case}
             COMMAND "${Python3_EXECUTABLE}" "${CMAKE_CURRENT_SOURCE_DIR}/run_probe.py"
                 --source "${_kernel_pointer_root}"

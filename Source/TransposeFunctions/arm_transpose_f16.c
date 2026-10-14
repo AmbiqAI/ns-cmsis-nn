@@ -54,11 +54,12 @@ arm_transpose_2d_kernel_f16(const float16_t *input, float16_t *output, int32_t r
         const uint16_t cols_u16 = (uint16_t)cols;
         const uint16x8_t row_offsets = vmulq(vidupq_u16((uint32_t)0, 1), cols_u16);
 
-        uintptr_t input_addr = (uintptr_t)input;
-        uintptr_t output_addr = (uintptr_t)output;
-        uint32_t columns = (uint32_t)cols;
-        uintptr_t input_col, output_col;
-        uint32_t saved_predicate;
+        /* Register storage avoids unnecessary spills of assembly-only state in unoptimized builds. */
+        register uintptr_t input_addr = (uintptr_t)input;
+        register uintptr_t output_addr = (uintptr_t)output;
+        register uint32_t columns = (uint32_t)cols;
+        register uintptr_t input_col, output_col;
+        register uint32_t saved_predicate;
         const uint32_t input_step = 8U * (uint32_t)cols * sizeof(float16_t);
         const uint32_t output_step = (uint32_t)rows * sizeof(float16_t);
         /* Keep tail predication and address updates in registers, without forming unused C pointers. */

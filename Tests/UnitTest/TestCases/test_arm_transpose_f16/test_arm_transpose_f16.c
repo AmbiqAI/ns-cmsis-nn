@@ -80,7 +80,9 @@ void transpose_perm_duplicate_axis_arm_transpose_f16(void)
 /* Complete row blocks, partial blocks and the scalar-size fallback preserve the permutation bit for bit. */
 void transpose_2d_tails_arm_transpose_f16(void)
 {
-    const int32_t shapes[][2] = {{16, 9}, {17, 9}, {9, 17}, {2, 3}};
+    const int32_t shapes[][2] = {{16, 9}, {17, 9}, {9, 17}, {2, 3},
+                                  {1, 128}, {2, 64}, {3, 43}, {4, 32}, {5, 26}, {6, 22}, {7, 19}, {8, 16},
+                                  {10, 17}, {11, 17}, {12, 17}, {13, 17}, {14, 17}, {15, 17}};
     uint16_t special[] = {0x8000, 0x7c00, 0xfc00, 0x7e01};
     float16_t input[17 * 17];
     float16_t output[17 * 17 + 1];

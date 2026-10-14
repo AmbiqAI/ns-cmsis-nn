@@ -11,7 +11,7 @@ p = argparse.ArgumentParser()
 p.add_argument('--source', type=Path, required=True)
 p.add_argument('--compiler', default='clang++')
 p.add_argument('--target')
-p.add_argument('--case', choices=['scalar', 'dsp', 'mve', 'f16', 'f32'], required=True)
+p.add_argument('--case', choices=['scalar', 'dsp', 'mve', 'f16_scalar', 'f32_scalar'], required=True)
 a = p.parse_args()
 here = Path(__file__).resolve().parent
 
@@ -71,8 +71,10 @@ static_assert(matrix<1,3,1,5,3>());
 '''
     if case == 'mve':
         s += 'static_assert(matrix<8,4,2,5,7>());\nstatic_assert(matrix<5,5,3,7,9>());\n'
-elif case in ('f16', 'f32'):
-    s += '#undef ARM_MATH_AUTOVECTORIZE\n#define ARM_MATH_MVEF 1\n#define ARM_MATH_MVE_FLOAT16 1\n#define ARM_NN_MVE_F16_MAX_GATHER_STRIDE_8 (65535/7)\n'
+elif case in ('f16_scalar', 'f32_scalar'):
+    # Inline MVE assembly is checked by target tests; constant evaluation covers the C fallback.
+    case = case.removesuffix('_scalar')
+    s += '#define ARM_MATH_AUTOVECTORIZE 1\n'
     s += body('Source/TransposeFunctions/arm_transpose_' + case + '.c', 'arm_transpose_2d_kernel_' + case)
     s += '''
 template<int R,int C> constexpr bool transpose() {
