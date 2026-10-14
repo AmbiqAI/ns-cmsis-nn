@@ -69,6 +69,7 @@
         <file category="header" name="Include/arm_nn_types.h"/>
         <file category="header" name="Include/arm_nnfunctions.h"/>
         <file category="header" name="Include/arm_nnsupportfunctions.h"/>
+        <file category="header" name="Include/Internal/arm_nn_vector_sum_s8_mve.h"/>
         <file category="header" name="Include/arm_nn_tables.h"/>
         <file category="header" name="Include/arm_nn_math_types.h"/>
         <file category="header" name="Include/arm_nnfunctions_flt.h"/>
@@ -488,6 +489,7 @@
         <file category="header" name="Include/arm_nn_types.h"/>
         <file category="header" name="Include/arm_nnfunctions.h"/>
         <file category="header" name="Include/arm_nnsupportfunctions.h"/>
+        <file category="header" name="Include/Internal/arm_nn_vector_sum_s8_mve.h"/>
         <file category="header" name="Include/arm_nn_tables.h"/>
         <file category="header" name="Include/arm_nn_math_types.h"/>
         <file category="header" name="Include/arm_nnfunctions_flt.h"/>

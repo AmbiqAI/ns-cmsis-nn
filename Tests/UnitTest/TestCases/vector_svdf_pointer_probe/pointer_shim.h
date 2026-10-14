@@ -48,3 +48,15 @@ constexpr int32x4_t vminq_s32(int32x4_t x,int32x4_t y) {
 constexpr void vstrbq_p_s32(int8_t *p,int32x4_t x,unsigned n) {
     for(unsigned i=0;i<n;i++) p[i]=(int8_t)x.v[i];
 }
+
+// Model the private assembly helpers for source-body pointer checks. The actual
+// MVE helpers are exercised against scalar expectations by target unit tests.
+struct arm_nn_vector_sum_s8x5_result { int32_t sum[5]{}; };
+constexpr int32_t arm_nn_vector_sum_s8x1_mve(const int8_t *data,int32_t cols) {
+    int32_t sum=0; for(int i=0;i<cols;i++) sum+=data[i]; return sum;
+}
+constexpr arm_nn_vector_sum_s8x5_result arm_nn_vector_sum_s8x5_mve(const int8_t *data,int32_t cols) {
+    arm_nn_vector_sum_s8x5_result result{};
+    for(int r=0;r<5;r++) result.sum[r]=arm_nn_vector_sum_s8x1_mve(data+r*cols,cols);
+    return result;
+}
