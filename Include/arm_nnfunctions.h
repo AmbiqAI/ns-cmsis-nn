@@ -7814,8 +7814,8 @@ arm_cmsis_nn_status arm_requantize_s16_s16(const int16_t *input,
  * @param[in]   zero_point  Zero point of the input data, in [-128, 127].
  * @param[in]   scale       Scale factor that was used during quantization. Not validated.
  *
- * @note Size and zero-point ranges are caller preconditions; this implementation does not check them.
- *       A negative size is unsafe on the MVE floating-point path. For positive size, input and output must
+ * @note Negative size or an out-of-range zero point is rejected before tensor accesses.
+ *       For positive size, input and output must
  *       provide the stated number of elements in valid, nonoverlapping storage; output must be float-aligned.
  *       Each output is computed as (input[i] - zero_point) * scale, with the integer difference converted to float.
  *       MVE floating-point assembly is used with ARM_MATH_MVEF and without ARM_MATH_AUTOVECTORIZE; otherwise
@@ -7823,7 +7823,8 @@ arm_cmsis_nn_status arm_requantize_s16_s16(const int16_t *input,
  *       can give different results across these paths. NaN payload preservation and bitwise path equivalence
  *       are not guaranteed; scalar results also depend on the compiler's floating-point options.
  *
- * @return     The function returns <code>ARM_CMSIS_NN_SUCCESS</CODE>
+ * @return     ARM_CMSIS_NN_SUCCESS, or ARM_CMSIS_NN_ARG_ERROR, with nothing written, when @p size is negative or
+ *             @p zero_point lies outside the int8_t range.
  */
 arm_cmsis_nn_status
 arm_dequantize_s8_f32(const int8_t *input, float *output, int32_t size, int32_t zero_point, float scale);
@@ -7836,8 +7837,8 @@ arm_dequantize_s8_f32(const int8_t *input, float *output, int32_t size, int32_t 
  * @param[in]   zero_point  Zero point of the input data, in [-32768, 32767].
  * @param[in]   scale       Scale factor that was used during quantization. Not validated.
  *
- * @note Size and zero-point ranges are caller preconditions; this implementation does not check them.
- *       A negative size is unsafe on the MVE floating-point path. For positive size, input and output must
+ * @note Negative size or an out-of-range zero point is rejected before tensor accesses.
+ *       For positive size, input and output must
  *       provide the stated number of elements in valid, nonoverlapping storage; output must be float-aligned.
  *       Each output is computed as (input[i] - zero_point) * scale, with the integer difference converted to float.
  *       MVE floating-point assembly is used with ARM_MATH_MVEF and without ARM_MATH_AUTOVECTORIZE; otherwise
@@ -7845,7 +7846,8 @@ arm_dequantize_s8_f32(const int8_t *input, float *output, int32_t size, int32_t 
  *       can give different results across these paths. NaN payload preservation and bitwise path equivalence
  *       are not guaranteed; scalar results also depend on the compiler's floating-point options.
  *
- * @return     The function returns <code>ARM_CMSIS_NN_SUCCESS</CODE>
+ * @return     ARM_CMSIS_NN_SUCCESS, or ARM_CMSIS_NN_ARG_ERROR, with nothing written, when @p size is negative or
+ *             @p zero_point lies outside the int16_t range.
  */
 arm_cmsis_nn_status
 arm_dequantize_s16_f32(const int16_t *input, float *output, int32_t size, int32_t zero_point, float scale);

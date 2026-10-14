@@ -1260,6 +1260,7 @@ void convolve_route_predicates_f16(void)
     EXPECT_TERM(sc, flt.w, INT32_MIN, false, arm_nn_conv_f16_is_small_c(CONV_SHAPE(s_)));
     EXPECT_TERM(sc, flt.w, 0, false, arm_nn_conv_f16_is_small_c(CONV_SHAPE(s_)));
     EXPECT_TERM(sc, in.w, -1, false, arm_nn_conv_f16_is_small_c(CONV_SHAPE(s_)));
+    EXPECT_TERM(sc, in.w, 0, false, arm_nn_conv_f16_is_small_c(CONV_SHAPE(s_)));
     EXPECT_TERM(sc, padding.w, -1, false, arm_nn_conv_f16_is_small_c(CONV_SHAPE(s_)));
     EXPECT_TERM(sc, stride.w, 0, false, arm_nn_conv_f16_is_small_c(CONV_SHAPE(s_)));
     EXPECT_TERM(sc, dilation.w, 0, false, arm_nn_conv_f16_is_small_c(CONV_SHAPE(s_)));
