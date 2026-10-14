@@ -14,6 +14,7 @@ from __future__ import annotations
 import contextlib
 import importlib.util
 import io
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -43,6 +44,24 @@ class CheckPublicStructEnums(unittest.TestCase):
 
     def test_plain_is_caught(self):
         self.assertEqual(1, self.run_on(PRELUDE + "typedef struct\n{\n    int32_t a;\n    my_format fmt;\n} params;\n"))
+
+    def test_same_header_macro_and_following_field_are_caught(self):
+        header = ("#include <stdint.h>\n"
+                  "typedef enum { FMT_A = 0, FMT_B = 1 } my_format;\n"
+                  "typedef struct { int32_t a; } first_params;\n"
+                  "#include <stddef.h>\n"
+                  "#define DECLARE_PARAMS(name) typedef struct { my_format fmt; } name;\n"
+                  "DECLARE_PARAMS(macro_params)\n"
+                  "typedef struct { my_format plain; } plain_params;\n")
+        with tempfile.TemporaryDirectory() as tmp:
+            include = Path(tmp) / "Include"
+            include.mkdir()
+            (include / "types.h").write_text(header, encoding="utf-8")
+            result = subprocess.run([sys.executable, str(SCRIPT), str(include)], capture_output=True, text=True)
+        self.assertEqual(1, result.returncode, result.stdout + result.stderr)
+        self.assertEqual(2, len(result.stderr.splitlines()), result.stderr)
+        self.assertIn("macro_params field fmt has enum type my_format", result.stderr)
+        self.assertIn("plain_params field plain has enum type my_format", result.stderr)
 
     def test_const_is_caught(self):
         self.assertEqual(1, self.run_on(PRELUDE + "typedef struct\n{\n    const my_format fmt;\n} params;\n"))
