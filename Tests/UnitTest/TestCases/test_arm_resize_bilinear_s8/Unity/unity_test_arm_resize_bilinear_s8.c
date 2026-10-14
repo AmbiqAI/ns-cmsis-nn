@@ -5,6 +5,8 @@
  * See LICENSE (root) or LICENSES/LicenseRef-Ambiq-Apollo-SDK.txt for the full text.
  */
 
+#include <stdlib.h>
+
 #include "../test_arm_resize_bilinear_s8.c"
 #ifdef USING_FVP_CORSTONE_300
 extern void uart_init(void);
