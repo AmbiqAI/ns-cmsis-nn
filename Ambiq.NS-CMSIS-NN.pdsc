@@ -85,6 +85,7 @@
         <file category="header" name="Include/Internal/arm_nn_arg_extrema_flt.h"/>
         <file category="header" name="Include/Internal/arm_nn_broadcast_walk.h"/>
         <file category="header" name="Include/Internal/arm_nn_reduce_extrema_flt.h"/>
+        <file category="header" name="Include/Internal/arm_nn_resize_bilinear.h"/>
         <file category="header" name="Include/Internal/arm_nn_s4_decode.h"/>
         <file category="header" name="Include/Internal/arm_nn_sqrt_flt.h"/>
         <file category="header" name="Include/Internal/arm_minmax_f16_common.h"/>
@@ -424,6 +425,8 @@
         <file category="source" name="Source/ReshapeFunctions/arm_reshape_f16.c"/>
         <file category="source" name="Source/ReshapeFunctions/arm_reshape_f32.c"/>
         <file category="source" name="Source/ReshapeFunctions/arm_reshape_s8.c"/>
+        <file category="source" name="Source/ReshapeFunctions/arm_resize_bilinear_s8.c"/>
+        <file category="source" name="Source/ReshapeFunctions/arm_resize_bilinear_s8_pow2.c"/>
         <file category="source" name="Source/ReshapeFunctions/arm_resize_nearest_neighbor_f16.c"/>
         <file category="source" name="Source/ReshapeFunctions/arm_resize_nearest_neighbor_f32.c"/>
         <file category="source" name="Source/ReshapeFunctions/arm_resize_nearest_neighbor_s16.c"/>
