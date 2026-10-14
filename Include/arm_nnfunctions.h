@@ -37,6 +37,9 @@
 #ifndef ARM_NNFUNCTIONS_H
 #define ARM_NNFUNCTIONS_H
 
+/** Exact-rational INT8 bilinear resize direct entries are available. */
+#define ARM_NN_HAS_RESIZE_BILINEAR_S8 1
+
 #include "arm_nn_math_types.h"
 #include "arm_nn_types.h"
 
@@ -6304,6 +6307,49 @@ void arm_softmax_u8(const uint8_t *input,
  *
  */
 void arm_reshape_s8(const int8_t *input, int8_t *output, const uint32_t total_size);
+
+/**
+ * @brief Exact rational bilinear resize of an NHWC s8 tensor, without scratch storage.
+ *
+ * @param[in]  resize_params Coordinate options: align_corners and half_pixel_centers are mutually exclusive.
+ * @param[in]  input_dims    Positive input dimensions [N, H, W, C], total elements <= INT32_MAX.
+ * @param[in]  input_data    Input tensor data.
+ * @param[in]  output_dims   Positive output dimensions [N, H, W, C], total elements <= INT32_MAX.
+ * @param[out] output_data   Output tensor data; must not overlap input_data.
+ *
+ * @return ARM_CMSIS_NN_ARG_ERROR for null arguments, invalid dimensions/options, or unequal N/C;
+ *         ARM_CMSIS_NN_SUCCESS otherwise.
+ * @note Input and output must have identical quantization. Coordinates are clamped to the input edges.
+ *       Interpolation is exact rational arithmetic, rounded once with half ties away from zero.
+ *       This can differ from LiteRT's Q10 coordinate approximation for non-dyadic ratios, and from
+ *       its SINGLE_ROUNDING treatment of negative ties. Buffer capacity/overlap and quantization
+ *       are the caller's responsibility. This entry does not reference specialized kernels.
+ */
+arm_cmsis_nn_status arm_resize_bilinear_s8(const cmsis_nn_resize_params *resize_params,
+                                           const cmsis_nn_dims *input_dims,
+                                           const int8_t *input_data,
+                                           const cmsis_nn_dims *output_dims,
+                                           int8_t *output_data);
+
+/**
+ * @brief Direct power-of-two half-pixel bilinear upsampling of an NHWC s8 tensor.
+ * @param[in]  resize_params Requires half_pixel_centers true and align_corners false.
+ * @param[in]  input_dims    Positive input dimensions [N, H, W, C], total elements <= INT32_MAX.
+ * @param[in]  input_data    Input tensor data.
+ * @param[in]  output_dims   Positive output dimensions with equal N/C and power-of-two H/W upsample ratios.
+ * @param[out] output_data   Non-overlapping output tensor with the same quantization as input_data.
+ * @return ARM_CMSIS_NN_ARG_ERROR for invalid arguments, ratios, or ratio product > 2^21;
+ *         ARM_CMSIS_NN_SUCCESS otherwise.
+ * @note Each spatial ratio may be one; their product must be <= 2^21 to bound INT32 intermediates.
+ *       Uses the exact coordinate, rounding and caller buffer contract of arm_resize_bilinear_s8.
+ *       No scratch or general-kernel fallback. MVE uses predicated channels or, for C <= 2,
+ *       adjacent output elements. Scalar builds implement the same arithmetic contract.
+ */
+arm_cmsis_nn_status arm_resize_bilinear_s8_pow2(const cmsis_nn_resize_params *resize_params,
+                                                const cmsis_nn_dims *input_dims,
+                                                const int8_t *input_data,
+                                                const cmsis_nn_dims *output_dims,
+                                                int8_t *output_data);
 
 /**
  * @brief Nearest neighbor resize function for s8 data

@@ -52,3 +52,5 @@ void test_depth_to_space_bs2_batch_s8(void)            { depth_to_space_bs2_batc
 void test_depth_to_space_bs2_channels_s8(void)         { depth_to_space_bs2_channels_s8_arm_depth_to_space_s8(); }
 void test_depth_to_space_bs2_rectangular_s8(void)      { depth_to_space_bs2_rectangular_s8_arm_depth_to_space_s8(); }
 void test_depth_to_space_min_depth_s8(void)            { depth_to_space_min_depth_s8_arm_depth_to_space_s8(); }
+
+void test_depth_to_space_permutations_s8(void) { depth_to_space_permutations_s8(); }
