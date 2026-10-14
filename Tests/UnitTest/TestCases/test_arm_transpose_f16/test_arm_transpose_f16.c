@@ -77,39 +77,54 @@ void transpose_perm_duplicate_axis_arm_transpose_f16(void)
     TEST_ASSERT_TRUE(output_untouched);
 }
 
-/* Complete row blocks, partial blocks and the scalar-size fallback preserve the permutation bit for bit. */
+/* Full and partial row blocks preserve raw values through each batched 2D route. */
 void transpose_2d_tails_arm_transpose_f16(void)
 {
     const int32_t shapes[][2] = {{16, 9}, {17, 9}, {9, 17}, {2, 3},
-                                  {1, 128}, {2, 64}, {3, 43}, {4, 32}, {5, 26}, {6, 22}, {7, 19}, {8, 16},
-                                  {10, 17}, {11, 17}, {12, 17}, {13, 17}, {14, 17}, {15, 17}};
-    uint16_t special[] = {0x8000, 0x7c00, 0xfc00, 0x7e01};
-    float16_t input[17 * 17];
-    float16_t output[17 * 17 + 1];
+                               {1, 128}, {2, 64}, {3, 43}, {4, 32}, {5, 26}, {6, 22}, {7, 19}, {8, 16},
+                               {10, 17}, {11, 17}, {12, 17}, {13, 17}, {14, 17}, {15, 17}};
+    const uint16_t special[] = {0x8000, 0x7c00, 0xfc00, 0x7e01};
+    static float16_t input[4 * 17 * 17];
+    static float16_t output[4 * 17 * 17 + 1];
     const cmsis_nn_context ctx = {NULL, 0};
-    const cmsis_nn_transpose_params_f16 params = {2, {1, 0, 2, 3}, ARM_NN_LAYOUT_NHWC};
+    const cmsis_nn_transpose_params_f16 params[] = {
+        {2, {1, 0, 2, 3}, ARM_NN_LAYOUT_NHWC},
+        {3, {0, 2, 1, 3}, ARM_NN_LAYOUT_NHWC},
+        {4, {0, 1, 3, 2}, ARM_NN_LAYOUT_NHWC}};
     for (size_t shape = 0; shape < sizeof(shapes) / sizeof(shapes[0]); shape++)
     {
         const int32_t rows = shapes[shape][0], cols = shapes[shape][1];
-        const cmsis_nn_dims input_dims = {rows, cols, 1, 1};
-        const cmsis_nn_dims output_dims = {cols, rows, 1, 1};
-        for (int32_t i = 0; i < rows * cols; i++)
+        const cmsis_nn_dims input_dims[] = {{rows, cols, 1, 1}, {2, rows, cols, 1}, {2, 2, rows, cols}};
+        const cmsis_nn_dims output_dims[] = {{cols, rows, 1, 1}, {2, cols, rows, 1}, {2, 2, cols, rows}};
+        for (int32_t route = 0; route < 3; route++)
         {
-            input[i] = (float16_t)(i - 71);
-        }
-        memcpy(input, special, sizeof(special));
-        memset(output, 0xa5, sizeof(output));
-        TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
-                          arm_transpose_f16(&ctx, &params, &input_dims, input, &output_dims, output));
-        for (int32_t r = 0; r < rows; r++)
-        {
-            for (int32_t c = 0; c < cols; c++)
+            const int32_t batches = 1 << route;
+            for (int32_t i = 0; i < batches * rows * cols; i++)
             {
-                TEST_ASSERT_EQUAL_MEMORY(input + r * cols + c, output + c * rows + r, sizeof(input[0]));
+                input[i] = (float16_t)(i - 71);
             }
+            for (int32_t b = 0; b < batches; b++)
+            {
+                memcpy(input + b * rows * cols, special, sizeof(special));
+            }
+            memset(output, 0xa5, sizeof(output));
+            TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
+                              arm_transpose_f16(&ctx, &params[route], &input_dims[route], input,
+                                                  &output_dims[route], output));
+            for (int32_t b = 0; b < batches; b++)
+            {
+                for (int32_t r = 0; r < rows; r++)
+                {
+                    for (int32_t c = 0; c < cols; c++)
+                    {
+                        TEST_ASSERT_EQUAL_MEMORY(input + b * rows * cols + r * cols + c,
+                                                 output + b * rows * cols + c * rows + r, sizeof(input[0]));
+                    }
+                }
+            }
+            uint16_t guard = 0;
+            memcpy(&guard, output + batches * rows * cols, sizeof(guard));
+            TEST_ASSERT_EQUAL_HEX16(0xa5a5, guard);
         }
-        uint16_t guard = 0;
-        memcpy(&guard, output + rows * cols, sizeof(guard));
-        TEST_ASSERT_EQUAL_HEX16(0xa5a5, guard);
     }
 }
