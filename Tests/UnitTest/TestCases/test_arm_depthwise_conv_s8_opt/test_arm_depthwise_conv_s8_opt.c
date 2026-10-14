@@ -3269,7 +3269,7 @@ void dw3_buffer_size_arm_depthwise_conv_s8_opt(void)
    scratch layout at the gap, so a write past the pad row faults even where the documented minimum leaves slack. */
 void dw3_bounds_arm_depthwise_conv_s8_opt(void)
 {
-#if defined(MPU_GUARD_AVAILABLE)
+#if defined(MPU_GUARD_AVAILABLE) && !defined(ARM_MATH_AUTOVECTORIZE)
     enum
     {
         op_none,
@@ -3357,8 +3357,8 @@ void dw3_bounds_arm_depthwise_conv_s8_opt(void)
                 {
                     /* The layout (parameters, then the pad row) is need - 16 bytes from a 16-byte aligned start.
                        ctx->buf one byte past a 16-byte boundary spends 15 of the 16 slack bytes on alignment, so the
-                       layout ends at the gap when W x C is a multiple of 16 (every shape here but 11 x 36), and the
-                       last byte of ctx->size lies in the gap. */
+                       layout ends at the gap when W x C is a multiple of 16, with the last byte of ctx->size in
+                       the gap. Otherwise up to 15 bytes of alignment slack precede the gap. */
                     const uintptr_t layout_start = ((uintptr_t)guard_end(0) - (uintptr_t)(need - 16)) & ~(uintptr_t)15;
                     scratch = (int8_t *)(layout_start - 15);
                 }
@@ -3385,6 +3385,8 @@ void dw3_bounds_arm_depthwise_conv_s8_opt(void)
             }
         }
     }
+#else
+    TEST_IGNORE_MESSAGE("Requires explicit MVE intrinsics and the MPU guard platform");
 #endif
 }
 

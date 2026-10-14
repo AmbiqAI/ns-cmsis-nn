@@ -2688,7 +2688,8 @@ arm_cmsis_nn_status arm_depthwise_conv_s8_opt_channelwise(const cmsis_nn_context
  *
  * @return     The function returns one of the following
  *                <code>ARM_CMSIS_NN_NO_IMPL_ERROR</code> - the layer or a buffer is outside the gate below, or the
- *                                                          build lacks explicit MVE intrinsics; nothing is written
+ *                                                          build lacks ARM_MATH_MVEI or defines ARM_MATH_AUTOVECTORIZE;
+ *                                                          nothing is written
  *                <code>ARM_CMSIS_NN_SUCCESS</code> - Successful operation
  *
  * @details
@@ -2746,7 +2747,8 @@ arm_cmsis_nn_status arm_depthwise_conv_s8_opt_3x3(const cmsis_nn_context *ctx,
  *                <code>ARM_CMSIS_NN_NO_IMPL_ERROR</code> - C_IN is not 64, dw_conv_params->stride.h is not 1, the
  *                                                          layer or a buffer is outside the gate of
  *                                                          arm_depthwise_conv_s8_opt_3x3(), or the build lacks
- *                                                          ARM_MATH_MVEI; nothing is written
+ *                                                          ARM_MATH_MVEI or defines ARM_MATH_AUTOVECTORIZE;
+ *                                                          nothing is written
  *                <code>ARM_CMSIS_NN_SUCCESS</code> - Successful operation
  *
  * @details
