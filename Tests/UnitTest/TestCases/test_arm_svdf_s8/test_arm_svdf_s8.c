@@ -36,8 +36,8 @@ void svdf_int8_arm_svdf_s8(void)
     cmsis_nn_dims input_dims;
     cmsis_nn_dims weights_feature_dims;
     cmsis_nn_dims weights_time_dims;
-    cmsis_nn_dims state_dims;
-    cmsis_nn_dims output_dims;
+    cmsis_nn_dims state_dims = {0};
+    cmsis_nn_dims output_dims = {0};
     cmsis_nn_dims bias_dims;
     cmsis_nn_per_tensor_quant_params input_quant_params;
     cmsis_nn_per_tensor_quant_params output_quant_params;
@@ -170,8 +170,8 @@ void svdf_int8_2_arm_svdf_s8(void)
     cmsis_nn_dims input_dims;
     cmsis_nn_dims weights_feature_dims;
     cmsis_nn_dims weights_time_dims;
-    cmsis_nn_dims state_dims;
-    cmsis_nn_dims output_dims;
+    cmsis_nn_dims state_dims = {0};
+    cmsis_nn_dims output_dims = {0};
     cmsis_nn_dims bias_dims;
     cmsis_nn_per_tensor_quant_params input_quant_params;
     cmsis_nn_per_tensor_quant_params output_quant_params;
