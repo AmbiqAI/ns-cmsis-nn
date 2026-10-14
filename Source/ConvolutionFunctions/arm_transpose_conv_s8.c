@@ -138,22 +138,26 @@ arm_cmsis_nn_status arm_transpose_conv_s8(const cmsis_nn_context *ctx,
             int skip_rows_top = ARM_NN_MAX(0, pad_y - j * stride_y);
             int skip_rows_bottom = ARM_NN_MAX(0, (j * stride_y + filter_y) - (pad_y + output_y) - 1);
 
-            // Compute output for one row of input
-            arm_nn_transpose_conv_row_s8_s32(input,
-                                             filter,
-                                             buf,
-                                             buf_row,
-                                             buf_size,
-                                             filter_y,
-                                             filter_x,
-                                             input_ch,
-                                             output_ch,
-                                             input_offset,
-                                             buf_x,
-                                             input_x,
-                                             stride_x,
-                                             skip_rows_top,
-                                             skip_rows_bottom);
+            // Compute output for one row of input. A row whose filter lies wholly outside the output adds nothing,
+            // and the row function would step its filter pointer past the filter for it (issue #775).
+            if (skip_rows_top + skip_rows_bottom < filter_y)
+            {
+                arm_nn_transpose_conv_row_s8_s32(input,
+                                                 filter,
+                                                 buf,
+                                                 buf_row,
+                                                 buf_size,
+                                                 filter_y,
+                                                 filter_x,
+                                                 input_ch,
+                                                 output_ch,
+                                                 input_offset,
+                                                 buf_x,
+                                                 input_x,
+                                                 stride_x,
+                                                 skip_rows_top,
+                                                 skip_rows_bottom);
+            }
             input += input_ch * input_x;
 
             // Number of output rows that became final (no later input row can still add to

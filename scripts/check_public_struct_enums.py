@@ -111,11 +111,11 @@ def main(include_dir: Path = INCLUDE_DIR) -> int:
 
     def walk(node: dict, record: str) -> None:
         nonlocal current_file
-        # clang's JSON names a file only when it differs from the previous location's
-        for loc in (node.get("loc", {}), node.get("loc", {}).get("expansionLoc", {}),
-                    node.get("range", {}).get("begin", {}), node.get("range", {}).get("begin", {}).get("expansionLoc", {})):
-            if "file" in loc:
-                current_file = loc["file"]
+        # clang's JSON names a file only when it changes; consume locations in print order, including macro locations.
+        for obj in (node.get("loc", {}), node.get("range", {}).get("begin", {}), node.get("range", {}).get("end", {})):
+            for loc in (obj, obj.get("spellingLoc", {}), obj.get("expansionLoc", {})):
+                if "file" in loc:
+                    current_file = loc["file"]
         kind = node.get("kind")
         in_headers = Path(current_file).resolve().is_relative_to(root) if current_file else False
         if kind == "TypedefDecl":

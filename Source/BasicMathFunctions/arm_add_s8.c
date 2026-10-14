@@ -128,12 +128,11 @@ __STATIC_FORCEINLINE void arm_add_s8_row_broadcast(const int8_t *vec,
         r = vshlq_r_s32(vaddq_n_s32(r, row_offset), left_shift);
         r = arm_requantize_mve(r, row_mult, row_shift);
 
-        const int8_t *v_ptr = vec + c0;
-        int8_t *o_ptr = output + c0;
-
+        /* Rows are addressed from the bases, so no pointer is formed past the last row */
         for (int32_t i = 0; i < n_rows; i++)
         {
-            int32x4_t v = vldrbq_z_s32(v_ptr, p);
+            const int32_t off = i * c + c0;
+            int32x4_t v = vldrbq_z_s32(vec + off, p);
             v = vqrdmulhq_n_s32(vshlq_r_s32(vaddq_n_s32(v, vec_offset), left_shift), vec_mult);
             if (vec_div)
             {
@@ -145,10 +144,7 @@ __STATIC_FORCEINLINE void arm_add_s8_row_broadcast(const int8_t *vec,
             v = vmaxq_s32(v, act_min);
             v = vminq_s32(v, act_max);
 
-            vstrbq_p_s32(o_ptr, v, p);
-
-            v_ptr += c;
-            o_ptr += c;
+            vstrbq_p_s32(output + off, v, p);
         }
     }
 }

@@ -45,3 +45,10 @@
  void tearDown(void) {}
  
  void test_dequantize_arm_dequantize_s8_f32(void) { test_arm_dequantize_s8_f32(); }
+
+ void test_dequantize_zero_point_range_arm_dequantize_s8_f32(void)
+ {
+     dequantize_s8_f32_rejects_out_of_range_zero_point();
+ }
+
+ void test_dequantize_negative_size_arm_dequantize_s8_f32(void) { dequantize_s8_f32_rejects_negative_size(); }
