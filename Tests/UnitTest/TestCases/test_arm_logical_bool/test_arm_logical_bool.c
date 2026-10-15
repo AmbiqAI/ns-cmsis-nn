@@ -116,7 +116,7 @@ void logical_broadcast(void)
                                       {{1, 3, 4, 1}, {2, 1, 1, 5}},
                                       {{2, 1, 4, 5}, {1, 3, 4, 5}},
                                       {{2, 3, 1, 1}, {1, 1, 4, 5}},
-                                      {{1, 4, 256, 256}, {1, 1, 256, 256}}};
+                                      {{1, 4, 17, 19}, {1, 1, 17, 19}}};
     for (unsigned i = 0; i < sizeof(pairs) / sizeof(pairs[0]); ++i)
     {
         const cmsis_nn_dims a = pairs[i][0], b = pairs[i][1];
