@@ -7,6 +7,8 @@
  * See LICENSE (root) or LICENSES/LicenseRef-Ambiq-Apollo-SDK.txt for the full text.
  */
 
+#include <stdlib.h>
+
 #include "../test_arm_logical_bool.c"
 #ifdef USING_FVP_CORSTONE_300
 extern void uart_init(void);

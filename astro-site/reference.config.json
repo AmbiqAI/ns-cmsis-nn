@@ -57,7 +57,7 @@
       "label": "Reduction and comparison",
       "heading": "Basic Math and Reduction",
       "eyebrow": "selection",
-      "blurb": "Argmin/argmax, min/max reductions, comparisons, means, vector sums, and where.",
+      "blurb": "Argmin/argmax, min/max reductions, comparisons, Boolean logic, means, vector sums, and where.",
       "patterns": [
         "^arm_argmax",
         "^arm_argmin",
@@ -65,6 +65,7 @@
         "^arm_equal",
         "^arm_greater",
         "^arm_less",
+        "^arm_logical_(and|or|not)_bool$",
         "^arm_mean",
         "^arm_nn_mean",
         "^arm_not_equal",
