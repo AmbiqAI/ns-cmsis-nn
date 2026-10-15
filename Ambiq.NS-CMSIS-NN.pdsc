@@ -198,6 +198,8 @@
         <file category="source" name="Source/BasicMathFunctions/arm_nn_fill_f32.c"/>
         <file category="source" name="Source/BasicMathFunctions/arm_nn_mean_f16.c"/>
         <file category="source" name="Source/BasicMathFunctions/arm_nn_mean_f32.c"/>
+        <file category="source" name="Source/BasicMathFunctions/arm_nn_neg_f16.c"/>
+        <file category="source" name="Source/BasicMathFunctions/arm_nn_neg_f32.c"/>
         <file category="source" name="Source/BasicMathFunctions/arm_nn_sqrt_f16.c"/>
         <file category="source" name="Source/BasicMathFunctions/arm_nn_sqrt_f32.c"/>
         <file category="source" name="Source/BasicMathFunctions/arm_reduce_max_f16.c"/>

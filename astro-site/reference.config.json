@@ -44,6 +44,7 @@
         "^arm_minimum",
         "^arm_mul",
         "^arm_nn_abs",
+        "^arm_nn_neg",
         "^arm_nn_sqrt",
         "^arm_rsqrt",
         "^arm_select_v2",

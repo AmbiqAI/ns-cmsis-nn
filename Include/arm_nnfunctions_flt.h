@@ -1174,6 +1174,25 @@ arm_cmsis_nn_status arm_elementwise_sub_f32(const float32_t *input_1_vect,
 arm_cmsis_nn_status arm_nn_abs_f32(const float32_t *input, float32_t *output, int32_t block_size);
 
 /**
+ * @brief Elementwise IEEE sign-bit negation.
+ *
+ * Toggles only the sign bit, preserving every other bit, including signaling/quiet
+ * NaN payloads, subnormals and infinities. Positive and negative zero exchange.
+ * No floating arithmetic or conversion is performed; FP flush/default-NaN modes
+ * do not affect the result. Exact in-place use is supported; partial overlap is not.
+ * Buffers must have natural element alignment and room for count elements.
+ * A zero count writes nothing and accepts NULL data pointers. Negative counts,
+ * byte counts above INT32_MAX, and NULL pointers for nonempty calls are rejected
+ * before any output write. No scratch is needed.
+ *
+ * @param[in] input Input buffer.
+ * @param[out] output Output buffer (may equal input).
+ * @param[in] count Number of elements.
+ * @return ARM_CMSIS_NN_SUCCESS or ARM_CMSIS_NN_ARG_ERROR.
+ */
+arm_cmsis_nn_status arm_nn_neg_f32(const float32_t *input, float32_t *output, int32_t count);
+
+/**
  * @brief Fill a float32 vector with one value.
  *
  * Bit copy of @p value into every element (vector splat / plain stores), so a
@@ -3893,6 +3912,9 @@ arm_cmsis_nn_status arm_elementwise_squared_difference_f16(const float16_t *inpu
  * @copydoc arm_nn_abs_f32
  */
 arm_cmsis_nn_status arm_nn_abs_f16(const float16_t *input, float16_t *output, int32_t block_size);
+
+/** @copydoc arm_nn_neg_f32 */
+arm_cmsis_nn_status arm_nn_neg_f16(const float16_t *input, float16_t *output, int32_t count);
 
 /**
  * @brief Fill a float16 vector with one value; bit copy of @p value, NaN payload included.
