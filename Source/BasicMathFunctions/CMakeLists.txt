@@ -65,3 +65,8 @@ if (ARM_NN_ENABLE_F16)
                       arm_rsqrt_f16.c)
 endif()
 target_sources(cmsis-nn PRIVATE ${SRC} ${SRC_FLT})
+
+include("${CMAKE_CURRENT_LIST_DIR}/../../cmake/ns_cmsis_nn_div_options.cmake")
+ns_cmsis_nn_div_options(cmsis-nn
+  "${CMAKE_CURRENT_LIST_DIR}/arm_elementwise_div_f16.c"
+  "${CMAKE_CURRENT_LIST_DIR}/arm_elementwise_div_f32.c")

@@ -6,10 +6,14 @@
 #ifndef ARM_NN_DIV_FLT_H
 #define ARM_NN_DIV_FLT_H
 
-/* Division must not become reciprocal multiplication, including scalar broadcasts.
- * Keep this policy local to the DIV translation units, even in -Ofast builds. */
+#include "arm_nn_math_types.h"
+
+/* Clang's Arm target cannot disable all fast-math assumptions with a source
+ * pragma. CMake sets this per-file flag; pack/manual consumers must do so too. */
 #if defined(__clang__)
-    #pragma clang fp reciprocal(off) reassociate(off) contract(off)
+    #if (ARM_NN_ENABLE_F32 || ARM_NN_ENABLE_F16) && (defined(__FAST_MATH__) || (__FINITE_MATH_ONLY__ > 0))
+        #error "Compile the DIV sources with -fno-fast-math (including pack/manual builds)"
+    #endif
 #elif defined(__GNUC__)
     #pragma GCC optimize("no-fast-math")
 #endif

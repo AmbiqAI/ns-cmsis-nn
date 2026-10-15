@@ -1223,6 +1223,9 @@ arm_cmsis_nn_status arm_nn_fill_f32(float32_t value, float32_t *output, int32_t 
  *       floating-point environment, valid storage and ordered activation bounds. NaNs propagate
  *       (payload unspecified); signed zeros and infinities follow IEEE division before clamping.
  *       Other partial overlaps are unsupported. MVE and DSP builds use scalar division.
+ *       Clang/Armclang must compile the DIV source files with -fno-fast-math; both CMake
+ *       manifests apply this automatically (Clang requires CMake >= 3.18). Pack/manual builds
+ *       must supply that per-file option.
  */
 arm_cmsis_nn_status arm_elementwise_div_f32(const float32_t *input_1_vect,
                                             const float32_t *input_2_vect,
