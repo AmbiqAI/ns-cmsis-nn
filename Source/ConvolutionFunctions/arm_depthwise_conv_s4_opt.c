@@ -161,7 +161,9 @@ arm_cmsis_nn_status arm_depthwise_conv_s4_opt(const cmsis_nn_context *ctx,
         return ARM_CMSIS_NN_ARG_ERROR;
     }
 
-    if (ctx->buf == NULL)
+    /* Every leg sizes its loops and buffers from these: the im2col fill clamps its rows to [0, filter H], and the MVE
+       leg forms its tap count from filter W * H */
+    if (ctx->buf == NULL || input_ch < 0 || filter_dims->w < 0 || filter_dims->h < 0)
     {
         return ARM_CMSIS_NN_ARG_ERROR;
     }
@@ -378,9 +380,11 @@ arm_cmsis_nn_status arm_depthwise_conv_s4_opt(const cmsis_nn_context *ctx,
 
             /* Out of bounds is only considered for the y axis as it provides a contiguous zero'ing opportunity than
                along the x axis */
-            const int ker_y_start = ARM_NN_MAX(0, -base_idx_y);
+            /* Rows above and below the input are zeros; both bounds stay in [0, kernel_y] so the fill writes
+               exactly kernel_y rows of the buffer */
+            const int ker_y_start = ARM_NN_MIN(ARM_NN_MAX(0, -base_idx_y), kernel_y);
             /* Condition for kernel end dimension: (base_idx_y + ker_y_end) < input_y */
-            const int ker_y_end = ARM_NN_MIN(kernel_y, input_y - base_idx_y);
+            const int ker_y_end = ARM_NN_MAX(ker_y_start, ARM_NN_MIN(kernel_y, input_y - base_idx_y));
 
             int32_t index = 0;
             if (ker_y_start != 0)

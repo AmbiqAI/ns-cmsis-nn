@@ -31,8 +31,6 @@
  * @{
  */
 
-#define MAX_INPUTS 10
-
 arm_cmsis_nn_status arm_concatenation_s32(const int32_t *const *input_data,
                                           const int32_t inputs_count,
                                           const int32_t *input_concat_dims,
@@ -79,11 +77,10 @@ arm_cmsis_nn_status arm_concatenation_s32(const int32_t *const *input_data,
         base_inner_size *= output_shape[i];
     }
 
-    int64_t copy_size[MAX_INPUTS] = {0};
     for (int i = 0; i < inputs_count; i++)
     {
-        copy_size[i] = (int64_t)input_concat_dims[i] * base_inner_size;
-        if ((copy_size[i] <= 0) || (copy_size[i] > (int64_t)UINT32_MAX))
+        const int64_t copy_size = (int64_t)input_concat_dims[i] * base_inner_size;
+        if ((copy_size <= 0) || (copy_size > (int64_t)UINT32_MAX))
         {
             return ARM_CMSIS_NN_ARG_ERROR;
         }
@@ -95,9 +92,10 @@ arm_cmsis_nn_status arm_concatenation_s32(const int32_t *const *input_data,
         // For each input tensor...
         for (int i = 0; i < inputs_count; i++)
         {
-            const int32_t *in_ptr = input_data[i] + k * copy_size[i];
-            arm_memcpy_s32(output_data, in_ptr, (uint32_t)copy_size[i]);
-            output_data += copy_size[i];
+            const int64_t copy_size = (int64_t)input_concat_dims[i] * base_inner_size;
+            const int32_t *in_ptr = input_data[i] + k * copy_size;
+            arm_memcpy_s32(output_data, in_ptr, (uint32_t)copy_size);
+            output_data += copy_size;
         }
     }
 

@@ -23,9 +23,11 @@
 // most 32 taps must agree byte for byte between the two entries. A +0 / -0 difference counts as agreement. The tap
 // count is the output's own: the direct kernels skip padded taps, so an edge output counts only its in-range taps;
 // the paths that multiply a zero-padded patch (patch-GEMM, the 1xN padded regions, the depthwise to-conv route)
-// count every tap of the patch. Under clang (-ffast-math) the float16 reduction of a short dot is the compiler's
-// order, so there outputs of at most 32 taps are checked only against the other entry and `_acc16` only for its
-// checksum; the fold, whose order the kernels pin, is checked exactly on every compiler.
+// count every tap of the patch. With a library built by clang (-ffast-math) the float16 reduction of a short dot is
+// the compiler's order, so there outputs of at most 32 taps are checked only against the other entry and `_acc16`
+// only for its checksum; the fold, whose order the kernels pin, is checked exactly on every compiler. The generic
+// depthwise kernel's taps are scalar multiply-adds that match the fused emulation only where the compiler contracts
+// them, as the library's builds do, and the shapes here keep its rows short of where GCC -Ofast vectorizes them.
 //
 // Two lane shapes are emulated. A lane kernel keeps one output per vector lane and adds one tap per step, the bias
 // starting the first partial. A reduction kernel spreads one output's taps over the eight lanes of a vector
@@ -45,7 +47,11 @@
 #define BA_BLOCK 32
 #define BA_NONE INT32_MAX
 
-#if defined(__clang__)
+// The short-dot relaxation follows the compiler that built the library, taken to be the test's own compiler unless
+// the harness says otherwise: NN_TEST_LIBRARY_CLANG=1 for a library built by clang, 0 for one built by GCC.
+#if defined(NN_TEST_LIBRARY_CLANG)
+    #define BA_EXACT_SHORT (!(NN_TEST_LIBRARY_CLANG))
+#elif defined(__clang__)
     #define BA_EXACT_SHORT 0
 #else
     #define BA_EXACT_SHORT 1
@@ -789,7 +795,7 @@ void ba_batch_matmul_long_k(void)
 }
 
 /* ---------------------------------------------------------------------------------------------------------------- */
-/* 1xN convolution: padded regions through the matmul, the no-padding region through the strided kernel            */
+/* 1xN convolution: padded and long-K no-padding rows through the matmul, other no-padding rows strided            */
 /* ---------------------------------------------------------------------------------------------------------------- */
 
 typedef struct
@@ -837,6 +843,13 @@ static void ba_c1d_lane_tap(const void *vctx, int32_t t, float16_t *x, float16_t
     *w = ba_w[(size_t)c->oc * c->kw * c->in_c + t];
 }
 
+/* Mirrors arm_convolve_1_x_n_rows_in_place_f16(): whether the no-padding rows run, read in place, through the
+ * contiguous-K matmul instead of the strided kernel. */
+static bool ba_c1xn_in_place(int32_t out_c, int32_t k)
+{
+    return BA_MVE && out_c >= 4 && ((out_c % 8 >= 4 && k >= 80) || k >= 224);
+}
+
 static float16_t ba_c1xn_ref(const void *vctx, int32_t idx, int32_t block)
 {
     ba_c1d c = *(const ba_c1d *)vctx;
@@ -851,8 +864,9 @@ static float16_t ba_c1xn_ref(const void *vctx, int32_t idx, int32_t block)
         return ba_emu_lane(&c, ba_c1d_lane_tap, k, bias, block);
     }
     /* Strided kernel (no-padding region): gather lanes for whole blocks of 8, then 4, of output channels, then the
-     * remainder dot. Padded regions: the matmul's contiguous-K groups of four and its remainder dot. */
-    const int32_t lane_oc = (c.out_c / 8) * 8 + ((c.out_c % 8) / 4) * 4;
+     * remainder dot. Padded regions, and no-padding rows read in place: the matmul's contiguous-K groups of four and
+     * its remainder dot. */
+    const int32_t lane_oc = ba_c1xn_in_place(c.out_c, k) ? 0 : (c.out_c / 8) * 8 + ((c.out_c % 8) / 4) * 4;
     if (interior && c.oc < lane_oc)
     {
         return ba_emu_lane(&c, ba_c1d_lane_tap, k, bias, block);
@@ -931,12 +945,22 @@ static void ba_c1xn_case(int32_t in_w, int32_t in_c, int32_t kw, int32_t out_c, 
 void ba_conv_1xn_long_k(void)
 {
     ba_begin();
-    ba_c1xn_case(16, 14, 7, 13, false); /* K = 98 */
-    ba_c1xn_case(12, 40, 7, 13, false); /* K = 280 */
+    ba_c1xn_case(16, 14, 7, 13, false); /* K = 98, no-padding rows read in place */
+    ba_c1xn_case(12, 40, 7, 13, false); /* K = 280, no-padding rows read in place */
     ba_c1xn_case(12, 40, 7, 5, true);
     ba_c1xn_case(10, 5, 7, 13, false);  /* K = 35 */
     ba_c1xn_case(10, 4, 7, 13, false);  /* K = 28 */
-    ba_c1xn_case(12, 14, 7, 21, false); /* 16- and 4-lane gather groups, then the remainder dot */
+    ba_c1xn_case(12, 10, 7, 21, false); /* K = 70: 16- and 4-lane gather groups, then the remainder dot */
+    /* Both sides of each in-place bound: 4 to 7 channels left in the last lane block from K = 80, any count of 4 or
+     * more from K = 224. */
+    ba_c1xn_case(12, 16, 5, 4, false); /* K = 80, in place */
+    ba_c1xn_case(12, 8, 9, 4, false);  /* K = 72, strided */
+    ba_c1xn_case(12, 32, 7, 8, false); /* K = 224, in place */
+    ba_c1xn_case(12, 24, 9, 8, false); /* K = 216, strided */
+    ba_c1xn_case(12, 32, 7, 3, false); /* K = 224, 3 channels: dot products, never in place */
+    ba_c1xn_case(12, 13, 6, 4, false); /* K = 78, strided */
+    ba_c1xn_case(12, 16, 6, 11, false); /* K = 96, 3 channels left in the last lane block: strided */
+    ba_c1xn_case(12, 37, 6, 8, false); /* K = 222, strided */
     /* K = 56. The padded outputs multiply a zero-padded patch row, so they count all 56 taps, 32 of them in range at
      * the ends. */
     ba_c1xn_case(10, 8, 7, 13, false);
@@ -1152,6 +1176,42 @@ void ba_conv1d_spec_long_k(void)
     ba_spec_case(5, 7, 20, 9, true);
     ba_spec_case(5, 7, 20, 5, false); /* in_c 20 = 16 + a 4-channel tail (#588) */
     ba_spec_case(5, 7, 6, 5, false); /* K = 30 */
+    ba_end();
+}
+
+static uint32_t ba_out_fnv(const float16_t *out, int32_t n)
+{
+    uint32_t h = 2166136261u;
+    for (int32_t i = 0; i < n; ++i)
+    {
+        h = (h ^ ba_bits(out[i])) * 16777619u;
+    }
+    return h;
+}
+
+/* k5 output channels past the last whole group of four, alone (out_c < 4) and after one (out_c 7), at depths with
+ * only a partial 8-channel step, only whole steps, both, several fold spans, and depths ending exactly on a fold span
+ * (48, 96), where no partial step runs. Each case prints a hash of both entries' outputs so two builds can be
+ * compared bit for bit. */
+void ba_conv1d_spec_k5_tail(void)
+{
+    static const int32_t in_cs[] = {1, 7, 8, 9, 15, 17, 23, 41, 48, 57, 96, 100};
+    static const int32_t out_cs[] = {1, 3, 7};
+    const int32_t in_w = 6;
+    ba_begin();
+    for (size_t i = 0; i < sizeof(in_cs) / sizeof(in_cs[0]); ++i)
+    {
+        for (size_t j = 0; j < sizeof(out_cs) / sizeof(out_cs[0]); ++j)
+        {
+            ba_spec_case(5, in_w, in_cs[i], out_cs[j], false);
+            const int32_t n = (in_w - 4) * out_cs[j];
+            printf("K5TAIL c%ld oc%ld out=%08lx out16=%08lx\n",
+                   (long)in_cs[i],
+                   (long)out_cs[j],
+                   (unsigned long)ba_out_fnv(ba_out, n),
+                   (unsigned long)ba_out_fnv(ba_out16, n));
+        }
+    }
     ba_end();
 }
 
@@ -1485,12 +1545,6 @@ static void ba_dw_case(int32_t hw, int32_t k, int32_t in_c, int32_t mult, bool w
     c.mult = mult;
     c.zero_taps = BA_MVE && with_ctx && in_c == 1 && out_c >= 8;
     snprintf(what, sizeof(what), "dw k%ld c%ld x%ld", (long)k, (long)in_c, (long)mult);
-    if (!BA_MVE && mult > 1)
-    {
-        /* The generic kernel's scalar legs keep their float16 accumulator. */
-        ba_expect_same(what, hw * hw * out_c);
-        return;
-    }
     ba_expect_taps(what, hw * hw * out_c, ba_dw_ref, &c, k * k, ba_dw_taps);
 }
 

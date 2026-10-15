@@ -159,6 +159,13 @@ arm_cmsis_nn_status arm_convolve_1x1_s16_ns_np_nd(const cmsis_nn_context *ctx,
     (void)ctx;
     (void)bias_dims;
 
+    /* The wrapper's group rule, and one group only: the kernel reads C_IN weights per output channel.
+       See AmbiqAI/ns-cmsis-nn#763. */
+    if (arm_nn_convolve_groups_invalid(input_dims, filter_dims, output_dims) || input_dims->c != filter_dims->c)
+    {
+        return ARM_CMSIS_NN_ARG_ERROR;
+    }
+
     const int32_t input_batches = input_dims->n;
     const int32_t input_x = input_dims->w;
     const int32_t input_y = input_dims->h;
@@ -184,8 +191,8 @@ arm_cmsis_nn_status arm_convolve_1x1_s16_ns_np_nd(const cmsis_nn_context *ctx,
     for (int i_batch = 0; i_batch < input_batches; i_batch++)
     {
 #if defined(ARM_MATH_MVEI) && !defined(ARM_MATH_AUTOVECTORIZE)
-        if (bias_data != NULL && bias_data->is_int32_bias && output_ch > 0 && rhs_cols > 0 && rhs_cols <= CONV_1X1_S16_RESIDENT_MAX_CH &&
-            (rhs_cols & 0x7) == 0)
+        if (bias_data != NULL && bias_data->is_int32_bias && output_ch > 0 && rhs_cols > 0 &&
+            rhs_cols <= CONV_1X1_S16_RESIDENT_MAX_CH && (rhs_cols & 0x7) == 0)
         {
             conv_1x1_s16_resident_pixel(input_data,
                                         filter_data,

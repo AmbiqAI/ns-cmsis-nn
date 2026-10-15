@@ -74,3 +74,10 @@ GEN_S2D_TEST(SPACE_TO_DEPTH_BS2_BATCH_S8,        space_to_depth_bs2_batch_s8)
 GEN_S2D_TEST(SPACE_TO_DEPTH_BS2_CHANNELS_S8,     space_to_depth_bs2_channels_s8)
 GEN_S2D_TEST(SPACE_TO_DEPTH_BS2_RECTANGULAR_S8,  space_to_depth_bs2_rectangular_s8)
 GEN_S2D_TEST(SPACE_TO_DEPTH_MIN_SPATIAL_S8,      space_to_depth_min_spatial_s8)
+
+#include "../Utils/depth_space_s8.h"
+
+void space_to_depth_permutations_s8(void)
+{
+    depth_space_permutations_s8(0, arm_space_to_depth_s8);
+}

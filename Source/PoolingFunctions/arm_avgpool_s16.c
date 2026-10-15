@@ -28,6 +28,7 @@
  *
  * -------------------------------------------------------------------- */
 
+#include "Internal/arm_nn_pool_window_common.h"
 #include "arm_nnfunctions.h"
 #include "arm_nnsupportfunctions.h"
 
@@ -91,13 +92,28 @@ arm_cmsis_nn_status arm_avgpool_s16(const cmsis_nn_context *ctx,
     const int32_t act_min = pool_params->activation.min;
     const int32_t act_max = pool_params->activation.max;
     const int32_t ch_src = input_dims->c;
-    const int32_t batch_input = input_x * input_y * ch_src;
     int32_t batch_cnt = input_dims->n;
 
-    if (batch_cnt < 1)
+    if ((batch_cnt < 1) || (ch_src < 0))
     {
         return ARM_CMSIS_NN_ARG_ERROR;
     }
+
+    /* An output with no rows or no columns has no window and nothing to write; returning here also keeps the loops
+       from stepping through the other extent. */
+    if ((output_y <= 0) || (output_x <= 0))
+    {
+        return ARM_CMSIS_NN_SUCCESS;
+    }
+
+    /* Rejected here, before any output is written, rather than at the first empty window. */
+    if (!arm_nn_pool_axis_valid(output_y, stride_y, pad_y, kernel_y, input_y) ||
+        !arm_nn_pool_axis_valid(output_x, stride_x, pad_x, kernel_x, input_x))
+    {
+        return ARM_CMSIS_NN_ARG_ERROR;
+    }
+
+    const int32_t batch_input = input_x * input_y * ch_src;
 
 #if defined(ARM_MATH_MVEI)
     (void)ctx;
@@ -200,12 +216,12 @@ arm_cmsis_nn_status arm_avgpool_s16(const cmsis_nn_context *ctx,
 #elif defined(ARM_MATH_DSP)
     /* Run the following code for CPU's with DSP extension
      */
-    int32_t *buffer = (int32_t *)ctx->buf;
-
-    if (buffer == NULL)
+    /* The sizer asks for no buffer only when there are no channels. */
+    if ((ctx == NULL) || ((ctx->buf == NULL) && (ch_src != 0)))
     {
         return ARM_CMSIS_NN_ARG_ERROR;
     }
+    int32_t *buffer = (int32_t *)ctx->buf;
 
     while (batch_cnt)
     {

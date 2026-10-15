@@ -44,6 +44,7 @@
         "^arm_minimum",
         "^arm_mul",
         "^arm_nn_abs",
+        "^arm_nn_neg",
         "^arm_nn_sqrt",
         "^arm_rsqrt",
         "^arm_select_v2",
@@ -57,7 +58,7 @@
       "label": "Reduction and comparison",
       "heading": "Basic Math and Reduction",
       "eyebrow": "selection",
-      "blurb": "Argmin/argmax, min/max reductions, comparisons, means, vector sums, and where.",
+      "blurb": "Argmin/argmax, min/max reductions, comparisons, Boolean logic, means, vector sums, and where.",
       "patterns": [
         "^arm_argmax",
         "^arm_argmin",
@@ -65,6 +66,7 @@
         "^arm_equal",
         "^arm_greater",
         "^arm_less",
+        "^arm_logical_(and|or|not)_bool$",
         "^arm_mean",
         "^arm_nn_mean",
         "^arm_not_equal",
@@ -85,6 +87,8 @@
         "^arm_leaky_relu",
         "^arm_logistic",
         "^arm_nn_activation",
+        "^arm_nn_gelu_f16$",
+        "^arm_nn_gelu_f32$",
         "^arm_prelu",
         "^arm_relu",
         "^arm_tanh"

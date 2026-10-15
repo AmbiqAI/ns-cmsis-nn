@@ -821,6 +821,8 @@ static arm_cmsis_nn_status arm_depthwise_conv_nhwc_dispatch_f32(const cmsis_nn_c
 {
     /* Read by the table and the to-conv route only; neither is compiled on every leg. */
     (void)ctx;
+    (void)bias_dims;
+    (void)kernel_layout;
 
     #ifndef NN_DISABLE_SPECIALIZATION
     /* First try the exact-shape NHWC specializations (1D-k3). */
@@ -840,7 +842,7 @@ static arm_cmsis_nn_status arm_depthwise_conv_nhwc_dispatch_f32(const cmsis_nn_c
     #endif
 
     /* ch_mult == 1: the direct channel-vectorized kernel, any stride/dilation/padding/batch, no scratch (#448).
-     * The ctx the sizer still asks for is not read here. */
+     * The sizer asks for none here either (#625). */
     if (dw_conv_params->ch_mult == 1)
     {
         arm_depthwise_conv_nhwc_direct_chmult1_f32(input,

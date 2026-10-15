@@ -81,21 +81,21 @@ arm_cmsis_nn_status arm_nn_mat_mult_nt_t_s8_s32(const int8_t *lhs,
 
                 int8x16_t v_rhs0 = vldrbq_s8(rhs_ptr);
                 int32_t rhs_sum = vaddvq_s8(v_rhs0);
-                rhs_sum *= lhs_offset;
+                rhs_sum = arm_nn_mac_wrap_s32_bits(0, rhs_sum, lhs_offset);
 
-                *ip_dst += rhs_sum;
+                *ip_dst = arm_nn_mac_wrap_s32_bits(*ip_dst, rhs_sum, 1);
                 *ip_dst = vmladavaq_s8(*ip_dst, v_lhs0, v_rhs0);
                 ip_dst += dst_idx_col_offset;
 
-                *ip_dst += rhs_sum;
+                *ip_dst = arm_nn_mac_wrap_s32_bits(*ip_dst, rhs_sum, 1);
                 *ip_dst = vmladavaq_s8(*ip_dst, v_lhs1, v_rhs0);
                 ip_dst += dst_idx_col_offset;
 
-                *ip_dst += rhs_sum;
+                *ip_dst = arm_nn_mac_wrap_s32_bits(*ip_dst, rhs_sum, 1);
                 *ip_dst = vmladavaq_s8(*ip_dst, v_lhs2, v_rhs0);
                 ip_dst += dst_idx_col_offset;
 
-                *ip_dst += rhs_sum;
+                *ip_dst = arm_nn_mac_wrap_s32_bits(*ip_dst, rhs_sum, 1);
                 *ip_dst = vmladavaq_s8(*ip_dst, v_lhs3, v_rhs0);
 
                 dst_ptr += dst_idx_offset;
@@ -114,7 +114,7 @@ arm_cmsis_nn_status arm_nn_mat_mult_nt_t_s8_s32(const int8_t *lhs,
                 int8x16_t v_rhs0 = vldrbq_s8(rhs_ptr);
 
                 int32_t offset_sum = vaddvq_s8(v_rhs0);
-                *dst_ptr += offset_sum * lhs_offset;
+                *dst_ptr = arm_nn_mac_wrap_s32_bits(*dst_ptr, offset_sum, lhs_offset);
 
                 *dst_ptr = vmladavaq_s8(*dst_ptr, v_lhs0, v_rhs0);
 
@@ -152,21 +152,21 @@ arm_cmsis_nn_status arm_nn_mat_mult_nt_t_s8_s32(const int8_t *lhs,
                 int8x16_t v_rhs0 = vldrbq_z_s8(rhs_ptr, rmdr);
 
                 int32_t rhs_sum = vaddvq_p_s8(v_rhs0, rmdr);
-                rhs_sum *= lhs_offset;
+                rhs_sum = arm_nn_mac_wrap_s32_bits(0, rhs_sum, lhs_offset);
 
-                *ip_dst += rhs_sum;
+                *ip_dst = arm_nn_mac_wrap_s32_bits(*ip_dst, rhs_sum, 1);
                 *ip_dst = vmladavaq_p_s8(*ip_dst, v_lhs0, v_rhs0, rmdr);
                 ip_dst += dst_idx_col_offset;
 
-                *ip_dst += rhs_sum;
+                *ip_dst = arm_nn_mac_wrap_s32_bits(*ip_dst, rhs_sum, 1);
                 *ip_dst = vmladavaq_p_s8(*ip_dst, v_lhs1, v_rhs0, rmdr);
                 ip_dst += dst_idx_col_offset;
 
-                *ip_dst += rhs_sum;
+                *ip_dst = arm_nn_mac_wrap_s32_bits(*ip_dst, rhs_sum, 1);
                 *ip_dst = vmladavaq_p_s8(*ip_dst, v_lhs2, v_rhs0, rmdr);
                 ip_dst += dst_idx_col_offset;
 
-                *ip_dst += rhs_sum;
+                *ip_dst = arm_nn_mac_wrap_s32_bits(*ip_dst, rhs_sum, 1);
                 *ip_dst = vmladavaq_p_s8(*ip_dst, v_lhs3, v_rhs0, rmdr);
 
                 dst_ptr += dst_idx_offset;
@@ -185,7 +185,7 @@ arm_cmsis_nn_status arm_nn_mat_mult_nt_t_s8_s32(const int8_t *lhs,
                 int8x16_t v_rhs0 = vldrbq_z_s8(rhs_ptr, rmdr);
 
                 int32_t rhs_sum = vaddvq_p_s8(v_rhs0, rmdr);
-                *dst_ptr += rhs_sum * lhs_offset;
+                *dst_ptr = arm_nn_mac_wrap_s32_bits(*dst_ptr, rhs_sum, lhs_offset);
 
                 *dst_ptr = vmladavaq_p_s8(*dst_ptr, v_lhs0, v_rhs0, rmdr);
 
@@ -368,8 +368,8 @@ arm_cmsis_nn_status arm_nn_mat_mult_nt_t_s8_s32(const int8_t *lhs,
                 const int32_t rhs_value0 = rhs_ptr[0];
                 const int32_t rhs_value01 = rhs_ptr[1];
 
-                dst_ptr[0] += lhs_value * rhs_value0;
-                dst_ptr[0] += lhs_value01 * rhs_value01;
+                dst_ptr[0] = arm_nn_mac_wrap_s32_bits(dst_ptr[0], lhs_value, rhs_value0);
+                dst_ptr[0] = arm_nn_mac_wrap_s32_bits(dst_ptr[0], lhs_value01, rhs_value01);
                 dst_ptr += dst_idx_offset;
                 rhs_ptr += rhs_rows;
             }
@@ -401,11 +401,13 @@ arm_cmsis_nn_status arm_nn_mat_mult_nt_t_s8_s32(const int8_t *lhs,
                 const int32_t rhs_value0 = rhs_ptr[0];
                 const int32_t rhs_value1 = rhs_ptr[1];
 
-                dst_ptr[0] += lhs_value00 * rhs_value0;
-                dst_ptr[0] += lhs_value01 * rhs_value1;
+                dst_ptr[0] = arm_nn_mac_wrap_s32_bits(dst_ptr[0], lhs_value00, rhs_value0);
+                dst_ptr[0] = arm_nn_mac_wrap_s32_bits(dst_ptr[0], lhs_value01, rhs_value1);
 
-                dst_ptr[dst_idx_col_offset] += lhs_value10 * rhs_value0;
-                dst_ptr[dst_idx_col_offset] += lhs_value11 * rhs_value1;
+                dst_ptr[dst_idx_col_offset] =
+                    arm_nn_mac_wrap_s32_bits(dst_ptr[dst_idx_col_offset], lhs_value10, rhs_value0);
+                dst_ptr[dst_idx_col_offset] =
+                    arm_nn_mac_wrap_s32_bits(dst_ptr[dst_idx_col_offset], lhs_value11, rhs_value1);
                 dst_ptr += dst_idx_offset;
                 rhs_ptr += rhs_rows;
             }
@@ -427,8 +429,8 @@ arm_cmsis_nn_status arm_nn_mat_mult_nt_t_s8_s32(const int8_t *lhs,
                 const int32_t rhs_value0 = rhs_ptr[0];
                 const int32_t rhs_value01 = rhs_ptr[1];
 
-                dst_ptr[0] += lhs_value * rhs_value0;
-                dst_ptr[0] += lhs_value01 * rhs_value01;
+                dst_ptr[0] = arm_nn_mac_wrap_s32_bits(dst_ptr[0], lhs_value, rhs_value0);
+                dst_ptr[0] = arm_nn_mac_wrap_s32_bits(dst_ptr[0], lhs_value01, rhs_value01);
                 dst_ptr += dst_idx_offset;
                 rhs_ptr += rhs_rows;
             }
@@ -453,7 +455,7 @@ arm_cmsis_nn_status arm_nn_mat_mult_nt_t_s8_s32(const int8_t *lhs,
             {
                 const int32_t rhs_value = rhs_ptr[0];
 
-                *dst_ptr += lhs_value * rhs_value;
+                *dst_ptr = arm_nn_mac_wrap_s32_bits(*dst_ptr, lhs_value, rhs_value);
 
                 dst_ptr += dst_idx_offset;
                 rhs_ptr += rhs_rows;

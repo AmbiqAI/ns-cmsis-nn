@@ -29,6 +29,7 @@
  * -------------------------------------------------------------------- */
 
 #include "Internal/arm_nn_activation_flt.h"
+#include "Internal/arm_nn_pool_window_common.h"
 #include "arm_nnfunctions.h"
 #include "arm_nnsupportfunctions.h"
 
@@ -77,13 +78,27 @@ arm_cmsis_nn_status arm_avg_pool_f32(const cmsis_nn_context *ctx,
     const float32_t act_min = pool_params->activation.min;
     const float32_t act_max = pool_params->activation.max;
     const int32_t channel_in = input_dims->c;
-    const int32_t batch_size = input_x * input_y * channel_in;
     int32_t batch_cnt = input_dims->n;
 
     if (batch_cnt < 1)
     {
         return ARM_CMSIS_NN_ARG_ERROR;
     }
+
+    /* An output with no rows or no columns has no window and nothing to write. */
+    if ((output_y <= 0) || (output_x <= 0))
+    {
+        return ARM_CMSIS_NN_SUCCESS;
+    }
+
+    /* Rejected here, before any output is written, rather than left to the loops. */
+    if (!arm_nn_pool_axis_valid(output_y, stride_y, pad_y, kernel_y, input_y) ||
+        !arm_nn_pool_axis_valid(output_x, stride_x, pad_x, kernel_x, input_x))
+    {
+        return ARM_CMSIS_NN_ARG_ERROR;
+    }
+
+    const int32_t batch_size = input_x * input_y * channel_in;
 
     while (batch_cnt)
     {
