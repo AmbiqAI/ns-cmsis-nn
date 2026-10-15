@@ -6,6 +6,7 @@
  */
 #pragma once
 
+#include "../../../../Include/Internal/arm_nn_fp_control.h"
 #include <arm_nnfunctions.h>
 #include <limits.h>
 #include <math.h>
@@ -429,10 +430,9 @@ static void re_invalid(void)
 
 static void re_fp_controls(void)
 {
-#if defined(__ARM_FP) && (__ARM_FP != 0)
-    uint32_t saved;
-    __asm__ volatile("vmrs %0, fpscr" : "=r"(saved) : : "memory");
-    const uint32_t clear = (3u << 22) | (1u << 24) | (1u << 25) | (1u << 19);
+#if defined(ARM_NN_FP_CONTROL_AVAILABLE)
+    const arm_nn_fp_control_t saved = arm_nn_get_fp_control();
+    const arm_nn_fp_control_t clear = (3u << 22) | (1u << 24) | (1u << 25) | (1u << 19);
     const int32_t shapes[][4] = {{1, 1, 3, 17}, {1, 3, 1, 17}, {2, 3, 1, 7}};
     const int masks[] = {8, 2, 9};
     for (unsigned pattern_count = 8; pattern_count <= 18; pattern_count += 5)
@@ -450,19 +450,19 @@ static void re_fp_controls(void)
             re_reference(shapes[s], masks[s], ov);
             for (unsigned mode = 0; mode < 32; ++mode)
             {
-                const uint32_t selected = (saved & ~clear) | ((mode & 3u) << 22) | (((mode >> 2) & 1u) << 24) |
+                const arm_nn_fp_control_t selected = (saved & ~clear) | ((mode & 3u) << 22) | (((mode >> 2) & 1u) << 24) |
                     (((mode >> 3) & 1u) << 25) | (((mode >> 4) & 1u) << 19);
                 memset(re_output, 0xa5, sizeof(re_output));
-                __asm__ volatile("vmsr fpscr, %0" : : "r"(selected) : "memory");
+                arm_nn_set_fp_control(selected);
                 const arm_cmsis_nn_status status = RE_KERNEL(re_input, &id, &axes, re_output + 8, &od);
-                __asm__ volatile("vmsr fpscr, %0" : : "r"(saved) : "memory");
+                arm_nn_set_fp_control(saved);
                 TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, status);
                 re_check_result(re_count(ov));
             }
         }
     }
 #else
-    TEST_IGNORE_MESSAGE("Target FPSCR controls require Arm floating-point hardware");
+    TEST_IGNORE_MESSAGE("FP controls require Arm floating-point hardware");
 #endif
 }
 
