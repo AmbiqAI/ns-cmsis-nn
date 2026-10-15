@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: LicenseRef-Ambiq-Apollo-SDK
  */
 
-#include "Internal/arm_nn_fp_control.h"
+#include <Internal/arm_nn_fp_control.h>
 #include "../test_arm_elementwise_div_f16.c"
 #ifdef USING_FVP_CORSTONE_300
 extern void uart_init(void);
