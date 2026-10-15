@@ -1,5 +1,7 @@
 /* SPDX-FileCopyrightText: 2026 Ambiq
  * SPDX-License-Identifier: LicenseRef-Ambiq-Apollo-SDK */
+#include <stdlib.h>
+
 #include "../test_arm_int32_predicates.c"
 #ifdef USING_FVP_CORSTONE_300
 extern void uart_init(void);
