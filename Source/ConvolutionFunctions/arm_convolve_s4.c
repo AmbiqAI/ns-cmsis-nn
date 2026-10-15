@@ -60,6 +60,11 @@ arm_convolve_s4_kernel(const cmsis_nn_context *ctx,
                        const cmsis_nn_dims *output_dims,
                        int8_t *output_data)
 {
+    /* Retain the scratch check here: ATfE otherwise spills the input-width bound in the im2col tap loop. */
+    if (ctx->buf == NULL)
+    {
+        return ARM_CMSIS_NN_ARG_ERROR;
+    }
     int16_t *buffer_a = (int16_t *)ctx->buf;
 
     const int32_t input_batches = input_dims->n;
