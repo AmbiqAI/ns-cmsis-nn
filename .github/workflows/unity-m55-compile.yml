@@ -14,8 +14,8 @@ name: Unity m55 Compile
 #
 # This job closes that window by replaying the legacy leg's *build* on every
 # PR: same script, same pinned toolchain, same flags, same -Werror set. It
-# stops short of the FVP run, which is what makes it cheap enough for the PR
-# gate -- execution stays with legacy-tester at nightly/release.
+# keeps full-suite execution with legacy-tester at nightly/release. A focused
+# M55 execution step below covers the opt-in single-rounding convolution mode.
 #
 # Cores (#398): cortex-m55, cortex-m4 and cortex-m0, i.e. every cell of
 # legacy-tester.yml's own matrix. m55 alone was not enough: twelve Unity test
@@ -505,6 +505,38 @@ jobs:
           else
             ./build_and_run_tests.sh -q -r -c ${{ matrix.cpu }} -D ARM_NN_ENABLE_F32=ON
           fi
+
+      # A bounded execution exception to the full-suite compile-only gate:
+      # single rounding has different references and an MVE tail regression.
+      - name: Execute single-rounding s4 and s8 convolution regressions
+        if: matrix.cpu == 'cortex-m55'
+        shell: bash
+        run: |
+          set -euo pipefail
+          unit="${GITHUB_WORKSPACE}/Tests/UnitTest"
+          deps="${unit}/downloads"
+          build_dir="${RUNNER_TEMP}/nn-single-rounding"
+          export PATH="${deps}/arm_gcc_download/bin:${PATH}"
+          source "${deps}/cmsis_nn_venv/bin/activate"
+          mkdir -p "${build_dir}/generated"
+          cp -a "${unit}/build-cortex-m55-gcc/generated/Unity" "${build_dir}/generated/Unity"
+          cmake -S "${unit}" -B "${build_dir}" \
+            -DCMAKE_TOOLCHAIN_FILE="${deps}/ethos-u-core-platform/cmake/toolchain/arm-none-eabi-gcc.cmake" \
+            -DCMSIS_PATH="${deps}/CMSIS_5" -DTARGET_CPU=cortex-m55 \
+            -DCMAKE_C_FLAGS=-DCMSIS_NN_USE_SINGLE_ROUNDING
+          cmake --build "${build_dir}" --parallel 4 \
+            --target test_arm_convolve_1x1_s4_fast test_arm_convolve_s8
+          fvp="${deps}/corstone300_download/models/Linux64_GCC-9.3/FVP_Corstone_SSE-300_Ethos-U55"
+          for suite in test_arm_convolve_1x1_s4_fast test_arm_convolve_s8; do
+            timeout 90 "${fvp}" \
+              -C mps3_board.uart0.shutdown_on_eot=1 \
+              -C mps3_board.visualisation.disable-visualisation=1 \
+              -C mps3_board.telnetterminal0.start_telnet=0 \
+              -C mps3_board.uart0.out_file=- \
+              "${build_dir}/TestCases/${suite}/${suite}.elf" | tee "${build_dir}/${suite}.log"
+            grep -Eq '[1-9][0-9]* Tests 0 Failures 0 Ignored' "${build_dir}/${suite}.log"
+          done
+          echo 'Single-rounding M55 s4 and s8 convolution execution passed.' >> "$GITHUB_STEP_SUMMARY"
 
       - name: Compile the float library without specialization
         if: matrix.cpu == 'cortex-m55'

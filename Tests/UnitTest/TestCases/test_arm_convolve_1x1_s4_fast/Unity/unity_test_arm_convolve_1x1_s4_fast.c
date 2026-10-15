@@ -54,3 +54,5 @@ void test_kernel1x1_stride_x_y_2_arm_convolve_1x1_s4(void) { kernel1x1_stride_x_
 void test_buffer_size_arm_convolve_1x1_s4_fast(void) { buffer_size_arm_convolve_1x1_s4_fast(); }
 void test_buffer_size_mve_arm_convolve_1x1_s4_fast(void) { buffer_size_mve_arm_convolve_1x1_s4_fast(); }
 void test_buffer_size_dsp_arm_convolve_1x1_s4_fast(void) { buffer_size_dsp_arm_convolve_1x1_s4_fast(); }
+void test_requantize_s4_predicated_rounding(void) { requantize_s4_predicated_rounding(); }
+void test_matrix_s4_rounding_row_groups(void) { matrix_s4_rounding_row_groups(); }
