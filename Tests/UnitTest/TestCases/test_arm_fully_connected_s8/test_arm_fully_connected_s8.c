@@ -1059,6 +1059,7 @@ void vector_sum_tail_boundaries(void)
 /* Wide references keep overflow expectations independent of the production arithmetic. */
 void vector_sum_wrapping(void)
 {
+    static int8_t weights[131200];
     const int32_t columns[] = {16, 17, 131200};
     const int32_t offsets[] = {0, 128, -127};
     const int32_t biases[6] = {INT32_MIN, INT32_MAX, INT32_MIN + 256, INT32_MAX - 256, -1, 0};
@@ -1066,8 +1067,6 @@ void vector_sum_wrapping(void)
     {
         const int32_t cols = columns[shape];
         const int32_t rows = cols > 17 ? 1 : 6;
-        int8_t *weights = malloc((size_t)cols * rows);
-        TEST_ASSERT_NOT_NULL(weights);
         memset(weights, -128, (size_t)cols * rows);
         for (unsigned o = 0; o < sizeof(offsets) / sizeof(offsets[0]); ++o)
         {
@@ -1091,6 +1090,5 @@ void vector_sum_wrapping(void)
                 }
             }
         }
-        free(weights);
     }
 }

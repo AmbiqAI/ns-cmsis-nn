@@ -1014,7 +1014,8 @@ void matrix_s8_large_dot_wrapping(void)
         MAX_DEPTH = 131073,
         MAX_ROWS = 9
     };
-    static int8_t input[MAX_ROWS * MAX_DEPTH] LARGE_DOT_SECTION;
+    // Reuse identical input rows while exercising all row-block/tail counts.
+    static int8_t input[MAX_DEPTH] LARGE_DOT_SECTION;
     static int8_t weights[MAX_DEPTH] LARGE_DOT_SECTION;
     const int32_t depths[] = {131071, 131072, 131073};
     const int32_t rows[] = {1, 4, 9};
@@ -1047,7 +1048,7 @@ void matrix_s8_large_dot_wrapping(void)
                                                       -128,
                                                       127,
                                                       1,
-                                                      MAX_DEPTH));
+                                                      0));
             for (int row = 0; row < rows[n]; ++row)
             {
                 TEST_ASSERT_EQUAL_INT8(expected, output[row]);
