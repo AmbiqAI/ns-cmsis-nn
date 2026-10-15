@@ -341,6 +341,32 @@ __STATIC_FORCEINLINE int64_t arm_nn_size_add(const int64_t acc, const int64_t ad
     return (sum > INT32_MAX) ? -1 : sum;
 }
 
+/**
+ * @brief Rolling scratch bytes shared by the s8 transpose entry and its buffer-size queries.
+ * @param[in] params       Transpose convolution parameters.
+ * @param[in] input_dims   Input dimensions.
+ * @param[in] filter_dims  Filter dimensions.
+ * @param[in] output_dims  Output dimensions.
+ * @return Required bytes, or -1 if the rolling geometry or size is out of range.
+ */
+__STATIC_FORCEINLINE int32_t arm_nn_transpose_conv_s8_rolling_buffer_size(const cmsis_nn_transpose_conv_params *params,
+                                                                          const cmsis_nn_dims *input_dims,
+                                                                          const cmsis_nn_dims *filter_dims,
+                                                                          const cmsis_nn_dims *output_dims)
+{
+    if (input_dims->w < 0 || output_dims->c < 0 || filter_dims->w < 0 || filter_dims->h < 0 || params->stride.w <= 0 ||
+        params->stride.h <= 0)
+    {
+        return -1;
+    }
+
+    const int64_t row_span =
+        ((int64_t)input_dims->w - 1) * params->stride.w + ARM_NN_MAX(filter_dims->w, params->stride.w);
+    const int64_t row_elements = arm_nn_size_mul(row_span, output_dims->c);
+    const int64_t buffer_elements = arm_nn_size_mul(row_elements, ARM_NN_MAX(filter_dims->h, params->stride.h));
+    return (int32_t)arm_nn_size_mul(buffer_elements, sizeof(int32_t));
+}
+
 #if ARM_NN_FLOAT_API_ENABLED
     #include "arm_nnsupportfunctions_flt.h"
 #endif

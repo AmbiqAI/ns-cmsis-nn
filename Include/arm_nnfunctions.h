@@ -927,6 +927,13 @@ arm_cmsis_nn_status arm_transpose_conv_wrapper_s8(const cmsis_nn_context *ctx,
  *    2. Additional memory is required for optimization. Refer to argument 'ctx' for details; 'output_ctx' is unused.
  *    3. Dilation is not supported: transpose_conv_params->dilation must be 1 in both dimensions,
  *       otherwise <code>ARM_CMSIS_NN_ARG_ERROR</code> is returned.
+ *    4. Spatial and channel dimensions and strides must be positive. Batch count and padding must be nonnegative,
+ *       with consistent batch/channel dimensions. Input channels must not exceed INT32_MAX - 15, so the MVE
+ *       channel-rounding expression is representable. Tensor and scratch sizes and row arithmetic must fit int32_t.
+ *       Requested output width plus padding must not exceed (input width - 1) * stride width +
+ *       max(filter width, stride width). Output height must not exceed max(0, input height * stride height -
+ *       padding height) + max(0, filter height - stride height). Unsupported geometry returns
+ *       <code>ARM_CMSIS_NN_ARG_ERROR</code> before tensor or scratch access; cropped outputs remain supported.
  *
  */
 arm_cmsis_nn_status arm_transpose_conv_s8(const cmsis_nn_context *ctx,
