@@ -111,11 +111,13 @@ arm_cmsis_nn_status arm_vector_sum_s8(int32_t *vector_sum_buf,
 #else
         for (int i = 0; i < vector_rows; i++)
         {
-            int32_t sum = 0;
+            uint32_t sum_bits = 0;
             for (int j = 0; j < vector_cols; j++)
             {
-                sum = arm_nn_mac_wrap_s32_bits(sum, *vector_data++, 1);
+                sum_bits += (uint32_t)*vector_data++;
             }
+            int32_t sum;
+            memcpy(&sum, &sum_bits, sizeof(sum));
             if (rhs_offset)
             {
                 sum = arm_nn_mac_wrap_s32_bits(sum, vector_cols, rhs_offset);
