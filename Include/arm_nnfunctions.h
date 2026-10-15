@@ -37,6 +37,9 @@
 #ifndef ARM_NNFUNCTIONS_H
 #define ARM_NNFUNCTIONS_H
 
+/** Exact-rational INT8 bilinear resize direct entries are available. */
+#define ARM_NN_HAS_RESIZE_BILINEAR_S8 1
+
 #include "arm_nn_math_types.h"
 #include "arm_nn_types.h"
 
@@ -2675,6 +2678,9 @@ arm_cmsis_nn_status arm_depthwise_conv_s8_opt_channelwise(const cmsis_nn_context
                                                           const cmsis_nn_dims *output_dims,
                                                           int8_t *output_data);
 
+/** Both s8 3x3 direct entries decline without writing output when ARM_MATH_AUTOVECTORIZE is defined. */
+#define ARM_NN_DEPTHWISE_CONV_S8_OPT_3X3_AUTOVECTORIZE_DECLINES 1
+
 /**
  * @brief s8 3x3 depthwise convolution that reads the input in place, without the im2col copy of
  *        arm_depthwise_conv_s8_opt(), for layers in its gate. It computes three output rows per weight load.
@@ -2695,14 +2701,15 @@ arm_cmsis_nn_status arm_depthwise_conv_s8_opt_channelwise(const cmsis_nn_context
  *
  * @return     The function returns one of the following
  *                <code>ARM_CMSIS_NN_NO_IMPL_ERROR</code> - the layer or a buffer is outside the gate below, or the
- *                                                          build lacks ARM_MATH_MVEI; nothing is written
+ *                                                          build lacks ARM_MATH_MVEI or defines ARM_MATH_AUTOVECTORIZE;
+ *                                                          nothing is written
  *                <code>ARM_CMSIS_NN_SUCCESS</code> - Successful operation
  *
  * @details
  *    - The output is identical to arm_depthwise_conv_s8_opt() and arm_depthwise_conv_s8(). The bias is read through
  *      the weight sums, which arm_depthwise_convolve_weight_sum() fills as for arm_depthwise_conv_s8_opt();
  *      bias_dims and bias_data are unused.
- *    - Gate: filter 3x3, dilation 1, N 1, C_IN equal to C_OUT with 16 <= C <= 2048 and C % 4 == 0, stride 1 or 2 and
+ *    - Gate: filter 3x3, dilation 1, N 1, C_IN equal to C_OUT with 16 <= C <= 2048, stride 1 or 2 and
  *      padding 0 or 1 in each dimension, input W >= 3 and H >= 1, output H >= 3 and W x H >= 16, every dimension at
  *      most 4096 and each tensor at most INT32_MAX elements, and the centre of the last output column's window inside
  *      the input: (output W - 1) x stride.w - padding.w + 1 < input W. Input rows above or below the input count as
@@ -2753,7 +2760,8 @@ arm_cmsis_nn_status arm_depthwise_conv_s8_opt_3x3(const cmsis_nn_context *ctx,
  *                <code>ARM_CMSIS_NN_NO_IMPL_ERROR</code> - C_IN is not 64, dw_conv_params->stride.h is not 1, the
  *                                                          layer or a buffer is outside the gate of
  *                                                          arm_depthwise_conv_s8_opt_3x3(), or the build lacks
- *                                                          ARM_MATH_MVEI; nothing is written
+ *                                                          ARM_MATH_MVEI or defines ARM_MATH_AUTOVECTORIZE;
+ *                                                          nothing is written
  *                <code>ARM_CMSIS_NN_SUCCESS</code> - Successful operation
  *
  * @details
@@ -4841,6 +4849,56 @@ arm_cmsis_nn_status arm_maximum_s16(const cmsis_nn_context *ctx,
  */
 
 /**
+ * @brief Boolean AND with NHWC singleton broadcasting (scalar through rank four).
+ * @param[in] input_1 First Boolean tensor.
+ * @param[in] input_1_dims First shape, left-padded with ones to NHWC.
+ * @param[in] input_2 Second Boolean tensor.
+ * @param[in] input_2_dims Second shape, left-padded with ones to NHWC.
+ * @param[out] output Boolean result, sized by output_dims.
+ * @param[in] output_dims Exact broadcast output shape.
+ * @return ARM_CMSIS_NN_SUCCESS, or ARM_CMSIS_NN_ARG_ERROR without writes for null
+ *         arguments, nonpositive/incompatible dimensions or output count exceeding INT32_MAX.
+ * @details No quantization or scratch. Inputs must contain valid C bool objects
+ *          (one-byte 0/1 on Arm); this is logical, not integer bitwise, AND.
+ *          Output must not overlap either input. Buffer capacity and valid object
+ *          representations are the caller's responsibility. Generic, DSP and MVE supported.
+ */
+arm_cmsis_nn_status arm_logical_and_bool(const bool *input_1,
+                                         const cmsis_nn_dims *input_1_dims,
+                                         const bool *input_2,
+                                         const cmsis_nn_dims *input_2_dims,
+                                         bool *output,
+                                         const cmsis_nn_dims *output_dims);
+
+/**
+ * @brief Boolean OR with the same shape, buffer and validation contract as arm_logical_and_bool.
+ * @param[in] input_1 First Boolean tensor.
+ * @param[in] input_1_dims First shape, left-padded with ones to NHWC.
+ * @param[in] input_2 Second Boolean tensor.
+ * @param[in] input_2_dims Second shape, left-padded with ones to NHWC.
+ * @param[out] output Boolean result, sized by output_dims.
+ * @param[in] output_dims Exact broadcast output shape.
+ * @return ARM_CMSIS_NN_SUCCESS, or ARM_CMSIS_NN_ARG_ERROR without writes for invalid arguments.
+ */
+arm_cmsis_nn_status arm_logical_or_bool(const bool *input_1,
+                                        const cmsis_nn_dims *input_1_dims,
+                                        const bool *input_2,
+                                        const cmsis_nn_dims *input_2_dims,
+                                        bool *output,
+                                        const cmsis_nn_dims *output_dims);
+
+/**
+ * @brief Boolean NOT over a contiguous tensor of any rank.
+ * @param[in] input Valid C bool objects (one-byte 0/1 on Arm).
+ * @param[out] output Nonoverlapping Boolean result with capacity for count elements.
+ * @param[in] count Positive number of elements.
+ * @return ARM_CMSIS_NN_SUCCESS, or ARM_CMSIS_NN_ARG_ERROR without writes for null
+ *         arguments or nonpositive count. Buffer capacity and object validity are caller-owned.
+ * @details No quantization or scratch. Generic, DSP and MVE supported.
+ */
+arm_cmsis_nn_status arm_logical_not_bool(const bool *input, bool *output, int32_t count);
+
+/**
  * @brief s8 elementwise comparison with support for broadcasting.
  *
  * @param[in]   ctx                   Unused; may be NULL.
@@ -6237,10 +6295,10 @@ void arm_softmax_s8_s16(const int8_t *input,
 /**
  * @brief S16 softmax function
  * @param[in]  input           Pointer to the input tensor
- * @param[in]  num_rows        Number of rows in the input tensor
- * @param[in]  row_size        Number of elements in each input row
+ * @param[in]  num_rows        Nonnegative number of rows in the input tensor
+ * @param[in]  row_size        Nonnegative number of elements in each input row
  * @param[in]  mult            Input quantization multiplier
- * @param[in]  shift           Input quantization shift within the range [0, 31]
+ * @param[in]  shift           Input quantization shift within the range [-31, 31]
  * @param[in]  softmax_params  Softmax s16 layer parameters with two pointers to LUTs speficied below.
  *                             For indexing the high 9 bits are used and 7 remaining for interpolation.
  *                             That means 512 entries for the 9-bit indexing and 1 extra for interpolation, i.e. 513
@@ -6251,6 +6309,11 @@ void arm_softmax_s8_s16(const int8_t *input,
  * @return                        The function returns
  *                                    <code>ARM_CMSIS_NN_ARG_ERROR</code> Argument error check failed
  *                                    <code>ARM_CMSIS_NN_SUCCESS</code> - Successful operation
+ *
+ * @note Negative dimensions and missing LUT pointers return an argument error. With valid LUT pointers, a zero
+ *       extent succeeds without accessing the input or output. Quantization parameters remain the caller's
+ *       responsibility: shifts below 31 retain arm_nn_requantize's intermediate representability requirements.
+ *       At shift 31, the exact wide product is saturated to the exp LUT's input domain before recentering.
  *
  * @note Supported framework: TensorFlow Lite micro (bit-accurate)
  *
@@ -6301,6 +6364,49 @@ void arm_softmax_u8(const uint8_t *input,
  *
  */
 void arm_reshape_s8(const int8_t *input, int8_t *output, const uint32_t total_size);
+
+/**
+ * @brief Exact rational bilinear resize of an NHWC s8 tensor, without scratch storage.
+ *
+ * @param[in]  resize_params Coordinate options: align_corners and half_pixel_centers are mutually exclusive.
+ * @param[in]  input_dims    Positive input dimensions [N, H, W, C], total elements <= INT32_MAX.
+ * @param[in]  input_data    Input tensor data.
+ * @param[in]  output_dims   Positive output dimensions [N, H, W, C], total elements <= INT32_MAX.
+ * @param[out] output_data   Output tensor data; must not overlap input_data.
+ *
+ * @return ARM_CMSIS_NN_ARG_ERROR for null arguments, invalid dimensions/options, or unequal N/C;
+ *         ARM_CMSIS_NN_SUCCESS otherwise.
+ * @note Input and output must have identical quantization. Coordinates are clamped to the input edges.
+ *       Interpolation is exact rational arithmetic, rounded once with half ties away from zero.
+ *       This can differ from LiteRT's Q10 coordinate approximation for non-dyadic ratios, and from
+ *       its SINGLE_ROUNDING treatment of negative ties. Buffer capacity/overlap and quantization
+ *       are the caller's responsibility. This entry does not reference specialized kernels.
+ */
+arm_cmsis_nn_status arm_resize_bilinear_s8(const cmsis_nn_resize_params *resize_params,
+                                           const cmsis_nn_dims *input_dims,
+                                           const int8_t *input_data,
+                                           const cmsis_nn_dims *output_dims,
+                                           int8_t *output_data);
+
+/**
+ * @brief Direct power-of-two half-pixel bilinear upsampling of an NHWC s8 tensor.
+ * @param[in]  resize_params Requires half_pixel_centers true and align_corners false.
+ * @param[in]  input_dims    Positive input dimensions [N, H, W, C], total elements <= INT32_MAX.
+ * @param[in]  input_data    Input tensor data.
+ * @param[in]  output_dims   Positive output dimensions with equal N/C and power-of-two H/W upsample ratios.
+ * @param[out] output_data   Non-overlapping output tensor with the same quantization as input_data.
+ * @return ARM_CMSIS_NN_ARG_ERROR for invalid arguments, ratios, or ratio product > 2^21;
+ *         ARM_CMSIS_NN_SUCCESS otherwise.
+ * @note Each spatial ratio may be one; their product must be <= 2^21 to bound INT32 intermediates.
+ *       Uses the exact coordinate, rounding and caller buffer contract of arm_resize_bilinear_s8.
+ *       No scratch or general-kernel fallback. MVE uses predicated channels or, for C <= 2,
+ *       adjacent output elements. Scalar builds implement the same arithmetic contract.
+ */
+arm_cmsis_nn_status arm_resize_bilinear_s8_pow2(const cmsis_nn_resize_params *resize_params,
+                                                const cmsis_nn_dims *input_dims,
+                                                const int8_t *input_data,
+                                                const cmsis_nn_dims *output_dims,
+                                                int8_t *output_data);
 
 /**
  * @brief Nearest neighbor resize function for s8 data
@@ -7812,9 +7918,18 @@ arm_cmsis_nn_status arm_requantize_s16_s16(const int16_t *input,
  * @brief Dequantize an int8_t array back to floating-point format.
  * @param[in]   input       Pointer to the input int8_t array.
  * @param[out]  output      Pointer to the output float array.
- * @param[in]   size        Number of elements in the arrays. Zero performs no accesses.
- * @param[in]   zero_point  Zero point (offset) that was used during quantization, within the int8_t range.
- * @param[in]   scale       Scale factor that was used during quantization.
+ * @param[in]   size        Nonnegative number of elements. Zero performs no tensor accesses.
+ * @param[in]   zero_point  Zero point of the input data, in [-128, 127].
+ * @param[in]   scale       Scale factor that was used during quantization. Not validated.
+ *
+ * @note Negative size or an out-of-range zero point is rejected before tensor accesses.
+ *       For positive size, input and output must
+ *       provide the stated number of elements in valid, nonoverlapping storage; output must be float-aligned.
+ *       Each output is computed as (input[i] - zero_point) * scale, with the integer difference converted to float.
+ *       MVE floating-point assembly is used with ARM_MATH_MVEF and without ARM_MATH_AUTOVECTORIZE; otherwise
+ *       the C loop is used. Subnormal or NaN scales and nondefault floating-point rounding/control settings
+ *       can give different results across these paths. NaN payload preservation and bitwise path equivalence
+ *       are not guaranteed; scalar results also depend on the compiler's floating-point options.
  *
  * @return     ARM_CMSIS_NN_SUCCESS, or ARM_CMSIS_NN_ARG_ERROR, with nothing written, when @p size is negative or
  *             @p zero_point lies outside the int8_t range.
@@ -7826,9 +7941,18 @@ arm_dequantize_s8_f32(const int8_t *input, float *output, int32_t size, int32_t 
  * @brief Dequantize an int16_t array back to floating-point format.
  * @param[in]   input       Pointer to the input int16_t array.
  * @param[out]  output      Pointer to the output float array.
- * @param[in]   size        Number of elements in the arrays. Zero performs no accesses.
- * @param[in]   zero_point  Zero point (offset) that was used during quantization, within the int16_t range.
- * @param[in]   scale       Scale factor that was used during quantization.
+ * @param[in]   size        Nonnegative number of elements. Zero performs no tensor accesses.
+ * @param[in]   zero_point  Zero point of the input data, in [-32768, 32767].
+ * @param[in]   scale       Scale factor that was used during quantization. Not validated.
+ *
+ * @note Negative size or an out-of-range zero point is rejected before tensor accesses.
+ *       For positive size, input and output must
+ *       provide the stated number of elements in valid, nonoverlapping storage; output must be float-aligned.
+ *       Each output is computed as (input[i] - zero_point) * scale, with the integer difference converted to float.
+ *       MVE floating-point assembly is used with ARM_MATH_MVEF and without ARM_MATH_AUTOVECTORIZE; otherwise
+ *       the C loop is used. Subnormal or NaN scales and nondefault floating-point rounding/control settings
+ *       can give different results across these paths. NaN payload preservation and bitwise path equivalence
+ *       are not guaranteed; scalar results also depend on the compiler's floating-point options.
  *
  * @return     ARM_CMSIS_NN_SUCCESS, or ARM_CMSIS_NN_ARG_ERROR, with nothing written, when @p size is negative or
  *             @p zero_point lies outside the int16_t range.

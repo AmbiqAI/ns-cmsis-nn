@@ -115,7 +115,7 @@ jobs:
           import json
           with open("build-host/registered-tests.json") as stream:
               names = {test["name"] for test in json.load(stream)["tests"]}
-          required = {"concatenation_pointer_probe", "concatenation_s8_pointer_probe"}
+          required = {"concatenation_pointer_probe", "concatenation_s8_pointer_probe", "row_broadcast_s8_pointer_probe"}
           missing = required - names
           if missing:
               raise SystemExit("Missing required pointer regressions: " + ", ".join(sorted(missing)))

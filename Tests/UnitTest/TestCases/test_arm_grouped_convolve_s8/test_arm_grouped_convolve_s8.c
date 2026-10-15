@@ -80,6 +80,7 @@ void grouped_conv_arm_grouped_convolve_1_s8(void)
     ctx.buf = malloc(buf_size);
     ctx.size = 0;
 
+    bias_dims = (cmsis_nn_dims){1, 1, 1, output_dims.c};
     cmsis_nn_context weights_sum_ctx;
     int32_t weights_sum_buf_size = arm_convolve_s8_get_weights_sum_size(&output_dims);
     weights_sum_ctx.buf = malloc(weights_sum_buf_size);
@@ -168,6 +169,7 @@ void grouped_conv_arm_grouped_convolve_2_s8(void)
     ctx.buf = malloc(buf_size);
     ctx.size = 0;
 
+    bias_dims = (cmsis_nn_dims){1, 1, 1, output_dims.c};
     cmsis_nn_context weights_sum_ctx;
     int32_t weights_sum_buf_size = arm_convolve_s8_get_weights_sum_size(&output_dims);
     weights_sum_ctx.buf = malloc(weights_sum_buf_size);
@@ -256,6 +258,7 @@ void grouped_conv_arm_grouped_convolve_3_s8(void)
     ctx.buf = malloc(buf_size);
     ctx.size = 0;
 
+    bias_dims = (cmsis_nn_dims){1, 1, 1, output_dims.c};
     cmsis_nn_context weights_sum_ctx;
     int32_t weights_sum_buf_size = arm_convolve_s8_get_weights_sum_size(&output_dims);
     weights_sum_ctx.buf = malloc(weights_sum_buf_size);
@@ -344,6 +347,7 @@ void grouped_conv_arm_grouped_convolve_4_s8(void)
     ctx.buf = malloc(buf_size);
     ctx.size = 0;
 
+    bias_dims = (cmsis_nn_dims){1, 1, 1, output_dims.c};
     cmsis_nn_context weights_sum_ctx;
     int32_t weights_sum_buf_size = arm_convolve_s8_get_weights_sum_size(&output_dims);
     weights_sum_ctx.buf = malloc(weights_sum_buf_size);

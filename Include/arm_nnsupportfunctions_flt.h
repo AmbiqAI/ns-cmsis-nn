@@ -1557,6 +1557,137 @@ arm_cmsis_nn_status arm_nn_gru_step_f32(const float32_t *data_in,
 #define ARM_NN_CONV_SMALL_C_F32_LANES (4)
 
 /**
+ * @brief Identify an empty output request, after dimension validation.
+ * @param[in] output_dims Output tensor dimensions.
+ * @return true for zero batch or spatial extent.
+ */
+__STATIC_INLINE bool arm_nn_conv_flt_empty(const cmsis_nn_dims *output_dims)
+{
+    return output_dims->n == 0 || output_dims->h == 0 || output_dims->w == 0;
+}
+
+/**
+ * @brief Bound the signed coordinate intermediates for one nonempty output axis.
+ * @param[in] out Number of output positions.
+ * @param[in] kernel Number of filter taps.
+ * @param[in] stride Positive output step.
+ * @param[in] pad Nonnegative leading padding.
+ * @param[in] dilation Positive filter step.
+ * @return true when all coordinate intermediates fit int32.
+ */
+__STATIC_INLINE bool arm_nn_conv_flt_axis_ok(int32_t out, int32_t kernel, int32_t stride, int32_t pad, int32_t dilation)
+{
+    const int64_t step = ((int64_t)out - 1) * stride;
+    const int64_t tap = ((int64_t)kernel - 1) * dilation;
+    return step <= INT32_MAX && tap <= INT32_MAX && step - pad + tap <= INT32_MAX;
+}
+
+/**
+ * @brief Validate common float convolution metadata and accessed arithmetic.
+ * Output windows are explicit; generic kernels clip their out-of-input taps.
+ * @param[in] stride Spatial output steps.
+ * @param[in] padding Leading spatial padding.
+ * @param[in] dilation Spatial filter steps.
+ * @param[in] input_dims Input dimensions [N, H, W, C_IN].
+ * @param[in] filter_dims Filter dimensions [C_OUT, KH, KW, C_IN].
+ * @param[in] output_dims Output dimensions [N, H, W, C_OUT].
+ * @param[in] element_size Bytes per tensor element.
+ * @param[in] packed_lanes Channel block size and vector loop width for the dtype.
+ * @param[in] packed Whether the filter uses NT_N_PACKED storage.
+ * @return true for consistent metadata and representable nonempty work, or a valid empty request.
+ */
+__STATIC_INLINE bool arm_nn_conv_flt_dims_ok(const cmsis_nn_tile *stride,
+                                             const cmsis_nn_tile *padding,
+                                             const cmsis_nn_tile *dilation,
+                                             const cmsis_nn_dims *input_dims,
+                                             const cmsis_nn_dims *filter_dims,
+                                             const cmsis_nn_dims *output_dims,
+                                             size_t element_size,
+                                             int32_t packed_lanes,
+                                             bool packed)
+{
+    if (input_dims->n < 0 || input_dims->h < 0 || input_dims->w < 0 || input_dims->c <= 0 ||
+        output_dims->n != input_dims->n || output_dims->h < 0 || output_dims->w < 0 || output_dims->c <= 0 ||
+        filter_dims->n != output_dims->c || filter_dims->c != input_dims->c || filter_dims->h <= 0 ||
+        filter_dims->w <= 0 || stride->h <= 0 || stride->w <= 0 || dilation->h <= 0 || dilation->w <= 0 ||
+        padding->h < 0 || padding->w < 0)
+    {
+        return false;
+    }
+    if (arm_nn_conv_flt_empty(output_dims))
+    {
+        return true;
+    }
+    if (input_dims->h == 0 || input_dims->w == 0)
+    {
+        return false;
+    }
+    /* Leave room for the largest vector loop increment as well as packed channel rounding. */
+    const int64_t limit = ARM_NN_MIN((size_t)(INT32_MAX - 2 * packed_lanes), SIZE_MAX / element_size);
+    const int64_t input_hw = (int64_t)input_dims->h * input_dims->w;
+    const int64_t output_hw = (int64_t)output_dims->h * output_dims->w;
+    const int64_t filter_hw = (int64_t)filter_dims->h * filter_dims->w;
+    if (input_hw > limit || output_hw > limit || filter_hw > limit)
+    {
+        return false;
+    }
+    const int64_t input_len = input_hw * input_dims->c;
+    const int64_t output_len = output_hw * output_dims->c;
+    const int64_t patch_len = filter_hw * input_dims->c;
+    if (input_len > limit || output_len > limit || patch_len > limit || output_dims->c > limit)
+    {
+        return false;
+    }
+    const int64_t filter_c =
+        packed ? ((int64_t)output_dims->c + packed_lanes - 1) / packed_lanes * packed_lanes : output_dims->c;
+    return input_len * input_dims->n <= limit && output_len * output_dims->n <= limit &&
+        patch_len * filter_c <= limit &&
+        arm_nn_conv_flt_axis_ok(output_dims->h, filter_dims->h, stride->h, padding->h, dilation->h) &&
+        arm_nn_conv_flt_axis_ok(output_dims->w, filter_dims->w, stride->w, padding->w, dilation->w);
+}
+
+/**
+ * @brief Check window coverage for an unpadded 1x1 body that samples directly.
+ * @param[in] stride Spatial output steps.
+ * @param[in] input_dims Input dimensions.
+ * @param[in] output_dims Output dimensions.
+ * @return true when every requested sample lies inside the input.
+ */
+__STATIC_INLINE bool arm_nn_conv_flt_1x1_window_ok(const cmsis_nn_tile *stride,
+                                                   const cmsis_nn_dims *input_dims,
+                                                   const cmsis_nn_dims *output_dims)
+{
+    return stride->h > 0 && stride->w > 0 && output_dims->h > 0 && output_dims->w > 0 &&
+        ((int64_t)output_dims->h - 1) * stride->h < input_dims->h &&
+        ((int64_t)output_dims->w - 1) * stride->w < input_dims->w;
+}
+
+/**
+ * @brief Bound f32 small-C coordinates, including inactive lanes and contiguous-load spans.
+ * @param[in] stride Spatial output steps.
+ * @param[in] padding Leading spatial padding.
+ * @param[in] dilation Spatial filter steps.
+ * @param[in] input_dims Validated input dimensions.
+ * @param[in] filter_dims Validated filter dimensions.
+ * @param[in] output_dims Validated nonempty output dimensions.
+ * @return true when signed lane coordinates and products remain representable.
+ */
+__STATIC_INLINE bool arm_nn_conv_f32_small_c_coords_ok(const cmsis_nn_tile *stride,
+                                                       const cmsis_nn_tile *padding,
+                                                       const cmsis_nn_tile *dilation,
+                                                       const cmsis_nn_dims *input_dims,
+                                                       const cmsis_nn_dims *filter_dims,
+                                                       const cmsis_nn_dims *output_dims)
+{
+    const int64_t tap = ((int64_t)filter_dims->w - 1) * dilation->w;
+    const int64_t base = ((int64_t)output_dims->w - 1) * stride->w - padding->w;
+    const int64_t span = (int64_t)ARM_NN_CONV_SMALL_C_F32_LANES * stride->w - 1 + tap;
+    return stride->w > 0 && dilation->w > 0 && padding->w >= 0 && input_dims->c > 0 && span <= INT32_MAX &&
+        base + span <= INT32_MAX && (int64_t)padding->w * input_dims->c <= INT32_MAX &&
+        (base + span) * input_dims->c <= INT32_MAX;
+}
+
+/**
  * @brief The 1x1 route: a 1x1 filter with no padding.
  * @param[in] padding     Spatial zero-padding
  * @param[in] filter_dims Filter dimensions [C_OUT, KH, KW, C_IN]
@@ -1588,7 +1719,7 @@ __STATIC_INLINE bool arm_nn_conv_flt_is_1d_k(const cmsis_nn_tile *stride,
 {
     return input_dims->n == 1 && input_dims->h == 1 && output_dims->h == 1 && filter_dims->h == 1 &&
         filter_dims->w == k && stride->h == 1 && stride->w == 1 && padding->h == 0 && padding->w == 0 &&
-        dilation->h == 1 && dilation->w == 1;
+        dilation->h == 1 && dilation->w == 1 && output_dims->w > 0 && (int64_t)output_dims->w + k - 1 <= input_dims->w;
 }
 
 /**
@@ -1612,7 +1743,9 @@ __STATIC_INLINE bool arm_nn_conv_flt_is_1xn(const cmsis_nn_tile *stride,
                                             const cmsis_nn_dims *output_dims)
 {
     return input_dims->h == 1 && output_dims->h == 1 && filter_dims->h == 1 && filter_dims->w > 1 && stride->h == 1 &&
-        stride->w > 0 && padding->h == 0 && dilation->h == 1 && dilation->w == 1;
+        stride->w > 0 && padding->h == 0 && dilation->h == 1 && dilation->w == 1 &&
+        (int64_t)stride->w * input_dims->c <= INT32_MAX &&
+        ((int64_t)output_dims->w - 1) * stride->w - padding->w + filter_dims->w <= INT32_MAX;
 }
 
 /**
@@ -1645,7 +1778,10 @@ __STATIC_INLINE bool arm_nn_conv_f16_is_small_c(const cmsis_nn_tile *stride,
      * non-negative int32_t terms stays below 2^63; it is compared with UINT16_MAX / C rather than multiplied by C. */
     const int64_t reach = (int64_t)input_dims->w + padding->w +
         (int64_t)(ARM_NN_CONV_SMALL_C_F16_LANES - 1) * stride->w + ((int64_t)filter_dims->w - 1) * dilation->w;
-    return reach <= UINT16_MAX / input_dims->c && output_dims->c <= UINT16_MAX / ARM_NN_CONV_SMALL_C_F16_LANES;
+    const int64_t output_reach = ((int64_t)output_dims->w - 1) * stride->w - padding->w +
+        (int64_t)(ARM_NN_CONV_SMALL_C_F16_LANES - 1) * stride->w + ((int64_t)filter_dims->w - 1) * dilation->w;
+    return ARM_NN_MAX(reach, output_reach) <= UINT16_MAX / input_dims->c &&
+        output_dims->c <= UINT16_MAX / ARM_NN_CONV_SMALL_C_F16_LANES;
 }
 
 /**

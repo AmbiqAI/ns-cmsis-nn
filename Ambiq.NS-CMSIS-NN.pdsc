@@ -60,7 +60,7 @@
   <components>
     <!-- heliaCORE NN — Source variant: build the 200+ kernel sources in-tree. -->
     <component Cclass="Machine Learning" Cgroup="NN Lib" Csub="heliaCORE" Cvariant="Source" Cvendor="Ambiq" Cversion="7.44.2" condition="CMSIS-NN"> <!-- x-release-please-version -->
-      <description>heliaCORE NN — Ambiq's optimized superset of Arm CMSIS-NN, tuned for Apollo SoCs.</description>
+      <description>heliaCORE NN - Ambiq's optimized superset of Arm CMSIS-NN, tuned for Apollo SoCs.</description>
       <files>
         <file category="doc" name="Documentation/html/index.html"/>
         <!-- The pack root, for the Include/-prefixed spelling that TFLM-based runtimes use
@@ -69,6 +69,7 @@
         <file category="header" name="Include/arm_nn_types.h"/>
         <file category="header" name="Include/arm_nnfunctions.h"/>
         <file category="header" name="Include/arm_nnsupportfunctions.h"/>
+        <file category="header" name="Include/Internal/arm_nn_vector_sum_s8_mve.h"/>
         <file category="header" name="Include/arm_nn_tables.h"/>
         <file category="header" name="Include/arm_nn_math_types.h"/>
         <file category="header" name="Include/arm_nnfunctions_flt.h"/>
@@ -84,7 +85,9 @@
         <file category="header" name="Include/Internal/arm_depthwise_conv_opt_f32.h"/>
         <file category="header" name="Include/Internal/arm_nn_arg_extrema_flt.h"/>
         <file category="header" name="Include/Internal/arm_nn_broadcast_walk.h"/>
+        <file category="header" name="Include/Internal/arm_nn_logical_common.h"/>
         <file category="header" name="Include/Internal/arm_nn_reduce_extrema_flt.h"/>
+        <file category="header" name="Include/Internal/arm_nn_resize_bilinear.h"/>
         <file category="header" name="Include/Internal/arm_nn_s4_decode.h"/>
         <file category="header" name="Include/Internal/arm_nn_sqrt_flt.h"/>
         <file category="header" name="Include/Internal/arm_minmax_f16_common.h"/>
@@ -222,6 +225,9 @@
         <file category="source" name="Source/BasicMathFunctions/arm_sub_scalar_s8.c"/>
         <file category="source" name="Source/ComparisonFunctions/arm_comparison_s16.c"/>
         <file category="source" name="Source/ComparisonFunctions/arm_comparison_s8.c"/>
+        <file category="source" name="Source/ComparisonFunctions/arm_logical_and_bool.c"/>
+        <file category="source" name="Source/ComparisonFunctions/arm_logical_not_bool.c"/>
+        <file category="source" name="Source/ComparisonFunctions/arm_logical_or_bool.c"/>
         <file category="source" name="Source/ConcatenationFunctions/arm_concatenation_f16.c"/>
         <file category="source" name="Source/ConcatenationFunctions/arm_concatenation_f32.c"/>
         <file category="source" name="Source/ConcatenationFunctions/arm_concatenation_s16.c"/>
@@ -424,6 +430,8 @@
         <file category="source" name="Source/ReshapeFunctions/arm_reshape_f16.c"/>
         <file category="source" name="Source/ReshapeFunctions/arm_reshape_f32.c"/>
         <file category="source" name="Source/ReshapeFunctions/arm_reshape_s8.c"/>
+        <file category="source" name="Source/ReshapeFunctions/arm_resize_bilinear_s8.c"/>
+        <file category="source" name="Source/ReshapeFunctions/arm_resize_bilinear_s8_pow2.c"/>
         <file category="source" name="Source/ReshapeFunctions/arm_resize_nearest_neighbor_f16.c"/>
         <file category="source" name="Source/ReshapeFunctions/arm_resize_nearest_neighbor_f32.c"/>
         <file category="source" name="Source/ReshapeFunctions/arm_resize_nearest_neighbor_s16.c"/>
@@ -477,7 +485,7 @@
          supported core; CMSIS-Pack pickers (Keil/CMSIS-Toolbox) resolve the
          right archive via the Dcore + Tcompiler conditions above. -->
     <component Cclass="Machine Learning" Cgroup="NN Lib" Csub="heliaCORE" Cvariant="Prebuilt" Cvendor="Ambiq" Cversion="7.44.2" condition="CMSIS-NN"> <!-- x-release-please-version -->
-      <description>heliaCORE NN — Ambiq's prebuilt GCC archive for Cortex-M0/M0+/M4/M55.</description>
+      <description>heliaCORE NN - Ambiq's prebuilt GCC archive for Cortex-M0/M0+/M4/M55.</description>
       <files>
         <file category="doc"    name="Documentation/html/index.html"/>
         <!-- The pack root, for the Include/-prefixed spelling (see the Source variant). -->
@@ -485,6 +493,7 @@
         <file category="header" name="Include/arm_nn_types.h"/>
         <file category="header" name="Include/arm_nnfunctions.h"/>
         <file category="header" name="Include/arm_nnsupportfunctions.h"/>
+        <file category="header" name="Include/Internal/arm_nn_vector_sum_s8_mve.h"/>
         <file category="header" name="Include/arm_nn_tables.h"/>
         <file category="header" name="Include/arm_nn_math_types.h"/>
         <file category="header" name="Include/arm_nnfunctions_flt.h"/>

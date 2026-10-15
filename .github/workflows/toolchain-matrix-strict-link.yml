@@ -181,6 +181,16 @@ jobs:
             --enable-f32 \
             "${f16_flag[@]}"
 
+      - name: Compile the integer-only MVE library
+        if: matrix.target_cpu == 'cortex-m55' && matrix.gcc_release == '15.3.Rel1'
+        run: |
+          cmake -S . -B "${RUNNER_TEMP}/integer-mve" \
+            -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain/arm-none-eabi-gcc.cmake \
+            -DNS_CMSIS_NN_TARGET_CPU=cortex-m55 \
+            -DCMAKE_C_FLAGS="-mcpu=cortex-m55+nomve.fp -mthumb -mfloat-abi=hard -Werror" \
+            -DARM_NN_ENABLE_F32=OFF -DARM_NN_ENABLE_F16=OFF
+          cmake --build "${RUNNER_TEMP}/integer-mve" --target cmsis-nn --parallel 4
+
       - name: Strict smoke link
         # smoke_staticlib.sh is strict by default: no --gc-sections and
         # no --unresolved-symbols=ignore-all, so every object in the
@@ -561,6 +571,51 @@ jobs:
             --toolchain-root "$TOOLCHAIN_ROOT" \
             --library    "./output/atfe/${TARGET_CPU}/libns-cmsis-nn-atfe-${TARGET_CPU}-${VERSION}.a" \
             --outdir     "./output/atfe/${TARGET_CPU}/smoke"
+
+      - name: Install GNU harness compiler
+        if: matrix.target_cpu == 'cortex-m4'
+        uses: carlosperate/arm-none-eabi-gcc-action@v1
+        with:
+          release: '14.3.Rel1'
+
+      - name: Execute ATfE M4 word-copy suites
+        if: matrix.target_cpu == 'cortex-m4'
+        env:
+          TOOLCHAIN_ROOT: ${{ steps.fetch_toolchain.outputs.toolchain_root }}
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends qemu-system-arm ruby
+          python3 -m venv "${RUNNER_TEMP}/word-copy-env"
+          "${RUNNER_TEMP}/word-copy-env/bin/pip" install pyserial termcolor
+          for dep in CMSIS_5 ethos-u-core-platform; do
+            pin_name=CMSIS_5_COMMIT
+            url_name=CMSIS_5_URL
+            if [[ "$dep" == ethos-u-core-platform ]]; then
+              pin_name=ETHOS_U_CORE_PLATFORM_COMMIT
+              url_name=ETHOS_U_CORE_PLATFORM_URL
+            fi
+            pin=$(sed -n "s/^${pin_name}=\"\(.*\)\"/\1/p" Tests/UnitTest/build_and_run_tests.sh)
+            test -n "$pin"
+            url=$(sed -n "s/^${url_name}=\"\(.*\)\"/\1/p" Tests/UnitTest/build_and_run_tests.sh)
+            test -n "$url"
+            git clone "$url" "${RUNNER_TEMP}/${dep}"
+            git -C "${RUNNER_TEMP}/${dep}" checkout --detach "$pin"
+          done
+          "$TOOLCHAIN_ROOT/bin/clang" --target=arm-none-eabi -mcpu=cortex-m4 \
+            -I Include -include arm_nnsupportfunctions.h -E -dM -x c /dev/null \
+            > "${RUNNER_TEMP}/word-copy-macros.txt"
+          grep -q '^#define ARM_NN_WORD_COPY' "${RUNNER_TEMP}/word-copy-macros.txt"
+          cmake -S Tests/UnitTest -B "${RUNNER_TEMP}/word-copy" \
+            -DPython3_EXECUTABLE="${RUNNER_TEMP}/word-copy-env/bin/python" \
+            -DCMAKE_TOOLCHAIN_FILE="${RUNNER_TEMP}/ethos-u-core-platform/cmake/toolchain/arm-none-eabi-gcc.cmake" \
+            -DTARGET_CPU=cortex-m4 -DCMSIS_PATH="${RUNNER_TEMP}/CMSIS_5" \
+            -DCMAKE_C_FLAGS=-DARM_NN_WORD_COPY \
+            -DCMSIS_NN_TEST_LIBRARY="${GITHUB_WORKSPACE}/output/atfe/cortex-m4/libns-cmsis-nn-atfe-cortex-m4-${VERSION}.a" \
+            -DARM_NN_ENABLE_F32=OFF -DARM_NN_ENABLE_F16=OFF
+          "${RUNNER_TEMP}/word-copy-env/bin/python" scripts/tests/test_unittest_targets_paths.py
+          python3 scripts/tests/test_check_atfe_word_copy.py
+          python3 scripts/check_atfe_word_copy.py --build "${RUNNER_TEMP}/word-copy"
 
   armclang:
     name: armclang / cortex-m55 + cortex-m4

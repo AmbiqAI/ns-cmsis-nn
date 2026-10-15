@@ -506,6 +506,37 @@ jobs:
             ./build_and_run_tests.sh -q -r -c ${{ matrix.cpu }} -D ARM_NN_ENABLE_F32=ON
           fi
 
+      - name: Compile the float library without specialization
+        if: matrix.cpu == 'cortex-m55'
+        shell: bash
+        run: |
+          set -euo pipefail
+          export PATH="${GITHUB_WORKSPACE}/Tests/UnitTest/downloads/arm_gcc_download/bin:${PATH}"
+          build_dir="${RUNNER_TEMP}/nn-no-specialization"
+          CFLAGS="-DNN_DISABLE_SPECIALIZATION -Wall -Wextra -Werror -Wnull-dereference" \
+            cmake -S . -B "${build_dir}" \
+              -DCMAKE_TOOLCHAIN_FILE="${GITHUB_WORKSPACE}/cmake/toolchain/arm-none-eabi-gcc.cmake" \
+              -DNS_CMSIS_NN_TARGET_CPU=cortex-m55 \
+              -DCMSIS_PATH="${GITHUB_WORKSPACE}/Tests/UnitTest/downloads/CMSIS_5" \
+              -DARM_NN_ENABLE_F32=ON -DARM_NN_ENABLE_F16=ON \
+              -DCMAKE_EXPORT_COMPILE_COMMANDS=ON
+          cmake --build "${build_dir}" --target cmsis-nn --parallel 4
+          python3 - "${build_dir}/compile_commands.json" <<'PY'
+          import json
+          import sys
+
+          commands = json.load(open(sys.argv[1]))
+          assert commands, "library compile commands are missing"
+          for item in commands:
+              assert "-DNN_DISABLE_SPECIALIZATION" in item["command"], item["file"]
+              assert "-Werror" in item["command"], item["file"]
+          assert all("-DARM_NN_ENABLE_F16=1" in item["command"] and
+                     "-DARM_NN_ENABLE_F32=1" in item["command"] for item in commands)
+          for dtype in ("f16", "f32"):
+              assert any(item["file"].endswith(f"_{dtype}.c") for item in commands), dtype
+          print(f"Specialization-disabled library: {len(commands)} sources, F16 and F32 enabled")
+          PY
+
       # A green build is not by itself proof that the file you touched was
       # compiled: a test directory that never made it into CMakeLists.txt
       # compiles nothing and fails nothing. Assert coverage mechanically over
