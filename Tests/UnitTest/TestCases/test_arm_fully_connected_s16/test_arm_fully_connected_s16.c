@@ -70,6 +70,7 @@ void fully_connected_int16_arm_fully_connected_s16(void)
     ctx.buf = malloc(buf_size);
     ctx.size = buf_size;
 
+    bias_dims = (cmsis_nn_dims){1, 1, 1, output_dims.c};
     arm_cmsis_nn_status result = arm_fully_connected_s16(&ctx,
                                                          &fc_params,
                                                          &quant_params,
@@ -135,6 +136,7 @@ void fully_connected_int16_big_arm_fully_connected_s16(void)
     ctx.buf = malloc(buf_size);
     ctx.size = buf_size;
 
+    bias_dims = (cmsis_nn_dims){1, 1, 1, output_dims.c};
     arm_cmsis_nn_status result = arm_fully_connected_s16(&ctx,
                                                          &fc_params,
                                                          &quant_params,
@@ -199,6 +201,7 @@ void fc_int16_slow_arm_fully_connected_s16(void)
     ctx.buf = malloc(buf_size);
     ctx.size = buf_size;
 
+    bias_dims = (cmsis_nn_dims){1, 1, 1, output_dims.c};
     arm_cmsis_nn_status result = arm_fully_connected_s16(&ctx,
                                                          &fc_params,
                                                          &quant_params,
@@ -262,6 +265,7 @@ void fc_per_channel_s16_arm_fully_connected_per_channel_s16(void)
     ctx.buf = malloc(buf_size);
     ctx.size = buf_size;
 
+    bias_dims = (cmsis_nn_dims){1, 1, 1, output_dims.c};
     arm_cmsis_nn_status result = arm_fully_connected_per_channel_s16(&ctx,
                                                                      &fc_params,
                                                                      &quant_params,
@@ -348,6 +352,7 @@ void fc_per_channel_s16_batches_arm_fully_connected_per_channel_s16(void)
     ctx.buf = malloc(buf_size);
     ctx.size = buf_size;
 
+    bias_dims = (cmsis_nn_dims){1, 1, 1, output_dims.c};
     arm_cmsis_nn_status result = arm_fully_connected_per_channel_s16(&ctx,
                                                                      &fc_params,
                                                                      &quant_params,

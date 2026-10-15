@@ -75,8 +75,11 @@ void nn_activation_helpers_f32_tanh_old_domain_bit_identical(void)
     {
         const float32_t x = (float32_t)i * TANH_SWEEP_STEP;
 
+        /* The one intended difference: -0 now keeps its sign, where the old helper returned +0 (#635). */
+        const uint32_t want_neg = (i == 0) ? 0x80000000U : f32_bits(tanh_pre_250_ref_f32(-x));
+
         TEST_ASSERT_EQUAL_UINT32(f32_bits(tanh_pre_250_ref_f32(x)), f32_bits(arm_nn_tanh_scalar_ref_f32(x)));
-        TEST_ASSERT_EQUAL_UINT32(f32_bits(tanh_pre_250_ref_f32(-x)), f32_bits(arm_nn_tanh_scalar_ref_f32(-x)));
+        TEST_ASSERT_EQUAL_UINT32(want_neg, f32_bits(arm_nn_tanh_scalar_ref_f32(-x)));
     }
 
     /* Exact grid points, where interpolation degenerates to a table read. */
@@ -161,6 +164,61 @@ void nn_activation_helpers_f32_tanh_nan_index_bounded(void)
         TEST_ASSERT_TRUE((y_bits & 0x00400000U) != 0U);
 #endif
     }
+}
+
+/* (d3) arm_nn_activation_f32 TANH on NaN and signed zero. The first vector is NaN in every lane, the second
+ * holds the zeros and infinities, the third holds finite lanes up to a huge one and a subnormal, and the one-lane
+ * tail is a NaN with a payload. On the
+ * MVE float path each NaN comes back as the same NaN on every toolchain and flag set: the helper classifies on
+ * the bit pattern rather than with a float compare, whose result for NaN depends on the compiler's lowering
+ * (#635). Without hardware floating point (__ARM_FP undefined) the scalar path classifies NaN on the bit pattern
+ * too and returns a NaN (a signalling one quieted); with it, the scalar path's NaN result is not guaranteed under
+ * -ffinite-math-only, so NaN lanes are not checked there. -0 keeps its sign on every path. */
+void nn_activation_helpers_f32_tanh_mux_nan_and_signed_zero(void)
+{
+    const uint32_t in_bits[13] = {
+        0x7fc00000U, /* +qNaN */
+        0x7f800001U, /* +sNaN */
+        0xffc00000U, /* -qNaN */
+        0xffa00005U, /* -sNaN with a payload */
+        0x80000000U, /* -0 */
+        0x00000000U, /* +0 */
+        0x7f800000U, /* +Inf */
+        0xff800000U, /* -Inf */
+        0xbf800000U, /* -1 */
+        0x3f000000U, /* 0.5 */
+        0x7e61c000U, /* 7.5e37: huge finite */
+        0x8000ae80U, /* -6.2e-41: subnormal */
+        0x7fe00001U, /* +qNaN with a payload, the tail lane */
+    };
+    float32_t in[13];
+    float32_t out[13];
+    memcpy(in, in_bits, sizeof(in));
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, arm_nn_activation_f32(in, out, 13, ARM_NN_FLT_ACT_TANH, 0.0f));
+
+#if defined(ARM_MATH_MVEF) && !defined(ARM_MATH_AUTOVECTORIZE)
+    const int32_t nan_lanes[5] = {0, 1, 2, 3, 12};
+    for (int32_t i = 0; i < 5; i++)
+    {
+        TEST_ASSERT_EQUAL_HEX32(in_bits[nan_lanes[i]], f32_bits(out[nan_lanes[i]]));
+    }
+#elif !defined(__ARM_FP)
+    const int32_t nan_lanes[5] = {0, 1, 2, 3, 12};
+    for (int32_t i = 0; i < 5; i++)
+    {
+        TEST_ASSERT_TRUE((f32_bits(out[nan_lanes[i]]) & 0x7fffffffU) > 0x7f800000U);
+    }
+#endif
+    TEST_ASSERT_EQUAL_HEX32(0x80000000U, f32_bits(out[4]));
+    TEST_ASSERT_EQUAL_HEX32(0x00000000U, f32_bits(out[5]));
+    TEST_ASSERT_EQUAL_FLOAT(1.0f, out[6]);
+    TEST_ASSERT_EQUAL_FLOAT(-1.0f, out[7]);
+    TEST_ASSERT_FLOAT_WITHIN(TANH_BAND_TOL, tanhf(-1.0f), out[8]);
+    TEST_ASSERT_FLOAT_WITHIN(TANH_BAND_TOL, tanhf(0.5f), out[9]);
+    TEST_ASSERT_EQUAL_FLOAT(1.0f, out[10]);
+    /* Flushed to -0 on the MVE path (FZ), interpolated on the scalar path: either way a negative zero or tiny. */
+    TEST_ASSERT_TRUE((f32_bits(out[11]) & 0x80000000U) != 0U);
+    TEST_ASSERT_FLOAT_WITHIN(1.0e-30f, 0.0f, out[11]);
 }
 
 /* (e) Sigmoid: defined (not undefined) on NaN, unchanged accuracy on finites. */

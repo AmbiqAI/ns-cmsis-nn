@@ -61,7 +61,7 @@ arm_cmsis_nn_status arm_depthwise_conv_wrapper_s16(const cmsis_nn_context *ctx,
 {
     arm_cmsis_nn_status status = ARM_CMSIS_NN_SUCCESS;
 
-    if (USE_FAST_DW_CONV_S16_FUNCTION(dw_conv_params, filter_dims, input_dims))
+    if (USE_FAST_DW_CONV_S16_FUNCTION(dw_conv_params, filter_dims, input_dims, output_dims))
     {
         status = arm_depthwise_conv_fast_s16(ctx,
                                              dw_conv_params,

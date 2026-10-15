@@ -8,7 +8,9 @@
  */
 
 #include "arm_nnfunctions.h"
+#include "arm_nnsupportfunctions.h"
 #include "unity.h"
+#include <string.h>
 
 #include "../TestData/mul_scalar_s8/test_data.h"
 #include "../TestData/mul_ident_s8/test_data.h"
@@ -364,4 +366,184 @@ void mul_dims_arg_error_s8_arm_mul_s8(void)
     TEST_ASSERT_EQUAL(
         ARM_CMSIS_NN_ARG_ERROR,
         arm_mul_s8(input_a, &dims_0h, input_b, &dims_0h, 0, 0, output, &dims_0h, 0, 1073741824, 1, -128, 127));
+}
+
+/* One operand broadcast along W with matching C, including swapped operands, N/H broadcast and C not a multiple of
+   8, compared against a scalar reference. Guard bytes after the output catch writes past the end. */
+#define ROWB_MAX (2 * 3 * 240 * 8)
+static int8_t rowb_in_full[ROWB_MAX], rowb_in_row[ROWB_MAX], rowb_out[ROWB_MAX + 16], rowb_ref[ROWB_MAX];
+
+static int32_t rowb_size(const cmsis_nn_dims *d) { return d->n * d->h * d->w * d->c; }
+
+static int32_t rowb_index(const cmsis_nn_dims *d, int32_t n, int32_t h, int32_t w, int32_t c)
+{
+    return (((d->n == 1 ? 0 : n) * d->h + (d->h == 1 ? 0 : h)) * d->w + (d->w == 1 ? 0 : w)) * d->c + c;
+}
+
+static void mul_row_broadcast_case(const cmsis_nn_dims full,
+                                   const cmsis_nn_dims row,
+                                   const cmsis_nn_dims out,
+                                   const int32_t swap,
+                                   const int32_t off_full,
+                                   const int32_t off_row,
+                                   const int32_t out_offset,
+                                   const int32_t out_mult,
+                                   const int32_t out_shift,
+                                   const int32_t act_min,
+                                   const int32_t act_max)
+{
+    uint32_t seed = (uint32_t)(full.w * 131 + full.c * 7 + swap);
+    for (int32_t i = 0; i < rowb_size(&full); i++)
+    {
+        seed = seed * 1664525u + 1013904223u;
+        rowb_in_full[i] = (int8_t)(seed >> 24);
+    }
+    for (int32_t i = 0; i < rowb_size(&row); i++)
+    {
+        seed = seed * 1664525u + 1013904223u;
+        rowb_in_row[i] = (int8_t)(seed >> 24);
+    }
+    for (int32_t n = 0; n < out.n; n++)
+        for (int32_t h = 0; h < out.h; h++)
+            for (int32_t w = 0; w < out.w; w++)
+                for (int32_t c = 0; c < out.c; c++)
+                {
+                    int32_t r = (rowb_in_full[rowb_index(&full, n, h, w, c)] + off_full) *
+                        (rowb_in_row[rowb_index(&row, n, h, w, c)] + off_row);
+                    r = arm_nn_requantize(r, out_mult, out_shift) + out_offset;
+                    r = r < act_min ? act_min : (r > act_max ? act_max : r);
+                    rowb_ref[rowb_index(&out, n, h, w, c)] = (int8_t)r;
+                }
+    memset(rowb_out, 0x5A, sizeof(rowb_out));
+    const arm_cmsis_nn_status status = swap ? arm_mul_s8(rowb_in_row,
+                                                         &row,
+                                                         rowb_in_full,
+                                                         &full,
+                                                         off_row,
+                                                         off_full,
+                                                         rowb_out,
+                                                         &out,
+                                                         out_offset,
+                                                         out_mult,
+                                                         out_shift,
+                                                         act_min,
+                                                         act_max)
+                                            : arm_mul_s8(rowb_in_full,
+                                                         &full,
+                                                         rowb_in_row,
+                                                         &row,
+                                                         off_full,
+                                                         off_row,
+                                                         rowb_out,
+                                                         &out,
+                                                         out_offset,
+                                                         out_mult,
+                                                         out_shift,
+                                                         act_min,
+                                                         act_max);
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, status);
+    TEST_ASSERT_EQUAL_INT8_ARRAY(rowb_ref, rowb_out, rowb_size(&out));
+    for (int32_t i = 0; i < 16; i++)
+    {
+        TEST_ASSERT_EQUAL_INT8(0x5A, rowb_out[rowb_size(&out) + i]);
+    }
+}
+
+void mul_row_broadcast_s8_arm_mul_s8(void)
+{
+    /* {W operand, W == 1 operand, output} */
+    const cmsis_nn_dims shapes[][3] = {
+        {{1, 1, 240, 8}, {1, 1, 1, 8}, {1, 1, 240, 8}},
+        {{1, 1, 17, 3}, {1, 1, 1, 3}, {1, 1, 17, 3}},
+        {{2, 3, 5, 12}, {1, 1, 1, 12}, {2, 3, 5, 12}},
+        {{2, 3, 5, 17}, {2, 3, 1, 17}, {2, 3, 5, 17}},
+        {{1, 1, 5, 12}, {2, 3, 1, 12}, {2, 3, 5, 12}},
+        /* Mixed forms: N from one operand and H from the other, or one of them broadcast in a single operand */
+        {{2, 1, 5, 12}, {1, 3, 1, 12}, {2, 3, 5, 12}},
+        {{1, 3, 5, 9}, {2, 1, 1, 9}, {2, 3, 5, 9}},
+        {{2, 1, 5, 7}, {2, 3, 1, 7}, {2, 3, 5, 7}},
+        {{2, 3, 5, 6}, {1, 3, 1, 6}, {2, 3, 5, 6}},
+        {{2, 3, 5, 6}, {2, 1, 1, 6}, {2, 3, 5, 6}},
+        {{1, 2, 9, 40}, {1, 2, 1, 40}, {1, 2, 9, 40}},
+        {{1, 1, 2, 2}, {1, 1, 1, 2}, {1, 1, 2, 2}},
+    };
+    for (size_t i = 0; i < sizeof(shapes) / sizeof(shapes[0]); i++)
+    {
+        for (int32_t swap = 0; swap < 2; swap++)
+        {
+            const cmsis_nn_dims *d = shapes[i];
+            mul_row_broadcast_case(d[0], d[1], d[2], swap, 128, 128, -128, 1173388748, -7, -128, 127);
+            mul_row_broadcast_case(d[0], d[1], d[2], swap, -3, 17, 5, 1518500250, -9, -100, 90);
+            mul_row_broadcast_case(d[0], d[1], d[2], swap, 7, -2, -1, 1073741824, 0, -128, 127);
+            /* Products past the int16 range: the output offset must saturate, not wrap. */
+            mul_row_broadcast_case(d[0], d[1], d[2], swap, 128, 128, 5, 1073741824, 1, -128, 127);
+            mul_row_broadcast_case(d[0], d[1], d[2], swap, 128, -127, -5, 1073741824, 1, -128, 127);
+        }
+    }
+}
+
+
+/* arm_mul_row_broadcast_s8() (#676) against arm_mul_s8() on row-broadcast shapes: either input with W = 1, each
+ * input's N and H broadcast or not independently, depths 2 to 17; byte-identical output. Other shapes return
+ * ARM_CMSIS_NN_NO_IMPL_ERROR and write nothing; invalid broadcasts and NULL pointers return ARM_CMSIS_NN_ARG_ERROR. */
+void mul_row_broadcast_entry_s8_arm_mul_s8(void)
+{
+    const int32_t in1_off = 5, in2_off = -3, out_off = 7;
+    const int32_t out_mult = 1288490189;
+    static int8_t a[2 * 3 * 5 * 17], b[2 * 3 * 5 * 17], ref[2 * 3 * 5 * 17 + 8], got[2 * 3 * 5 * 17 + 8];
+    for (int32_t i = 0; i < (int32_t)sizeof(a); i++)
+    {
+        a[i] = (int8_t)(i * 37 + 11);
+        b[i] = (int8_t)(i * 53 - 7);
+    }
+    for (int32_t c = 2; c <= 17; c++)
+    {
+        /* form bit 0: which input has W = 1; bits 1-4: N and H of the W = 1 input, then of the other input, each 1
+         * or full */
+        for (int32_t form = 0; form < 32; form++)
+        {
+            const int32_t s = (form + c) & 1;
+            const int32_t out_shift = s == 0 ? -9 : 2;
+            const cmsis_nn_dims vec = {(form & 2) ? 1 : 2, (form & 4) ? 1 : 3, 1, c};
+            const cmsis_nn_dims full = {(form & 8) ? 1 : 2, (form & 16) ? 1 : 3, 5, c};
+            const cmsis_nn_dims d1 = (form & 1) ? vec : full;
+            const cmsis_nn_dims d2 = (form & 1) ? full : vec;
+            const cmsis_nn_dims od = {vec.n > full.n ? vec.n : full.n, vec.h > full.h ? vec.h : full.h, 5, c};
+            const int32_t size = od.n * od.h * 5 * c;
+            TEST_ASSERT_EQUAL(1, arm_nn_is_row_broadcast(&d1, &d2, &od));
+            memset(ref, 0x5A, sizeof(ref));
+            memset(got, 0x5A, sizeof(got));
+            TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, arm_mul_s8(a, &d1, b, &d2, in1_off, in2_off, ref, &od, out_off, out_mult, out_shift, -128, 127));
+            TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, arm_mul_row_broadcast_s8(a, &d1, b, &d2, in1_off, in2_off, got, &od, out_off, out_mult, out_shift, -128, 127));
+            TEST_ASSERT_EQUAL_INT8_ARRAY(ref, got, size + 8);
+        }
+    }
+    {
+        const int32_t out_shift = -9;
+        /* Outside the gate: the same shapes, unequal depths with one W = 1, both W = 1, a depth of 1 */
+        const cmsis_nn_dims outside[4][3] = {{{1, 2, 4, 3}, {1, 2, 4, 3}, {1, 2, 4, 3}},
+                                             {{1, 1, 5, 3}, {1, 1, 1, 1}, {1, 1, 5, 3}},
+                                             {{1, 2, 1, 3}, {1, 1, 1, 3}, {1, 2, 1, 3}},
+                                             {{1, 2, 4, 1}, {1, 2, 1, 1}, {1, 2, 4, 1}}};
+        for (int32_t k = 0; k < 4; k++)
+        {
+            const cmsis_nn_dims *d1 = &outside[k][0], *d2 = &outside[k][1], *od = &outside[k][2];
+            TEST_ASSERT_EQUAL(0, arm_nn_is_row_broadcast(d1, d2, od));
+            memset(got, 0x5A, sizeof(got));
+            TEST_ASSERT_EQUAL(ARM_CMSIS_NN_NO_IMPL_ERROR, arm_mul_row_broadcast_s8(a, d1, b, d2, in1_off, in2_off, got, od, out_off, out_mult, out_shift, -128, 127));
+            for (int32_t i = 0; i < (int32_t)sizeof(got); i++)
+            {
+                TEST_ASSERT_EQUAL_INT8(0x5A, got[i]);
+            }
+        }
+        /* Invalid broadcast (W 4 against output W 5), then each pointer NULL */
+        const cmsis_nn_dims d1 = {1, 2, 4, 3}, d2 = {1, 2, 1, 3}, bad = {1, 2, 5, 3}, od = {1, 2, 4, 3};
+        TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR, arm_mul_row_broadcast_s8(a, &d1, b, &d2, in1_off, in2_off, got, &bad, out_off, out_mult, out_shift, -128, 127));
+        TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR, arm_mul_row_broadcast_s8(NULL, &d1, b, &d2, in1_off, in2_off, got, &od, out_off, out_mult, out_shift, -128, 127));
+        TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR, arm_mul_row_broadcast_s8(a, NULL, b, &d2, in1_off, in2_off, got, &od, out_off, out_mult, out_shift, -128, 127));
+        TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR, arm_mul_row_broadcast_s8(a, &d1, NULL, &d2, in1_off, in2_off, got, &od, out_off, out_mult, out_shift, -128, 127));
+        TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR, arm_mul_row_broadcast_s8(a, &d1, b, NULL, in1_off, in2_off, got, &od, out_off, out_mult, out_shift, -128, 127));
+        TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR, arm_mul_row_broadcast_s8(a, &d1, b, &d2, in1_off, in2_off, NULL, &od, out_off, out_mult, out_shift, -128, 127));
+        TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR, arm_mul_row_broadcast_s8(a, &d1, b, &d2, in1_off, in2_off, got, NULL, out_off, out_mult, out_shift, -128, 127));
+    }
 }

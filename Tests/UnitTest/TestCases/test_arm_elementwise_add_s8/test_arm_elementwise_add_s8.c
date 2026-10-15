@@ -1,5 +1,6 @@
 /*
  * Copyright (C) 2022 Arm Limited or its affiliates.
+ * SPDX-FileCopyrightText: Copyright 2026 Ambiq <opensource@ambiq.com>
  *
  * SPDX-License-Identifier: Apache-2.0
  *
@@ -17,7 +18,9 @@
  */
 
 #include "arm_nnfunctions.h"
+#include "arm_nnsupportfunctions.h"
 #include "unity.h"
+#include <string.h>
 
 #include "../TestData/add/test_data.h"
 #include "../Utils/validate.h"
@@ -166,3 +169,71 @@ static void bsi_check(bsi_kernel_t kernel, bool input_1_is_scalar)
 void block_size_invariance_arm_elementwise_add_s8(void) { bsi_check(arm_elementwise_add_s8, false); }
 
 void block_size_invariance_arm_add_scalar_s8(void) { bsi_check(arm_add_scalar_s8, true); }
+
+typedef struct
+{
+    int32_t off_1, mult_1, shift_1, off_2, mult_2, shift_2, left_shift, out_offset, out_mult, out_shift, act_min,
+        act_max;
+} add_q_params;
+
+static int8_t add_reference(int32_t x1, int32_t x2, const add_q_params *q)
+{
+    const int32_t a = arm_nn_requantize((x1 + q->off_1) * (1 << q->left_shift), q->mult_1, q->shift_1);
+    const int32_t b = arm_nn_requantize((x2 + q->off_2) * (1 << q->left_shift), q->mult_2, q->shift_2);
+    int32_t r = arm_nn_requantize(a + b, q->out_mult, q->out_shift) + q->out_offset;
+    r = r < q->act_min ? q->act_min : (r > q->act_max ? q->act_max : r);
+    return (int8_t)r;
+}
+
+/* Parameter sets: both input shifts 0, each input shift non-zero, and an out_shift outside the specialized range. */
+static const add_q_params add_q_sets[] = {
+    {128, 1073741824, 0, 128, 1073741824, 0, 20, -128, 1073741824, -18, -128, 127},
+    {17, 1073741824, 0, -5, 1395864371, -1, 20, 3, 1518500250, -19, -128, 127},
+    {-9, 1395864371, -2, 30, 1073741824, 0, 20, -7, 1518500250, -19, -100, 110},
+    {5, 1518500250, -1, -12, 1395864371, -3, 20, 11, 1073741824, -20, -128, 127},
+    {1, 1073741824, 0, 1, 1073741824, 0, 20, 0, 1073741824, 0, -128, 127},
+};
+
+/* Every requantization parameter set, over lengths that end in each tail size, against a scalar reference. */
+void add_requant_sets_arm_elementwise_add_s8(void)
+{
+    static int8_t in_1[67], in_2[67], out[67 + 16];
+    uint32_t seed = 12345u;
+    for (int32_t i = 0; i < 67; i++)
+    {
+        seed = seed * 1664525u + 1013904223u;
+        in_1[i] = (int8_t)(seed >> 24);
+        in_2[i] = (int8_t)(seed >> 16);
+    }
+    const int32_t lengths[] = {1, 2, 3, 4, 35, 64, 66, 67};
+    for (size_t k = 0; k < sizeof(add_q_sets) / sizeof(add_q_sets[0]); k++)
+    {
+        const add_q_params *q = &add_q_sets[k];
+        for (size_t l = 0; l < sizeof(lengths) / sizeof(lengths[0]); l++)
+        {
+            memset(out, 0x5A, sizeof(out));
+            TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
+                              arm_elementwise_add_s8(in_1,
+                                                     in_2,
+                                                     q->off_1,
+                                                     q->mult_1,
+                                                     q->shift_1,
+                                                     q->off_2,
+                                                     q->mult_2,
+                                                     q->shift_2,
+                                                     q->left_shift,
+                                                     out,
+                                                     q->out_offset,
+                                                     q->out_mult,
+                                                     q->out_shift,
+                                                     q->act_min,
+                                                     q->act_max,
+                                                     lengths[l]));
+            for (int32_t i = 0; i < lengths[l]; i++)
+            {
+                TEST_ASSERT_EQUAL_INT8(add_reference(in_1[i], in_2[i], q), out[i]);
+            }
+            TEST_ASSERT_EQUAL_INT8(0x5A, out[lengths[l]]);
+        }
+    }
+}

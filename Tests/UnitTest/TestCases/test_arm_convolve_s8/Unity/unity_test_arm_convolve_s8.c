@@ -56,6 +56,17 @@ void test_conv_refactored_fc_conv_int8_diff_channels(void) { conv_refactored_fc_
 void test_conv_refactored_fc_conv_int8_non_4_multiple(void) { conv_refactored_fc_conv_int8_non_4_multiple(); }
 void test_conv_refactored_fc_conv_int8_1x1_kernel(void) { conv_refactored_fc_conv_int8_1x1_kernel(); }
 void test_conv_1x1_out_tail_arm_convolve_s8(void) { conv_1x1_out_tail_arm_convolve_s8(); }
+void test_conv_1x1_requant_classes_arm_convolve_s8(void) { conv_1x1_requant_classes_arm_convolve_s8(); }
+
+void test_requantize_rshift_helpers_arm_convolve_s8(void) { requantize_rshift_helpers_arm_convolve_s8(); }
+
+void test_conv_1x1_short_k_arm_convolve_1x1_s8_short_k(void) { conv_1x1_short_k_arm_convolve_1x1_s8_short_k(); }
+
+void test_conv_1x1_short_k_declines_arm_convolve_1x1_s8_short_k(void)
+{
+    conv_1x1_short_k_declines_arm_convolve_1x1_s8_short_k();
+}
+
 void test_conv_1x1_out_null_weight_sum_arm_convolve_1x1_out_s8(void)
 {
     conv_1x1_out_null_weight_sum_arm_convolve_1x1_out_s8();
@@ -79,3 +90,25 @@ void test_conv_2x2_dilation_5x5_input_arm_convolve_s8(void) { conv_2x2_dilation_
 void test_buffer_size_arm_convolve_s8(void) { buffer_size_arm_convolve_s8(); }
 void test_buffer_size_mve_arm_convolve_s8(void) { buffer_size_mve_arm_convolve_s8(); }
 void test_buffer_size_dsp_arm_convolve_s8(void) { buffer_size_dsp_arm_convolve_s8(); }
+void test_weight_sum_wide_dims_arm_convolve_s8(void) { weight_sum_wide_dims_arm_convolve_s8(); }
+void test_weight_sum_arg_errors_arm_convolve_s8(void) { weight_sum_arg_errors_arm_convolve_s8(); }
+void test_spatial_arg_errors_arm_convolve_s8(void) { spatial_arg_errors_arm_convolve_s8(); }
+void test_patch_wider_than_16_bits_arm_convolve_s8(void) { patch_wider_than_16_bits_arm_convolve_s8(); }
+
+void test_small_cin_arm_convolve_s8(void) { small_cin_arm_convolve_s8(); }
+void test_small_cin_weights_at_gap_arm_convolve_s8(void) { small_cin_weights_at_gap_arm_convolve_s8(); }
+void test_general_weights_at_gap_arm_convolve_s8(void) { general_weights_at_gap_arm_convolve_s8(); }
+void test_small_cin_out_ch_arm_convolve_s8(void) { small_cin_out_ch_arm_convolve_s8(); }
+void test_mlperf_first_layers_arm_convolve_s8(void) { mlperf_first_layers_arm_convolve_s8(); }
+void test_c16_3x3_arm_convolve_s8(void) { c16_3x3_arm_convolve_s8(); }
+void test_low_depth_neighbours_arm_convolve_s8(void) { low_depth_neighbours_arm_convolve_s8(); }
+void test_small_cin_gate_declines_arm_convolve_s8(void) { small_cin_gate_declines_arm_convolve_s8(); }
+void test_c16_3x3_gate_declines_arm_convolve_s8(void) { c16_3x3_gate_declines_arm_convolve_s8(); }
+void test_low_depth_arg_errors_arm_convolve_s8(void) { low_depth_arg_errors_arm_convolve_s8(); }
+void test_wrapper_route_arm_convolve_s8(void) { wrapper_route_arm_convolve_s8(); }
+
+void test_conv_1x1_out_operands_at_gap_arm_convolve_1x1_out_s8(void)
+{
+    conv_1x1_out_operands_at_gap_arm_convolve_1x1_out_s8();
+}
+void test_conv_1x1_out_grouped_arm_convolve_1x1_out_s8(void) { conv_1x1_out_grouped_arm_convolve_1x1_out_s8(); }

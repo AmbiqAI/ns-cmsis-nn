@@ -56,7 +56,8 @@ int32_t arm_depthwise_conv_f16_get_buffer_size(const cmsis_nn_dw_conv_params_f16
     }
 
     #if defined(ARM_MATH_MVE_FLOAT16) && !defined(ARM_MATH_AUTOVECTORIZE)
-    if (layout == ARM_NN_LAYOUT_NHWC && input_dims->c == 1 &&
+    /* The kernel takes the to-convolution route only for ch_mult != 1: ch_mult == 1 runs the direct kernel first. */
+    if (layout == ARM_NN_LAYOUT_NHWC && dw_conv_params->ch_mult != 1 && input_dims->c == 1 &&
         output_dims->c >= CONVERT_DW_CONV_WITH_ONE_INPUT_CH_AND_OUTPUT_CH_ABOVE_THRESHOLD)
     {
         const cmsis_nn_conv_params_f16 conv_params = {.stride = dw_conv_params->stride,
@@ -124,18 +125,37 @@ int32_t arm_convolve_f16_get_buffer_size(const cmsis_nn_conv_params_f16 *conv_pa
         return 0;
     }
 
-    if (filter_dims->h == 1 && filter_dims->w == 1 && conv_params->padding.h == 0 && conv_params->padding.w == 0)
+    if (arm_nn_conv_flt_is_1x1(&conv_params->padding, filter_dims) &&
+        arm_nn_conv_flt_1x1_window_ok(&conv_params->stride, input_dims, output_dims))
     {
         return arm_convolve_1x1_f16_get_buffer_size(conv_params, input_dims, filter_dims, output_dims, layout);
     }
 
-    if (input_dims->h == 1 && output_dims->h == 1 && filter_dims->h == 1 && filter_dims->w > 1 &&
-        conv_params->stride.h == 1 && conv_params->stride.w > 0 && conv_params->padding.h == 0 &&
-        conv_params->dilation.h == 1 && conv_params->dilation.w == 1 &&
-        !((input_dims->n == 1 && filter_dims->w == 3 && conv_params->stride.w == 1 && conv_params->padding.w == 0) ||
-          (input_dims->n == 1 && filter_dims->w == 5 && conv_params->stride.w == 1 && conv_params->padding.w == 0)))
+    /* The conv1d k3/k5 shapes take no scratch; this query keeps reserving patch rows for them */
+    const cmsis_nn_tile *st = &conv_params->stride, *pad = &conv_params->padding, *dil = &conv_params->dilation;
+    if (arm_nn_conv_flt_is_1xn(st, pad, dil, input_dims, filter_dims, output_dims) &&
+        !arm_nn_conv_flt_is_1d_k(st, pad, dil, input_dims, filter_dims, output_dims, 3) &&
+        !arm_nn_conv_flt_is_1d_k(st, pad, dil, input_dims, filter_dims, output_dims, 5))
     {
         return arm_convolve_1_x_n_f16_get_buffer_size(conv_params, input_dims, filter_dims, output_dims, layout);
+    }
+
+    return arm_convolve_patch_gemm_f16_get_buffer_size(conv_params, input_dims, filter_dims, output_dims);
+}
+
+int32_t arm_convolve_patch_gemm_f16_get_buffer_size(const cmsis_nn_conv_params_f16 *conv_params,
+                                                    const cmsis_nn_dims *input_dims,
+                                                    const cmsis_nn_dims *filter_dims,
+                                                    const cmsis_nn_dims *output_dims)
+{
+    if (!conv_params || !input_dims || !filter_dims || !output_dims)
+    {
+        return 0;
+    }
+
+    if (input_dims->c <= 0 || filter_dims->h <= 0 || filter_dims->w <= 0 || output_dims->c <= 0)
+    {
+        return 0;
     }
 
     size_t tile_bytes = (size_t)ARM_NN_CONV_NHWC_PATCH_GEMM_F16_MAX_TILE_ROWS;
@@ -171,7 +191,8 @@ int32_t arm_convolve_1x1_f16_get_buffer_size(const cmsis_nn_conv_params_f16 *con
     }
 
     if (layout != ARM_NN_LAYOUT_NHWC || filter_dims->h != 1 || filter_dims->w != 1 || conv_params->padding.h != 0 ||
-        conv_params->padding.w != 0 || input_dims->c <= 0)
+        conv_params->padding.w != 0 || input_dims->c <= 0 ||
+        !arm_nn_conv_flt_1x1_window_ok(&conv_params->stride, input_dims, output_dims))
     {
         return 0;
     }
@@ -206,7 +227,9 @@ int32_t arm_convolve_1_x_n_f16_get_buffer_size(const cmsis_nn_conv_params_f16 *c
     if (layout != ARM_NN_LAYOUT_NHWC || input_dims->h != 1 || output_dims->h != 1 || filter_dims->h != 1 ||
         filter_dims->w <= 1 || conv_params->stride.h != 1 || conv_params->stride.w <= 0 ||
         conv_params->padding.h != 0 || conv_params->dilation.h != 1 || conv_params->dilation.w != 1 ||
-        input_dims->c <= 0 || input_dims->c != filter_dims->c)
+        input_dims->c <= 0 || input_dims->c != filter_dims->c ||
+        !arm_nn_conv_flt_is_1xn(
+            &conv_params->stride, &conv_params->padding, &conv_params->dilation, input_dims, filter_dims, output_dims))
     {
         return 0;
     }

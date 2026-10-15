@@ -20,20 +20,26 @@
 
 #if ARM_NN_ENABLE_F16
 
-void arm_nn_conv1d_k5_packed_f16(const float16_t *__RESTRICT x_nhwc,
-                                 int32_t in_c,
-                                 int32_t in_w,
-                                 const float16_t *__RESTRICT kernel_packed,
-                                 const float16_t *__RESTRICT b,
-                                 float16_t *__RESTRICT out,
-                                 int32_t out_c,
-                                 int32_t out_w)
+__STATIC_FORCEINLINE void arm_nn_conv1d_k5_packed_f16_body(const float16_t *__RESTRICT x_nhwc,
+                                                           int32_t in_c,
+                                                           int32_t in_w,
+                                                           const float16_t *__RESTRICT kernel_packed,
+                                                           const float16_t *__RESTRICT b,
+                                                           float16_t *__RESTRICT out,
+                                                           int32_t out_c,
+                                                           int32_t out_w,
+                                                           const int32_t block)
 {
     (void)in_w;
+    (void)block;
 
     const int32_t block_cols = 8;
 
     #if defined(ARM_MATH_MVE_FLOAT16) && !defined(ARM_MATH_AUTOVECTORIZE)
+    /* Each lane takes 5 taps per input channel; with more than `block` taps a lane's float16 partial covers at most
+     * block / 5 input channels before it is widened into per-lane float32 accumulators (#586). */
+    const bool fold = 5 * in_c > block;
+    const int32_t span = fold ? block / 5 : in_c;
     int32_t ow = 0;
     for (; ow + 1 < out_w; ow += 2)
     {
@@ -53,25 +59,48 @@ void arm_nn_conv1d_k5_packed_f16(const float16_t *__RESTRICT x_nhwc,
             float16x8_t vacc0 = b ? vld1q(b + oc) : vdupq_n_f16((float16_t)0.0f);
             float16x8_t vacc1 = vacc0;
 
-            for (int32_t ic = 0; ic < in_c; ++ic)
+            float32x4_t vacc0_sum_even = vdupq_n_f32(0.0f);
+            float32x4_t vacc0_sum_odd = vdupq_n_f32(0.0f);
+            float32x4_t vacc1_sum_even = vdupq_n_f32(0.0f);
+            float32x4_t vacc1_sum_odd = vdupq_n_f32(0.0f);
+            int32_t ic = 0;
+            for (;;)
             {
-                const float16_t *w_ic = w_base + (size_t)ic * block_cols;
-                const float16x8_t vw0 = vld1q(w_ic + 0U * in_c * block_cols);
-                const float16x8_t vw1 = vld1q(w_ic + 1U * in_c * block_cols);
-                const float16x8_t vw2 = vld1q(w_ic + 2U * in_c * block_cols);
-                const float16x8_t vw3 = vld1q(w_ic + 3U * in_c * block_cols);
-                const float16x8_t vw4 = vld1q(w_ic + 4U * in_c * block_cols);
+                const int32_t end = (in_c - ic > span) ? ic + span : in_c;
+                for (; ic < end; ++ic)
+                {
+                    const float16_t *w_ic = w_base + (size_t)ic * block_cols;
+                    const float16x8_t vw0 = vld1q(w_ic + 0U * in_c * block_cols);
+                    const float16x8_t vw1 = vld1q(w_ic + 1U * in_c * block_cols);
+                    const float16x8_t vw2 = vld1q(w_ic + 2U * in_c * block_cols);
+                    const float16x8_t vw3 = vld1q(w_ic + 3U * in_c * block_cols);
+                    const float16x8_t vw4 = vld1q(w_ic + 4U * in_c * block_cols);
 
-                vacc0 = vfmaq(vacc0, vw0, x0[ic]);
-                vacc1 = vfmaq(vacc1, vw0, x1[ic]);
-                vacc0 = vfmaq(vacc0, vw1, x1[ic]);
-                vacc1 = vfmaq(vacc1, vw1, x2[ic]);
-                vacc0 = vfmaq(vacc0, vw2, x2[ic]);
-                vacc1 = vfmaq(vacc1, vw2, x3[ic]);
-                vacc0 = vfmaq(vacc0, vw3, x3[ic]);
-                vacc1 = vfmaq(vacc1, vw3, x4[ic]);
-                vacc0 = vfmaq(vacc0, vw4, x4[ic]);
-                vacc1 = vfmaq(vacc1, vw4, x5[ic]);
+                    vacc0 = vfmaq(vacc0, vw0, x0[ic]);
+                    vacc1 = vfmaq(vacc1, vw0, x1[ic]);
+                    vacc0 = vfmaq(vacc0, vw1, x1[ic]);
+                    vacc1 = vfmaq(vacc1, vw1, x2[ic]);
+                    vacc0 = vfmaq(vacc0, vw2, x2[ic]);
+                    vacc1 = vfmaq(vacc1, vw2, x3[ic]);
+                    vacc0 = vfmaq(vacc0, vw3, x3[ic]);
+                    vacc1 = vfmaq(vacc1, vw3, x4[ic]);
+                    vacc0 = vfmaq(vacc0, vw4, x4[ic]);
+                    vacc1 = vfmaq(vacc1, vw4, x5[ic]);
+                }
+                if (!fold)
+                {
+                    break;
+                }
+                arm_nn_f16_fold_lanes_f32(&vacc0_sum_even, &vacc0_sum_odd, vacc0, end == span);
+                arm_nn_f16_fold_lanes_f32(&vacc1_sum_even, &vacc1_sum_odd, vacc1, end == span);
+                if (ic == in_c)
+                {
+                    vacc0 = arm_nn_f16_narrow_lanes_f32(vacc0_sum_even, vacc0_sum_odd);
+                    vacc1 = arm_nn_f16_narrow_lanes_f32(vacc1_sum_even, vacc1_sum_odd);
+                    break;
+                }
+                vacc0 = vdupq_n_f16((float16_t)0.0f);
+                vacc1 = vdupq_n_f16((float16_t)0.0f);
             }
 
             vst1q(y0 + oc, vacc0);
@@ -86,25 +115,48 @@ void arm_nn_conv1d_k5_packed_f16(const float16_t *__RESTRICT x_nhwc,
             float16x8_t vacc0 = b ? vld1q_z(b + oc, p) : vdupq_n_f16((float16_t)0.0f);
             float16x8_t vacc1 = vacc0;
 
-            for (int32_t ic = 0; ic < in_c; ++ic)
+            float32x4_t vacc0_sum_even = vdupq_n_f32(0.0f);
+            float32x4_t vacc0_sum_odd = vdupq_n_f32(0.0f);
+            float32x4_t vacc1_sum_even = vdupq_n_f32(0.0f);
+            float32x4_t vacc1_sum_odd = vdupq_n_f32(0.0f);
+            int32_t ic = 0;
+            for (;;)
             {
-                const float16_t *w_ic = w_base + (size_t)ic * block_cols;
-                const float16x8_t vw0 = vld1q_z(w_ic + 0U * in_c * block_cols, p);
-                const float16x8_t vw1 = vld1q_z(w_ic + 1U * in_c * block_cols, p);
-                const float16x8_t vw2 = vld1q_z(w_ic + 2U * in_c * block_cols, p);
-                const float16x8_t vw3 = vld1q_z(w_ic + 3U * in_c * block_cols, p);
-                const float16x8_t vw4 = vld1q_z(w_ic + 4U * in_c * block_cols, p);
+                const int32_t end = (in_c - ic > span) ? ic + span : in_c;
+                for (; ic < end; ++ic)
+                {
+                    const float16_t *w_ic = w_base + (size_t)ic * block_cols;
+                    const float16x8_t vw0 = vld1q_z(w_ic + 0U * in_c * block_cols, p);
+                    const float16x8_t vw1 = vld1q_z(w_ic + 1U * in_c * block_cols, p);
+                    const float16x8_t vw2 = vld1q_z(w_ic + 2U * in_c * block_cols, p);
+                    const float16x8_t vw3 = vld1q_z(w_ic + 3U * in_c * block_cols, p);
+                    const float16x8_t vw4 = vld1q_z(w_ic + 4U * in_c * block_cols, p);
 
-                vacc0 = vfmaq(vacc0, vw0, x0[ic]);
-                vacc1 = vfmaq(vacc1, vw0, x1[ic]);
-                vacc0 = vfmaq(vacc0, vw1, x1[ic]);
-                vacc1 = vfmaq(vacc1, vw1, x2[ic]);
-                vacc0 = vfmaq(vacc0, vw2, x2[ic]);
-                vacc1 = vfmaq(vacc1, vw2, x3[ic]);
-                vacc0 = vfmaq(vacc0, vw3, x3[ic]);
-                vacc1 = vfmaq(vacc1, vw3, x4[ic]);
-                vacc0 = vfmaq(vacc0, vw4, x4[ic]);
-                vacc1 = vfmaq(vacc1, vw4, x5[ic]);
+                    vacc0 = vfmaq(vacc0, vw0, x0[ic]);
+                    vacc1 = vfmaq(vacc1, vw0, x1[ic]);
+                    vacc0 = vfmaq(vacc0, vw1, x1[ic]);
+                    vacc1 = vfmaq(vacc1, vw1, x2[ic]);
+                    vacc0 = vfmaq(vacc0, vw2, x2[ic]);
+                    vacc1 = vfmaq(vacc1, vw2, x3[ic]);
+                    vacc0 = vfmaq(vacc0, vw3, x3[ic]);
+                    vacc1 = vfmaq(vacc1, vw3, x4[ic]);
+                    vacc0 = vfmaq(vacc0, vw4, x4[ic]);
+                    vacc1 = vfmaq(vacc1, vw4, x5[ic]);
+                }
+                if (!fold)
+                {
+                    break;
+                }
+                arm_nn_f16_fold_lanes_f32(&vacc0_sum_even, &vacc0_sum_odd, vacc0, end == span);
+                arm_nn_f16_fold_lanes_f32(&vacc1_sum_even, &vacc1_sum_odd, vacc1, end == span);
+                if (ic == in_c)
+                {
+                    vacc0 = arm_nn_f16_narrow_lanes_f32(vacc0_sum_even, vacc0_sum_odd);
+                    vacc1 = arm_nn_f16_narrow_lanes_f32(vacc1_sum_even, vacc1_sum_odd);
+                    break;
+                }
+                vacc0 = vdupq_n_f16((float16_t)0.0f);
+                vacc1 = vdupq_n_f16((float16_t)0.0f);
             }
 
             vst1q_p(y0 + oc, vacc0, p);
@@ -127,14 +179,32 @@ void arm_nn_conv1d_k5_packed_f16(const float16_t *__RESTRICT x_nhwc,
             const float16_t *w_base = kernel_packed + ((size_t)oc / block_cols) * 5U * (size_t)in_c * block_cols;
             float16x8_t vacc = b ? vld1q(b + oc) : vdupq_n_f16((float16_t)0.0f);
 
-            for (int32_t ic = 0; ic < in_c; ++ic)
+            float32x4_t vacc_sum_even = vdupq_n_f32(0.0f);
+            float32x4_t vacc_sum_odd = vdupq_n_f32(0.0f);
+            int32_t ic = 0;
+            for (;;)
             {
-                const float16_t *w_ic = w_base + (size_t)ic * block_cols;
-                vacc = vfmaq(vacc, vld1q(w_ic + 0U * in_c * block_cols), x0[ic]);
-                vacc = vfmaq(vacc, vld1q(w_ic + 1U * in_c * block_cols), x1[ic]);
-                vacc = vfmaq(vacc, vld1q(w_ic + 2U * in_c * block_cols), x2[ic]);
-                vacc = vfmaq(vacc, vld1q(w_ic + 3U * in_c * block_cols), x3[ic]);
-                vacc = vfmaq(vacc, vld1q(w_ic + 4U * in_c * block_cols), x4[ic]);
+                const int32_t end = (in_c - ic > span) ? ic + span : in_c;
+                for (; ic < end; ++ic)
+                {
+                    const float16_t *w_ic = w_base + (size_t)ic * block_cols;
+                    vacc = vfmaq(vacc, vld1q(w_ic + 0U * in_c * block_cols), x0[ic]);
+                    vacc = vfmaq(vacc, vld1q(w_ic + 1U * in_c * block_cols), x1[ic]);
+                    vacc = vfmaq(vacc, vld1q(w_ic + 2U * in_c * block_cols), x2[ic]);
+                    vacc = vfmaq(vacc, vld1q(w_ic + 3U * in_c * block_cols), x3[ic]);
+                    vacc = vfmaq(vacc, vld1q(w_ic + 4U * in_c * block_cols), x4[ic]);
+                }
+                if (!fold)
+                {
+                    break;
+                }
+                arm_nn_f16_fold_lanes_f32(&vacc_sum_even, &vacc_sum_odd, vacc, end == span);
+                if (ic == in_c)
+                {
+                    vacc = arm_nn_f16_narrow_lanes_f32(vacc_sum_even, vacc_sum_odd);
+                    break;
+                }
+                vacc = vdupq_n_f16((float16_t)0.0f);
             }
 
             vst1q(y + oc, vacc);
@@ -147,14 +217,32 @@ void arm_nn_conv1d_k5_packed_f16(const float16_t *__RESTRICT x_nhwc,
             const float16_t *w_base = kernel_packed + ((size_t)oc / block_cols) * 5U * (size_t)in_c * block_cols;
             float16x8_t vacc = b ? vld1q_z(b + oc, p) : vdupq_n_f16((float16_t)0.0f);
 
-            for (int32_t ic = 0; ic < in_c; ++ic)
+            float32x4_t vacc_sum_even = vdupq_n_f32(0.0f);
+            float32x4_t vacc_sum_odd = vdupq_n_f32(0.0f);
+            int32_t ic = 0;
+            for (;;)
             {
-                const float16_t *w_ic = w_base + (size_t)ic * block_cols;
-                vacc = vfmaq(vacc, vld1q_z(w_ic + 0U * in_c * block_cols, p), x0[ic]);
-                vacc = vfmaq(vacc, vld1q_z(w_ic + 1U * in_c * block_cols, p), x1[ic]);
-                vacc = vfmaq(vacc, vld1q_z(w_ic + 2U * in_c * block_cols, p), x2[ic]);
-                vacc = vfmaq(vacc, vld1q_z(w_ic + 3U * in_c * block_cols, p), x3[ic]);
-                vacc = vfmaq(vacc, vld1q_z(w_ic + 4U * in_c * block_cols, p), x4[ic]);
+                const int32_t end = (in_c - ic > span) ? ic + span : in_c;
+                for (; ic < end; ++ic)
+                {
+                    const float16_t *w_ic = w_base + (size_t)ic * block_cols;
+                    vacc = vfmaq(vacc, vld1q_z(w_ic + 0U * in_c * block_cols, p), x0[ic]);
+                    vacc = vfmaq(vacc, vld1q_z(w_ic + 1U * in_c * block_cols, p), x1[ic]);
+                    vacc = vfmaq(vacc, vld1q_z(w_ic + 2U * in_c * block_cols, p), x2[ic]);
+                    vacc = vfmaq(vacc, vld1q_z(w_ic + 3U * in_c * block_cols, p), x3[ic]);
+                    vacc = vfmaq(vacc, vld1q_z(w_ic + 4U * in_c * block_cols, p), x4[ic]);
+                }
+                if (!fold)
+                {
+                    break;
+                }
+                arm_nn_f16_fold_lanes_f32(&vacc_sum_even, &vacc_sum_odd, vacc, end == span);
+                if (ic == in_c)
+                {
+                    vacc = arm_nn_f16_narrow_lanes_f32(vacc_sum_even, vacc_sum_odd);
+                    break;
+                }
+                vacc = vdupq_n_f16((float16_t)0.0f);
             }
 
             vst1q_p(y + oc, vacc, p);
@@ -175,22 +263,48 @@ void arm_nn_conv1d_k5_packed_f16(const float16_t *__RESTRICT x_nhwc,
         {
             const int32_t lane = oc % block_cols;
             const float16_t *w_base = kernel_packed + ((size_t)oc / block_cols) * 5U * (size_t)in_c * block_cols;
-            _Float16 acc = b ? (_Float16)b[oc] : (_Float16)0.0f;
+            /* Accumulate in float32 and round to f16 once at the store (#449, #465). */
+            float32_t acc = b ? (float32_t)b[oc] : 0.0f;
 
             for (int32_t ic = 0; ic < in_c; ++ic)
             {
                 const float16_t *w_ic = w_base + (size_t)ic * block_cols;
-                acc += (_Float16)x0[ic] * (_Float16)w_ic[(size_t)0 * in_c * block_cols + lane];
-                acc += (_Float16)x1[ic] * (_Float16)w_ic[(size_t)1 * in_c * block_cols + lane];
-                acc += (_Float16)x2[ic] * (_Float16)w_ic[(size_t)2 * in_c * block_cols + lane];
-                acc += (_Float16)x3[ic] * (_Float16)w_ic[(size_t)3 * in_c * block_cols + lane];
-                acc += (_Float16)x4[ic] * (_Float16)w_ic[(size_t)4 * in_c * block_cols + lane];
+                acc += (float32_t)x0[ic] * (float32_t)w_ic[(size_t)0 * in_c * block_cols + lane];
+                acc += (float32_t)x1[ic] * (float32_t)w_ic[(size_t)1 * in_c * block_cols + lane];
+                acc += (float32_t)x2[ic] * (float32_t)w_ic[(size_t)2 * in_c * block_cols + lane];
+                acc += (float32_t)x3[ic] * (float32_t)w_ic[(size_t)3 * in_c * block_cols + lane];
+                acc += (float32_t)x4[ic] * (float32_t)w_ic[(size_t)4 * in_c * block_cols + lane];
             }
 
             y[oc] = (float16_t)acc;
         }
     }
     #endif
+}
+
+void arm_nn_conv1d_k5_packed_f16(const float16_t *__RESTRICT x_nhwc,
+                                 int32_t in_c,
+                                 int32_t in_w,
+                                 const float16_t *__RESTRICT kernel_packed,
+                                 const float16_t *__RESTRICT b,
+                                 float16_t *__RESTRICT out,
+                                 int32_t out_c,
+                                 int32_t out_w)
+{
+    arm_nn_conv1d_k5_packed_f16_body(x_nhwc, in_c, in_w, kernel_packed, b, out, out_c, out_w, ARM_NN_F16_ACC_BLOCK);
+}
+
+void arm_nn_conv1d_k5_packed_f16_acc16(const float16_t *__RESTRICT x_nhwc,
+                                       int32_t in_c,
+                                       int32_t in_w,
+                                       const float16_t *__RESTRICT kernel_packed,
+                                       const float16_t *__RESTRICT b,
+                                       float16_t *__RESTRICT out,
+                                       int32_t out_c,
+                                       int32_t out_w)
+{
+    arm_nn_conv1d_k5_packed_f16_body(
+        x_nhwc, in_c, in_w, kernel_packed, b, out, out_c, out_w, ARM_NN_F16_ACC_BLOCK_NONE);
 }
 
 #endif /* ARM_NN_ENABLE_F16 */

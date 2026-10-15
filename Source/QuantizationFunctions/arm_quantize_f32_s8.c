@@ -60,7 +60,8 @@ arm_quantize_f32_s8(const float *input, int8_t *output, int32_t size, int32_t ze
     {
         mve_pred16_t pred = vctp32q(size);
         size -= 4;
-        float32x4_t vals = vldrwq_z_f32(input, pred);
+        const size_t offset = (size_t)i * 4U;
+        float32x4_t vals = vldrwq_z_f32(input + offset, pred);
         /* VCVTA rounds to nearest with ties away from zero, matching roundf() on the scalar path and the
          * TensorFlow Lite reference. A preceding VRNDN would resolve ties to even first. This leg multiplies by
          * the rounded reciprocal of the scale (Helium has no vector divide), so for a scale whose reciprocal is
@@ -69,9 +70,7 @@ arm_quantize_f32_s8(const float *input, int8_t *output, int32_t size, int32_t ze
         int32x4_t rounded = vcvtaq_s32_f32(vmulq_n_f32(vals, mul_scale));
         int32x4_t clamped = vminq_s32(vmaxq_s32(rounded, min), max);
         int32x4_t shifted = vaddq_n_s32(clamped, zero_point);
-        vstrbq_p_s32(output, shifted, pred);
-        input += 4;
-        output += 4;
+        vstrbq_p_s32(output + offset, shifted, pred);
     }
 #else
     for (int i = 0; i < size; i++)

@@ -50,8 +50,8 @@ void svdf_arm_svdf_state_s16_s8(void)
     cmsis_nn_dims input_dims;
     cmsis_nn_dims weights_feature_dims;
     cmsis_nn_dims weights_time_dims;
-    cmsis_nn_dims state_dims;
-    cmsis_nn_dims output_dims;
+    cmsis_nn_dims state_dims = {0};
+    cmsis_nn_dims output_dims = {0};
     cmsis_nn_dims bias_dims;
     cmsis_nn_per_tensor_quant_params input_quant_params;
     cmsis_nn_per_tensor_quant_params output_quant_params;
@@ -105,6 +105,7 @@ void svdf_arm_svdf_state_s16_s8(void)
 
     const bool null_bias = check_null_bias(svdf_biases, SVDF_DST_SIZE / SVDF_INPUT_BATCHES);
 
+    bias_dims = (cmsis_nn_dims){1, 1, 1, weights_feature_dims.n / svdf_params.rank};
     for (int i = 0; i < REPEAT_NUM; i++)
     {
         memcpy(state_data, svdf_state, sizeof(svdf_state));
@@ -148,8 +149,8 @@ void svdf_1_arm_svdf_state_s16_s8(void)
     cmsis_nn_dims input_dims;
     cmsis_nn_dims weights_feature_dims;
     cmsis_nn_dims weights_time_dims;
-    cmsis_nn_dims state_dims;
-    cmsis_nn_dims output_dims;
+    cmsis_nn_dims state_dims = {0};
+    cmsis_nn_dims output_dims = {0};
     cmsis_nn_dims bias_dims;
     cmsis_nn_per_tensor_quant_params input_quant_params;
     cmsis_nn_per_tensor_quant_params output_quant_params;
@@ -202,6 +203,7 @@ void svdf_1_arm_svdf_state_s16_s8(void)
     int16_t *state_data = malloc(sizeof(svdf_1_state));
     const bool null_bias = check_null_bias(svdf_1_biases, SVDF_1_DST_SIZE / SVDF_1_INPUT_BATCHES);
 
+    bias_dims = (cmsis_nn_dims){1, 1, 1, weights_feature_dims.n / svdf_1_params.rank};
     for (int i = 0; i < REPEAT_NUM; i++)
     {
         memcpy(state_data, svdf_1_state, sizeof(svdf_1_state));
@@ -245,8 +247,8 @@ void svdf_2_arm_svdf_state_s16_s8(void)
     cmsis_nn_dims input_dims;
     cmsis_nn_dims weights_feature_dims;
     cmsis_nn_dims weights_time_dims;
-    cmsis_nn_dims state_dims;
-    cmsis_nn_dims output_dims;
+    cmsis_nn_dims state_dims = {0};
+    cmsis_nn_dims output_dims = {0};
     cmsis_nn_dims bias_dims;
     cmsis_nn_per_tensor_quant_params input_quant_params;
     cmsis_nn_per_tensor_quant_params output_quant_params;
@@ -299,6 +301,7 @@ void svdf_2_arm_svdf_state_s16_s8(void)
     int16_t *state_data = malloc(sizeof(svdf_2_state));
     const bool null_bias = check_null_bias(svdf_2_biases, SVDF_2_DST_SIZE / SVDF_2_INPUT_BATCHES);
 
+    bias_dims = (cmsis_nn_dims){1, 1, 1, weights_feature_dims.n / svdf_2_params.rank};
     for (int i = 0; i < REPEAT_NUM; i++)
     {
         memcpy(state_data, svdf_2_state, sizeof(svdf_2_state));
@@ -342,8 +345,8 @@ void svdf_3_arm_svdf_state_s16_s8(void)
     cmsis_nn_dims input_dims;
     cmsis_nn_dims weights_feature_dims;
     cmsis_nn_dims weights_time_dims;
-    cmsis_nn_dims state_dims;
-    cmsis_nn_dims output_dims;
+    cmsis_nn_dims state_dims = {0};
+    cmsis_nn_dims output_dims = {0};
     cmsis_nn_dims bias_dims;
     cmsis_nn_per_tensor_quant_params input_quant_params;
     cmsis_nn_per_tensor_quant_params output_quant_params;
@@ -396,6 +399,7 @@ void svdf_3_arm_svdf_state_s16_s8(void)
     int16_t *state_data = malloc(sizeof(svdf_3_state));
     const bool null_bias = check_null_bias(svdf_3_biases, SVDF_3_DST_SIZE / SVDF_3_INPUT_BATCHES);
 
+    bias_dims = (cmsis_nn_dims){1, 1, 1, weights_feature_dims.n / svdf_3_params.rank};
     for (int i = 0; i < REPEAT_NUM; i++)
     {
         memcpy(state_data, svdf_3_state, sizeof(svdf_3_state));

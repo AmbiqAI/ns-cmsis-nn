@@ -31,6 +31,23 @@
  * @{
  */
 
+/* Keep the uncommon wide arithmetic out of the ordinary loop's register allocation. */
+static __attribute__((noinline)) void arm_nn_requantize_s16_wide(const int16_t *input,
+                                                                 int16_t *output,
+                                                                 const int32_t size,
+                                                                 const int32_t multiplier,
+                                                                 const int32_t shift,
+                                                                 const int32_t input_zeropoint,
+                                                                 const int32_t output_zeropoint)
+{
+    for (int32_t i = 0; i < size; i++)
+    {
+        const int32_t centered = (int32_t)input[i] - input_zeropoint;
+        const int64_t val = arm_nn_requantize_positive_shift_s64(centered, multiplier, shift) + output_zeropoint;
+        output[i] = (int16_t)ARM_NN_CLAMP(val, INT16_MAX, INT16_MIN);
+    }
+}
+
 /*
  * int16_t to int16_t requantization function.
  *
@@ -45,8 +62,14 @@ arm_cmsis_nn_status arm_requantize_s16_s16(const int16_t *input,
                                            int32_t input_zeropoint,
                                            int32_t output_zeropoint)
 {
-
-#if defined(ARM_MATH_MVEI)
+    /* Centered int16 values fit the extra single-rounding MVE left shift through exponent 14. */
+    if (effective_scale_shift > 14)
+    {
+        arm_nn_requantize_s16_wide(
+            input, output, size, effective_scale_multiplier, effective_scale_shift, input_zeropoint, output_zeropoint);
+        return ARM_CMSIS_NN_SUCCESS;
+    }
+#if defined(ARM_MATH_MVEI) && !defined(ARM_MATH_AUTOVECTORIZE)
     const int32x4_t min = vdupq_n_s32(INT16_MIN);
     const int32x4_t max = vdupq_n_s32(INT16_MAX);
 
@@ -66,8 +89,8 @@ arm_cmsis_nn_status arm_requantize_s16_s16(const int16_t *input,
         output += 4;
     }
 
-    /* size & 3 is 3 for any negative size, so the tail is gated on size instead: a negative
-       length must write nothing, as the scalar path below does. */
+    /* Negative lengths can leave a nonzero remainder mask. Gate the tail on size so
+       they write nothing, as the scalar path below does. */
     const int32_t tail = size > 0 ? (size & 3) : 0;
     if (tail)
     {

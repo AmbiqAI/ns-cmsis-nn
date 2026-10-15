@@ -50,9 +50,8 @@
         const uint32_t output_stride_elems = (uint32_t)output_x;                                                       \
         for (uint32_t i = 0; i < num_iterations; ++i)                                                                  \
         {                                                                                                              \
-            arm_memcpy_##SUFFIX(out, in, input_copy_elems);                                                            \
+            arm_memcpy_##SUFFIX(out + (size_t)i * output_stride_elems, in, input_copy_elems);                          \
             in += input_copy_elems;                                                                                    \
-            out += output_stride_elems;                                                                                \
         }                                                                                                              \
     }                                                                                                                  \
     void arm_concatenation_##SUFFIX##_y(const TYPE *input,                                                             \
@@ -71,9 +70,8 @@
         TYPE *out = output + (size_t)offset_y * (size_t)input_x;                                                       \
         for (uint32_t i = 0; i < num_iterations; ++i)                                                                  \
         {                                                                                                              \
-            arm_memcpy_##SUFFIX(out, in, input_copy_elems);                                                            \
+            arm_memcpy_##SUFFIX(out + (size_t)i * output_stride_elems, in, input_copy_elems);                          \
             in += input_copy_elems;                                                                                    \
-            out += output_stride_elems;                                                                                \
         }                                                                                                              \
     }                                                                                                                  \
     void arm_concatenation_##SUFFIX##_z(const TYPE *input,                                                             \
@@ -91,9 +89,8 @@
         TYPE *out = output + (size_t)offset_z * (size_t)input_x * (size_t)input_y;                                     \
         for (uint32_t i = 0; i < (uint32_t)input_w; ++i)                                                               \
         {                                                                                                              \
-            arm_memcpy_##SUFFIX(out, in, input_copy_elems);                                                            \
+            arm_memcpy_##SUFFIX(out + (size_t)i * output_stride_elems, in, input_copy_elems);                          \
             in += input_copy_elems;                                                                                    \
-            out += output_stride_elems;                                                                                \
         }                                                                                                              \
     }                                                                                                                  \
     void arm_concatenation_##SUFFIX##_w(const TYPE *input,                                                             \
