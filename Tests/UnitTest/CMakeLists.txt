@@ -377,7 +377,7 @@ if(NOT BUILD_CMSIS_NN_UNIT_TESTS_FOR_FVP_BASED_CORSTONE_300 AND NOT CMAKE_CROSSC
     add_subdirectory(TestCases/vector_svdf_pointer_probe)
 endif()
 
-# The standalone integer probes restore shift-base checks for their own kernel objects.
+# The standalone integer probes build their own kernel objects with shift-base checks, whatever the library flags.
 # Cross toolchains need not provide the host sanitizer runtimes.
 # No test_arm directory prefix: unittest_targets.py reserves that for Unity suites.
 if(NOT BUILD_CMSIS_NN_UNIT_TESTS_FOR_FVP_BASED_CORSTONE_300

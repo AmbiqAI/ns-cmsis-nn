@@ -9,24 +9,15 @@ name: Host sanitizer unit tests
 #
 # Float16 needs _Float16 on x86, which the ubuntu-24.04 gcc provides.
 #
-# One UBSan check is masked: -fno-sanitize=shift-base. It silences two
-# diagnostics, not one: "left shift of negative value", and "left shift of X by
-# N places cannot be represented in type 'int'", i.e. signed left-shift
-# overflow of a positive value. Both are well defined on every Arm target but
-# UB in C. No suite reports under shift-base any more (gcc-12, F32 and F16 on):
-# the int4 decode paths (#612) and the softmax code (#704) now shift unsigned
-# values, and test_softmax_shift_probe rebuilds the softmax objects with
-# shift-base enabled.
-# Earlier inventories also listed arm_elementwise_{add,sub,mul}*_s16.c and
-# arm_{add,sub,mul}_scalar_s16.c -- those reported only through the shared
-# pack macros, which now use the defined unsigned-shift idiom (#357) and can
-# no longer fire -- plus the comparison and squared-difference files, which
-# re-measured as zero shift-base REPORTS on the suite corpus and were stale
-# entries all along. Zero reports is not zero sites: those TUs still inline
-# shift-base-instrumentable code from arm_nn_requantize, silent only because
-# no test reaches the offending shift counts. Removing the mask is #711.
+# Every UBSan check is on, including shift-base (#711): a left shift of a
+# negative value, or a signed left shift whose result does not fit in 'int', is
+# well defined on every Arm target but UB in C, and fails the suite. The int4
+# decode paths (#612), the shared s16 pack macros (#357) and the softmax code
+# (#704) shift unsigned values. Zero reports is not zero sites: TUs that inline
+# arm_nn_requantize still carry shift-base-instrumentable code that no test
+# reaches. The M4 DSP sites are not compiled on x86 at all.
 #
-# shift-exponent stays on, so a shift count at or past the operand width is
+# shift-exponent is on as well, so a shift count at or past the operand width is
 # still reported. LeakSanitizer is on (it is part of ASan by default), so a test
 # that mallocs without freeing fails its suite.
 #
@@ -85,7 +76,7 @@ jobs:
             -DARM_NN_ENABLE_F16=ON \
             "-DCONCAT_POINTER_CLANGXX:FILEPATH=$(command -v clang++)" \
             -DCMSIS_OPTIMIZATION_LEVEL=-O1 \
-            "-DCMAKE_C_FLAGS=-fsanitize=address,undefined -fno-sanitize=shift-base -fno-sanitize-recover=all -g -fno-omit-frame-pointer ${DEFINES}" \
+            "-DCMAKE_C_FLAGS=-fsanitize=address,undefined -fno-sanitize-recover=all -g -fno-omit-frame-pointer ${DEFINES}" \
             "-DCMAKE_EXE_LINKER_FLAGS=-fsanitize=address,undefined"
 
       - name: Build every suite

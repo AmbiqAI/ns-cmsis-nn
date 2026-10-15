@@ -1,7 +1,7 @@
 # SPDX-FileCopyrightText: 2026 Ambiq
 # SPDX-License-Identifier: LicenseRef-Ambiq-Apollo-SDK
 
-# Recompile the softmax objects with shift-base checks, which the host sanitizer leg masks (#704). Executable
+# Recompile the softmax objects with shift-base checks, whatever the library flags (#704). Executable
 # definitions win over archive members; cmsis-nn supplies the remaining helpers.
 add_executable(test_softmax_shift_probe
     softmax_shift_probe.c
