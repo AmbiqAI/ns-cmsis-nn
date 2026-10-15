@@ -3324,7 +3324,8 @@ __STATIC_FORCEINLINE int32x4_t arm_requantize_mve_pred(const int32x4_t val,
     const int32x4_t left_shift_dup = vdupq_x_n_s32(left_shift, p);
     const int32x4_t right_shift_dup = vdupq_x_n_s32(right_shift, p);
 
-    int32x4_t result = vqrdmulhq_m_n_s32(v_zero, vshlq_m_s32(v_zero, val, left_shift_dup, p), multiplier, p);
+    /* Truncate here: vrshl below performs the single rounding step. */
+    int32x4_t result = vqdmulhq_m_n_s32(v_zero, vshlq_m_s32(v_zero, val, left_shift_dup, p), multiplier, p);
     result = vrshlq_m_s32(v_zero, result, right_shift_dup, p);
 
     return result;
