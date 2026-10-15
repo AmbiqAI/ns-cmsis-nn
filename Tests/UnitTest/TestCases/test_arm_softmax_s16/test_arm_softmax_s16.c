@@ -97,3 +97,34 @@ void softmax_s16_row_domains_arm_softmax_s16(void)
     TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR, arm_softmax_s16(NULL, 0, 0, 1, 0, &missing_exp, NULL));
     TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR, arm_softmax_s16(NULL, -1, 3, 1, 0, &missing_reciprocal, NULL));
 }
+
+void softmax_s16_saturation_arm_softmax_s16(void)
+{
+    const cmsis_nn_softmax_lut_s16 params = {softmax_s16_exp_lut, softmax_s16_one_by_one_lut};
+    const int16_t input[] = {INT16_MIN, -12345, -1, 0, 1, 777, INT16_MAX};
+    int16_t output[7];
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
+                      arm_softmax_s16(input, 7, 1, SOFTMAX_S16_INPUT_MULT,
+                                      SOFTMAX_S16_INPUT_LEFT_SHIFT, &params, output));
+    for (int i = 0; i < 7; i++)
+    {
+        TEST_ASSERT_EQUAL_INT16(INT16_MAX, output[i]);
+    }
+}
+
+void softmax_s16_normalization_boundary_arm_softmax_s16(void)
+{
+    const cmsis_nn_softmax_lut_s16 params = {softmax_s16_exp_lut, softmax_s16_one_by_one_lut};
+    /* Standard LUT interpolation gives eight exponents of 32762 and one of 47.
+     * Their sum, 262143, normalizes and rounds to 131072, beyond the LUT domain.
+     * Rounded 64-bit probabilities are 4095 and 6, respectively. */
+    const int16_t input[9] = {32767, 32767, 32767, 32767, 32767, 32767, 32767, 32767, -10176};
+    int16_t output[9];
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, arm_softmax_s16(input, 1, 9, 1, 31, &params, output));
+    for (int i = 0; i < 9; i++)
+    {
+        const int64_t exponent = i == 8 ? 47 : 32762;
+        const int16_t expected = (int16_t)((exponent * 32768 + 262143 / 2) / 262143);
+        TEST_ASSERT_EQUAL_INT16(expected, output[i]);
+    }
+}

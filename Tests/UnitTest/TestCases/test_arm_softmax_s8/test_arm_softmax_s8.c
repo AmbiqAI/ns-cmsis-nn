@@ -117,3 +117,28 @@ void divide_by_power_of_two_arm_softmax_s8(void)
         }
     }
 }
+
+void softmax_shift31_arm_softmax_s8(void)
+{
+    int8_t out[9];
+    int16_t out16[9];
+    uint8_t out_u8[9];
+    /* Doubling differences at shift 30 is equivalent to shift 31. Nine lanes
+     * cover both the MVE vector body and its scalar tail, including a -1 input. */
+    const int8_t edge[9] = {0, -1, 0, -1, 0, -1, 0, -1, -1};
+    const int8_t doubled[9] = {0, -2, 0, -2, 0, -2, 0, -2, -2};
+    const uint8_t edge_u8[9] = {2, 1, 2, 1, 2, 1, 2, 1, 1};
+    const uint8_t doubled_u8[9] = {2, 0, 2, 0, 2, 0, 2, 0, 0};
+    int8_t ref[9];
+    int16_t ref16[9];
+    uint8_t ref_u8[9];
+    arm_softmax_s8(doubled, 1, 9, 1077952576, 30, -2, ref);
+    arm_softmax_s8_s16(doubled, 1, 9, 1077952576, 30, -2, ref16);
+    arm_softmax_u8(doubled_u8, 1, 9, 1077952576, 30, -2, ref_u8);
+    arm_softmax_s8(edge, 1, 9, 1077952576, 31, -1, out);
+    arm_softmax_s8_s16(edge, 1, 9, 1077952576, 31, -1, out16);
+    arm_softmax_u8(edge_u8, 1, 9, 1077952576, 31, -1, out_u8);
+    TEST_ASSERT_EQUAL_INT8_ARRAY(ref, out, 9);
+    TEST_ASSERT_EQUAL_INT16_ARRAY(ref16, out16, 9);
+    TEST_ASSERT_EQUAL_UINT8_ARRAY(ref_u8, out_u8, 9);
+}

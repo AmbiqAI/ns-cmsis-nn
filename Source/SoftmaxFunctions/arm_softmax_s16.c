@@ -106,12 +106,13 @@ arm_cmsis_nn_status arm_softmax_s16(const int16_t *input,
         const int32_t headroom = CLZ(sum);
 
         // Compute the reciprocal 1/sum
-        const int32_t shifted_sum = (((sum) << (headroom - 1)) + (1 << 13)) >> 14;
+        const int32_t shifted_sum = (int32_t)((((uint32_t)sum << (headroom - 1)) + (1U << 13)) >> 14);
 
         // Since LUT computes 1/(1 + x), compute x = (sum - 1) => -65536
         // Since LUT expects a symmetrical input, recenter from [UINT16_MIN, UINT16_MAX] to [INT16_MIN, INT16_MAX] =>
         // -32768 ==> So in total -65536 -32768 => -98304
-        const int16_t symmetric_shifted_sum = shifted_sum - 98304;
+        /* Rounding can reach the upper endpoint; keep the input inside the LUT domain. */
+        const int16_t symmetric_shifted_sum = ARM_NN_MIN(shifted_sum - 98304, NN_Q15_MAX);
 
         // Lookup from one by one table
         const int16_t index = (256 + (symmetric_shifted_sum >> 7));
@@ -126,7 +127,7 @@ arm_cmsis_nn_status arm_softmax_s16(const int16_t *input,
             const int16_t right_shift = 30 - headroom;
             int32_t result = (cached_exp_results[col] * one_by_one_result) >> right_shift;
             result = (result + 1) >> 1; // Last shift position and insert round
-            output[col] = (int16_t)result;
+            output[col] = (int16_t)ARM_NN_MIN(result, NN_Q15_MAX);
         }
 
         output += row_size;
