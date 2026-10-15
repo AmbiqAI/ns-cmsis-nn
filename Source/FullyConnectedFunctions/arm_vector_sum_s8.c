@@ -116,18 +116,10 @@ arm_cmsis_nn_status arm_vector_sum_s8(int32_t *vector_sum_buf,
         for (int i = 0; i < vector_rows; i++)
         {
             uint32_t sum_bits = 0;
-            uint32_t sum_odd = 0;
-            int j = 0;
-            for (; j + 1 < vector_cols; j += 2)
-            {
-                sum_bits += (uint32_t)*vector_data++;
-                sum_odd += (uint32_t)*vector_data++;
-            }
-            if (j < vector_cols)
+            for (int j = 0; j < vector_cols; j++)
             {
                 sum_bits += (uint32_t)*vector_data++;
             }
-            sum_bits += sum_odd;
             int32_t sum;
             memcpy(&sum, &sum_bits, sizeof(sum));
             if (rhs_offset)
