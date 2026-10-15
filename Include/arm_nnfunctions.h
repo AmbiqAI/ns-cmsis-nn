@@ -4842,6 +4842,56 @@ arm_cmsis_nn_status arm_maximum_s16(const cmsis_nn_context *ctx,
  */
 
 /**
+ * @brief Boolean AND with NHWC singleton broadcasting (scalar through rank four).
+ * @param[in] input_1 First Boolean tensor.
+ * @param[in] input_1_dims First shape, left-padded with ones to NHWC.
+ * @param[in] input_2 Second Boolean tensor.
+ * @param[in] input_2_dims Second shape, left-padded with ones to NHWC.
+ * @param[out] output Boolean result, sized by output_dims.
+ * @param[in] output_dims Exact broadcast output shape.
+ * @return ARM_CMSIS_NN_SUCCESS, or ARM_CMSIS_NN_ARG_ERROR without writes for null
+ *         arguments, nonpositive/incompatible dimensions or output count exceeding INT32_MAX.
+ * @details No quantization or scratch. Inputs must contain valid C bool objects
+ *          (one-byte 0/1 on Arm); this is logical, not integer bitwise, AND.
+ *          Output must not overlap either input. Buffer capacity and valid object
+ *          representations are the caller's responsibility. Generic, DSP and MVE supported.
+ */
+arm_cmsis_nn_status arm_logical_and_bool(const bool *input_1,
+                                         const cmsis_nn_dims *input_1_dims,
+                                         const bool *input_2,
+                                         const cmsis_nn_dims *input_2_dims,
+                                         bool *output,
+                                         const cmsis_nn_dims *output_dims);
+
+/**
+ * @brief Boolean OR with the same shape, buffer and validation contract as arm_logical_and_bool.
+ * @param[in] input_1 First Boolean tensor.
+ * @param[in] input_1_dims First shape, left-padded with ones to NHWC.
+ * @param[in] input_2 Second Boolean tensor.
+ * @param[in] input_2_dims Second shape, left-padded with ones to NHWC.
+ * @param[out] output Boolean result, sized by output_dims.
+ * @param[in] output_dims Exact broadcast output shape.
+ * @return ARM_CMSIS_NN_SUCCESS, or ARM_CMSIS_NN_ARG_ERROR without writes for invalid arguments.
+ */
+arm_cmsis_nn_status arm_logical_or_bool(const bool *input_1,
+                                        const cmsis_nn_dims *input_1_dims,
+                                        const bool *input_2,
+                                        const cmsis_nn_dims *input_2_dims,
+                                        bool *output,
+                                        const cmsis_nn_dims *output_dims);
+
+/**
+ * @brief Boolean NOT over a contiguous tensor of any rank.
+ * @param[in] input Valid C bool objects (one-byte 0/1 on Arm).
+ * @param[out] output Nonoverlapping Boolean result with capacity for count elements.
+ * @param[in] count Positive number of elements.
+ * @return ARM_CMSIS_NN_SUCCESS, or ARM_CMSIS_NN_ARG_ERROR without writes for null
+ *         arguments or nonpositive count. Buffer capacity and object validity are caller-owned.
+ * @details No quantization or scratch. Generic, DSP and MVE supported.
+ */
+arm_cmsis_nn_status arm_logical_not_bool(const bool *input, bool *output, int32_t count);
+
+/**
  * @brief s8 elementwise comparison with support for broadcasting.
  *
  * @param[in]   ctx                   Unused; may be NULL.

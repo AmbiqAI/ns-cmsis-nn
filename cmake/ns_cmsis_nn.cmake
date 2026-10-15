@@ -176,7 +176,7 @@ function(_ns_cmsis_nn_group_def group out_subdir out_patterns out_extras)
                          "arm_rsqrt_f16.c")
     endif()
   elseif(group STREQUAL "comparison")
-    set(subdir   "ComparisonFunctions")
+    set(subdir   "ComparisonFunctions") # Numeric comparisons and Boolean logical entries.
     set(patterns "*.c")
   elseif(group STREQUAL "concatenation")
     set(subdir   "ConcatenationFunctions")
