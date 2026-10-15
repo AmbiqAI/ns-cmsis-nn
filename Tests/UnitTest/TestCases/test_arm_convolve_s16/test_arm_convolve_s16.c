@@ -2678,6 +2678,47 @@ static int16_t wide_cols_buffer[2 * 262144 + 64] WIDE_COLS_SECTION;
 
 void wide_columns_counters_arm_convolve_s16(void)
 {
+#if defined(ARM_MATH_DSP) && !defined(ARM_MATH_MVEI)
+    {
+        /* Both DSP quad counters must reach 65536: channels 0/1 use the pair loop, channel 2 the odd loop.
+           Reuse the im2col buffer as two explicit input columns to fit the Corstone SRAM allocation. */
+        const int32_t cols = 262144;
+        for (int32_t k = 0; k < cols; k++)
+        {
+            wide_cols_buffer[k] = 1;
+            wide_cols_buffer[cols + k] = 2;
+            for (int32_t oc = 0; oc < 3; oc++)
+            {
+                wide_cols_kernel[oc * cols + k] = (int8_t)(oc + 1);
+            }
+        }
+        const int32_t bias[3] = {0, 0, 0};
+        const int32_t mult[3] = {1 << 30, 1 << 30, 1 << 30};
+        const int32_t shift[3] = {-5, -5, -5};
+        const cmsis_nn_bias_data bias_data = {bias, true};
+        int16_t output[6] = {0};
+        TEST_ASSERT_EQUAL_PTR(output + 6,
+                              arm_nn_mat_mult_kernel_s16(wide_cols_kernel,
+                                                         wide_cols_buffer,
+                                                         3,
+                                                         shift,
+                                                         mult,
+                                                         -32768,
+                                                         32767,
+                                                         cols,
+                                                         &bias_data,
+                                                         output,
+                                                         3));
+        for (int32_t x = 0; x < 2; x++)
+        {
+            for (int32_t oc = 0; oc < 3; oc++)
+            {
+                /* Exact sum = 262144 * (x + 1) * (oc + 1); requantization divides by 64. */
+                TEST_ASSERT_EQUAL_INT16(4096 * (x + 1) * (oc + 1), output[x * 3 + oc]);
+            }
+        }
+    }
+#endif
     /* kernel W, input channels, input W, output channels, int64 bias */
     const int32_t cases[2][5] = {{8, 8193, 8, 2, 0}, {128, 520, 129, 3, 1}};
     for (int32_t c = 0; c < 2; c++)
@@ -2743,45 +2784,7 @@ void wide_columns_counters_arm_convolve_s16(void)
             }
         }
     }
-#if defined(ARM_MATH_DSP) && !defined(ARM_MATH_MVEI)
-    /* Both DSP quad counters must reach 65536: channels 0/1 use the pair loop, channel 2 the odd loop.
-       Reuse the im2col buffer as two explicit input columns to fit the Corstone SRAM allocation. */
-    const int32_t cols = 262144;
-    for (int32_t k = 0; k < cols; k++)
-    {
-        wide_cols_buffer[k] = 1;
-        wide_cols_buffer[cols + k] = 2;
-        for (int32_t oc = 0; oc < 3; oc++)
-        {
-            wide_cols_kernel[oc * cols + k] = (int8_t)(oc + 1);
-        }
-    }
-    const int32_t bias[3] = {0, 0, 0};
-    const int32_t mult[3] = {1 << 30, 1 << 30, 1 << 30};
-    const int32_t shift[3] = {-5, -5, -5};
-    const cmsis_nn_bias_data bias_data = {bias, true};
-    int16_t output[6] = {0};
-    TEST_ASSERT_EQUAL_PTR(output + 6,
-                          arm_nn_mat_mult_kernel_s16(wide_cols_kernel,
-                                                     wide_cols_buffer,
-                                                     3,
-                                                     shift,
-                                                     mult,
-                                                     -32768,
-                                                     32767,
-                                                     cols,
-                                                     &bias_data,
-                                                     output,
-                                                     3));
-    for (int32_t x = 0; x < 2; x++)
-    {
-        for (int32_t oc = 0; oc < 3; oc++)
-        {
-            /* Exact sum = 262144 * (x + 1) * (oc + 1); requantization divides by 64. */
-            TEST_ASSERT_EQUAL_INT16(4096 * (x + 1) * (oc + 1), output[x * 3 + oc]);
-        }
-    }
-#endif
+
 
 }
 
