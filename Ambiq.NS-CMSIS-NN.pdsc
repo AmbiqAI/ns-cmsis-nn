@@ -85,6 +85,7 @@
         <file category="header" name="Include/Internal/arm_depthwise_conv_opt_f32.h"/>
         <file category="header" name="Include/Internal/arm_nn_arg_extrema_flt.h"/>
         <file category="header" name="Include/Internal/arm_nn_broadcast_walk.h"/>
+        <file category="header" name="Include/Internal/arm_nn_compare_s32.h"/>
         <file category="header" name="Include/Internal/arm_nn_logical_common.h"/>
         <file category="header" name="Include/Internal/arm_nn_reduce_bool.h"/>
         <file category="header" name="Include/Internal/arm_nn_reduce_extrema_flt.h"/>
@@ -227,10 +228,16 @@
         <file category="source" name="Source/ComparisonFunctions/arm_comparison_s16.c"/>
         <file category="source" name="Source/ComparisonFunctions/arm_comparison_s8.c"/>
         <file category="source" name="Source/ComparisonFunctions/arm_equal_bool.c"/>
+        <file category="source" name="Source/ComparisonFunctions/arm_equal_s32.c"/>
+        <file category="source" name="Source/ComparisonFunctions/arm_greater_equal_s32.c"/>
+        <file category="source" name="Source/ComparisonFunctions/arm_greater_s32.c"/>
+        <file category="source" name="Source/ComparisonFunctions/arm_less_equal_s32.c"/>
+        <file category="source" name="Source/ComparisonFunctions/arm_less_s32.c"/>
         <file category="source" name="Source/ComparisonFunctions/arm_logical_and_bool.c"/>
         <file category="source" name="Source/ComparisonFunctions/arm_logical_not_bool.c"/>
         <file category="source" name="Source/ComparisonFunctions/arm_logical_or_bool.c"/>
         <file category="source" name="Source/ComparisonFunctions/arm_not_equal_bool.c"/>
+        <file category="source" name="Source/ComparisonFunctions/arm_not_equal_s32.c"/>
         <file category="source" name="Source/ComparisonFunctions/arm_reduce_all_bool.c"/>
         <file category="source" name="Source/ComparisonFunctions/arm_reduce_any_bool.c"/>
         <file category="source" name="Source/ConcatenationFunctions/arm_concatenation_f16.c"/>
@@ -473,10 +480,11 @@
         <file category="source" name="Source/BroadcastFunctions/arm_broadcast_to_s16.c"/>
         <file category="source" name="Source/ScatterFunctions/arm_scatter_nd_s8.c"/>
         <file category="source" name="Source/ScatterFunctions/arm_scatter_nd_s16.c"/>
-        <file category="source" name="Source/SelectFunctions/arm_select_v2_s8.c"/>
         <file category="source" name="Source/SelectFunctions/arm_select_v2_s16.c"/>
-        <file category="source" name="Source/SelectFunctions/arm_where_s8.c"/>
+        <file category="source" name="Source/SelectFunctions/arm_select_v2_s32.c"/>
+        <file category="source" name="Source/SelectFunctions/arm_select_v2_s8.c"/>
         <file category="source" name="Source/SelectFunctions/arm_where_s16.c"/>
+        <file category="source" name="Source/SelectFunctions/arm_where_s8.c"/>
         <file category="source" name="Source/ReverseSequenceFunctions/arm_reverse_sequence_s8.c"/>
         <file category="source" name="Source/ReverseSequenceFunctions/arm_reverse_sequence_s16.c"/>
         <file category="source" name="Source/DynamicUpdateSliceFunctions/arm_dynamic_update_slice_s8.c"/>

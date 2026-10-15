@@ -4892,6 +4892,87 @@ arm_cmsis_nn_status arm_logical_or_bool(const bool *input_1,
 arm_cmsis_nn_status arm_logical_not_bool(const bool *input, bool *output, int32_t count);
 
 /**
+ * @brief Exact signed INT32 equality with NHWC singleton broadcasting.
+ *
+ * Compares full-width signed values without quantization or subtraction. All
+ * dimensions must be positive, input extents equal or one, and output dimensions
+ * must be their broadcast shape. Output count must be <= INT32_MAX / sizeof(int32_t).
+ * Logical lower ranks use leading singleton dimensions. NULL arguments and invalid
+ * geometry return ARG_ERROR before writes. Buffers must be adequately sized,
+ * naturally aligned and nonoverlapping; output contains one-byte bool values.
+ * No scratch or float support is required.
+ *
+ * @param[in] input_1 First operand.
+ * @param[in] input_1_dims First operand shape.
+ * @param[in] input_2 Second operand.
+ * @param[in] input_2_dims Second operand shape.
+ * @param[out] output Boolean results.
+ * @param[in] output_dims Broadcast result shape.
+ * @return ARM_CMSIS_NN_SUCCESS or ARM_CMSIS_NN_ARG_ERROR.
+ */
+arm_cmsis_nn_status arm_equal_s32(const int32_t *input_1,
+                                  const cmsis_nn_dims *input_1_dims,
+                                  const int32_t *input_2,
+                                  const cmsis_nn_dims *input_2_dims,
+                                  bool *output,
+                                  const cmsis_nn_dims *output_dims);
+
+/**
+ * @brief Exact signed INT32 not equal comparison.
+ * @copydetails arm_equal_s32
+ */
+arm_cmsis_nn_status arm_not_equal_s32(const int32_t *input_1,
+                                      const cmsis_nn_dims *input_1_dims,
+                                      const int32_t *input_2,
+                                      const cmsis_nn_dims *input_2_dims,
+                                      bool *output,
+                                      const cmsis_nn_dims *output_dims);
+
+/**
+ * @brief Exact signed INT32 greater comparison.
+ * @copydetails arm_equal_s32
+ */
+arm_cmsis_nn_status arm_greater_s32(const int32_t *input_1,
+                                    const cmsis_nn_dims *input_1_dims,
+                                    const int32_t *input_2,
+                                    const cmsis_nn_dims *input_2_dims,
+                                    bool *output,
+                                    const cmsis_nn_dims *output_dims);
+
+/**
+ * @brief Exact signed INT32 greater equal comparison.
+ * @copydetails arm_equal_s32
+ */
+arm_cmsis_nn_status arm_greater_equal_s32(const int32_t *input_1,
+                                          const cmsis_nn_dims *input_1_dims,
+                                          const int32_t *input_2,
+                                          const cmsis_nn_dims *input_2_dims,
+                                          bool *output,
+                                          const cmsis_nn_dims *output_dims);
+
+/**
+ * @brief Exact signed INT32 less comparison.
+ * @copydetails arm_equal_s32
+ */
+arm_cmsis_nn_status arm_less_s32(const int32_t *input_1,
+                                 const cmsis_nn_dims *input_1_dims,
+                                 const int32_t *input_2,
+                                 const cmsis_nn_dims *input_2_dims,
+                                 bool *output,
+                                 const cmsis_nn_dims *output_dims);
+
+/**
+ * @brief Exact signed INT32 less equal comparison.
+ * @copydetails arm_equal_s32
+ */
+arm_cmsis_nn_status arm_less_equal_s32(const int32_t *input_1,
+                                       const cmsis_nn_dims *input_1_dims,
+                                       const int32_t *input_2,
+                                       const cmsis_nn_dims *input_2_dims,
+                                       bool *output,
+                                       const cmsis_nn_dims *output_dims);
+
+/**
  * @brief Boolean equality with the same shape and buffer contract as arm_logical_and_bool.
  * @param[in] input_1 First Boolean tensor.
  * @param[in] input_1_dims First positive shape, left-padded with ones to NHWC.
@@ -8413,6 +8494,30 @@ arm_where_s8(const int8_t *condition, const cmsis_nn_where_params *params, int64
  */
 arm_cmsis_nn_status
 arm_where_s16(const int16_t *condition, const cmsis_nn_where_params *params, int64_t *output, int32_t *num_true);
+
+/**
+ * @brief SELECT_V2 with broadcast or strided INT32 values and a BOOL condition.
+ *
+ * Rank is 1..8; represent a scalar as shape [1]. Output extents must be positive.
+ * Strides are nonnegative element offsets, with zero broadcasting that dimension.
+ * Output bytes and the maximum reachable input byte spans must fit INT32_MAX.
+ * NULL pointers, invalid rank/extents/strides or overflow return ARG_ERROR before
+ * output writes. The caller supplies valid bool representations, naturally aligned
+ * and adequately sized buffers, and output disjoint from inputs/metadata.
+ * Values are copied exactly; no quantization, scratch or float support is required.
+ *
+ * @param[in] condition Boolean condition buffer.
+ * @param[in] x Values selected by true.
+ * @param[in] y Values selected by false.
+ * @param[in] params Rank, output shape and input element strides.
+ * @param[out] output Contiguous INT32 result buffer.
+ * @return ARM_CMSIS_NN_SUCCESS or ARM_CMSIS_NN_ARG_ERROR.
+ */
+arm_cmsis_nn_status arm_select_v2_s32(const bool *condition,
+                                      const int32_t *x,
+                                      const int32_t *y,
+                                      const cmsis_nn_select_v2_params *params,
+                                      int32_t *output);
 
 /**
  * @brief SELECT_V2 with broadcast for int8 tensors.
