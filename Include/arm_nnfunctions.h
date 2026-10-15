@@ -4892,6 +4892,92 @@ arm_cmsis_nn_status arm_logical_or_bool(const bool *input_1,
 arm_cmsis_nn_status arm_logical_not_bool(const bool *input, bool *output, int32_t count);
 
 /**
+ * @brief Boolean equality with the same shape and buffer contract as arm_logical_and_bool.
+ * @param[in] input_1 First Boolean tensor.
+ * @param[in] input_1_dims First positive shape, left-padded with ones to NHWC.
+ * @param[in] input_2 Second Boolean tensor.
+ * @param[in] input_2_dims Second positive shape, left-padded with ones to NHWC.
+ * @param[out] output Nonoverlapping Boolean result, sized by output_dims.
+ * @param[in] output_dims Exact broadcast output shape.
+ * @return ARM_CMSIS_NN_SUCCESS, or ARM_CMSIS_NN_ARG_ERROR without writes for null
+ *         arguments, nonpositive/incompatible dimensions or output count exceeding INT32_MAX.
+ * @details Inputs must be valid one-byte C bool objects (0/1 on Arm). Caller owns
+ *          capacity and nonoverlap. Generic, DSP and MVE supported; no scratch or quantization.
+ */
+arm_cmsis_nn_status arm_equal_bool(const bool *input_1,
+                                   const cmsis_nn_dims *input_1_dims,
+                                   const bool *input_2,
+                                   const cmsis_nn_dims *input_2_dims,
+                                   bool *output,
+                                   const cmsis_nn_dims *output_dims);
+
+/**
+ * @brief Boolean inequality (Boolean XOR) with the same shape and buffer contract as arm_logical_and_bool.
+ * @param[in] input_1 First Boolean tensor.
+ * @param[in] input_1_dims First positive shape, left-padded with ones to NHWC.
+ * @param[in] input_2 Second Boolean tensor.
+ * @param[in] input_2_dims Second positive shape, left-padded with ones to NHWC.
+ * @param[out] output Nonoverlapping Boolean result, sized by output_dims.
+ * @param[in] output_dims Exact broadcast output shape.
+ * @return ARM_CMSIS_NN_SUCCESS, or ARM_CMSIS_NN_ARG_ERROR without writes for null
+ *         arguments, nonpositive/incompatible dimensions or output count exceeding INT32_MAX.
+ * @details Inputs must be valid one-byte C bool objects (0/1 on Arm). Caller owns
+ *          capacity and nonoverlap. Generic, DSP and MVE supported; no scratch or quantization.
+ */
+arm_cmsis_nn_status arm_not_equal_bool(const bool *input_1,
+                                       const cmsis_nn_dims *input_1_dims,
+                                       const bool *input_2,
+                                       const cmsis_nn_dims *input_2_dims,
+                                       bool *output,
+                                       const cmsis_nn_dims *output_dims);
+
+/**
+ * @brief Boolean ANY reduction over selected NHWC axes.
+ * @param[in] input Valid one-byte C bool objects (0/1 on Arm).
+ * @param[in] input_dims Nonnegative input shape, left-padded with ones to NHWC.
+ * @param[in] axis_dims Binary axis mask: 1 reduces the axis, 0 preserves it.
+ * @param[out] output Nonoverlapping Boolean result with capacity for output_dims.
+ * @param[in] output_dims Input dimensions with each reduced axis replaced by one.
+ * @return ARM_CMSIS_NN_SUCCESS, or ARM_CMSIS_NN_ARG_ERROR without writes for null
+ *         arguments, invalid shapes/masks or nonempty input/output counts above INT32_MAX.
+ * @details Empty reductions produce false; empty outputs write nothing. All pointers
+ *          must be nonnull even for empty tensors. A zero mask copies input to output.
+ *          The caller normalizes axis lists (including negative/duplicate axes) to the
+ *          mask. Reduced dimensions stay one in output_dims for both keep_dims modes;
+ *          removing those dimensions changes metadata only, not flat output order.
+ *          Caller owns buffer capacity, valid bool objects and nonoverlap, including
+ *          dimension structures. No scratch or quantization; generic, DSP and MVE supported.
+ */
+arm_cmsis_nn_status arm_reduce_any_bool(const bool *input,
+                                        const cmsis_nn_dims *input_dims,
+                                        const cmsis_nn_dims *axis_dims,
+                                        bool *output,
+                                        const cmsis_nn_dims *output_dims);
+
+/**
+ * @brief Boolean ALL reduction over selected NHWC axes.
+ * @param[in] input Valid one-byte C bool objects (0/1 on Arm).
+ * @param[in] input_dims Nonnegative input shape, left-padded with ones to NHWC.
+ * @param[in] axis_dims Binary axis mask: 1 reduces the axis, 0 preserves it.
+ * @param[out] output Nonoverlapping Boolean result with capacity for output_dims.
+ * @param[in] output_dims Input dimensions with each reduced axis replaced by one.
+ * @return ARM_CMSIS_NN_SUCCESS, or ARM_CMSIS_NN_ARG_ERROR without writes for null
+ *         arguments, invalid shapes/masks or nonempty input/output counts above INT32_MAX.
+ * @details Empty reductions produce true; empty outputs write nothing. All pointers
+ *          must be nonnull even for empty tensors. A zero mask copies input to output.
+ *          The caller normalizes axis lists (including negative/duplicate axes) to the
+ *          mask. Reduced dimensions stay one in output_dims for both keep_dims modes;
+ *          removing those dimensions changes metadata only, not flat output order.
+ *          Caller owns buffer capacity, valid bool objects and nonoverlap, including
+ *          dimension structures. No scratch or quantization; generic, DSP and MVE supported.
+ */
+arm_cmsis_nn_status arm_reduce_all_bool(const bool *input,
+                                        const cmsis_nn_dims *input_dims,
+                                        const cmsis_nn_dims *axis_dims,
+                                        bool *output,
+                                        const cmsis_nn_dims *output_dims);
+
+/**
  * @brief s8 elementwise comparison with support for broadcasting.
  *
  * @param[in]   ctx                   Unused; may be NULL.

@@ -23,3 +23,6 @@ void tearDown(void) {}
 void test_logical_truth_and_tails(void) { logical_truth_and_tails(); }
 void test_logical_broadcast(void) { logical_broadcast(); }
 void test_logical_rejects_without_writes(void) { logical_rejects_without_writes(); }
+
+void test_logical_reductions(void) { logical_reductions(); }
+void test_logical_reduction_rejects(void) { logical_reduction_rejects(); }
