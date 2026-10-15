@@ -1967,6 +1967,29 @@ void resident_pixel_contract_arm_convolve_s16(void)
                       run_1x1_s16_contract_case(8, 3, input, weights, &bias, multipliers, shifts, -10, 10, NULL));
 
 #if defined(ARM_MATH_MVEI) && !defined(ARM_MATH_AUTOVECTORIZE)
+    /* Five outputs exercise the vector epilogue and scalar tail in the same pixel. */
+    const int8_t vector_weights[40] = {
+        1,1,1,1,1,1,1,1, -1,-1,-1,-1,-1,-1,-1,-1,
+        0,0,0,0,0,0,0,0, 1,1,1,1,1,1,1,1, -1,-1,-1,-1,-1,-1,-1,-1
+    };
+    const int32_t vector_bias_values[5] = {0, 0, 5, 0, 0};
+    const cmsis_nn_bias_data vector_bias = {vector_bias_values, true};
+    int32_t vector_mult[5] = {1073741824,1073741824,1073741824,1073741824,1073741824};
+    int32_t vector_shift[5] = {1,1,1,1,1};
+    int16_t vector_output[5] = {0};
+    const int16_t vector_expected[5] = {10,-10,5,10,-10};
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
+                      run_1x1_s16_contract_case(8, 5, input, vector_weights, &vector_bias,
+                                                 vector_mult, vector_shift, -10, 10, vector_output));
+    TEST_ASSERT_EQUAL_INT16_ARRAY(vector_expected, vector_output, 5);
+
+    /* No output channels must neither read a pixel nor write the sentinel. */
+    vector_output[0] = 123;
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
+                      run_1x1_s16_contract_case(8, 0, input, vector_weights, &vector_bias,
+                                                 vector_mult, vector_shift, -10, 10, vector_output));
+    TEST_ASSERT_EQUAL_INT16(123, vector_output[0]);
+
     /* A NULL int32 bias is zero and remains eligible for the resident path. */
     const cmsis_nn_bias_data no_bias = {NULL, true};
     output[0] = 0;

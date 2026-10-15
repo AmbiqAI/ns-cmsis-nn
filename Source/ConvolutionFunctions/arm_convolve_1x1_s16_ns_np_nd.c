@@ -184,7 +184,7 @@ arm_cmsis_nn_status arm_convolve_1x1_s16_ns_np_nd(const cmsis_nn_context *ctx,
     for (int i_batch = 0; i_batch < input_batches; i_batch++)
     {
 #if defined(ARM_MATH_MVEI) && !defined(ARM_MATH_AUTOVECTORIZE)
-        if (bias_data != NULL && bias_data->is_int32_bias && rhs_cols > 0 && rhs_cols <= CONV_1X1_S16_RESIDENT_MAX_CH &&
+        if (bias_data != NULL && bias_data->is_int32_bias && output_ch > 0 && rhs_cols > 0 && rhs_cols <= CONV_1X1_S16_RESIDENT_MAX_CH &&
             (rhs_cols & 0x7) == 0)
         {
             conv_1x1_s16_resident_pixel(input_data,
