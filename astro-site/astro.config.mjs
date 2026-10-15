@@ -157,6 +157,7 @@ export default defineConfig({
                the Arm attribution stays on every page. */
             tagline: 'Part of the Ambiq HELIA AI platform',
             logo: 'ambiq',
+            logoLightTone: 'blue',
           },
         }),
       ],

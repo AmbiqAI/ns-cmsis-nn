@@ -89,7 +89,9 @@ arm_cmsis_nn_status arm_nn_lstm_calculate_gate_s8_s16(const int8_t *data_in,
                                              batch_offset);
     }
 
-    arm_nn_activation_s16(output, output, params->hidden_size * params->batch_size, 0, gate->activation_type);
+    /* Every value but ARM_SIGMOID selects tanh, whatever enum size the library and its caller use */
+    const arm_nn_activation_type type = gate->activation_type == ARM_SIGMOID ? ARM_SIGMOID : ARM_TANH;
+    arm_nn_activation_s16(output, output, params->hidden_size * params->batch_size, 0, type);
 
     return ARM_CMSIS_NN_SUCCESS;
 }

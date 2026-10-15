@@ -107,8 +107,8 @@ arm_cmsis_nn_status arm_nn_vec_mat_mult_t_per_ch_s8(const int8_t *lhs,
                            "   mov             %[out2], 0               \n"
                            "   mov             %[out3], 0               \n"
                            "   mov             %[sum], 0                \n"
-                           "   vldrb.8         q0, [%[col]], #16        \n"
                            "2:                                          \n"
+                           "   vldrb.8         q0, [%[col]], #16        \n"
                            "   vaddva.s8      %[sum], q0                \n"
                            "   vldrb.8         q1, [%[row0]], #16       \n"
                            "   vmladava.s8     %[out0], q0, q1          \n"
@@ -118,7 +118,6 @@ arm_cmsis_nn_status arm_nn_vec_mat_mult_t_per_ch_s8(const int8_t *lhs,
                            "   vmladava.s8     %[out2], q0, q3          \n"
                            "   vldrb.8         q4, [%[row3]], #16       \n"
                            "   vmladava.s8     %[out3], q0, q4          \n"
-                           "   vldrb.8         q0, [%[col]], #16        \n"
                            "   letp            lr, 2b                   \n"
                            "1:                                          \n"
                            : [col] "+r"(lhs_vec),
@@ -140,7 +139,7 @@ arm_cmsis_nn_status arm_nn_vec_mat_mult_t_per_ch_s8(const int8_t *lhs,
             acc = vaddq_s32(acc, vldrwq_s32(kernel_sum));
             kernel_sum += 4;
 
-            acc += vdupq_n_s32(rhs_offset) * vdupq_n_s32(lhs_sum);
+            acc = vaddq_s32(acc, vmulq_n_s32(vdupq_n_s32(lhs_sum), rhs_offset));
 
             acc = arm_requantize_mve_32x4(acc, vldrwq_s32(dst_multiplier), vldrwq_s32(dst_shift));
             dst_multiplier += 4;
@@ -170,12 +169,11 @@ arm_cmsis_nn_status arm_nn_vec_mat_mult_t_per_ch_s8(const int8_t *lhs,
                            "   wlstp.8         lr, %[cnt], 1f           \n"
                            "   mov             %[out0], 0               \n"
                            "   mov             %[sum], 0                \n"
-                           "   vldrb.8         q0, [%[col]], #16        \n"
                            "2:                                          \n"
+                           "   vldrb.8         q0, [%[col]], #16        \n"
                            "   vaddva.s8      %[sum], q0                \n"
                            "   vldrb.8         q1, [%[row0]], #16       \n"
                            "   vmladava.s8     %[out0], q0, q1          \n"
-                           "   vldrb.8         q0, [%[col]], #16        \n"
                            "   letp            lr, 2b                   \n"
                            "1:                                          \n"
                            : [col] "+r"(lhs_vec), [sum] "=Te"(lhs_sum), [row0] "+r"(rhs_ptr), [out0] "=Te"(acc_0)
@@ -183,8 +181,8 @@ arm_cmsis_nn_status arm_nn_vec_mat_mult_t_per_ch_s8(const int8_t *lhs,
                            : "q0", "q1", "q2", "q3", "q4", "memory", "r14");
             lhs_vec -= 8;
 
-            acc_0 += *kernel_sum++;
-            acc_0 += lhs_sum * rhs_offset;
+            acc_0 = arm_nn_mac_wrap_s32_bits(acc_0, *kernel_sum++, 1);
+            acc_0 = arm_nn_mac_wrap_s32_bits(acc_0, lhs_sum, rhs_offset);
             acc_0 = arm_nn_requantize(acc_0, *dst_multiplier++, *dst_shift++);
             acc_0 += dst_offset;
 
@@ -247,9 +245,9 @@ arm_cmsis_nn_status arm_nn_vec_mat_mult_t_per_ch_s8(const int8_t *lhs,
             {
                 const int32_t lhs_temp = (*lhs_vec + lhs_offset);
                 lhs_vec++;
-                acc_0 += lhs_temp * (*rhs_0_ptr + rhs_offset);
+                acc_0 = arm_nn_mac_wrap_s32_bits(acc_0, lhs_temp, *rhs_0_ptr + rhs_offset);
                 rhs_0_ptr++;
-                acc_1 += lhs_temp * (*rhs_1_ptr + rhs_offset);
+                acc_1 = arm_nn_mac_wrap_s32_bits(acc_1, lhs_temp, *rhs_1_ptr + rhs_offset);
                 rhs_1_ptr++;
             }
 
@@ -299,7 +297,7 @@ arm_cmsis_nn_status arm_nn_vec_mat_mult_t_per_ch_s8(const int8_t *lhs,
             {
                 const int32_t lhs_temp = (*lhs_vec + lhs_offset);
                 lhs_vec++;
-                acc_0 += lhs_temp * (*rhs_ptr + rhs_offset);
+                acc_0 = arm_nn_mac_wrap_s32_bits(acc_0, lhs_temp, *rhs_ptr + rhs_offset);
                 rhs_ptr++;
             }
 
@@ -342,9 +340,9 @@ arm_cmsis_nn_status arm_nn_vec_mat_mult_t_per_ch_s8(const int8_t *lhs,
                 const int32_t rhs_value2 = (int8_t)*rhs_ptr_2 + rhs_offset;
                 const int32_t lhs_value = (int8_t)*lhs_ptr + lhs_offset;
 
-                res00 += lhs_value * rhs_value0;
-                res01 += lhs_value * rhs_value1;
-                res02 += lhs_value * rhs_value2;
+                res00 = arm_nn_mac_wrap_s32_bits(res00, lhs_value, rhs_value0);
+                res01 = arm_nn_mac_wrap_s32_bits(res01, lhs_value, rhs_value1);
+                res02 = arm_nn_mac_wrap_s32_bits(res02, lhs_value, rhs_value2);
 
                 ++rhs_ptr_0;
                 ++rhs_ptr_1;
@@ -396,7 +394,7 @@ arm_cmsis_nn_status arm_nn_vec_mat_mult_t_per_ch_s8(const int8_t *lhs,
                 int32_t rhs_value0 = (int8_t)rhs_ptr[0] + rhs_offset;
                 int32_t lhs_value = (int8_t)lhs_ptr[0] + lhs_offset;
 
-                res00 += lhs_value * rhs_value0;
+                res00 = arm_nn_mac_wrap_s32_bits(res00, lhs_value, rhs_value0);
 
                 ++rhs_ptr;
                 ++lhs_ptr;
@@ -446,8 +444,8 @@ arm_cmsis_nn_status arm_nn_vec_mat_mult_t_per_ch_s8(const int8_t *lhs,
                            "   mov             %[out1], 0               \n"
                            "   mov             %[out2], 0               \n"
                            "   mov             %[out3], 0               \n"
-                           "   vldrb.8         q0, [%[col]], #16        \n"
                            "2:                                          \n"
+                           "   vldrb.8         q0, [%[col]], #16        \n"
                            "   vldrb.8         q1, [%[row0]], #16       \n"
                            "   vmladava.s8     %[out0], q0, q1          \n"
                            "   vldrb.8         q2, [%[row1]], #16       \n"
@@ -456,7 +454,6 @@ arm_cmsis_nn_status arm_nn_vec_mat_mult_t_per_ch_s8(const int8_t *lhs,
                            "   vmladava.s8     %[out2], q0, q3          \n"
                            "   vldrb.8         q4, [%[row3]], #16       \n"
                            "   vmladava.s8     %[out3], q0, q4          \n"
-                           "   vldrb.8         q0, [%[col]], #16        \n"
                            "   letp            lr, 2b                   \n"
                            "1:                                          \n"
                            : [col] "+r"(lhs_vec),
@@ -502,11 +499,10 @@ arm_cmsis_nn_status arm_nn_vec_mat_mult_t_per_ch_s8(const int8_t *lhs,
             __ASM volatile(" .p2align 2                                 \n"
                            "   wlstp.8         lr, %[cnt], 1f           \n"
                            "   mov             %[out0], 0               \n"
-                           "   vldrb.8         q0, [%[col]], #16        \n"
                            "2:                                          \n"
+                           "   vldrb.8         q0, [%[col]], #16        \n"
                            "   vldrb.8         q1, [%[row0]], #16       \n"
                            "   vmladava.s8     %[out0], q0, q1          \n"
-                           "   vldrb.8         q0, [%[col]], #16        \n"
                            "   letp            lr, 2b                   \n"
                            "1:                                          \n"
                            : [col] "+r"(lhs_vec), [row0] "+r"(rhs_ptr), [out0] "=Te"(acc_0)
@@ -514,7 +510,7 @@ arm_cmsis_nn_status arm_nn_vec_mat_mult_t_per_ch_s8(const int8_t *lhs,
                            : "q0", "q1", "q2", "q3", "q4", "memory", "r14");
             lhs_vec -= 8;
 
-            acc_0 += *kernel_sum++;
+            acc_0 = arm_nn_mac_wrap_s32_bits(acc_0, *kernel_sum++, 1);
 
             acc_0 = arm_nn_requantize(acc_0, *dst_multiplier++, *dst_shift++);
 
@@ -576,9 +572,9 @@ arm_cmsis_nn_status arm_nn_vec_mat_mult_t_per_ch_s8(const int8_t *lhs,
             {
                 const int32_t lhs_temp = (*lhs_vec + lhs_offset);
                 lhs_vec++;
-                acc_0 += lhs_temp * (*rhs_0_ptr);
+                acc_0 = arm_nn_mac_wrap_s32_bits(acc_0, lhs_temp, *rhs_0_ptr);
                 rhs_0_ptr++;
-                acc_1 += lhs_temp * (*rhs_1_ptr);
+                acc_1 = arm_nn_mac_wrap_s32_bits(acc_1, lhs_temp, *rhs_1_ptr);
                 rhs_1_ptr++;
             }
 
@@ -628,7 +624,7 @@ arm_cmsis_nn_status arm_nn_vec_mat_mult_t_per_ch_s8(const int8_t *lhs,
             {
                 const int32_t lhs_temp = (*lhs_vec + lhs_offset);
                 lhs_vec++;
-                acc_0 += lhs_temp * (*rhs_ptr);
+                acc_0 = arm_nn_mac_wrap_s32_bits(acc_0, lhs_temp, *rhs_ptr);
                 rhs_ptr++;
             }
 
@@ -671,9 +667,9 @@ arm_cmsis_nn_status arm_nn_vec_mat_mult_t_per_ch_s8(const int8_t *lhs,
                 const int32_t rhs_value2 = (int8_t)*rhs_ptr_2;
                 const int32_t lhs_value = (int8_t)*lhs_ptr + lhs_offset;
 
-                res00 += lhs_value * rhs_value0;
-                res01 += lhs_value * rhs_value1;
-                res02 += lhs_value * rhs_value2;
+                res00 = arm_nn_mac_wrap_s32_bits(res00, lhs_value, rhs_value0);
+                res01 = arm_nn_mac_wrap_s32_bits(res01, lhs_value, rhs_value1);
+                res02 = arm_nn_mac_wrap_s32_bits(res02, lhs_value, rhs_value2);
 
                 ++rhs_ptr_0;
                 ++rhs_ptr_1;
@@ -724,7 +720,7 @@ arm_cmsis_nn_status arm_nn_vec_mat_mult_t_per_ch_s8(const int8_t *lhs,
                 int32_t rhs_value0 = (int8_t)rhs_ptr[0];
                 int32_t lhs_value = (int8_t)lhs_ptr[0] + lhs_offset;
 
-                res00 += lhs_value * rhs_value0;
+                res00 = arm_nn_mac_wrap_s32_bits(res00, lhs_value, rhs_value0);
 
                 ++rhs_ptr;
                 ++lhs_ptr;

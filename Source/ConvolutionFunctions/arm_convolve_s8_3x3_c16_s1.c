@@ -241,7 +241,7 @@ arm_cmsis_nn_status arm_convolve_s8_3x3_c16_s1(const cmsis_nn_context *ctx,
     (void)bias_data;
 
     /* The argument checks of arm_convolve_s8() */
-    if (ctx->buf == NULL || arm_nn_convolve_s8_groups_invalid(input_dims, filter_dims, output_dims))
+    if (ctx->buf == NULL || arm_nn_convolve_s8_args_invalid(conv_params, input_dims, filter_dims, output_dims))
     {
         return ARM_CMSIS_NN_ARG_ERROR;
     }

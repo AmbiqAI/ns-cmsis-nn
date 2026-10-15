@@ -419,3 +419,17 @@ void maxpooling_param_fail_arm_max_pool_s8(void)
 
     TEST_ASSERT_EQUAL(expected, result);
 }
+
+/* Pooling-window geometry cases (#630), shared with the float pooling suites. */
+
+#define PW_PREFIX max_pool_s8
+#define PW_KERNEL arm_max_pool_s8
+#define PW_T int8_t
+#define PW_PARAMS_T cmsis_nn_pool_params
+#define PW_ACT_MIN (-128)
+#define PW_ACT_MAX 127
+#define PW_AVG 0
+#define PW_TOL 0.0f
+#define PW_CH 17
+
+#include "../Utils/pool_window_cases.h"

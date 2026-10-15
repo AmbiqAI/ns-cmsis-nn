@@ -616,6 +616,16 @@ void arm_nn_softmax_1x2_f32(const float32_t *in, float32_t *out);
 
 #if ARM_NN_ENABLE_F16
 
+    /**
+     * @brief Blockwise float16 accumulation on the MVE legs (AmbiqAI/ns-cmsis-nn#586).
+     *
+     * A float16 accumulator lane sums at most ARM_NN_F16_ACC_BLOCK taps, in the kernel's tap order, before its partial
+     * is widened exactly and added into a float32 accumulator; the float32 sum rounds to float16 once. The `_acc16`
+     * entries instantiate the same kernel bodies with ARM_NN_F16_ACC_BLOCK_NONE, which never folds.
+     */
+    #define ARM_NN_F16_ACC_BLOCK (32)
+    #define ARM_NN_F16_ACC_BLOCK_NONE (INT32_MAX)
+
 /**
  * @brief Polynomial coefficients used by the float16 MVE exp approximation.
  *
@@ -800,6 +810,124 @@ __STATIC_INLINE float16_t arm_nn_vec_reduce_add_f16(float16x8_t in)
 }
 
 /**
+ * @brief Fold a float16 lane partial into four float32 pair accumulators (reduction kernels).
+ *
+ * Lanes 2j and 2j+1 are widened exactly and added in float32; the pair sum is added to accumulator lane j, or sets
+ * it on the first partial (AmbiqAI/ns-cmsis-nn#586).
+ *
+ * @param[in,out] acc   Float32 pair accumulators.
+ * @param[in]     in    Float16 partial sums.
+ * @param[in]     first True for the first partial: the accumulator is set rather than added to.
+ */
+__STATIC_FORCEINLINE void arm_nn_f16_fold_pairs_f32(float32x4_t *acc, float16x8_t in, const bool first)
+{
+    float32x4_t pairs = vaddq(arm_nn_vcvtbq_f32_f16(in), arm_nn_vcvttq_f32_f16(in));
+    /* Opaque to the optimizer: -ffast-math must not re-pair `acc + (even + odd)` as `(acc + even) + odd`. */
+    __asm__("" : "+w"(pairs));
+    *acc = first ? pairs : vaddq(*acc, pairs);
+}
+
+/**
+ * @brief Sum four float32 pair accumulators once: (0+1) + (2+3), each addition rounded to float32.
+ *
+ * With arm_nn_f16_fold_pairs_f32 this pairs the lanes of a single partial as arm_nn_vec_reduce_add_f16 does:
+ * ((0+1) + (2+3)) + ((4+5) + (6+7)) (AmbiqAI/ns-cmsis-nn#586).
+ *
+ * @param[in] acc Float32 pair accumulators.
+ * @return Float32 sum of the four accumulator lanes.
+ */
+__STATIC_FORCEINLINE float32_t arm_nn_f16_pairs_sum_f32(float32x4_t acc)
+{
+    acc = vaddq(acc, vrev64q(acc));
+    float32_t total = vgetq_lane_f32(acc, 0) + vgetq_lane_f32(acc, 2);
+    /* Opaque to the optimizer: under -ffast-math the caller's `bias + total` must not be reassociated into the
+     * lane sum, or the float32 rounding order would depend on the compiler. */
+    __asm__("" : "+t"(total));
+    return total;
+}
+
+/**
+ * @brief arm_nn_f16_pairs_sum_f32 for four accumulators at once.
+ *
+ * @param[in] acc0 Float32 pair accumulators of output 0.
+ * @param[in] acc1 Float32 pair accumulators of output 1.
+ * @param[in] acc2 Float32 pair accumulators of output 2.
+ * @param[in] acc3 Float32 pair accumulators of output 3.
+ * @return Lane j holds the sum of accumulator j, rounded exactly as arm_nn_f16_pairs_sum_f32 rounds it.
+ */
+__STATIC_FORCEINLINE float32x4_t arm_nn_f16_pairs_sum4_f32(float32x4_t acc0,
+                                                           float32x4_t acc1,
+                                                           float32x4_t acc2,
+                                                           float32x4_t acc3)
+{
+    /* De-interleaving load: vector i of `v` holds lane i of every accumulator. */
+    float32_t t[16];
+    vst1q(t, acc0);
+    vst1q(t + 4, acc1);
+    vst1q(t + 8, acc2);
+    vst1q(t + 12, acc3);
+    const float32x4x4_t v = vld4q_f32(t);
+    float32x4_t s01 = vaddq(v.val[0], v.val[1]);
+    float32x4_t s23 = vaddq(v.val[2], v.val[3]);
+    /* Opaque to the optimizer, as in arm_nn_f16_pairs_sum_f32: -ffast-math must not re-pair the four sums. */
+    __asm__("" : "+w"(s01), "+w"(s23));
+    float32x4_t total = vaddq(s01, s23);
+    __asm__("" : "+w"(total));
+    return total;
+}
+
+/**
+ * @brief Sum the eight lanes of a float16 partial in float32.
+ *
+ * Every lane widens exactly; the lanes then sum ((0+1) + (2+3)) + ((4+5) + (6+7)) in float32, as
+ * arm_nn_f16_fold_pairs_f32 then arm_nn_f16_pairs_sum_f32 (AmbiqAI/ns-cmsis-nn#586).
+ *
+ * @param[in] in Float16 partial sums.
+ * @return Float32 sum of the eight lanes of @p in.
+ */
+__STATIC_FORCEINLINE float32_t arm_nn_vec_reduce_add_f16_to_f32(float16x8_t in)
+{
+    return arm_nn_f16_pairs_sum_f32(vaddq(arm_nn_vcvtbq_f32_f16(in), arm_nn_vcvttq_f32_f16(in)));
+}
+
+/**
+ * @brief Fold a float16 lane partial into per-lane float32 accumulators.
+ *
+ * @param[in,out] acc_even Float32 accumulators of lanes 0, 2, 4, 6.
+ * @param[in,out] acc_odd  Float32 accumulators of lanes 1, 3, 5, 7.
+ * @param[in]     in       Float16 partial sums; widened exactly.
+ * @param[in]     first    True for the first partial: the accumulators are set rather than added to.
+ */
+__STATIC_FORCEINLINE void
+arm_nn_f16_fold_lanes_f32(float32x4_t *acc_even, float32x4_t *acc_odd, float16x8_t in, const bool first)
+{
+    if (first)
+    {
+        *acc_even = arm_nn_vcvtbq_f32_f16(in);
+        *acc_odd = arm_nn_vcvttq_f32_f16(in);
+    }
+    else
+    {
+        *acc_even = vaddq(*acc_even, arm_nn_vcvtbq_f32_f16(in));
+        *acc_odd = vaddq(*acc_odd, arm_nn_vcvttq_f32_f16(in));
+    }
+}
+
+/**
+ * @brief Round per-lane float32 accumulators to float16 once.
+ *
+ * @param[in] acc_even Float32 accumulators of lanes 0, 2, 4, 6.
+ * @param[in] acc_odd  Float32 accumulators of lanes 1, 3, 5, 7.
+ * @return The eight lanes rounded to float16.
+ */
+__STATIC_FORCEINLINE float16x8_t arm_nn_f16_narrow_lanes_f32(float32x4_t acc_even, float32x4_t acc_odd)
+{
+    /* Both half-lanes are written by the two narrowing converts, so any seed will do. */
+    const float16x8_t lo = arm_nn_vcvtbq_f16_f32(vreinterpretq_f16_f32(acc_even), acc_even);
+    return arm_nn_vcvttq_f16_f32(lo, acc_odd);
+}
+
+/**
  * @brief MVE float16 exp approximation used by float softmax paths.
  *
  * @param[in] x Vector of exponent arguments.
@@ -933,6 +1061,14 @@ void arm_nn_depthwise_conv1d_k3_nhwc_f16(const float16_t *__RESTRICT x_nhwc,
 
 /**
  * @copydoc arm_nn_conv1d_k5_nhwc_f32
+ *
+ * @note MVE leg: blockwise float16 accumulation (AmbiqAI/ns-cmsis-nn#586). Input channel c feeds lane c % 8 with
+ *       5 taps per channel step; above 32 taps per output, a lane's float16 partial covers at most 6 channel
+ *       steps; each block's lanes are folded into float32 pair accumulators (arm_nn_f16_fold_pairs_f32), which
+ *       are summed once (arm_nn_f16_pairs_sum_f32), the bias is added in float32 and the total rounds to float16
+ *       once. Up to 32 taps: float16 lanes, a float16 reduction and the bias added
+ *       in float16, as before, in the order the compiler gives them (it may reorder them under -ffast-math); only
+ *       the fold's order is fixed. The scalar leg accumulates in float32 (#449, #465).
  */
 void arm_nn_conv1d_k5_nhwc_f16(const float16_t *__RESTRICT x_nhwc,
                                int32_t in_c,
@@ -942,6 +1078,21 @@ void arm_nn_conv1d_k5_nhwc_f16(const float16_t *__RESTRICT x_nhwc,
                                float16_t *__RESTRICT out,
                                int32_t out_c,
                                int32_t out_w);
+
+/**
+ * @copydoc arm_nn_conv1d_k5_nhwc_f16
+ *
+ * @note Every MVE accumulator lane stays in float16 (no blockwise fold, AmbiqAI/ns-cmsis-nn#586); the scalar leg is
+ *       the same as arm_nn_conv1d_k5_nhwc_f16.
+ */
+void arm_nn_conv1d_k5_nhwc_f16_acc16(const float16_t *__RESTRICT x_nhwc,
+                                     int32_t in_c,
+                                     int32_t in_w,
+                                     const float16_t *__RESTRICT kernel,
+                                     const float16_t *__RESTRICT b,
+                                     float16_t *__RESTRICT out,
+                                     int32_t out_c,
+                                     int32_t out_w);
 
 /**
  * @brief Specialized NHWC 1D convolution kernel for `k=5` (float16, packed weights).
@@ -960,7 +1111,9 @@ void arm_nn_conv1d_k5_nhwc_f16(const float16_t *__RESTRICT x_nhwc,
  *
  * @note Accumulation width per leg. Scalar leg (non-MVE builds and ARM_MATH_AUTOVECTORIZE): bias and products
  *       accumulate in float32 and round to float16 once at the store (AmbiqAI/ns-cmsis-nn#449, #465). MVE leg:
- *       float16 lanes.
+ *       blockwise (#586): a lane's float16 partial covers at most 6 input channels (30 taps, bias first)
+ *       before it is widened into a float32 accumulator; one rounding at the store. Up to 32 taps
+ *       (in_c <= 6) this is the float16-lane result.
  */
 void arm_nn_conv1d_k5_packed_f16(const float16_t *__RESTRICT x_nhwc,
                                  int32_t in_c,
@@ -972,7 +1125,30 @@ void arm_nn_conv1d_k5_packed_f16(const float16_t *__RESTRICT x_nhwc,
                                  int32_t out_w);
 
 /**
+ * @copydoc arm_nn_conv1d_k5_packed_f16
+ *
+ * @note Every MVE accumulator lane stays in float16 (no blockwise fold, AmbiqAI/ns-cmsis-nn#586); the scalar leg is
+ *       the same as arm_nn_conv1d_k5_packed_f16.
+ */
+void arm_nn_conv1d_k5_packed_f16_acc16(const float16_t *__RESTRICT x_nhwc,
+                                       int32_t in_c,
+                                       int32_t in_w,
+                                       const float16_t *__RESTRICT kernel_packed,
+                                       const float16_t *__RESTRICT b,
+                                       float16_t *__RESTRICT out,
+                                       int32_t out_c,
+                                       int32_t out_w);
+
+/**
  * @copydoc arm_nn_conv1d_k3_nhwc_f32
+ *
+ * @note MVE leg: blockwise float16 accumulation (AmbiqAI/ns-cmsis-nn#586). Input channel c feeds lane c % 8 with
+ *       3 taps per channel step; above 32 taps per output, a lane's float16 partial covers at most 10 channel
+ *       steps; each block's lanes are folded into float32 pair accumulators (arm_nn_f16_fold_pairs_f32), which
+ *       are summed once (arm_nn_f16_pairs_sum_f32), the bias is added in float32 and the total rounds to float16
+ *       once. Up to 32 taps: float16 lanes, a float16 reduction and the bias added
+ *       in float16, as before, in the order the compiler gives them (it may reorder them under -ffast-math); only
+ *       the fold's order is fixed. The scalar leg accumulates in float32 (#449, #465).
  */
 void arm_nn_conv1d_k3_nhwc_f16(const float16_t *__RESTRICT x_nhwc,
                                int32_t in_c,
@@ -982,6 +1158,21 @@ void arm_nn_conv1d_k3_nhwc_f16(const float16_t *__RESTRICT x_nhwc,
                                float16_t *__RESTRICT out,
                                int32_t out_c,
                                int32_t out_w);
+
+/**
+ * @copydoc arm_nn_conv1d_k3_nhwc_f16
+ *
+ * @note Every MVE accumulator lane stays in float16 (no blockwise fold, AmbiqAI/ns-cmsis-nn#586); the scalar leg is
+ *       the same as arm_nn_conv1d_k3_nhwc_f16.
+ */
+void arm_nn_conv1d_k3_nhwc_f16_acc16(const float16_t *__RESTRICT x_nhwc,
+                                     int32_t in_c,
+                                     int32_t in_w,
+                                     const float16_t *__RESTRICT kernel,
+                                     const float16_t *__RESTRICT b,
+                                     float16_t *__RESTRICT out,
+                                     int32_t out_c,
+                                     int32_t out_w);
 
 /**
  * @brief Specialized NHWC 1D convolution kernel for `k=3` (float16, packed weights).
@@ -1000,7 +1191,9 @@ void arm_nn_conv1d_k3_nhwc_f16(const float16_t *__RESTRICT x_nhwc,
  *
  * @note Accumulation width per leg. Scalar leg (non-MVE builds and ARM_MATH_AUTOVECTORIZE): bias and products
  *       accumulate in float32 and round to float16 once at the store (AmbiqAI/ns-cmsis-nn#449, #465). MVE leg:
- *       float16 lanes.
+ *       blockwise (#586): a lane's float16 partial covers at most 10 input channels (30 taps, bias first)
+ *       before it is widened into a float32 accumulator; one rounding at the store. Up to 32 taps
+ *       (in_c <= 10) this is the float16-lane result.
  */
 void arm_nn_conv1d_k3_packed_f16(const float16_t *__RESTRICT x_nhwc,
                                  int32_t in_c,
@@ -1010,6 +1203,21 @@ void arm_nn_conv1d_k3_packed_f16(const float16_t *__RESTRICT x_nhwc,
                                  float16_t *__RESTRICT out,
                                  int32_t out_c,
                                  int32_t out_w);
+
+/**
+ * @copydoc arm_nn_conv1d_k3_packed_f16
+ *
+ * @note Every MVE accumulator lane stays in float16 (no blockwise fold, AmbiqAI/ns-cmsis-nn#586); the scalar leg is
+ *       the same as arm_nn_conv1d_k3_packed_f16.
+ */
+void arm_nn_conv1d_k3_packed_f16_acc16(const float16_t *__RESTRICT x_nhwc,
+                                       int32_t in_c,
+                                       int32_t in_w,
+                                       const float16_t *__RESTRICT kernel_packed,
+                                       const float16_t *__RESTRICT b,
+                                       float16_t *__RESTRICT out,
+                                       int32_t out_c,
+                                       int32_t out_w);
 
 /**
  * @brief Specialized NHWC max-pool 1D kernel for `k=3`, `s=3` (float16).
@@ -1049,14 +1257,18 @@ void arm_nn_maxpool1d_k2s2_nhwc_f16(const float16_t *__RESTRICT x_nhwc,
 /**
  * @copydoc arm_nn_mat_mult_nt_t_f32
  *
- * @note Accumulation width per leg. MVE legs accumulate in float16: per-k on the gather path
- *       (rhs_cols below the contiguous-K threshold), lane-partial sums then one reduction on the
- *       contiguous-K path, and float16 lanes then one reduction on the remainder rows. Error grows
- *       with rhs_cols there; the K=1024 tester cases carry measured tolerance overrides for this
- *       reason. Float16 accumulation is the chosen MVE trade-off (throughput over the last ulps);
- *       see AmbiqAI/ns-cmsis-nn#417. The scalar leg (non-MVE builds and ARM_MATH_AUTOVECTORIZE)
- *       accumulates bias and every product in float32 and rounds to float16 once before the clamp
- *       (AmbiqAI/ns-cmsis-nn#449, #457).
+ * @note Accumulation width per leg. MVE legs accumulate blockwise (AmbiqAI/ns-cmsis-nn#586, superseding the
+ * float16-lane choice of #417 / #446 for the MVE legs). Up to rhs_cols 32 nothing changes: per-k float16 lanes on the
+ * gather path (rhs_cols below the contiguous-K threshold), lane-partial sums then one float16 reduction plus the bias
+ * in float16 at rhs_cols 32. Above 32, on the contiguous-K path and the remainder rows, each lane (element k goes to
+ * lane k % 8) sums at most 32 of its own taps (256 elements) in float16; each block's lanes are then widened and lanes
+ * 2j and 2j+1 added in float32 into pair accumulator j (set by the first block, added to by later ones); the four pair
+ * accumulators are summed once as (0+1) + (2+3), so a single block sums ((0+1) + (2+3)) + ((4+5) + (6+7)), the bias is
+ * added in float32 and the total rounds to float16 once before the clamp. The float16 reduction up to rhs_cols 32 is
+ * ordered by the compiler, which may reorder it under -ffast-math; only the fold's order is fixed.
+ * arm_nn_mat_mult_nt_t_f16_acc16 keeps the float16 lanes and float16 reduction throughout. The scalar leg (non-MVE
+ * builds and ARM_MATH_AUTOVECTORIZE) accumulates bias and every product in float32 and rounds to float16 once before
+ * the clamp (AmbiqAI/ns-cmsis-nn#449, #457).
  */
 arm_cmsis_nn_status arm_nn_mat_mult_nt_t_f16(const float16_t *__RESTRICT lhs,
                                              const float16_t *__RESTRICT rhs,
@@ -1068,6 +1280,34 @@ arm_cmsis_nn_status arm_nn_mat_mult_nt_t_f16(const float16_t *__RESTRICT lhs,
                                              int32_t row_address_offset,
                                              float16_t activation_min,
                                              float16_t activation_max);
+
+/**
+ * @brief arm_nn_mat_mult_nt_t_f16 with every MVE accumulator lane in float16 (no blockwise fold).
+ *
+ * Same arguments, return codes and scalar leg as arm_nn_mat_mult_nt_t_f16; see its accumulation note.
+ *
+ * @param[in]  lhs                Left-hand matrix, row-major `[lhs_rows, rhs_cols]`.
+ * @param[in]  rhs                Right-hand matrix, row-major `[rhs_rows, rhs_cols]` (transposed operand).
+ * @param[in]  bias               Optional bias vector of `rhs_rows` elements.
+ * @param[out] dst                Output matrix.
+ * @param[in]  lhs_rows           Number of rows in @p lhs.
+ * @param[in]  rhs_rows           Number of rows in @p rhs.
+ * @param[in]  rhs_cols           Shared reduction dimension `K`.
+ * @param[in]  row_address_offset Output row stride, expressed in elements.
+ * @param[in]  activation_min     Lower clamp bound.
+ * @param[in]  activation_max     Upper clamp bound.
+ * @return `ARM_CMSIS_NN_SUCCESS` on success or `ARM_CMSIS_NN_ARG_ERROR` on invalid arguments.
+ */
+arm_cmsis_nn_status arm_nn_mat_mult_nt_t_f16_acc16(const float16_t *__RESTRICT lhs,
+                                                   const float16_t *__RESTRICT rhs,
+                                                   const float16_t *__RESTRICT bias,
+                                                   float16_t *__RESTRICT dst,
+                                                   int32_t lhs_rows,
+                                                   int32_t rhs_rows,
+                                                   int32_t rhs_cols,
+                                                   int32_t row_address_offset,
+                                                   float16_t activation_min,
+                                                   float16_t activation_max);
 
 /**
  * @brief Matrix multiply with non-transposed lhs and packed non-transposed rhs (float16).
@@ -1091,9 +1331,12 @@ arm_cmsis_nn_status arm_nn_mat_mult_nt_t_f16(const float16_t *__RESTRICT lhs,
  *       including the shipped -Ofast. On MVE builds the clamp is vmaxnmq/vminnmq with no NaN restore, so a
  *       NaN resolves to a clamp bound there instead.
  *
- * @note Accumulation width per leg: the MVE leg accumulates in float16 lanes (one lane per output
- *       column, per-k); the scalar leg (non-MVE builds and ARM_MATH_AUTOVECTORIZE) accumulates bias
- *       and every product in float32 and rounds to float16 once before the clamp
+ * @note Accumulation width per leg: the MVE leg accumulates blockwise (AmbiqAI/ns-cmsis-nn#586): one
+ *       lane per output column, per-k, the bias opening the first block; every 32 k the float16
+ *       partial is widened exactly into per-lane float32 accumulators, which round to float16 once
+ *       before the clamp (rhs_cols up to 32: exactly the float16-lane result;
+ *       arm_nn_mat_mult_nt_n_packed_f16_acc16 keeps float16 lanes throughout). The scalar leg (non-MVE builds and
+ * ARM_MATH_AUTOVECTORIZE) accumulates bias and every product in float32 and rounds to float16 once before the clamp
  *       (AmbiqAI/ns-cmsis-nn#449, #457).
  */
 arm_cmsis_nn_status arm_nn_mat_mult_nt_n_packed_f16(const float16_t *__RESTRICT lhs,
@@ -1106,6 +1349,71 @@ arm_cmsis_nn_status arm_nn_mat_mult_nt_n_packed_f16(const float16_t *__RESTRICT 
                                                     int32_t row_address_offset,
                                                     float16_t activation_min,
                                                     float16_t activation_max);
+
+/**
+ * @brief Packed float16 matrix multiply with shorter partial sums, for precise packed callers.
+ *
+ * The packed layout and all argument meanings are those of arm_nn_mat_mult_nt_n_packed_f16.
+ * This entry has its own numerical order; it does not change that entry or its acc16 twin.
+ *
+ * @param[in] lhs Non-transposed lhs, with lhs_rows rows of rhs_cols elements.
+ * @param[in] rhs_packed Logical rhs_rows output columns in 8-column blocks, K-major within each block.
+ * @param[in] bias Optional rhs_rows-element bias; NULL means zero bias.
+ * @param[out] dst Output matrix. The caller provides the complete arrays, including packed column padding.
+ * @param[in] lhs_rows Positive number of lhs rows.
+ * @param[in] rhs_rows Positive number of logical output columns.
+ * @param[in] rhs_cols Positive shared reduction dimension K.
+ * @param[in] row_address_offset Positive output row stride, in elements.
+ * @param[in] activation_min Lower ordered clamp bound.
+ * @param[in] activation_max Upper ordered clamp bound.
+ * @return ARM_CMSIS_NN_SUCCESS, or ARM_CMSIS_NN_ARG_ERROR for NULL lhs/rhs/dst or nonpositive dimensions/stride.
+ *
+ * @note MVE: each lane forms at most four fused-product taps in float16, starting from zero. Each partial is
+ * widened and added to its float32 lane accumulator in K order; bias is added in float32 after the final fold,
+ * then the result rounds to float16 once before clamping. The scalar/autovectorized leg uses the existing
+ * float32 accumulation rule. This order is not bit-equivalent to the standard or legacy packed entries, and
+ * no universal absolute-error bound is implied. Float16 products/partials can overflow for finite inputs;
+ * shorter partials do not make this an overflow-free float32 dot product. As with the legacy packed entry,
+ * the scalar clamp propagates NaN, while the MVE maxNum/minNum clamp resolves NaN to a bound.
+ */
+arm_cmsis_nn_status arm_nn_mat_mult_nt_n_packed_f16_precise(const float16_t *__RESTRICT lhs,
+                                                            const float16_t *__RESTRICT rhs_packed,
+                                                            const float16_t *__RESTRICT bias,
+                                                            float16_t *__RESTRICT dst,
+                                                            int32_t lhs_rows,
+                                                            int32_t rhs_rows,
+                                                            int32_t rhs_cols,
+                                                            int32_t row_address_offset,
+                                                            float16_t activation_min,
+                                                            float16_t activation_max);
+
+/**
+ * @brief arm_nn_mat_mult_nt_n_packed_f16 with every MVE accumulator lane in float16 (no blockwise fold).
+ *
+ * Same arguments, return codes and scalar leg as arm_nn_mat_mult_nt_n_packed_f16; see its accumulation note.
+ *
+ * @param[in]  lhs                Left-hand matrix stored row-major with logical shape `[lhs_rows, rhs_cols]`.
+ * @param[in]  rhs_packed         Right-hand matrix packed in column blocks of 8.
+ * @param[in]  bias               Optional bias vector.
+ * @param[out] dst                Output matrix.
+ * @param[in]  lhs_rows           Number of rows in @p lhs.
+ * @param[in]  rhs_rows           Number of logical output columns in the unpacked rhs matrix.
+ * @param[in]  rhs_cols           Shared reduction dimension `K`.
+ * @param[in]  row_address_offset Output row stride, expressed in elements.
+ * @param[in]  activation_min     Lower clamp bound.
+ * @param[in]  activation_max     Upper clamp bound.
+ * @return `ARM_CMSIS_NN_SUCCESS` on success or `ARM_CMSIS_NN_ARG_ERROR` on invalid arguments.
+ */
+arm_cmsis_nn_status arm_nn_mat_mult_nt_n_packed_f16_acc16(const float16_t *__RESTRICT lhs,
+                                                          const float16_t *__RESTRICT rhs_packed,
+                                                          const float16_t *__RESTRICT bias,
+                                                          float16_t *__RESTRICT dst,
+                                                          int32_t lhs_rows,
+                                                          int32_t rhs_rows,
+                                                          int32_t rhs_cols,
+                                                          int32_t row_address_offset,
+                                                          float16_t activation_min,
+                                                          float16_t activation_max);
 
 /**
  * @brief Update LSTM function for an iteration step using float16 input, output and state.
@@ -1220,6 +1528,367 @@ arm_cmsis_nn_status arm_nn_gru_step_f32(const float32_t *data_in,
                                         const int32_t batch_offset);
 
 #endif /* ARM_NN_ENABLE_F32 */
+
+/**
+ * @defgroup floatConvRoutes Float convolution route predicates
+ * The rules by which arm_convolve_f16(), arm_convolve_f16_acc16() and arm_convolve_f32() choose a route, in their
+ * dispatch order: 1x1, 1xN, conv1d k5, conv1d k3, small-C (MVE float builds), packed-patch GEMM (when ctx holds one
+ * patch row), direct. The routers, their buffer-size queries and the direct entries of each route share these, so
+ * that a caller selecting the entry per layer ahead of time takes the route the router takes.
+ * @{
+ */
+
+/** The packed-patch GEMM route needs at least this many output channels (float32 and float16 alike). */
+#define ARM_NN_CONV_NHWC_PATCH_GEMM_F32_MIN_OC (8)
+/** The packed-patch GEMM route needs at least this many output positions per batch (float32). */
+#define ARM_NN_CONV_NHWC_PATCH_GEMM_F32_MIN_POS (8)
+/** The packed-patch GEMM route needs at least this many output channels (float16). */
+#define ARM_NN_CONV_NHWC_PATCH_GEMM_F16_MIN_OC (8)
+/** The packed-patch GEMM route needs at least this many output positions per batch (float16). */
+#define ARM_NN_CONV_NHWC_PATCH_GEMM_F16_MIN_POS (8)
+#if ARM_NN_CONV_NHWC_PATCH_GEMM_F16_MIN_OC != ARM_NN_CONV_NHWC_PATCH_GEMM_F32_MIN_OC ||                                \
+    ARM_NN_CONV_NHWC_PATCH_GEMM_F16_MIN_POS != ARM_NN_CONV_NHWC_PATCH_GEMM_F32_MIN_POS
+    #error "arm_nn_conv_flt_is_patch_gemm serves both types; the float16 and float32 thresholds must agree"
+#endif
+
+/** Lanes of the float16 small-C kernel: the route takes fewer input channels than this. */
+#define ARM_NN_CONV_SMALL_C_F16_LANES (8)
+/** Lanes of the float32 small-C kernel: the route takes fewer input channels than this. */
+#define ARM_NN_CONV_SMALL_C_F32_LANES (4)
+
+/**
+ * @brief Identify an empty output request, after dimension validation.
+ * @param[in] output_dims Output tensor dimensions.
+ * @return true for zero batch or spatial extent.
+ */
+__STATIC_INLINE bool arm_nn_conv_flt_empty(const cmsis_nn_dims *output_dims)
+{
+    return output_dims->n == 0 || output_dims->h == 0 || output_dims->w == 0;
+}
+
+/**
+ * @brief Bound the signed coordinate intermediates for one nonempty output axis.
+ * @param[in] out Number of output positions.
+ * @param[in] kernel Number of filter taps.
+ * @param[in] stride Positive output step.
+ * @param[in] pad Nonnegative leading padding.
+ * @param[in] dilation Positive filter step.
+ * @return true when all coordinate intermediates fit int32.
+ */
+__STATIC_INLINE bool arm_nn_conv_flt_axis_ok(int32_t out, int32_t kernel, int32_t stride, int32_t pad, int32_t dilation)
+{
+    const int64_t step = ((int64_t)out - 1) * stride;
+    const int64_t tap = ((int64_t)kernel - 1) * dilation;
+    return step <= INT32_MAX && tap <= INT32_MAX && step - pad + tap <= INT32_MAX;
+}
+
+/**
+ * @brief Validate common float convolution metadata and accessed arithmetic.
+ * Output windows are explicit; generic kernels clip their out-of-input taps.
+ * @param[in] stride Spatial output steps.
+ * @param[in] padding Leading spatial padding.
+ * @param[in] dilation Spatial filter steps.
+ * @param[in] input_dims Input dimensions [N, H, W, C_IN].
+ * @param[in] filter_dims Filter dimensions [C_OUT, KH, KW, C_IN].
+ * @param[in] output_dims Output dimensions [N, H, W, C_OUT].
+ * @param[in] element_size Bytes per tensor element.
+ * @param[in] packed_lanes Channel block size and vector loop width for the dtype.
+ * @param[in] packed Whether the filter uses NT_N_PACKED storage.
+ * @return true for consistent metadata and representable nonempty work, or a valid empty request.
+ */
+__STATIC_INLINE bool arm_nn_conv_flt_dims_ok(const cmsis_nn_tile *stride,
+                                             const cmsis_nn_tile *padding,
+                                             const cmsis_nn_tile *dilation,
+                                             const cmsis_nn_dims *input_dims,
+                                             const cmsis_nn_dims *filter_dims,
+                                             const cmsis_nn_dims *output_dims,
+                                             size_t element_size,
+                                             int32_t packed_lanes,
+                                             bool packed)
+{
+    if (input_dims->n < 0 || input_dims->h < 0 || input_dims->w < 0 || input_dims->c <= 0 ||
+        output_dims->n != input_dims->n || output_dims->h < 0 || output_dims->w < 0 || output_dims->c <= 0 ||
+        filter_dims->n != output_dims->c || filter_dims->c != input_dims->c || filter_dims->h <= 0 ||
+        filter_dims->w <= 0 || stride->h <= 0 || stride->w <= 0 || dilation->h <= 0 || dilation->w <= 0 ||
+        padding->h < 0 || padding->w < 0)
+    {
+        return false;
+    }
+    if (arm_nn_conv_flt_empty(output_dims))
+    {
+        return true;
+    }
+    if (input_dims->h == 0 || input_dims->w == 0)
+    {
+        return false;
+    }
+    /* Leave room for the largest vector loop increment as well as packed channel rounding. */
+    const int64_t limit = ARM_NN_MIN((size_t)(INT32_MAX - 2 * packed_lanes), SIZE_MAX / element_size);
+    const int64_t input_hw = (int64_t)input_dims->h * input_dims->w;
+    const int64_t output_hw = (int64_t)output_dims->h * output_dims->w;
+    const int64_t filter_hw = (int64_t)filter_dims->h * filter_dims->w;
+    if (input_hw > limit || output_hw > limit || filter_hw > limit)
+    {
+        return false;
+    }
+    const int64_t input_len = input_hw * input_dims->c;
+    const int64_t output_len = output_hw * output_dims->c;
+    const int64_t patch_len = filter_hw * input_dims->c;
+    if (input_len > limit || output_len > limit || patch_len > limit || output_dims->c > limit)
+    {
+        return false;
+    }
+    const int64_t filter_c =
+        packed ? ((int64_t)output_dims->c + packed_lanes - 1) / packed_lanes * packed_lanes : output_dims->c;
+    return input_len * input_dims->n <= limit && output_len * output_dims->n <= limit &&
+        patch_len * filter_c <= limit &&
+        arm_nn_conv_flt_axis_ok(output_dims->h, filter_dims->h, stride->h, padding->h, dilation->h) &&
+        arm_nn_conv_flt_axis_ok(output_dims->w, filter_dims->w, stride->w, padding->w, dilation->w);
+}
+
+/**
+ * @brief Check window coverage for an unpadded 1x1 body that samples directly.
+ * @param[in] stride Spatial output steps.
+ * @param[in] input_dims Input dimensions.
+ * @param[in] output_dims Output dimensions.
+ * @return true when every requested sample lies inside the input.
+ */
+__STATIC_INLINE bool arm_nn_conv_flt_1x1_window_ok(const cmsis_nn_tile *stride,
+                                                   const cmsis_nn_dims *input_dims,
+                                                   const cmsis_nn_dims *output_dims)
+{
+    return stride->h > 0 && stride->w > 0 && output_dims->h > 0 && output_dims->w > 0 &&
+        ((int64_t)output_dims->h - 1) * stride->h < input_dims->h &&
+        ((int64_t)output_dims->w - 1) * stride->w < input_dims->w;
+}
+
+/**
+ * @brief Bound f32 small-C coordinates, including inactive lanes and contiguous-load spans.
+ * @param[in] stride Spatial output steps.
+ * @param[in] padding Leading spatial padding.
+ * @param[in] dilation Spatial filter steps.
+ * @param[in] input_dims Validated input dimensions.
+ * @param[in] filter_dims Validated filter dimensions.
+ * @param[in] output_dims Validated nonempty output dimensions.
+ * @return true when signed lane coordinates and products remain representable.
+ */
+__STATIC_INLINE bool arm_nn_conv_f32_small_c_coords_ok(const cmsis_nn_tile *stride,
+                                                       const cmsis_nn_tile *padding,
+                                                       const cmsis_nn_tile *dilation,
+                                                       const cmsis_nn_dims *input_dims,
+                                                       const cmsis_nn_dims *filter_dims,
+                                                       const cmsis_nn_dims *output_dims)
+{
+    const int64_t tap = ((int64_t)filter_dims->w - 1) * dilation->w;
+    const int64_t base = ((int64_t)output_dims->w - 1) * stride->w - padding->w;
+    const int64_t span = (int64_t)ARM_NN_CONV_SMALL_C_F32_LANES * stride->w - 1 + tap;
+    return stride->w > 0 && dilation->w > 0 && padding->w >= 0 && input_dims->c > 0 && span <= INT32_MAX &&
+        base + span <= INT32_MAX && (int64_t)padding->w * input_dims->c <= INT32_MAX &&
+        (base + span) * input_dims->c <= INT32_MAX;
+}
+
+/**
+ * @brief The 1x1 route: a 1x1 filter with no padding.
+ * @param[in] padding     Spatial zero-padding
+ * @param[in] filter_dims Filter dimensions [C_OUT, KH, KW, C_IN]
+ * @return true if the router takes the 1x1 route
+ */
+__STATIC_INLINE bool arm_nn_conv_flt_is_1x1(const cmsis_nn_tile *padding, const cmsis_nn_dims *filter_dims)
+{
+    return filter_dims->h == 1 && filter_dims->w == 1 && padding->h == 0 && padding->w == 0;
+}
+
+/**
+ * @brief A conv1d with a 1 x k filter: batch 1, input and output height 1, unit stride and dilation, no padding.
+ * @param[in] stride      Spatial stride
+ * @param[in] padding     Spatial zero-padding
+ * @param[in] dilation    Spatial dilation
+ * @param[in] input_dims  Input dimensions [N, H, W, C_IN]
+ * @param[in] filter_dims Filter dimensions [C_OUT, KH, KW, C_IN]
+ * @param[in] output_dims Output dimensions [N, H, W, C_OUT]
+ * @param[in] k           Filter width
+ * @return true for the conv1d k5 route with k = 5 and the conv1d k3 route with k = 3
+ */
+__STATIC_INLINE bool arm_nn_conv_flt_is_1d_k(const cmsis_nn_tile *stride,
+                                             const cmsis_nn_tile *padding,
+                                             const cmsis_nn_tile *dilation,
+                                             const cmsis_nn_dims *input_dims,
+                                             const cmsis_nn_dims *filter_dims,
+                                             const cmsis_nn_dims *output_dims,
+                                             const int32_t k)
+{
+    return input_dims->n == 1 && input_dims->h == 1 && output_dims->h == 1 && filter_dims->h == 1 &&
+        filter_dims->w == k && stride->h == 1 && stride->w == 1 && padding->h == 0 && padding->w == 0 &&
+        dilation->h == 1 && dilation->w == 1 && output_dims->w > 0 && (int64_t)output_dims->w + k - 1 <= input_dims->w;
+}
+
+/**
+ * @brief The shape part of the 1xN route: input, output and filter height 1, a filter wider than 1, unit stride and
+ *        dilation in height, unit dilation in width, a positive width stride and no height padding. Unless
+ *        NN_DISABLE_SPECIALIZATION is defined, the routers take the conv1d routes for their shapes first. The router
+ *        also needs ctx to hold arm_convolve_1_x_n_f16_get_buffer_size() (or _f32).
+ * @param[in] stride      Spatial stride
+ * @param[in] padding     Spatial zero-padding
+ * @param[in] dilation    Spatial dilation
+ * @param[in] input_dims  Input dimensions [N, H, W, C_IN]
+ * @param[in] filter_dims Filter dimensions [C_OUT, KH, KW, C_IN]
+ * @param[in] output_dims Output dimensions [N, H, W, C_OUT]
+ * @return true if the shape takes the 1xN route when ctx is large enough and no conv1d route claims it
+ */
+__STATIC_INLINE bool arm_nn_conv_flt_is_1xn(const cmsis_nn_tile *stride,
+                                            const cmsis_nn_tile *padding,
+                                            const cmsis_nn_tile *dilation,
+                                            const cmsis_nn_dims *input_dims,
+                                            const cmsis_nn_dims *filter_dims,
+                                            const cmsis_nn_dims *output_dims)
+{
+    return input_dims->h == 1 && output_dims->h == 1 && filter_dims->h == 1 && filter_dims->w > 1 && stride->h == 1 &&
+        stride->w > 0 && padding->h == 0 && dilation->h == 1 && dilation->w == 1 &&
+        (int64_t)stride->w * input_dims->c <= INT32_MAX &&
+        ((int64_t)output_dims->w - 1) * stride->w - padding->w + filter_dims->w <= INT32_MAX;
+}
+
+/**
+ * @brief The float16 small-C route: fewer input channels than ARM_NN_CONV_SMALL_C_F16_LANES, a positive output
+ *        depth and width, a positive input width, filter width, stride and dilation, a non-negative padding, and
+ *        every gather and scatter offset within 16 bits.
+ * @param[in] stride      Spatial stride
+ * @param[in] padding     Spatial zero-padding
+ * @param[in] dilation    Spatial dilation
+ * @param[in] input_dims  Input dimensions [N, H, W, C_IN]
+ * @param[in] filter_dims Filter dimensions [C_OUT, KH, KW, C_IN]
+ * @param[in] output_dims Output dimensions [N, H, W, C_OUT]
+ * @return true if the float16 routers take the small-C route on MVE float builds
+ */
+__STATIC_INLINE bool arm_nn_conv_f16_is_small_c(const cmsis_nn_tile *stride,
+                                                const cmsis_nn_tile *padding,
+                                                const cmsis_nn_tile *dilation,
+                                                const cmsis_nn_dims *input_dims,
+                                                const cmsis_nn_dims *filter_dims,
+                                                const cmsis_nn_dims *output_dims)
+{
+    if (input_dims->c <= 0 || input_dims->c >= ARM_NN_CONV_SMALL_C_F16_LANES || output_dims->c <= 0 ||
+        output_dims->w <= 0 || input_dims->w <= 0 || padding->w < 0 || stride->w <= 0 || dilation->w <= 0 ||
+        filter_dims->w <= 0)
+    {
+        return false;
+    }
+    /* u16 gather/scatter offsets are relative to one input row / one output position group, and every
+     * reachable column (including the padded ones, which wrap) must stay inside the offset type. The reach of
+     * non-negative int32_t terms stays below 2^63; it is compared with UINT16_MAX / C rather than multiplied by C. */
+    const int64_t reach = (int64_t)input_dims->w + padding->w +
+        (int64_t)(ARM_NN_CONV_SMALL_C_F16_LANES - 1) * stride->w + ((int64_t)filter_dims->w - 1) * dilation->w;
+    const int64_t output_reach = ((int64_t)output_dims->w - 1) * stride->w - padding->w +
+        (int64_t)(ARM_NN_CONV_SMALL_C_F16_LANES - 1) * stride->w + ((int64_t)filter_dims->w - 1) * dilation->w;
+    return ARM_NN_MAX(reach, output_reach) <= UINT16_MAX / input_dims->c &&
+        output_dims->c <= UINT16_MAX / ARM_NN_CONV_SMALL_C_F16_LANES;
+}
+
+/**
+ * @brief The float32 small-C route: fewer input channels than ARM_NN_CONV_SMALL_C_F32_LANES and a positive output
+ *        depth and width.
+ * @param[in] input_dims  Input dimensions [N, H, W, C_IN]
+ * @param[in] output_dims Output dimensions [N, H, W, C_OUT]
+ * @return true if arm_convolve_f32() takes the small-C route on MVE float builds
+ */
+__STATIC_INLINE bool arm_nn_conv_f32_is_small_c(const cmsis_nn_dims *input_dims, const cmsis_nn_dims *output_dims)
+{
+    return input_dims->c > 0 && input_dims->c < ARM_NN_CONV_SMALL_C_F32_LANES && output_dims->c > 0 &&
+        output_dims->w > 0;
+}
+
+/**
+ * @brief The shape part of the packed-patch GEMM route: at least ARM_NN_CONV_NHWC_PATCH_GEMM_F16_MIN_OC output
+ *        channels and ARM_NN_CONV_NHWC_PATCH_GEMM_F16_MIN_POS output positions per batch (the float32 thresholds
+ *        are equal). The router also needs ctx to hold one patch row (KH x KW x C_IN elements).
+ * @param[in] output_dims Output dimensions [N, H, W, C_OUT]
+ * @return true if the shape takes the packed-patch GEMM route when ctx is large enough
+ */
+__STATIC_INLINE bool arm_nn_conv_flt_is_patch_gemm(const cmsis_nn_dims *output_dims)
+{
+    return output_dims->c >= ARM_NN_CONV_NHWC_PATCH_GEMM_F16_MIN_OC &&
+        (int64_t)output_dims->h * output_dims->w >= ARM_NN_CONV_NHWC_PATCH_GEMM_F16_MIN_POS;
+}
+
+#if ARM_NN_ENABLE_F16
+/**
+ * @brief The depthwise conv1d k3 route of arm_depthwise_conv_f16(): batch 1, channel multiplier 1, a 1x3 filter, input
+ *        and output height 1, unit stride and dilation, no padding.
+ * @param[in] dw_conv_params Depthwise parameters
+ * @param[in] input_dims     Input dimensions [N, H, W, C_IN]
+ * @param[in] filter_dims    Filter dimensions [1, HK, WK, C_OUT]
+ * @param[in] output_dims    Output dimensions [N, H, W, C_OUT]
+ * @return true if the router takes the conv1d k3 route (unless NN_DISABLE_SPECIALIZATION is defined)
+ */
+__STATIC_INLINE bool arm_nn_dw_f16_is_1d_k3(const cmsis_nn_dw_conv_params_f16 *dw_conv_params,
+                                            const cmsis_nn_dims *input_dims,
+                                            const cmsis_nn_dims *filter_dims,
+                                            const cmsis_nn_dims *output_dims)
+{
+    return input_dims->n == 1 && output_dims->n == 1 && dw_conv_params->ch_mult == 1 && filter_dims->w == 3 &&
+        filter_dims->h == 1 && input_dims->h == 1 && output_dims->h == 1 && dw_conv_params->dilation.h == 1 &&
+        dw_conv_params->dilation.w == 1 && dw_conv_params->stride.h == 1 && dw_conv_params->stride.w == 1 &&
+        dw_conv_params->padding.h == 0 && dw_conv_params->padding.w == 0;
+}
+
+/**
+ * @brief The depthwise 2x5 route of arm_depthwise_conv_f16(): a 2x5 filter, input height 2, output height 1, unit
+ *        stride and dilation, no padding; any batch and channel multiplier.
+ * @param[in] dw_conv_params Depthwise parameters
+ * @param[in] input_dims     Input dimensions [N, H, W, C_IN]
+ * @param[in] filter_dims    Filter dimensions [1, HK, WK, C_OUT]
+ * @param[in] output_dims    Output dimensions [N, H, W, C_OUT]
+ * @return true if the router takes the 2x5 route (unless NN_DISABLE_SPECIALIZATION is defined)
+ */
+__STATIC_INLINE bool arm_nn_dw_f16_is_2x5(const cmsis_nn_dw_conv_params_f16 *dw_conv_params,
+                                          const cmsis_nn_dims *input_dims,
+                                          const cmsis_nn_dims *filter_dims,
+                                          const cmsis_nn_dims *output_dims)
+{
+    return filter_dims->w == 5 && filter_dims->h == 2 && input_dims->h == 2 && output_dims->h == 1 &&
+        dw_conv_params->dilation.h == 1 && dw_conv_params->dilation.w == 1 && dw_conv_params->stride.h == 1 &&
+        dw_conv_params->stride.w == 1 && dw_conv_params->padding.h == 0 && dw_conv_params->padding.w == 0;
+}
+
+/**
+ * @brief The shape part of the depthwise one-input-channel route of arm_depthwise_conv_f16() on MVE float builds: one
+ *        input channel and at least CONVERT_DW_CONV_WITH_ONE_INPUT_CH_AND_OUTPUT_CH_ABOVE_THRESHOLD output channels
+ *        (the threshold depends on the compiler). The router takes the route after the channel-multiplier-1 route,
+ *        and only when ctx->size is at least arm_nn_dw_f16_cin1_min_ctx_size; otherwise it takes the generic
+ *        route.
+ * @param[in] input_dims     Input dimensions [N, H, W, C_IN]
+ * @param[in] output_dims    Output dimensions [N, H, W, C_OUT]
+ * @return true if the shape takes the one-input-channel route when ctx is large enough
+ */
+__STATIC_INLINE bool arm_nn_dw_f16_is_cin1(const cmsis_nn_dims *input_dims, const cmsis_nn_dims *output_dims)
+{
+    return input_dims->c == 1 && output_dims->c >= CONVERT_DW_CONV_WITH_ONE_INPUT_CH_AND_OUTPUT_CH_ABOVE_THRESHOLD;
+}
+
+/**
+ * @brief The least ctx->size, in bytes, of the depthwise one-input-channel route: the filter packed in blocks of 8
+ *        output channels, then one patch row of KH x KW elements. More scratch packs more patch rows per step.
+ * @param[in] filter_dims    Filter dimensions [1, HK, WK, C_OUT]
+ * @param[in] output_dims    Output dimensions [N, H, W, C_OUT]
+ * @return the size in bytes (64 bits, so that the caller can bound it), or INT64_MAX for a negative dimension or
+ *         more than INT32_MAX taps, which no ctx can hold
+ */
+__STATIC_INLINE int64_t arm_nn_dw_f16_cin1_min_ctx_size(const cmsis_nn_dims *filter_dims,
+                                                        const cmsis_nn_dims *output_dims)
+{
+    if (filter_dims->h < 0 || filter_dims->w < 0 || output_dims->c < 0 ||
+        (int64_t)filter_dims->h * filter_dims->w > INT32_MAX)
+    {
+        return INT64_MAX;
+    }
+    const int64_t taps = (int64_t)filter_dims->h * filter_dims->w;
+    return ((int64_t)output_dims->c + 7) / 8 * 8 * taps * 2 + taps * 2;
+}
+#endif /* ARM_NN_ENABLE_F16 */
+
+/**
+ * @} end of floatConvRoutes group
+ */
 
 /**
  * @}

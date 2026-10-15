@@ -14,7 +14,8 @@
 #
 #   happy           (default) — find_package() succeeds, ns::cmsis-nn imported,
 #                               headers and lib paths wired up, version match
-#                               works for exact + >=.
+#                               works for exact + >=, and a consumer compiles
+#                               with both "arm_*.h" and "Include/arm_*.h".
 #   version_mismatch          — find_package(ns-cmsis-nn 99.0.0 REQUIRED) must
 #                               fail (PACKAGE_VERSION_COMPATIBLE=FALSE).
 #   cpu_mismatch              — consumer's CMAKE_C_FLAGS specifies a different
@@ -156,9 +157,79 @@ if(CASE STREQUAL "happy")
       _fail("IMPORTED_LOCATION='${_loc}' (expected ${_pkg_dir}/lib/libns-cmsis-nn.a)")
     endif()
     get_target_property(_incs cmsis-nn INTERFACE_INCLUDE_DIRECTORIES)
-    if(NOT _incs STREQUAL "${_pkg_dir}/include")
-      _fail("INTERFACE_INCLUDE_DIRECTORIES='${_incs}' (expected ${_pkg_dir}/include)")
+    if(NOT _incs STREQUAL "${_pkg_dir}/include;${_pkg_dir}/compat")
+      _fail("INTERFACE_INCLUDE_DIRECTORIES='${_incs}' (expected ${_pkg_dir}/include;${_pkg_dir}/compat)")
     endif()
+  endif()
+
+  # compat/Include/ mirrors include/ exactly, one forwarding line per header,
+  # each naming the real header by its path relative to the forwarder.
+  file(GLOB_RECURSE _hdrs RELATIVE "${_pkg_dir}/include" "${_pkg_dir}/include/*")
+  file(GLOB_RECURSE _fwds RELATIVE "${_pkg_dir}/compat/Include" "${_pkg_dir}/compat/Include/*")
+  list(SORT _hdrs)
+  list(SORT _fwds)
+  if(NOT _hdrs)
+    _fail("include/ is empty")
+  endif()
+  if(NOT _fwds STREQUAL _hdrs)
+    _fail("compat/Include/ files '${_fwds}' do not match include/ files '${_hdrs}'")
+  else()
+    foreach(_h IN LISTS _hdrs)
+      get_filename_component(_fwd_dir "${_pkg_dir}/compat/Include/${_h}" DIRECTORY)
+      file(RELATIVE_PATH _target "${_fwd_dir}" "${_pkg_dir}/include/${_h}")
+      file(READ "${_pkg_dir}/compat/Include/${_h}" _body)
+      if(NOT _body STREQUAL "#include \"${_target}\"\n")
+        _fail("compat/Include/${_h} is '${_body}' (expected a single #include \"${_target}\")")
+      endif()
+    endforeach()
+  endif()
+
+  # A consumer of ns::cmsis-nn compiles with both spellings, including a
+  # nested Internal/ header, in either order. Built as a static library so
+  # the fake archive is never linked.
+  set(_spellings_src "${CMAKE_BINARY_DIR}/include_spellings.c")
+  file(WRITE "${_spellings_src}" "\
+#include \"Include/arm_nnfunctions.h\"
+#include \"Include/arm_nnsupportfunctions.h\"
+#include \"Include/Internal/arm_nn_compiler.h\"
+#include \"arm_nnfunctions.h\"
+#include \"arm_nnsupportfunctions.h\"
+#include \"arm_nn_types.h\"
+#include \"Include/arm_nn_types.h\"
+int include_spellings(const cmsis_nn_dims *dims) { return dims->n; }
+")
+  set(CMAKE_TRY_COMPILE_TARGET_TYPE STATIC_LIBRARY)
+  try_compile(_spellings_ok "${CMAKE_BINARY_DIR}/include_spellings"
+    SOURCES "${_spellings_src}"
+    LINK_LIBRARIES ns::cmsis-nn
+    OUTPUT_VARIABLE _spellings_out)
+  unset(CMAKE_TRY_COMPILE_TARGET_TYPE)
+  if(NOT _spellings_ok)
+    _fail("consumer including both header spellings did not compile:\n${_spellings_out}")
+  endif()
+
+  # A package assembled without compat/ still resolves and exports include/
+  # alone, never a directory that does not exist.
+  set(_nocompat "${CMAKE_BINARY_DIR}/_nocompat")
+  file(REMOVE_RECURSE "${_nocompat}")
+  file(COPY "${_pkg_dir}/" DESTINATION "${_nocompat}/pkg")
+  file(REMOVE_RECURSE "${_nocompat}/pkg/compat")
+  file(WRITE "${_nocompat}/CMakeLists.txt"
+"cmake_minimum_required(VERSION 3.15)
+project(probe C)
+find_package(ns-cmsis-nn REQUIRED PATHS \"${_nocompat}/pkg/cmake\" NO_DEFAULT_PATH)
+get_target_property(_incs cmsis-nn INTERFACE_INCLUDE_DIRECTORIES)
+if(NOT _incs STREQUAL \"${_nocompat}/pkg/include\")
+  message(FATAL_ERROR \"INTERFACE_INCLUDE_DIRECTORIES='\${_incs}'\")
+endif()
+")
+  execute_process(
+    COMMAND ${CMAKE_COMMAND} -S "${_nocompat}" -B "${_nocompat}/_b"
+    RESULT_VARIABLE _rc
+    OUTPUT_VARIABLE _out
+    ERROR_VARIABLE  _err)
+  if(NOT _rc EQUAL 0)
+    _fail("package without compat/ did not resolve to include/ alone:\n${_err}")
   endif()
   if(NOT NS_CMSIS_NN_VERSION STREQUAL _fake_version)
     _fail("NS_CMSIS_NN_VERSION='${NS_CMSIS_NN_VERSION}' (expected ${_fake_version})")

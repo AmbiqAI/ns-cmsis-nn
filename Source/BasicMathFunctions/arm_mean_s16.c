@@ -277,8 +277,8 @@ static arm_cmsis_nn_status arm_mean_reduce_axis_mve_s16(const int16_t *input_dat
 
     for (int32_t o = 0; o < outer_size; ++o)
     {
-        const int16_t *in_base = input_data + o * reduce_size * inner_size;
-        int16_t *out_ptr = output_data + o * inner_size;
+        const int16_t *in_base = input_data + (size_t)o * reduce_size * inner_size;
+        int16_t *out_ptr = output_data + (size_t)o * inner_size;
 
         int32_t i = 0;
         // Process blocks of 8 contiguous outputs
@@ -289,16 +289,14 @@ static arm_cmsis_nn_status arm_mean_reduce_axis_mve_s16(const int16_t *input_dat
             int32x4_t acc1 = vdupq_n_s32(zp);
 
             // Sum along the reduced axis; consecutive elements are inner_size apart
-            const int16_t *p = in_base + i;
             for (int32_t r = 0; r < reduce_size; ++r)
             {
+                const int16_t *p = in_base + (size_t)r * inner_size + i;
                 int16x8_t v = vld1q_s16(p);
 
                 // Widen int16 to int32
                 acc0 = vaddq_s32(acc0, vmovlbq_s16(v));
                 acc1 = vaddq_s32(acc1, vmovltq_s16(v));
-
-                p += inner_size;
             }
 
             // Requantize, add the output zero-point, and narrow with saturation.
@@ -313,15 +311,13 @@ static arm_cmsis_nn_status arm_mean_reduce_axis_mve_s16(const int16_t *input_dat
             int32x4_t acc0 = vdupq_n_s32(zp);
             int32x4_t acc1 = vdupq_n_s32(zp);
 
-            const int16_t *p = in_base + i;
             for (int32_t r = 0; r < reduce_size; ++r)
             {
+                const int16_t *p = in_base + (size_t)r * inner_size + i;
                 int16x8_t v = vldrhq_z_s16(p, pred);
 
                 acc0 = vaddq_s32(acc0, vmovlbq_s16(v));
                 acc1 = vaddq_s32(acc1, vmovltq_s16(v));
-
-                p += inner_size;
             }
 
             vstrhq_p_s16(

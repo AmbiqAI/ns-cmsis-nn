@@ -267,7 +267,7 @@ int16_t *arm_nn_mat_mult_kernel_s16(const int8_t *input_a,
 
             col_count--;
         }
-        col_count = num_col_a & 0x3;
+        col_count = num_col_a_fast & 0x3;
     #else
         int32_t col_count = num_col_a_fast;
     #endif

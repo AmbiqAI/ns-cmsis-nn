@@ -28,6 +28,7 @@
  *
  * -------------------------------------------------------------------- */
 
+#include "Internal/arm_nn_s4_decode.h"
 #include "arm_nnsupportfunctions.h"
 
 /**
@@ -702,11 +703,11 @@ arm_cmsis_nn_status arm_nn_mat_mult_nt_interleaved_t_even_s4(const int8_t *lhs,
             }
             for (; rhs_cols_idx <= rhs_cols - 2; rhs_cols_idx += 2)
             {
-                rhs_low0 = (int8_t)(packed_rhs_ptr[0] << 4) >> 4;
-                rhs_high0 = packed_rhs_ptr[0] >> 4;
+                rhs_low0 = arm_nn_s4_low_nibble(packed_rhs_ptr[0]);
+                rhs_high0 = arm_nn_s4_high_nibble(packed_rhs_ptr[0]);
 
-                rhs_low1 = (int8_t)(packed_rhs_ptr[rhs_cols] << 4) >> 4;
-                rhs_high1 = packed_rhs_ptr[rhs_cols] >> 4;
+                rhs_low1 = arm_nn_s4_low_nibble(packed_rhs_ptr[rhs_cols]);
+                rhs_high1 = arm_nn_s4_high_nibble(packed_rhs_ptr[rhs_cols]);
 
                 lhs_low = (int8_t)lhs_ptr[0] + lhs_offset;
                 lhs_high = (int8_t)lhs_ptr[1] + lhs_offset;
@@ -890,11 +891,11 @@ arm_cmsis_nn_status arm_nn_mat_mult_nt_interleaved_t_even_s4(const int8_t *lhs,
             }
             for (; rhs_cols_idx <= rhs_cols - 2; rhs_cols_idx += 2)
             {
-                rhs_low0 = (int8_t)(packed_rhs_ptr[0] << 4) >> 4;
-                rhs_high0 = packed_rhs_ptr[0] >> 4;
+                rhs_low0 = arm_nn_s4_low_nibble(packed_rhs_ptr[0]);
+                rhs_high0 = arm_nn_s4_high_nibble(packed_rhs_ptr[0]);
 
-                rhs_low1 = (int8_t)(packed_rhs_ptr[rhs_cols] << 4) >> 4;
-                rhs_high1 = packed_rhs_ptr[rhs_cols] >> 4;
+                rhs_low1 = arm_nn_s4_low_nibble(packed_rhs_ptr[rhs_cols]);
+                rhs_high1 = arm_nn_s4_high_nibble(packed_rhs_ptr[rhs_cols]);
 
                 lhs_low = (int8_t)lhs_ptr[0] + lhs_offset;
                 lhs_high = (int8_t)lhs_ptr[1] + lhs_offset;
@@ -1049,11 +1050,11 @@ arm_cmsis_nn_status arm_nn_mat_mult_nt_interleaved_t_even_s4(const int8_t *lhs,
             }
             for (; rhs_cols_idx <= rhs_cols - 2; rhs_cols_idx += 2)
             {
-                rhs_low0 = (int8_t)(packed_rhs_ptr[0] << 4) >> 4;
-                rhs_high0 = packed_rhs_ptr[0] >> 4;
+                rhs_low0 = arm_nn_s4_low_nibble(packed_rhs_ptr[0]);
+                rhs_high0 = arm_nn_s4_high_nibble(packed_rhs_ptr[0]);
 
-                rhs_low1 = (int8_t)(packed_rhs_ptr[rhs_cols] << 4) >> 4;
-                rhs_high1 = packed_rhs_ptr[rhs_cols] >> 4;
+                rhs_low1 = arm_nn_s4_low_nibble(packed_rhs_ptr[rhs_cols]);
+                rhs_high1 = arm_nn_s4_high_nibble(packed_rhs_ptr[rhs_cols]);
 
                 lhs_low = (int8_t)lhs_ptr[0] + lhs_offset;
                 lhs_high = (int8_t)lhs_ptr[1] + lhs_offset;
@@ -1167,11 +1168,11 @@ arm_cmsis_nn_status arm_nn_mat_mult_nt_interleaved_t_even_s4(const int8_t *lhs,
             }
             for (; rhs_cols_idx <= rhs_cols - 2; rhs_cols_idx += 2)
             {
-                rhs_low0 = (int8_t)(packed_rhs_ptr[0] << 4) >> 4;
-                rhs_high0 = packed_rhs_ptr[0] >> 4;
+                rhs_low0 = arm_nn_s4_low_nibble(packed_rhs_ptr[0]);
+                rhs_high0 = arm_nn_s4_high_nibble(packed_rhs_ptr[0]);
 
-                rhs_low1 = (int8_t)(packed_rhs_ptr[rhs_cols] << 4) >> 4;
-                rhs_high1 = packed_rhs_ptr[rhs_cols] >> 4;
+                rhs_low1 = arm_nn_s4_low_nibble(packed_rhs_ptr[rhs_cols]);
+                rhs_high1 = arm_nn_s4_high_nibble(packed_rhs_ptr[rhs_cols]);
 
                 lhs_low = (int8_t)lhs_ptr[0] + lhs_offset;
                 lhs_high = (int8_t)lhs_ptr[1] + lhs_offset;
@@ -1334,8 +1335,8 @@ arm_cmsis_nn_status arm_nn_mat_mult_nt_interleaved_t_even_s4(const int8_t *lhs,
 
             for (; rhs_cols_idx <= rhs_cols - 2; rhs_cols_idx += 2)
             {
-                rhs_low0 = (int8_t)(packed_rhs_ptr[0] << 4) >> 4;
-                rhs_high0 = packed_rhs_ptr[0] >> 4;
+                rhs_low0 = arm_nn_s4_low_nibble(packed_rhs_ptr[0]);
+                rhs_high0 = arm_nn_s4_high_nibble(packed_rhs_ptr[0]);
 
                 lhs_low = (int8_t)lhs_ptr[0] + lhs_offset;
                 lhs_high = (int8_t)lhs_ptr[1] + lhs_offset;
@@ -1456,8 +1457,8 @@ arm_cmsis_nn_status arm_nn_mat_mult_nt_interleaved_t_even_s4(const int8_t *lhs,
 
             for (; rhs_cols_idx <= rhs_cols - 2; rhs_cols_idx += 2)
             {
-                rhs_low0 = (int8_t)(packed_rhs_ptr[0] << 4) >> 4;
-                rhs_high0 = packed_rhs_ptr[0] >> 4;
+                rhs_low0 = arm_nn_s4_low_nibble(packed_rhs_ptr[0]);
+                rhs_high0 = arm_nn_s4_high_nibble(packed_rhs_ptr[0]);
 
                 lhs_low = (int8_t)lhs_ptr[0] + lhs_offset;
                 lhs_high = (int8_t)lhs_ptr[1] + lhs_offset;
@@ -1525,10 +1526,10 @@ arm_cmsis_nn_status arm_nn_mat_mult_nt_interleaved_t_even_s4(const int8_t *lhs,
 
             for (int32_t rhs_cols_idx = rhs_cols_int4; rhs_cols_idx != 0; --rhs_cols_idx)
             {
-                int8_t rhs_low0 = (int8_t)(packed_rhs_ptr[0] << 4) >> 4;
-                int8_t rhs_high0 = packed_rhs_ptr[0] >> 4;
-                int8_t rhs_low1 = (int8_t)(packed_rhs_ptr[rhs_cols] << 4) >> 4;
-                int8_t rhs_high1 = packed_rhs_ptr[rhs_cols] >> 4;
+                int8_t rhs_low0 = arm_nn_s4_low_nibble(packed_rhs_ptr[0]);
+                int8_t rhs_high0 = arm_nn_s4_high_nibble(packed_rhs_ptr[0]);
+                int8_t rhs_low1 = arm_nn_s4_low_nibble(packed_rhs_ptr[rhs_cols]);
+                int8_t rhs_high1 = arm_nn_s4_high_nibble(packed_rhs_ptr[rhs_cols]);
 
                 int32_t lhs_low = (int8_t)lhs_ptr[0] + lhs_offset;
                 int32_t lhs_high = (int8_t)lhs_ptr[1] + lhs_offset;
@@ -1596,10 +1597,10 @@ arm_cmsis_nn_status arm_nn_mat_mult_nt_interleaved_t_even_s4(const int8_t *lhs,
 
             for (int32_t rhs_cols_idx = rhs_cols_int4; rhs_cols_idx != 0; --rhs_cols_idx)
             {
-                int8_t rhs_low0 = (int8_t)(packed_rhs_ptr[0] << 4) >> 4;
-                int8_t rhs_high0 = packed_rhs_ptr[0] >> 4;
-                int8_t rhs_low1 = (int8_t)(packed_rhs_ptr[rhs_cols] << 4) >> 4;
-                int8_t rhs_high1 = packed_rhs_ptr[rhs_cols] >> 4;
+                int8_t rhs_low0 = arm_nn_s4_low_nibble(packed_rhs_ptr[0]);
+                int8_t rhs_high0 = arm_nn_s4_high_nibble(packed_rhs_ptr[0]);
+                int8_t rhs_low1 = arm_nn_s4_low_nibble(packed_rhs_ptr[rhs_cols]);
+                int8_t rhs_high1 = arm_nn_s4_high_nibble(packed_rhs_ptr[rhs_cols]);
 
                 int32_t lhs_low = (int8_t)lhs_ptr[0] + lhs_offset;
                 int32_t lhs_high = (int8_t)lhs_ptr[1] + lhs_offset;
@@ -1673,11 +1674,11 @@ arm_cmsis_nn_status arm_nn_mat_mult_nt_interleaved_t_even_s4(const int8_t *lhs,
 
             for (int32_t rhs_cols_idx = rhs_cols_int4; rhs_cols_idx != 0; --rhs_cols_idx)
             {
-                int8_t rhs_low0 = (int8_t)(packed_rhs_ptr[0] << 4) >> 4;
-                int8_t rhs_high0 = packed_rhs_ptr[0] >> 4;
+                int8_t rhs_low0 = arm_nn_s4_low_nibble(packed_rhs_ptr[0]);
+                int8_t rhs_high0 = arm_nn_s4_high_nibble(packed_rhs_ptr[0]);
 
-                int8_t rhs_low1 = (int8_t)(packed_rhs_ptr[rhs_cols] << 4) >> 4;
-                int8_t rhs_high1 = packed_rhs_ptr[rhs_cols] >> 4;
+                int8_t rhs_low1 = arm_nn_s4_low_nibble(packed_rhs_ptr[rhs_cols]);
+                int8_t rhs_high1 = arm_nn_s4_high_nibble(packed_rhs_ptr[rhs_cols]);
 
                 int32_t lhs_low = (int8_t)lhs_ptr[0] + lhs_offset;
                 int32_t lhs_high = (int8_t)lhs_ptr[1] + lhs_offset;
@@ -1722,11 +1723,11 @@ arm_cmsis_nn_status arm_nn_mat_mult_nt_interleaved_t_even_s4(const int8_t *lhs,
 
             for (int32_t rhs_cols_idx = rhs_cols_int4; rhs_cols_idx != 0; --rhs_cols_idx)
             {
-                int8_t rhs_low0 = (int8_t)(packed_rhs_ptr[0] << 4) >> 4;
-                int8_t rhs_high0 = packed_rhs_ptr[0] >> 4;
+                int8_t rhs_low0 = arm_nn_s4_low_nibble(packed_rhs_ptr[0]);
+                int8_t rhs_high0 = arm_nn_s4_high_nibble(packed_rhs_ptr[0]);
 
-                int8_t rhs_low1 = (int8_t)(packed_rhs_ptr[rhs_cols] << 4) >> 4;
-                int8_t rhs_high1 = packed_rhs_ptr[rhs_cols] >> 4;
+                int8_t rhs_low1 = arm_nn_s4_low_nibble(packed_rhs_ptr[rhs_cols]);
+                int8_t rhs_high1 = arm_nn_s4_high_nibble(packed_rhs_ptr[rhs_cols]);
 
                 int32_t lhs_low = (int8_t)lhs_ptr[0] + lhs_offset;
                 int32_t lhs_high = (int8_t)lhs_ptr[1] + lhs_offset;
@@ -1783,8 +1784,8 @@ arm_cmsis_nn_status arm_nn_mat_mult_nt_interleaved_t_even_s4(const int8_t *lhs,
 
             for (int32_t rhs_cols_idx = rhs_cols_int4; rhs_cols_idx != 0; --rhs_cols_idx)
             {
-                int8_t rhs_low = (int8_t)(packed_rhs_ptr[0] << 4) >> 4;
-                int8_t rhs_high = packed_rhs_ptr[0] >> 4;
+                int8_t rhs_low = arm_nn_s4_low_nibble(packed_rhs_ptr[0]);
+                int8_t rhs_high = arm_nn_s4_high_nibble(packed_rhs_ptr[0]);
 
                 int32_t lhs_low = (int8_t)lhs_ptr[0] + lhs_offset;
                 int32_t lhs_high = (int8_t)lhs_ptr[1] + lhs_offset;
@@ -1837,8 +1838,8 @@ arm_cmsis_nn_status arm_nn_mat_mult_nt_interleaved_t_even_s4(const int8_t *lhs,
 
             for (int32_t rhs_cols_idx = rhs_cols_int4; rhs_cols_idx != 0; --rhs_cols_idx)
             {
-                int8_t rhs_low = (int8_t)(packed_rhs_ptr[0] << 4) >> 4;
-                int8_t rhs_high = packed_rhs_ptr[0] >> 4;
+                int8_t rhs_low = arm_nn_s4_low_nibble(packed_rhs_ptr[0]);
+                int8_t rhs_high = arm_nn_s4_high_nibble(packed_rhs_ptr[0]);
 
                 int32_t lhs_low = (int8_t)lhs_ptr[0] + lhs_offset;
                 int32_t lhs_high = (int8_t)lhs_ptr[1] + lhs_offset;

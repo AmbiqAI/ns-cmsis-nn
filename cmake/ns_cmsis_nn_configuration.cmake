@@ -52,14 +52,19 @@ function(_ns_cmsis_nn_groups_from_options out_var entrypoint)
   set(${out_var} "${enabled}" PARENT_SCOPE)
 endfunction()
 
+# Share the feature contract with consumers of source and imported targets.
+function(_ns_cmsis_nn_float_definitions target visibility f32 f16)
+  _ns_cmsis_nn_float_values("${f32}" "${f16}" value_f32 value_f16)
+  target_compile_definitions(${target} ${visibility}
+    ARM_NN_ENABLE_F32=${value_f32} ARM_NN_ENABLE_F16=${value_f16})
+endfunction()
+
 # Apply caller-resolved source-build settings without creating cache defaults.
 # Zephyr owns optimization and global definitions through its platform API;
 # it uses the normalization above and keeps that application in its adapter.
 function(_ns_cmsis_nn_source_options target f32 f16 optimization requantize)
-  _ns_cmsis_nn_float_values("${f32}" "${f16}" value_f32 value_f16)
   target_compile_options(${target} PRIVATE ${optimization})
-  target_compile_definitions(${target} PUBLIC
-    ARM_NN_ENABLE_F32=${value_f32} ARM_NN_ENABLE_F16=${value_f16})
+  _ns_cmsis_nn_float_definitions(${target} PUBLIC "${f32}" "${f16}")
   if(requantize)
     target_compile_definitions(${target} PUBLIC CMSIS_NN_USE_REQUANTIZE_INLINE_ASSEMBLY)
   endif()

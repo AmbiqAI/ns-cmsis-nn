@@ -124,7 +124,7 @@ static inline arm_cmsis_nn_status arm_nn_arg_extrema(const void *input_data,
     const uint32_t binary32_infinity_bits = UINT32_C(0x7f800000);
     const uint32_t sign = width == sizeof(uint16_t) ? half_sign_mask : binary32_sign_mask;
     const uint32_t magnitude_mask = sign - 1;
-    /* Only magnitudes strictly above the infinity encoding are NaNs. */
+    /* Only magnitudes strictly above the infinity encoding are NaNs; they never win. */
     const uint32_t nan_boundary = width == sizeof(uint16_t) ? binary16_infinity_bits : binary32_infinity_bits;
     const uint8_t *input = (const uint8_t *)input_data;
     for (size_t o = 0; o < outer; ++o)
@@ -132,18 +132,19 @@ static inline arm_cmsis_nn_status arm_nn_arg_extrema(const void *input_data,
         for (size_t i = 0; i < inner; ++i)
         {
             const size_t base = o * reduction * inner + i;
-            uint32_t best_key = 0;
+            /* Every non-NaN key lies strictly between these bounds, so the first
+             * non-NaN value always replaces them; an all-NaN line keeps index 0. */
+            uint32_t best_key = maximum ? 0 : UINT32_MAX;
             int32_t best_index = 0;
             for (size_t k = 0; k < reduction; ++k)
             {
                 const uint32_t bits = arm_nn_arg_load(input + (base + k * inner) * width, width);
                 if ((bits & magnitude_mask) > nan_boundary)
                 {
-                    best_index = (int32_t)k;
-                    break;
+                    continue;
                 }
                 const uint32_t key = arm_nn_arg_key(bits, sign);
-                if (k == 0 || (maximum ? key > best_key : key < best_key))
+                if (maximum ? key > best_key : key < best_key)
                 {
                     best_key = key;
                     best_index = (int32_t)k;
