@@ -81,13 +81,14 @@ __STATIC_FORCEINLINE void arm_nn_mat_mult_nt_t_s8_mve(const int32_t *weight_sum_
             const int8_t *col_base = rhs + i * rhs_cols;
 
     #if defined(ARM_MATH_AUTOVECTORIZE)
+            /* Each int8 product fits int32; only the accumulation needs wrapping. */
             for (int j = 0; j < rhs_cols; j++)
             {
                 int32_t col = col_base[j];
-                acc_n0 += lhs_vec[j] * col;
-                acc_n1 += ip_row_1[j] * col;
-                acc_n2 += ip_row_2[j] * col;
-                acc_n3 += ip_row_3[j] * col;
+                acc_n0 = arm_nn_mac_wrap_s32_bits(acc_n0, lhs_vec[j] * col, 1);
+                acc_n1 = arm_nn_mac_wrap_s32_bits(acc_n1, ip_row_1[j] * col, 1);
+                acc_n2 = arm_nn_mac_wrap_s32_bits(acc_n2, ip_row_2[j] * col, 1);
+                acc_n3 = arm_nn_mac_wrap_s32_bits(acc_n3, ip_row_3[j] * col, 1);
             }
     #else
             __ASM volatile(" .p2align 2                             \n"
@@ -152,7 +153,7 @@ __STATIC_FORCEINLINE void arm_nn_mat_mult_nt_t_s8_mve(const int32_t *weight_sum_
     #if defined(ARM_MATH_AUTOVECTORIZE)
             for (int j = 0; j < rhs_cols; j++)
             {
-                acc_n0 += lhs_vec[j] * col_base[j];
+                acc_n0 = arm_nn_mac_wrap_s32_bits(acc_n0, lhs_vec[j] * col_base[j], 1);
             }
     #else
             __ASM volatile(" .p2align 2                             \n"

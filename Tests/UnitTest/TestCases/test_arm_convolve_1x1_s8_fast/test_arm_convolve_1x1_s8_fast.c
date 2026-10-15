@@ -1000,3 +1000,59 @@ void kernel1x1_wrapping_bias(void)
         }
     }
 }
+
+/* The largest case crosses INT32_MAX in both the four-row and remaining-row dot products. */
+void matrix_s8_large_dot_wrapping(void)
+{
+#if defined(USING_FVP_CORSTONE_300)
+    #define LARGE_DOT_SECTION __attribute__((section(".bss.NoInit")))
+#else
+    #define LARGE_DOT_SECTION
+#endif
+    enum
+    {
+        MAX_DEPTH = 131073,
+        MAX_ROWS = 9
+    };
+    static int8_t input[MAX_ROWS * MAX_DEPTH] LARGE_DOT_SECTION;
+    static int8_t weights[MAX_DEPTH] LARGE_DOT_SECTION;
+    const int32_t depths[] = {131071, 131072, 131073};
+    const int32_t rows[] = {1, 4, 9};
+    const int32_t sum = 0;
+    const int32_t multiplier = 1073741824;
+    const int32_t shift = -24;
+    int8_t output[MAX_ROWS];
+    memset(input, -128, sizeof(input));
+    memset(weights, -128, sizeof(weights));
+    for (unsigned d = 0; d < sizeof(depths) / sizeof(depths[0]); ++d)
+    {
+        const uint32_t bits = (uint32_t)((int64_t)depths[d] * 16384);
+        const int32_t wrapped = (int32_t)(bits > INT32_MAX ? (int64_t)bits - 4294967296LL : bits);
+        const int32_t expected = arm_nn_requantize(wrapped, multiplier, shift);
+        for (unsigned n = 0; n < sizeof(rows) / sizeof(rows[0]); ++n)
+        {
+            TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
+                              arm_nn_mat_mult_nt_t_s8(&sum,
+                                                      input,
+                                                      weights,
+                                                      NULL,
+                                                      output,
+                                                      &multiplier,
+                                                      &shift,
+                                                      rows[n],
+                                                      1,
+                                                      depths[d],
+                                                      0,
+                                                      0,
+                                                      -128,
+                                                      127,
+                                                      1,
+                                                      MAX_DEPTH));
+            for (int row = 0; row < rows[n]; ++row)
+            {
+                TEST_ASSERT_EQUAL_INT8(expected, output[row]);
+            }
+        }
+    }
+#undef LARGE_DOT_SECTION
+}
