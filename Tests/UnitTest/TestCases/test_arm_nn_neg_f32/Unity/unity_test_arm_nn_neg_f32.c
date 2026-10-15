@@ -3,6 +3,8 @@
  * SPDX-License-Identifier: LicenseRef-Ambiq-Apollo-SDK
  */
 
+#include <stdlib.h>
+
 #include "../test_arm_nn_neg_f32.c"
 
 #ifdef USING_FVP_CORSTONE_300
