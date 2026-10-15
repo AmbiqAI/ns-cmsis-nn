@@ -74,3 +74,11 @@ void test_int16xint8_group_depthwise_3x3_stride_dilation_arm_convolve_s16(void)
 }
 void test_int16xint8_kernel_less_than_9_arm_convolve_s16(void) { int16xint8_kernel_less_than_9_arm_convolve_s16(); }
 void test_int16xint8_1x1_ns_np_nd_arm_convolve_s16(void) { int16xint8_1x1_ns_np_nd_arm_convolve_s16(); }
+
+void test_weights_at_gap_arm_convolve_s16(void) { weights_at_gap_arm_convolve_s16(); }
+
+void test_group_arg_errors_arm_convolve_s16(void) { group_arg_errors_arm_convolve_s16(); }
+
+void test_wide_columns_int64_bias_arm_convolve_s16(void) { wide_columns_int64_bias_arm_convolve_s16(); }
+
+void test_grouped_batch_boundaries_arm_convolve_s16(void) { grouped_batch_boundaries_arm_convolve_s16(); }

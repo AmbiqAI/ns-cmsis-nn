@@ -19,6 +19,7 @@
  *
  * -------------------------------------------------------------------- */
 
+#include "Internal/arm_nn_fp_control.h"
 #include "arm_nnfunctions.h"
 #include "arm_nnsupportfunctions.h"
 
@@ -203,7 +204,6 @@ static void arm_reduce_sum_spatial_scalar_f16(const float16_t *input_data,
     }
 }
     #else
-        #if !defined(__ARM_FP16_FORMAT_ALTERNATIVE)
 // Portable spatial accumulation. Refs #484.
 static void arm_reduce_sum_spatial_portable_f16(const float16_t *input_data,
                                                 float16_t *output_data,
@@ -226,7 +226,6 @@ static void arm_reduce_sum_spatial_portable_f16(const float16_t *input_data,
         output_data += inner;
     }
 }
-        #endif
     #endif
 
 // Fast path: reduced axes form a contiguous suffix -> row sums
@@ -308,9 +307,8 @@ arm_cmsis_nn_status arm_reduce_sum_f16(const float16_t *input_data,
         if (bounded)
         {
     #if defined(ARM_MATH_MVE_FLOAT16) && defined(ARM_MATH_MVEF) && !defined(ARM_MATH_AUTOVECTORIZE)
-            uint32_t fpscr;
-            __ASM volatile("vmrs %0, fpscr" : "=r"(fpscr));
-            // Keep alternative-half handling on the existing path. Refs #484.
+            const arm_nn_fp_control_t fpscr = arm_nn_get_fp_control();
+            // FPSCR.AHP selects alternative-half conversions at run time; keep those on the existing path. Refs #484.
             if (!(fpscr & (1u << 26)))
             {
                 const int32_t outer = axis_dims->h ? input_dims->n : input_dims->n * input_dims->h;
@@ -326,10 +324,9 @@ arm_cmsis_nn_status arm_reduce_sum_f16(const float16_t *input_data,
                 }
                 return ARM_CMSIS_NN_SUCCESS;
             }
-    #elif !defined(__ARM_FP16_FORMAT_ALTERNATIVE)
-        #if defined(__ARM_FP) && (__ARM_FP & 4)
-            uint32_t fpscr;
-            __ASM volatile("vmrs %0, fpscr" : "=r"(fpscr));
+    #else
+        #if defined(ARM_NN_FP_CONTROL_AVAILABLE)
+            const arm_nn_fp_control_t fpscr = arm_nn_get_fp_control();
             if (!(fpscr & (1u << 26)))
         #endif
             {

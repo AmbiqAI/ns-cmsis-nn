@@ -81,6 +81,17 @@ repos:
         language: script
         files: ^(Source|Include)/.*\.(c|h)$
 
+      # The public headers' @param tags are the kernel contract the tester
+      # reads (#526). The check needs all four headers at once because copy
+      # directives cross files, so it ignores the staged filename list and
+      # runs whenever any of them is touched.
+      - id: doxygen-params
+        name: public header @param tags are complete and direction-correct
+        entry: scripts/check_doxygen_params.py
+        language: script
+        files: ^Include/arm_nn(support)?functions(_flt)?\.h$
+        pass_filenames: false
+
       - id: todo-needs-issue
         name: deferred-work markers reference an issue
         entry: scripts/check_todo_markers.sh

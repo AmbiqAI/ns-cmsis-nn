@@ -46,3 +46,5 @@ void test_mean_f16_generic_large_sum_arm_nn_mean_f16(void) { mean_f16_generic_la
 void test_mean_f16_long_accumulation_arm_nn_mean_f16(void) { mean_f16_long_accumulation_arm_nn_mean_f16(); }
 void test_mean_f16_generic_nan_inf_arm_nn_mean_f16(void) { mean_f16_generic_nan_inf_arm_nn_mean_f16(); }
 void test_mean_f16_arg_error_arm_nn_mean_f16(void) { mean_f16_arg_error_arm_nn_mean_f16(); }
+void test_mean_f16_middle_block_arm_nn_mean_f16(void) { mean_f16_middle_block_arm_nn_mean_f16(); }
+void test_mean_f16_middle_block_order_arm_nn_mean_f16(void) { mean_f16_middle_block_order_arm_nn_mean_f16(); }

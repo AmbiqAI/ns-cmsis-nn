@@ -82,3 +82,33 @@ void test_buffer_size_arm_depthwise_conv_fast_s16(void) { buffer_size_arm_depthw
 void test_buffer_size_mve_arm_depthwise_conv_fast_s16(void) { buffer_size_mve_arm_depthwise_conv_fast_s16(); }
 
 void test_buffer_size_dsp_arm_depthwise_conv_fast_s16(void) { buffer_size_dsp_arm_depthwise_conv_fast_s16(); }
+
+void test_dilated_1d_arm_depthwise_conv_fast_s16(void) { dilated_1d_arm_depthwise_conv_fast_s16(); }
+
+void test_dilated_1d_route_arm_depthwise_conv_fast_s16(void) { dilated_1d_route_arm_depthwise_conv_fast_s16(); }
+
+void test_dilation_arg_check_arm_depthwise_conv_fast_s16(void) { dilation_arg_check_arm_depthwise_conv_fast_s16(); }
+
+void test_ch_mult_arg_check_arm_depthwise_conv_fast_s16(void) { ch_mult_arg_check_arm_depthwise_conv_fast_s16(); }
+
+void test_stride_reach_arg_check_arm_depthwise_conv_fast_s16(void)
+{
+    stride_reach_arg_check_arm_depthwise_conv_fast_s16();
+}
+
+void test_tap_count_arg_check_arm_depthwise_conv_fast_s16(void) { tap_count_arg_check_arm_depthwise_conv_fast_s16(); }
+
+void test_shared_bounds_arg_check_arm_depthwise_conv_fast_s16(void)
+{
+    shared_bounds_arg_check_arm_depthwise_conv_fast_s16();
+}
+
+void test_operand_bounds_arm_depthwise_conv_fast_s16(void) { operand_bounds_arm_depthwise_conv_fast_s16(); }
+void test_tap_index_arm_depthwise_conv_fast_s16(void) { tap_index_arm_depthwise_conv_fast_s16(); }
+
+void test_padding_beyond_filter_arm_depthwise_conv_fast_s16(void)
+{
+    padding_beyond_filter_arm_depthwise_conv_fast_s16();
+}
+
+void test_large_dims_arm_depthwise_conv_fast_s16(void) { large_dims_arm_depthwise_conv_fast_s16(); }

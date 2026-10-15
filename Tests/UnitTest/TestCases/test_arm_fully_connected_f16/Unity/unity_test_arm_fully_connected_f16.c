@@ -38,3 +38,8 @@ void test_fully_connected_k33_k39_n5_f16(void) { fully_connected_k33_k39_n5_f16(
 void test_fully_connected_k39_n5_clamped_f16(void) { fully_connected_k39_n5_clamped_f16(); }
 
 void test_fully_connected_k31_n9_f16(void) { fully_connected_k31_n9_f16(); }
+
+void test_fully_connected_packed_precise_contract_f16(void) { fully_connected_packed_precise_contract_f16(); }
+void test_fully_connected_packed_precise_bias_f16(void) { fully_connected_packed_precise_bias_f16(); }
+void test_fully_connected_packed_precise_nonfinite_f16(void) { fully_connected_packed_precise_nonfinite_f16(); }
+void test_fully_connected_packed_precise_invalid_f16(void) { fully_connected_packed_precise_invalid_f16(); }

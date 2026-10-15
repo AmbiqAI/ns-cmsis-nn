@@ -94,7 +94,7 @@ arm_cmsis_nn_status arm_convolve_s16_group_ch_mult_1(const cmsis_nn_context *ctx
     /* Filter is [C_OUT, HK, WK, 1]; stride between output channels = kernel_y * kernel_x */
     const int32_t rhs_cols = kernel_y * kernel_x;
 
-#if defined(ARM_MATH_MVEI)
+#if defined(ARM_MATH_MVEI) && !defined(ARM_MATH_AUTOVECTORIZE)
     /* MVE fast path: kernel fits in 1 or 2 vectors (<= 16 elements), no padding.
        Gather-offset + vmladavq pattern from arm_convolve_s16_fast_small_kernel.
        For rhs_cols > 8 (e.g. 3x3=9), split across two vector pairs. */

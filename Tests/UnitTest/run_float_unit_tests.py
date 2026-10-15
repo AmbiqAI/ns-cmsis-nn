@@ -305,6 +305,18 @@ def _decode_timeout_output(stream: bytes | str | None) -> str:
     return stream
 
 
+UNITY_PASS_SUMMARY = re.compile(r"^\d+ Tests 0 Failures \d+ Ignored\s*$", re.MULTILINE)
+UNITY_OK_LINE = re.compile(r"^OK\s*$", re.MULTILINE)
+
+
+def unity_passed(output: str) -> bool:
+    """True when Unity's summary line reports zero failures and is followed by its OK line.
+
+    A substring test on "0 Failures" also matches "10 Failures", and a bare "OK" can appear anywhere.
+    """
+    return bool(UNITY_PASS_SUMMARY.search(output)) and bool(UNITY_OK_LINE.search(output))
+
+
 def summarize_unity_ticks(output: str) -> str:
     tick_matches = re.findall(r":PASS\s+\((\d+)\s+ticks\)", output)
     if not tick_matches:
@@ -337,11 +349,7 @@ def try_fvp_command(args: list[str], cwd: Path, timeout_seconds: int) -> tuple[b
         if stderr_text:
             print(stderr_text, end="", file=sys.stderr, flush=True)
 
-        timed_out_after_success = (
-            "0 Failures" in stdout_text
-            and "\nOK" in stdout_text
-            and "FAIL" not in stdout_text
-        )
+        timed_out_after_success = unity_passed(stdout_text) and "FAIL" not in stdout_text
         if timed_out_after_success:
             tick_summary = summarize_unity_ticks(stdout_text)
             detail = f"timeout {timeout_seconds}s after PASS output"
@@ -356,7 +364,7 @@ def try_fvp_command(args: list[str], cwd: Path, timeout_seconds: int) -> tuple[b
         print(completed.stderr, end="", file=sys.stderr, flush=True)
 
     output = completed.stdout or ""
-    passed = completed.returncode == 0 and "0 Failures" in output and "\nOK" in output and ":FAIL:" not in output
+    passed = completed.returncode == 0 and unity_passed(output) and ":FAIL:" not in output
     if passed:
         return True, summarize_unity_ticks(output)
 

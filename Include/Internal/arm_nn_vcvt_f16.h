@@ -64,6 +64,10 @@
     #if defined(__GNUC__) && !defined(__clang__) &&                                                                    \
         (defined(ARM_NN_GAS_VCVT_F16_BROKEN) || (__GNUC__ < 14 && !defined(ARM_NN_GAS_F16_VERIFIED)))
 
+        /* The wrappers below are the scalar form: a NaN keeps its payload, where the vector form gives the default
+           NaN. */
+        #define ARM_NN_VCVT_F16_SCALAR_FORM (1)
+
         /*
          * Assembler-side operand rewrite, carried by every use site rather than
          * defined once at file scope. A top-level asm does not follow the functions of

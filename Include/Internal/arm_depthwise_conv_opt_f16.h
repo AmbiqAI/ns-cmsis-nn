@@ -39,6 +39,71 @@
 #include "Internal/arm_nn_activation_flt.h"
 #include "arm_nnsupportfunctions.h"
 
+/* The route bodies, shared by the router table below and the direct entries */
+static arm_cmsis_nn_status arm_dw_spec_k3_1d_nhwc_f16_call(const cmsis_nn_context *ctx,
+                                                           const cmsis_nn_dw_conv_params_f16 *params,
+                                                           const cmsis_nn_dims *input_dims,
+                                                           const float16_t *input,
+                                                           const cmsis_nn_dims *filter_dims,
+                                                           const float16_t *kernel,
+                                                           const cmsis_nn_dims *bias_dims,
+                                                           const float16_t *bias,
+                                                           const cmsis_nn_dims *output_dims,
+                                                           float16_t *output,
+                                                           arm_nn_dw_kernel_layout_f16 kernel_layout)
+{
+    (void)ctx;
+    (void)filter_dims;
+    (void)bias_dims;
+
+    if (kernel_layout != ARM_NN_DW_KERNEL_KC)
+    {
+        return ARM_CMSIS_NN_ARG_ERROR;
+    }
+
+    arm_nn_depthwise_conv1d_k3_nhwc_f16(input, input_dims->c, input_dims->w, kernel, bias, output, output_dims->w);
+
+    const int32_t out_count = output_dims->n * output_dims->c * output_dims->h * output_dims->w;
+    arm_nn_vector_clamp_f16(output, out_count, params->activation.min, params->activation.max);
+
+    return ARM_CMSIS_NN_SUCCESS;
+}
+
+static arm_cmsis_nn_status arm_dw_spec_2x5_nhwc_f16_call(const cmsis_nn_context *ctx,
+                                                         const cmsis_nn_dw_conv_params_f16 *params,
+                                                         const cmsis_nn_dims *input_dims,
+                                                         const float16_t *input,
+                                                         const cmsis_nn_dims *filter_dims,
+                                                         const float16_t *kernel,
+                                                         const cmsis_nn_dims *bias_dims,
+                                                         const float16_t *bias,
+                                                         const cmsis_nn_dims *output_dims,
+                                                         float16_t *output,
+                                                         arm_nn_dw_kernel_layout_f16 kernel_layout)
+{
+    (void)ctx;
+    (void)filter_dims;
+    (void)bias_dims;
+
+    if (kernel_layout != ARM_NN_DW_KERNEL_KC)
+    {
+        return ARM_CMSIS_NN_ARG_ERROR;
+    }
+
+    arm_nn_depthwise_conv2x5_nhwc_f16(input,
+                                      input_dims->n,
+                                      input_dims->c,
+                                      input_dims->w,
+                                      params->ch_mult,
+                                      kernel,
+                                      bias,
+                                      output,
+                                      output_dims->w,
+                                      params->activation.min,
+                                      params->activation.max);
+    return ARM_CMSIS_NN_SUCCESS;
+}
+
 #ifndef NN_DISABLE_SPECIALIZATION
 typedef bool (*arm_dw_match_f16)(const cmsis_nn_context *ctx,
                                  const cmsis_nn_dw_conv_params_f16 *params,
@@ -88,47 +153,7 @@ static bool arm_dw_spec_k3_1d_nhwc_f16_match(const cmsis_nn_context *ctx,
     (void)bias_dims;
     (void)bias;
     (void)output;
-
-    const int32_t ch_mult = params->ch_mult;
-    const int32_t kernel_x = filter_dims->w;
-    const int32_t kernel_y = filter_dims->h;
-    const int32_t batch = input_dims->n;
-    const int32_t output_batch = output_dims->n;
-    const int32_t input_y = input_dims->h;
-    const int32_t output_y = output_dims->h;
-
-    return (kernel_layout == ARM_NN_DW_KERNEL_KC && batch == 1 && output_batch == 1 && ch_mult == 1 && kernel_x == 3 &&
-            kernel_y == 1 && input_y == 1 && output_y == 1 && params->dilation.h == 1 && params->dilation.w == 1 &&
-            params->stride.h == 1 && params->stride.w == 1 && params->padding.h == 0 && params->padding.w == 0);
-}
-
-static arm_cmsis_nn_status arm_dw_spec_k3_1d_nhwc_f16_call(const cmsis_nn_context *ctx,
-                                                           const cmsis_nn_dw_conv_params_f16 *params,
-                                                           const cmsis_nn_dims *input_dims,
-                                                           const float16_t *input,
-                                                           const cmsis_nn_dims *filter_dims,
-                                                           const float16_t *kernel,
-                                                           const cmsis_nn_dims *bias_dims,
-                                                           const float16_t *bias,
-                                                           const cmsis_nn_dims *output_dims,
-                                                           float16_t *output,
-                                                           arm_nn_dw_kernel_layout_f16 kernel_layout)
-{
-    (void)ctx;
-    (void)filter_dims;
-    (void)bias_dims;
-
-    if (kernel_layout != ARM_NN_DW_KERNEL_KC)
-    {
-        return ARM_CMSIS_NN_ARG_ERROR;
-    }
-
-    arm_nn_depthwise_conv1d_k3_nhwc_f16(input, input_dims->c, input_dims->w, kernel, bias, output, output_dims->w);
-
-    const int32_t out_count = output_dims->n * output_dims->c * output_dims->h * output_dims->w;
-    arm_nn_vector_clamp_f16(output, out_count, params->activation.min, params->activation.max);
-
-    return ARM_CMSIS_NN_SUCCESS;
+    return kernel_layout == ARM_NN_DW_KERNEL_KC && arm_nn_dw_f16_is_1d_k3(params, input_dims, filter_dims, output_dims);
 }
 
 static bool arm_dw_spec_2x5_nhwc_f16_match(const cmsis_nn_context *ctx,
@@ -149,50 +174,7 @@ static bool arm_dw_spec_2x5_nhwc_f16_match(const cmsis_nn_context *ctx,
     (void)bias_dims;
     (void)bias;
     (void)output;
-
-    const int32_t kernel_x = filter_dims->w;
-    const int32_t kernel_y = filter_dims->h;
-    const int32_t input_y = input_dims->h;
-    const int32_t output_y = output_dims->h;
-
-    return (kernel_layout == ARM_NN_DW_KERNEL_KC && kernel_x == 5 && kernel_y == 2 && input_y == 2 && output_y == 1 &&
-            params->dilation.h == 1 && params->dilation.w == 1 && params->stride.h == 1 && params->stride.w == 1 &&
-            params->padding.h == 0 && params->padding.w == 0);
-}
-
-static arm_cmsis_nn_status arm_dw_spec_2x5_nhwc_f16_call(const cmsis_nn_context *ctx,
-                                                         const cmsis_nn_dw_conv_params_f16 *params,
-                                                         const cmsis_nn_dims *input_dims,
-                                                         const float16_t *input,
-                                                         const cmsis_nn_dims *filter_dims,
-                                                         const float16_t *kernel,
-                                                         const cmsis_nn_dims *bias_dims,
-                                                         const float16_t *bias,
-                                                         const cmsis_nn_dims *output_dims,
-                                                         float16_t *output,
-                                                         arm_nn_dw_kernel_layout_f16 kernel_layout)
-{
-    (void)ctx;
-    (void)filter_dims;
-    (void)bias_dims;
-
-    if (kernel_layout != ARM_NN_DW_KERNEL_KC)
-    {
-        return ARM_CMSIS_NN_ARG_ERROR;
-    }
-
-    arm_nn_depthwise_conv2x5_nhwc_f16(input,
-                                      input_dims->n,
-                                      input_dims->c,
-                                      input_dims->w,
-                                      params->ch_mult,
-                                      kernel,
-                                      bias,
-                                      output,
-                                      output_dims->w,
-                                      params->activation.min,
-                                      params->activation.max);
-    return ARM_CMSIS_NN_SUCCESS;
+    return kernel_layout == ARM_NN_DW_KERNEL_KC && arm_nn_dw_f16_is_2x5(params, input_dims, filter_dims, output_dims);
 }
 
 /* 3x3 is no longer a table entry: the ch_mult == 1 direct kernel in arm_depthwise_conv_f16.c takes it (#448). */

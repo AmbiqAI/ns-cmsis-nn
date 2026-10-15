@@ -7,7 +7,7 @@
 
 heliaCORE provides quantized neural-network kernels for Ambiq Apollo-class
 Cortex-M DSP/MVE targets. It preserves CMSIS-NN-compatible APIs where that
-surface applies, adds experimental inherited CMSIS-NN `float32` and `float16`
+surface applies, adds inherited CMSIS-NN `float32` and `float16`
 APIs, and adds Ambiq-tuned operators, kernel variants, and integration paths
 for HELIA AI workflows.
 
@@ -20,7 +20,7 @@ for HELIA AI workflows.
 - int8 / int16 / int4-weight quantized kernels for Conv, Depthwise Conv,
   Transpose Conv, Fully Connected, LSTM, SVDF, Pooling, Softmax, elementwise
   math and more.
-- Experimental `float32` and `float16` CMSIS-NN APIs are available for selected
+- `float32` and `float16` CMSIS-NN APIs are available for selected
   operators when explicitly enabled.
 - Three backend paths selected automatically at build time from your toolchain
   CPU flags: **pure C**, **DSP**, and **MVE / Helium**. MVE is a primary
@@ -193,9 +193,9 @@ compiler reports.
 | **DSP** | Cortex-M4, M7, M33 (with DSP extension) — uses SIMD intrinsics |
 | **MVE** | Cortex-M55, M85 — uses Arm Helium / M-Profile Vector Extension |
 
-### Experimental floating-point support
+### Floating-point support
 
-heliaCORE NN includes the experimental CMSIS-NN `float32` and `float16` APIs
+heliaCORE NN includes the CMSIS-NN `float32` and `float16` APIs
 inherited from upstream. They are disabled by default so integer-only builds do
 not pay for extra code size or public API surface. Enable them only for
 applications that strictly need floating-point kernels.
@@ -217,6 +217,21 @@ pure C scalar path (soft-float). It is supported: the tester's float suite
 runs it on the Corstone-300 FVP on every pull request, and the legacy Unity
 float suites build and run it nightly and at release. `float16` support
 remains Cortex-M55 only.
+
+`float16_t` is IEEE 754 binary16. The Arm alternative half-precision format
+(GCC `-mfp16-format=alternative`) is not supported and is rejected at compile
+time. A GCC source build that enables `float16` without FP16 arithmetic (for
+example Cortex-M4, or Cortex-M55 with `-mfloat-abi=soft` or `+nofp`) must pass
+`-mfp16-format=ieee`; such a build compiles, but `float16` is released and
+CI-qualified only on Cortex-M55 with MVE.
+
+No Ambiq product ships Cortex-M55 without MVE, and `float16` without MVE is not
+an expected configuration. As a safeguard for experimental or misconfigured
+builds, the headers reject a GCC `float16` build for Armv8.1-M without MVE (for
+example `cortex-m55+nomve`) on GCC before 15.3: Arm GNU Toolchain 13.2 to 15.2
+emit half-precision loads and stores there that are undefined on M-profile. With
+GCC 15.3 or a Clang-based compiler such a build compiles, but it is not
+runtime-qualified.
 
 For float operators that support `arm_nn_weight_format_flt`, MVE performance is
 generally better when constant weights are provided in the packed `NTxN` layout
@@ -240,7 +255,7 @@ inference libraries such as Arm Compute Library or XNNPACK.
 |--------------------------------|:------:|:-------:|:-------:|:--------:|:---------:|:---------:|:--------:|:---------:|:---------:|
 | Conv2D                         | Yes    | Yes     | Yes     | Yes      | Yes       | Yes       | Yes      | Yes       | Yes       |
 | DepthwiseConv2D                | Yes    | Yes     | Yes     | Yes      | Yes       | Yes       | Yes      | Yes       | Yes       |
-| TransposeConv2D                | Yes    | No      | No      | Yes      | No        | No        | Yes      | No        | No        |
+| TransposeConv2D                | Yes    | Yes     | No      | Yes      | No        | No        | Yes      | No        | No        |
 | Fully Connected                | Yes    | Yes     | Yes     | Yes      | Yes       | Yes       | Yes      | Yes       | Yes       |
 | Batch MatMul                   | Yes    | Yes     | No      | Yes      | Yes       | No        | Yes      | Yes       | No        |
 | Add / Sub                      | Yes    | Yes     | N/A     | Yes      | Yes       | N/A       | Yes      | Yes       | N/A       |
@@ -280,7 +295,7 @@ inference libraries such as Arm Compute Library or XNNPACK.
 > support per kernel, see the function prototypes in
 > [`Include/arm_nnfunctions.h`](Include/arm_nnfunctions.h).
 
-### Experimental float operator coverage
+### Floating-point operator coverage
 
 The table below summarizes public `float16` / `float32` operator coverage. The
 MVE column means the implementation contains explicit Helium-specialized paths
@@ -525,8 +540,8 @@ Compile-time options that affect headers (set the same flag in TFLM):
 
 | Option | Effect |
 |---|---|
-| `ARM_NN_ENABLE_F32` | Enables experimental `float32` operator support. Leave disabled unless the application needs float32 kernels. |
-| `ARM_NN_ENABLE_F16` | Enables experimental `float16` operator support. Leave disabled unless the application needs float16 kernels and the toolchain/target support them. |
+| `ARM_NN_ENABLE_F32` | Enables `float32` operator support. Leave disabled unless the application needs float32 kernels. |
+| `ARM_NN_ENABLE_F16` | Enables `float16` operator support. Leave disabled unless the application needs float16 kernels and the toolchain/target support them. |
 | `CMSIS_NN_USE_SINGLE_ROUNDING` | Use single instead of double rounding in requantization. May change outputs. |
 | `CMSIS_NN_USE_REQUANTIZE_INLINE_ASSEMBLY` | Inline assembly for `arm_nn_requantize`. Faster on Cortex-M4, slower elsewhere. |
 | `OPTIONAL_RESTRICT_KEYWORD=__restrict` | Enables `restrict` on int4/int8 conv outputs. Recommended on Cortex-M7. |
@@ -537,6 +552,7 @@ Additional implementation-selection options:
 |---|---|
 | `NN_DISABLE_SPECIALIZATION` | Disables optional shape/layout-specific fast paths and forces the corresponding generic implementations. Useful for debugging or validating specialized kernels against generic paths. |
 | `ARM_NN_USE_EXP_LUT` | Selects the LUT-based scalar float softmax exp approximation. This is the default if no scalar float softmax exp macro is defined. |
+| `ARM_NN_WORD_COPY` | Makes `arm_memcpy_s8`/`_s16`/`_s32`/`_q15`, `arm_memset_s8` and `arm_memset_s16` copy and fill a word at a time instead of calling the C library (MVE builds keep their vector loops, except `arm_memcpy_q15`, which has none). Defined by default for clang (not armclang) with unaligned access on armv7-m, armv7e-m and armv8-m.main, where ATfE 22.1's C library moves one byte at a time. Requires unaligned word access. Without MVE it also makes `arm_convolve_s8` fill the im2col taps of a filter depth of 1 (4 taps or more) with plain stores. |
 | `ARM_NN_USE_EXP_TAYLOR` | Selects the Taylor/Estrin scalar float softmax exp approximation to avoid the extra lookup-table storage. Do not define this with `ARM_NN_USE_EXP_LUT`. |
 | `ARM_NN_SKIP_GAS_F16_PROBE` | A CMake configure option, not a compile-time macro: pass `-DARM_NN_SKIP_GAS_F16_PROBE=ON` to `cmake`, defining it in your own compile flags does nothing. Default `OFF`. The MVE encoding probe is a hard error only when it cannot compile its witness with your flags at all; this downgrades that to a warning. The build then measures nothing and picks the conversion form from the compiler major instead, which is right for every Arm GNU release as shipped. See [toolchains.md](docs/guides/toolchains.md). |
 
@@ -678,7 +694,7 @@ Apollo-tuned kernels or Ambiq-specific operator coverage.
 Inherited symbols and signatures are kept compatible where supported so TFLM
 and other consumers can continue to link through familiar `arm_*` entry points.
 
-**How do I enable the experimental float APIs?**
+**How do I enable the float APIs?**
 Enable `ARM_NN_ENABLE_F32` and/or `ARM_NN_ENABLE_F16` in the build. They are
 off by default to keep integer-only builds small. If the enabled float headers
 are consumed by TFLM or another downstream build, use matching definitions in

@@ -14,7 +14,7 @@
 #include <unity.h>
 
 /* Format fields are local to this independent binary64 reference.
- * An all-ones exponent means Inf/NaN only under IEEE; alternative half is finite. */
+ * An all-ones exponent means Inf or NaN. */
 #if AE_HALF
     #define AE_TYPE float16_t
     #define AE_BITS uint16_t
@@ -33,11 +33,6 @@
     #define AE_FRAC 23
     #define AE_BIAS 127
     #include "arg_extrema_f32_data.h"
-#endif
-#if AE_HALF && defined(__ARM_FP16_FORMAT_ALTERNATIVE) && !(defined(__ARM_FEATURE_MVE) && (__ARM_FEATURE_MVE & 2))
-    #define AE_IEEE_SPECIALS 0
-#else
-    #define AE_IEEE_SPECIALS 1
 #endif
 #define AE_MAGNITUDE_MASK (AE_SIGN_MASK - 1)
 #define AE_FRACTION_MASK ((UINT32_C(1) << AE_FRAC) - 1)
@@ -60,15 +55,15 @@ static cmsis_nn_dims ae_dims(const int32_t d[4])
 static int ae_count(const int32_t d[4]) { return d[0] * d[1] * d[2] * d[3]; }
 
 /* Decode directly into binary64, independently of the kernel's integer keys.
- * Alternative half uses exponent 31 for finite values. Every finite value of
- * either half format and binary32 is normal in binary64, including subnormals. */
+ * Every finite binary16 and binary32 value is normal in binary64, including
+ * subnormals. */
 static double ae_value(uint32_t bits)
 {
     const uint32_t magnitude = bits & AE_MAGNITUDE_MASK;
     const uint32_t fraction = magnitude & AE_FRACTION_MASK;
     const int exponent = (int)(magnitude >> AE_FRAC);
     double value;
-    if (AE_IEEE_SPECIALS && magnitude == AE_EXPONENT_MASK)
+    if (magnitude == AE_EXPONENT_MASK)
     {
         value = INFINITY;
     }
@@ -85,7 +80,7 @@ static double ae_value(uint32_t bits)
 
 static int ae_is_nan(uint32_t bits)
 {
-    return AE_IEEE_SPECIALS && (bits & AE_EXPONENT_MASK) == AE_EXPONENT_MASK && (bits & AE_FRACTION_MASK) != 0;
+    return (bits & AE_EXPONENT_MASK) == AE_EXPONENT_MASK && (bits & AE_FRACTION_MASK) != 0;
 }
 
 static void ae_reference(const int32_t d[4], int axis)
@@ -106,10 +101,12 @@ static void ae_reference(const int32_t d[4], int axis)
                             dest = dest * d[k] + coords[k];
                     const uint32_t next = ae_bits[source];
                     const uint32_t previous = ae_winners[dest];
+                    /* LiteRT order: the first element seeds the line, a NaN
+                     * never replaces, and a non-NaN value replaces a NaN seed. */
                     int replace = ae_expected[dest] < 0;
-                    if (!replace && !ae_is_nan(previous))
+                    if (!replace && !ae_is_nan(next))
                     {
-                        if (ae_is_nan(next))
+                        if (ae_is_nan(previous))
                             replace = 1;
 #if AE_MAX
                         else if (ae_value(next) > ae_value(previous))
@@ -197,13 +194,6 @@ static void ae_axes(void)
 
 static void ae_special(void)
 {
-#if !AE_IEEE_SPECIALS
-    /* Exponent-31 finite boundary, next value, and signed extrema of alternative half. */
-    TEST_ASSERT_TRUE(ae_value(0x7c00) == 65536.0);
-    TEST_ASSERT_TRUE(ae_value(0x7c01) == 65600.0);
-    TEST_ASSERT_TRUE(ae_value(0x7fff) == 131008.0);
-    TEST_ASSERT_TRUE(ae_value(0xffff) == -131008.0);
-#endif
     const uint32_t patterns[] = {AE_EXPONENT_MASK | 1,
                                  AE_ONE_BITS,
                                  AE_SIGN_MASK | AE_ONE_BITS,
@@ -230,11 +220,55 @@ static void ae_special(void)
     {
         for (int i = 0; i < 9; ++i)
             ae_bits[i] = (AE_BITS)AE_ONE_BITS;
-        /* A NaN wins under IEEE; a signed finite extreme wins under alternative half. */
-        ae_bits[position] = (AE_BITS)(AE_EXPONENT_MASK | 1 | ((!AE_IEEE_SPECIALS && !AE_MAX) ? AE_SIGN_MASK : 0));
+        /* A NaN never wins; after a leading NaN the next value does. */
+        ae_bits[position] = (AE_BITS)(AE_EXPONENT_MASK | 1);
         ae_check(line, 3);
-        TEST_ASSERT_EQUAL_INT32(position, ae_output[AE_GUARD]);
+        TEST_ASSERT_EQUAL_INT32(position == 0 ? 1 : 0, ae_output[AE_GUARD]);
     }
+    /* Even the weakest non-NaN value, -Inf for max and +Inf for min, replaces
+     * a run of leading NaNs. */
+#if AE_MAX
+    const uint32_t weakest = AE_SIGN_MASK | AE_EXPONENT_MASK;
+#else
+    const uint32_t weakest = AE_EXPONENT_MASK;
+#endif
+    for (int i = 0; i < 9; ++i)
+        ae_bits[i] = (AE_BITS)(i < 8 ? (AE_EXPONENT_MASK | 1 | (AE_SIGN_MASK * (i & 1))) : weakest);
+    ae_check(line, 3);
+    TEST_ASSERT_EQUAL_INT32(8, ae_output[AE_GUARD]);
+    /* {1, NaN, -1}: the NaN sits between the maximum and the minimum. */
+    const int32_t three[4] = {1, 1, 1, 3};
+    ae_bits[0] = (AE_BITS)AE_ONE_BITS;
+    ae_bits[1] = (AE_BITS)(AE_EXPONENT_MASK | 1);
+    ae_bits[2] = (AE_BITS)(AE_SIGN_MASK | AE_ONE_BITS);
+    ae_check(three, 3);
+#if AE_MAX
+    TEST_ASSERT_EQUAL_INT32(0, ae_output[AE_GUARD]);
+#else
+    TEST_ASSERT_EQUAL_INT32(2, ae_output[AE_GUARD]);
+#endif
+    /* An all-NaN line returns index 0, whatever the payloads and signs:
+     * quiet and signaling, smallest and largest payloads, both signs. */
+    const uint32_t quiet = (AE_FRACTION_MASK >> 1) + 1;
+    const uint32_t nans[9] = {AE_EXPONENT_MASK | quiet,
+                              AE_SIGN_MASK | AE_EXPONENT_MASK | quiet,
+                              AE_EXPONENT_MASK | 1,
+                              AE_SIGN_MASK | AE_EXPONENT_MASK | 1,
+                              AE_MAGNITUDE_MASK,
+                              AE_SIGN_MASK | AE_MAGNITUDE_MASK,
+                              AE_EXPONENT_MASK | quiet | 1,
+                              AE_SIGN_MASK | AE_EXPONENT_MASK | (quiet - 1),
+                              AE_EXPONENT_MASK | 2};
+    for (int i = 0; i < 9; ++i)
+        ae_bits[i] = (AE_BITS)nans[i];
+    ae_check(line, 3);
+    TEST_ASSERT_EQUAL_INT32(0, ae_output[AE_GUARD]);
+    /* A positive NaN seed, then a negative NaN: still index 0. */
+    const int32_t pair[4] = {1, 1, 1, 2};
+    ae_bits[0] = (AE_BITS)nans[0];
+    ae_bits[1] = (AE_BITS)nans[1];
+    ae_check(pair, 3);
+    TEST_ASSERT_EQUAL_INT32(0, ae_output[AE_GUARD]);
     /* First zero tie crosses a prospective vector boundary. */
     for (int i = 0; i < 9; ++i)
         ae_bits[i] = (AE_BITS)(AE_SIGN_MASK * (i & 1));
@@ -243,11 +277,7 @@ static void ae_special(void)
     ae_bits[7] = (AE_BITS)(AE_EXPONENT_MASK | 1);
     ae_bits[8] = (AE_BITS)(AE_EXPONENT_MASK | 2);
     ae_check(line, 3);
-#if AE_IEEE_SPECIALS
-    TEST_ASSERT_EQUAL_INT32(7, ae_output[AE_GUARD]);
-#else
-    TEST_ASSERT_EQUAL_INT32(AE_MAX ? 8 : 0, ae_output[AE_GUARD]);
-#endif
+    TEST_ASSERT_EQUAL_INT32(0, ae_output[AE_GUARD]);
 }
 
 static void ae_patterns(void)
@@ -339,14 +369,8 @@ static void ae_fp_controls(void)
                                 {AE_ONE_BITS, AE_SIGN_MASK | AE_ONE_BITS, AE_EXPONENT_MASK, AE_SIGN_MASK | AE_EXPONENT_MASK, 0},
                                 {1, AE_SIGN_MASK | 1, AE_ONE_BITS, AE_EXPONENT_MASK | 1, AE_EXPONENT_MASK | 2},
                                 {AE_SIGN_MASK, 0, AE_SIGN_MASK, 0, 0}};
-    #if AE_IEEE_SPECIALS
-        #if AE_MAX
-    const int32_t expected[] = {0, 1, 2, 3, 0};
-        #else
-    const int32_t expected[] = {0, 2, 3, 3, 0};
-        #endif
-    #elif AE_MAX
-    const int32_t expected[] = {0, 1, 2, 4, 0};
+    #if AE_MAX
+    const int32_t expected[] = {3, 1, 2, 2, 0};
     #else
     const int32_t expected[] = {2, 2, 3, 1, 0};
     #endif

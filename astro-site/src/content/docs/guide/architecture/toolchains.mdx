@@ -138,11 +138,30 @@ The scalar workaround can preserve NaN payloads differently from the vector
 form. Both produce NaNs for NaN inputs; applications that depend on payload bits
 must validate their chosen configuration.
 
+The FP16 dequantize functions, `arm_dequantize_f16_f32()` and
+`arm_dequantize_f16_bits_f32()`, follow the same rule. Vector conversion returns
+the default NaN `0x7FC00000`; when the MVE wrappers select scalar instructions,
+the scalar rule applies instead. Little-endian scalar FPU paths keep the sign
+and payload of a NaN and return it quiet (`FPSCR.DN` set gives the default NaN).
+Other configurations, including no FPU and big-endian builds, use integer
+widening: sign and payload are kept and quieted, independently of `FPSCR`.
+Other values convert exactly on every path while `FPSCR.AHP` is clear.
+
 See the [conversion header](https://github.com/AmbiqAI/ns-cmsis-nn/blob/main/Include/Internal/arm_nn_vcvt_f16.h)
 and [assembler investigation](https://github.com/AmbiqAI/ns-cmsis-nn/issues/427)
 for the implementation and measured encoding evidence.
 
 </details>
+
+## Word copies on ATfE
+
+ATfE's C library copies and fills one byte at a time on Cortex-M3, M4, M7 and
+M33. For clang builds (not Arm Compiler 6) on those cores with unaligned access
+enabled, the library defines `ARM_NN_WORD_COPY` itself and moves data a word at
+a time in its copy and fill helpers and in int8 convolution im2col. It requires
+unaligned word access; build with `-mno-unaligned-access` for a target that must
+avoid it. GCC, Arm Compiler 6, Cortex-M0/M0+ and Cortex-M55 builds are not
+affected.
 
 ## Verify a toolchain change
 
