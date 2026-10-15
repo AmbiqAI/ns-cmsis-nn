@@ -3,6 +3,7 @@
  * SPDX-License-Identifier: LicenseRef-Ambiq-Apollo-SDK
  */
 
+#include "Internal/arm_nn_fp_control.h"
 #include "../test_arm_elementwise_div_f16.c"
 #ifdef USING_FVP_CORSTONE_300
 extern void uart_init(void);
@@ -10,8 +11,8 @@ extern void uart_init(void);
 /* Exact reference tests require round-to-nearest and gradual underflow. */
 #if defined(__SSE__)
 static unsigned saved_fp;
-#elif defined(__ARM_FP) && (__ARM_FP != 0)
-static unsigned saved_fp;
+#elif defined(ARM_NN_FP_CONTROL_AVAILABLE)
+static arm_nn_fp_control_t saved_fp;
 #endif
 void setUp(void)
 {
@@ -22,18 +23,18 @@ void setUp(void)
     __asm volatile("stmxcsr %0" : "=m"(saved_fp));
     unsigned modes = saved_fp & ~0xe040u;
     __asm volatile("ldmxcsr %0" : : "m"(modes));
-#elif defined(__ARM_FP) && (__ARM_FP != 0)
-    __asm volatile("vmrs %0, fpscr" : "=r"(saved_fp));
-    unsigned modes = saved_fp & ~0x07c80000u;
-    __asm volatile("vmsr fpscr, %0" : : "r"(modes) : "memory");
+#elif defined(ARM_NN_FP_CONTROL_AVAILABLE)
+    saved_fp = arm_nn_get_fp_control();
+    const arm_nn_fp_control_t modes = saved_fp & ~(arm_nn_fp_control_t)0x07c80000u;
+    arm_nn_set_fp_control(modes);
 #endif
 }
 void tearDown(void)
 {
 #if defined(__SSE__)
     __asm volatile("ldmxcsr %0" : : "m"(saved_fp));
-#elif defined(__ARM_FP) && (__ARM_FP != 0)
-    __asm volatile("vmsr fpscr, %0" : : "r"(saved_fp) : "memory");
+#elif defined(ARM_NN_FP_CONTROL_AVAILABLE)
+    arm_nn_set_fp_control(saved_fp);
 #endif
 }
 void test_div_f16_values(void) { div_values(); }
