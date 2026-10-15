@@ -31,6 +31,12 @@
 #       arm_nnfunctions.h
 #       arm_nnsupportfunctions.h
 #       Internal/arm_nn_compiler.h
+#     compat/
+#       Include/                 # one forwarding header per include/ header,
+#         arm_nnfunctions.h      # so "Include/arm_nnfunctions.h" (the
+#         Internal/...           # spelling TFLM's CMSIS-NN kernels use)
+#                                # resolves to the same file as
+#                                # "arm_nnfunctions.h"
 #     lib/
 #       libns-cmsis-nn.a
 #       libns-cmsis-nn.a.sha256
@@ -190,6 +196,24 @@ mkdir -p "$PKG_ROOT/include" "$PKG_ROOT/lib" "$PKG_ROOT/cmake"
 
 # Headers
 cp -a "$REPO_ROOT/Include/." "$PKG_ROOT/include/"
+
+# Compatibility include root for consumers that spell headers relative to
+# the source tree, as TFLM's CMSIS-NN kernels do ("Include/arm_nnfunctions.h").
+# Each forwarder includes the real header by a path relative to itself, so
+# both spellings reach one copy and its include guard.
+( cd "$PKG_ROOT/include" && find . -type f -name '*.h' -print ) | LC_ALL=C sort |
+while IFS= read -r rel; do
+  rel="${rel#./}"
+  up="../../"
+  rest="$rel"
+  while [[ "$rest" == */* ]]; do
+    up="${up}../"
+    rest="${rest#*/}"
+  done
+  fwd="$PKG_ROOT/compat/Include/$rel"
+  mkdir -p "$(dirname "$fwd")"
+  printf '#include "%sinclude/%s"\n' "$up" "$rel" > "$fwd"
+done
 
 # Library — rename to canonical name inside the tarball; consumers don't
 # need to know the per-arch suffix once they have a per-arch tarball.

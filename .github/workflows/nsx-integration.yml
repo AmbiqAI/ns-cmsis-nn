@@ -18,6 +18,9 @@ on:
   workflow_call:
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   wiring:
     name: NSX wiring (${{ matrix.case }})

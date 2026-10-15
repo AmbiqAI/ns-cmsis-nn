@@ -57,7 +57,8 @@ class ConvSettings(TestSettings):
                  interpreter="tensorflow",
                  int4_weights=False,
                  weights_min=TestSettings.INT32_MIN,
-                 weights_max=TestSettings.INT32_MAX):
+                 weights_max=TestSettings.INT32_MAX,
+                 bias_shift=0):
         super().__init__(dataset,
                          testtype,
                          regenerate_weights,
@@ -93,6 +94,14 @@ class ConvSettings(TestSettings):
 
         self.weights_min = weights_min
         self.weights_max = weights_max
+
+        if bias_shift < 0:
+            raise RuntimeError("ERROR: bias_shift must not be negative")
+        if bias_shift and not (self.is_int16xint8 and self.test_type == 'transpose_conv'):
+            raise RuntimeError("ERROR: bias_shift only supported for int16x8 transpose conv")
+        if bias_shift and not generate_bias:
+            raise RuntimeError("ERROR: bias_shift needs a bias")
+        self.bias_shift = bias_shift
 
         if int16xint8_int32:
             if not self.is_int16xint8:
@@ -203,6 +212,31 @@ class ConvSettings(TestSettings):
                 scale = scale.item()
             quantized_data = [(x // scale) + zero_point for x in data]
             return (tf.convert_to_tensor(quantized_data), scale, zero_point)
+
+    def shift_int64_bias(self) -> None:
+        """
+        Scale the int64 bias and the output scale of the converted model by 2^bias_shift.
+
+        The converter keeps int64 biases within 2^30, so this is how a model with a bias beyond int32 is made. The
+        output scale moves with it to keep the result in range. The reference output still comes from the interpreter.
+        """
+        from tensorflow.lite.python import schema_py_generated as schema_fb
+        from tensorflow.lite.tools import flatbuffer_utils
+
+        factor = 1 << self.bias_shift
+        model = flatbuffer_utils.read_model(str(self.model_path_tflite))
+        subgraph = model.subgraphs[0]
+        op = next(op for op in subgraph.operators
+                  if model.operatorCodes[op.opcodeIndex].builtinCode == schema_fb.BuiltinOperator.TRANSPOSE_CONV)
+        buffer = model.buffers[subgraph.tensors[op.inputs[3]].buffer]
+        # Python ints; reject int64 overflow.
+        bias = [int(b) * factor for b in np.frombuffer(buffer.data.tobytes(), dtype=np.int64)]
+        if any(not -(1 << 63) <= b < (1 << 63) for b in bias):
+            raise RuntimeError("ERROR: bias_shift overflows the int64 bias")
+        buffer.data = np.frombuffer(np.array(bias, dtype=np.int64).tobytes(), dtype=np.uint8)
+        output = subgraph.tensors[subgraph.outputs[0]]
+        output.quantization.scale = [scale * factor for scale in output.quantization.scale]
+        flatbuffer_utils.write_model(model, str(self.model_path_tflite))
 
     def generate_data(self, input_data=None, weights=None, biases=None) -> None:
         if self.is_int16xint8:
@@ -389,8 +423,18 @@ class ConvSettings(TestSettings):
                 bias_index = 1
 
             self.convert_model(model, inttype, int16x8_int32bias=self.int16xint8_int32)
+            if self.bias_shift:
+                self.shift_int64_bias()
 
         interpreter = self.interpret_model(input_data, inttype)
+
+        if self.test_type == 'transpose_conv' and self.is_int16xint8:
+            # Inputs: output shape, filter, input, bias.
+            op = next(op for op in interpreter._get_ops_details() if op['op_name'] == 'TRANSPOSE_CONV')
+            positions = {d['index']: i for i, d in enumerate(interpreter.get_tensor_details())}
+            filter_index = positions[op['inputs'][1]]
+            if self.generate_bias:
+                bias_index = positions[op['inputs'][3]]
 
         all_layers_details = interpreter.get_tensor_details()
         filter_layer = all_layers_details[filter_index]

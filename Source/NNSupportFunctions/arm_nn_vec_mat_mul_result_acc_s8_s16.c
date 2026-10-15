@@ -190,9 +190,9 @@ arm_cmsis_nn_status arm_nn_vec_mat_mul_result_acc_s8_s16(const int8_t *lhs,
             {
                 const int32_t lhs_temp = (*lhs_vec);
                 lhs_vec++;
-                acc_0 += lhs_temp * (*rhs_0);
+                acc_0 = arm_nn_mac_wrap_s32_bits(acc_0, lhs_temp, *rhs_0);
                 rhs_0++;
-                acc_1 += lhs_temp * (*rhs_1);
+                acc_1 = arm_nn_mac_wrap_s32_bits(acc_1, lhs_temp, *rhs_1);
                 rhs_1++;
             }
 
@@ -239,7 +239,7 @@ arm_cmsis_nn_status arm_nn_vec_mat_mul_result_acc_s8_s16(const int8_t *lhs,
             {
                 const int32_t lhs_temp = (*lhs_vec);
                 lhs_vec++;
-                acc_0 += lhs_temp * (*rhs_0);
+                acc_0 = arm_nn_mac_wrap_s32_bits(acc_0, lhs_temp, *rhs_0);
                 rhs_0++;
             }
 
@@ -278,9 +278,9 @@ arm_cmsis_nn_status arm_nn_vec_mat_mul_result_acc_s8_s16(const int8_t *lhs,
                 const int32_t rhs_value2 = (int8_t)*rhs_ptr_2;
                 const int32_t lhs_value = (int8_t)*lhs_ptr;
 
-                res00 += lhs_value * rhs_value0;
-                res01 += lhs_value * rhs_value1;
-                res02 += lhs_value * rhs_value2;
+                res00 = arm_nn_mac_wrap_s32_bits(res00, lhs_value, rhs_value0);
+                res01 = arm_nn_mac_wrap_s32_bits(res01, lhs_value, rhs_value1);
+                res02 = arm_nn_mac_wrap_s32_bits(res02, lhs_value, rhs_value2);
 
                 ++rhs_ptr_0;
                 ++rhs_ptr_1;
@@ -320,7 +320,7 @@ arm_cmsis_nn_status arm_nn_vec_mat_mul_result_acc_s8_s16(const int8_t *lhs,
                 int32_t rhs_value0 = (int8_t)rhs_ptr_0[0];
                 int32_t lhs_value = (int8_t)lhs_ptr[0];
 
-                res00 += lhs_value * rhs_value0;
+                res00 = arm_nn_mac_wrap_s32_bits(res00, lhs_value, rhs_value0);
 
                 ++rhs_ptr_0;
                 ++lhs_ptr;

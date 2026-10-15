@@ -77,7 +77,11 @@ arm_cmsis_nn_status arm_depthwise_conv_s8_opt_channelwise(const cmsis_nn_context
         return ARM_CMSIS_NN_ARG_ERROR;
     }
 
-    if (ctx->buf == NULL && arm_depthwise_conv_s8_opt_get_buffer_size(input_dims, filter_dims) != 0)
+    /* The channel path writes im2col rows across the whole arm_depthwise_conv_s8_opt_get_buffer_size() scratch.
+       ctx->size is optional: callers that leave it at zero (TFLM and derivatives do) opt out of the check, so only an
+       explicitly declared, too-small buffer is rejected (#582). The sizer returns -1 for dimensions it cannot size. */
+    const int32_t buf_size = arm_depthwise_conv_s8_opt_get_buffer_size(input_dims, filter_dims);
+    if (buf_size < 0 || (ctx->buf == NULL && buf_size != 0) || (ctx->size != 0 && ctx->size < buf_size))
     {
         return ARM_CMSIS_NN_ARG_ERROR;
     }
@@ -280,9 +284,11 @@ arm_cmsis_nn_status arm_depthwise_conv_s8_opt_channelwise(const cmsis_nn_context
 
             /* Out of bounds is only considered for the y axis as it provides a contiguous zero'ing opportunity than
                along the x axis */
-            const int ker_y_start = ARM_NN_MAX(0, -base_idx_y);
+            /* Rows above and below the input are zeros; both bounds stay in [0, kernel_y] so the fill writes
+               exactly kernel_y rows of the buffer */
+            const int ker_y_start = ARM_NN_MIN(ARM_NN_MAX(0, -base_idx_y), kernel_y);
             /* Condition for kernel end dimension: (base_idx_y + ker_y_end) < input_y */
-            const int ker_y_end = ARM_NN_MIN(kernel_y, input_y - base_idx_y);
+            const int ker_y_end = ARM_NN_MAX(ker_y_start, ARM_NN_MIN(kernel_y, input_y - base_idx_y));
 
             int32_t index = 0;
             if (ker_y_start != 0)
