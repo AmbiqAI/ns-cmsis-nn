@@ -60,6 +60,30 @@ int main(void)
         }
     }
 
+    /* Doubling differences at shift 30 is equivalent to shift 31. Nine lanes
+     * cover both the MVE vector body and its scalar tail, including a -1 input. */
+    const int8_t edge[9] = {0, -1, 0, -1, 0, -1, 0, -1, -1};
+    const int8_t doubled[9] = {0, -2, 0, -2, 0, -2, 0, -2, -2};
+    const uint8_t edge_u8[9] = {2, 1, 2, 1, 2, 1, 2, 1, 1};
+    const uint8_t doubled_u8[9] = {2, 0, 2, 0, 2, 0, 2, 0, 0};
+    int8_t ref[9];
+    int16_t ref16[9];
+    uint8_t ref_u8[9];
+    arm_softmax_s8(doubled, 1, 9, 1077952576, 30, -2, ref);
+    arm_softmax_s8_s16(doubled, 1, 9, 1077952576, 30, -2, ref16);
+    arm_softmax_u8(doubled_u8, 1, 9, 1077952576, 30, -2, ref_u8);
+    arm_softmax_s8(edge, 1, 9, 1077952576, 31, -1, out);
+    arm_softmax_s8_s16(edge, 1, 9, 1077952576, 31, -1, out16);
+    arm_softmax_u8(edge_u8, 1, 9, 1077952576, 31, -1, out_u8);
+    for (int i = 0; i < 9; i++)
+    {
+        if (out[i] != ref[i] || out16[i] != ref16[i] || out_u8[i] != ref_u8[i])
+        {
+            printf("shift 31: output %d differs from equivalent shift 30 input\n", i);
+            failures++;
+        }
+    }
+
     /* A positive diff_min leaves every element out, so the row sum is 0 */
     arm_softmax_s8(in, 1, 12, 1077952576, 23, 1, out);
     arm_softmax_s8_s16(in, 1, 12, 1077952576, 23, 1, out16);
