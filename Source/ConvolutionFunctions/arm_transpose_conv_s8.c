@@ -30,6 +30,23 @@
  * -------------------------------------------------------------------- */
 #include "arm_nnfunctions.h"
 #include "arm_nnsupportfunctions.h"
+
+/* All factors are nonnegative int32 values validated by the entry. Preserve intermediate
+ * overflow rejection even when the final batch factor is zero. */
+__STATIC_FORCEINLINE int transpose_volume_fits(const int32_t a, const int32_t b, const int32_t c, const int32_t d)
+{
+    int64_t product = (int64_t)a * b;
+    if (product > INT32_MAX)
+    {
+        return 0;
+    }
+    product = (int64_t)(int32_t)product * c;
+    if (product > INT32_MAX)
+    {
+        return 0;
+    }
+    return (int64_t)(int32_t)product * d <= INT32_MAX;
+}
 /**
  *  @ingroup Public
  */
@@ -104,18 +121,13 @@ arm_cmsis_nn_status arm_transpose_conv_s8(const cmsis_nn_context *ctx,
     const int64_t filter_end_y = ((int64_t)input_y - 1) * stride_y + filter_y;
     const int64_t row_span = ((int64_t)input_x - 1) * stride_x + ARM_NN_MAX(filter_x, stride_x);
     const int64_t emitted_rows = ARM_NN_MAX(0, strided_y - pad_y) + ARM_NN_MAX(0, filter_y - stride_y);
-    const int64_t input_size =
-        arm_nn_size_mul(arm_nn_size_mul(arm_nn_size_mul(input_ch, input_x), input_y), input_dims->n);
-    const int64_t output_size =
-        arm_nn_size_mul(arm_nn_size_mul(arm_nn_size_mul(output_ch, output_x), output_y), input_dims->n);
-    const int64_t filter_size =
-        arm_nn_size_mul(arm_nn_size_mul(arm_nn_size_mul(input_ch, filter_x), filter_y), output_ch);
-
     /* Check the rolling buffer's actual coverage, not a symmetric-padding equality: cropped requested outputs
      * are valid. Bound all row expressions before the existing int32 loops or any tensor/scratch access. */
     if (strided_y > INT32_MAX || filter_end_y > INT32_MAX || (int64_t)pad_y + output_y > INT32_MAX ||
-        (int64_t)pad_x + output_x > row_span || output_y > emitted_rows || input_size < 0 || output_size < 0 ||
-        filter_size < 0 ||
+        (int64_t)pad_x + output_x > row_span || output_y > emitted_rows ||
+        !transpose_volume_fits(input_ch, input_x, input_y, input_dims->n) ||
+        !transpose_volume_fits(output_ch, output_x, output_y, input_dims->n) ||
+        !transpose_volume_fits(input_ch, filter_x, filter_y, output_ch) ||
         arm_nn_transpose_conv_s8_rolling_buffer_size(transpose_conv_params, input_dims, filter_dims, output_dims) < 0)
     {
         return ARM_CMSIS_NN_ARG_ERROR;
