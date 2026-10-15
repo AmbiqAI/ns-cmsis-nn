@@ -122,6 +122,19 @@ arm_cmsis_nn_status arm_softmax_s16(const int16_t *input,
         const int16_t delta = (slope * offset + 64) >> 7;
         const int16_t one_by_one_result = (base + delta);
 
+#if defined(ARM_MATH_MVEI) && !defined(ARM_MATH_AUTOVECTORIZE)
+        /* Combine the two right shifts into one rounded shift, then clamp before narrowing. */
+        const int32x4_t output_shift = vdupq_n_s32(headroom - 31);
+        for (col = 0; col < row_size; col += 4)
+        {
+            const mve_pred16_t p = vctp32q(row_size - col);
+            int32x4_t result = vldrhq_z_s32(cached_exp_results + col, p);
+            result = vmulq_n_s32(result, one_by_one_result);
+            result = vrshlq_s32(result, output_shift);
+            result = vminq_s32(result, vdupq_n_s32(NN_Q15_MAX));
+            vstrhq_p_s32(output + col, result, p);
+        }
+#else
         for (col = 0; col < row_size; ++col)
         {
             const int16_t right_shift = 30 - headroom;
@@ -129,6 +142,7 @@ arm_cmsis_nn_status arm_softmax_s16(const int16_t *input,
             result = (result + 1) >> 1; // Last shift position and insert round
             output[col] = (int16_t)ARM_NN_MIN(result, NN_Q15_MAX);
         }
+#endif
 
         output += row_size;
         input += row_size;

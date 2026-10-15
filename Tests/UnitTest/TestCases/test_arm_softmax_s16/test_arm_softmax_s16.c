@@ -128,3 +128,43 @@ void softmax_s16_normalization_boundary_arm_softmax_s16(void)
         TEST_ASSERT_EQUAL_INT16(expected, output[i]);
     }
 }
+
+void softmax_s16_output_tails_arm_softmax_s16(void)
+{
+    const cmsis_nn_softmax_lut_s16 params = {softmax_s16_exp_lut, softmax_s16_one_by_one_lut};
+    const int32_t lengths[] = {1, 2, 3, 4, 5, 7, 8, 9, 15, 16, 17};
+    /* Frozen scalar results for the same standard LUTs and quantization. */
+    const int16_t expected[] = {
+        32767, 16134, 16633, 10592, 10919, 11257, 7822, 8063, 8312, 8569, 6161, 6352,
+        6547, 6749, 6958, 4265, 4397, 4532, 4673, 4817, 4965, 5119, 3673, 3787,
+        3904, 4024, 4149, 4277, 4409, 4545, 3214, 3313, 3415, 3521, 3630, 3742,
+        3857, 3976, 4099, 1750, 1804, 1860, 1917, 1977, 2038, 2101, 2166, 2233,
+        2302, 2373, 2446, 2522, 2599, 2680, 1614, 1664, 1716, 1768, 1823, 1879,
+        1937, 1998, 2059, 2123, 2188, 2256, 2326, 2397, 2471, 2548, 1494, 1541,
+        1588, 1637, 1688, 1740, 1794, 1849, 1906, 1965, 2026, 2089, 2153, 2220,
+        2288, 2359, 2432,
+    };
+    int16_t input[17];
+    for (int i = 0; i < 17; i++)
+    {
+        input[i] = (int16_t)((i * 997) % 20001 - 10000);
+    }
+    int offset = 0;
+    for (size_t k = 0; k < sizeof(lengths) / sizeof(lengths[0]); k++)
+    {
+        int16_t output[19];
+        for (int i = 0; i < 19; i++)
+        {
+            output[i] = 0x5555;
+        }
+        TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
+                          arm_softmax_s16(input, 1, lengths[k], 1718013132, -2, &params, output + 1));
+        TEST_ASSERT_EQUAL_INT16_ARRAY(expected + offset, output + 1, lengths[k]);
+        TEST_ASSERT_EQUAL_INT16(0x5555, output[0]);
+        for (int i = lengths[k] + 1; i < 19; i++)
+        {
+            TEST_ASSERT_EQUAL_INT16(0x5555, output[i]);
+        }
+        offset += lengths[k];
+    }
+}

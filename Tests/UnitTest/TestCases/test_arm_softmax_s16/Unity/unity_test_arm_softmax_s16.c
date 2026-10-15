@@ -56,3 +56,5 @@ void test_softmax_s16_normalization_boundary_arm_softmax_s16(void)
 {
     softmax_s16_normalization_boundary_arm_softmax_s16();
 }
+
+void test_softmax_s16_output_tails_arm_softmax_s16(void) { softmax_s16_output_tails_arm_softmax_s16(); }
