@@ -371,6 +371,7 @@ if(NOT BUILD_CMSIS_NN_UNIT_TESTS_FOR_FVP_BASED_CORSTONE_300 AND NOT CMAKE_CROSSC
     add_subdirectory(TestCases/concatenation_pointer_probe)
     add_subdirectory(TestCases/kernel_pointer_probe)
     add_subdirectory(TestCases/quantize_pointer_probe)
+    add_subdirectory(TestCases/vector_svdf_pointer_probe)
 endif()
 
 # The standalone integer probes restore shift-base checks for their own kernel objects.

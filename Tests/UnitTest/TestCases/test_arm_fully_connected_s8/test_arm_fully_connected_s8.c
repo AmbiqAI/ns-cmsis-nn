@@ -1022,3 +1022,36 @@ void fc_packed_contract_arm_fully_connected_per_channel_packed_s8(void)
                       arm_fully_connected_per_channel_packed_s8(
                           &fc_params, &no_batch, input, &filter_dims, stream, &output_dims, out));
 }
+
+/* Exercise both shared MVE reductions against scalar sums for every tail length. */
+void vector_sum_tail_boundaries(void)
+{
+    const int rows_cases[] = {1, 4, 5, 6, 10, 11};
+    for (unsigned shape = 0; shape < sizeof(rows_cases) / sizeof(rows_cases[0]); ++shape)
+    {
+        const int rows = rows_cases[shape];
+        for (int cols = 0; cols <= 33; ++cols)
+        {
+            int8_t data[11 * 33];
+            int32_t output[11], bias[11];
+            int64_t output64[11], bias64[11];
+            for (int i = 0; i < rows * cols; ++i) data[i] = (int8_t)(i % 17 - 8);
+            for (int row = 0; row < rows; ++row)
+            {
+                bias[row] = row - 3;
+                bias64[row] = ((int64_t)1 << 40) + row - 3;
+            }
+            TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
+                              arm_vector_sum_s8(output, cols, rows, data, -3, 2, bias));
+            TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
+                              arm_vector_sum_s8_s64(output64, cols, rows, data, -3, bias64));
+            for (int row = 0; row < rows; ++row)
+            {
+                int32_t sum = 0;
+                for (int col = 0; col < cols; ++col) sum += data[row * cols + col];
+                TEST_ASSERT_EQUAL_INT32(bias[row] - 3 * (sum + 2 * cols), output[row]);
+                TEST_ASSERT_TRUE(output64[row] == bias64[row] - 3 * sum);
+            }
+        }
+    }
+}
