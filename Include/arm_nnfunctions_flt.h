@@ -1209,6 +1209,55 @@ arm_cmsis_nn_status arm_nn_neg_f32(const float32_t *input, float32_t *output, in
 arm_cmsis_nn_status arm_nn_fill_f32(float32_t value, float32_t *output, int32_t block_size);
 
 /**
+ * @brief Elementwise float32_t division: output = clamp(input_1 / input_2).
+ * @param[in] input_1_vect Numerator, block_size elements.
+ * @param[in] input_2_vect Denominator, block_size elements.
+ * @param[out] output Result, block_size elements; exact in-place alias with either input is allowed.
+ * @param[in] out_activation_min Lower activation bound (not NaN).
+ * @param[in] out_activation_max Upper activation bound (not NaN, at least the lower bound).
+ * @param[in] block_size Positive element count, at most INT32_MAX / sizeof(float32_t).
+ * @return ARM_CMSIS_NN_ARG_ERROR for null data or invalid count; no output writes on error.
+ * @return ARM_CMSIS_NN_SUCCESS otherwise. No scratch buffer is required.
+ * @note Uses division, never a rounded reciprocal multiplication. FP32 arithmetic is used.
+ *       Round-to-nearest and gradual underflow are required for reference parity. The caller owns the
+ *       floating-point environment, valid storage and ordered activation bounds. NaNs propagate
+ *       (payload unspecified); signed zeros and infinities follow IEEE division before clamping.
+ *       Other partial overlaps are unsupported. MVE and DSP builds use scalar division.
+ */
+arm_cmsis_nn_status arm_elementwise_div_f32(const float32_t *input_1_vect,
+                                            const float32_t *input_2_vect,
+                                            float32_t *output,
+                                            float32_t out_activation_min,
+                                            float32_t out_activation_max,
+                                            int32_t block_size);
+
+/**
+ * @brief float32_t division with positive, contiguous NHWC broadcasting.
+ * @param[in] input_1_data Numerator tensor.
+ * @param[in] input_1_dims Numerator NHWC dimensions.
+ * @param[in] input_2_data Denominator tensor.
+ * @param[in] input_2_dims Denominator NHWC dimensions.
+ * @param[out] output_data Output tensor, disjoint from both inputs and dimension structures.
+ * @param[in] output_dims Output NHWC dimensions: the maximum input extent on each axis.
+ * @param[in] out_activation_min Lower activation bound (not NaN).
+ * @param[in] out_activation_max Upper activation bound (not NaN, at least the lower bound).
+ * @return ARM_CMSIS_NN_ARG_ERROR for null pointers, nonpositive extents, incompatible shapes,
+ *         or output element count exceeding INT32_MAX / sizeof(float32_t); no output writes on error.
+ * @return ARM_CMSIS_NN_SUCCESS otherwise. Each pair of input extents must be equal or one must be 1.
+ * @note No scratch or materialized broadcast is needed. Smaller ranks are left-padded with ones.
+ *       Arithmetic and activation semantics match arm_elementwise_div_f32; the caller owns
+ *       valid storage and ordered activation bounds. Dimension structures must remain unchanged.
+ */
+arm_cmsis_nn_status arm_elementwise_div_broadcast_f32(const float32_t *input_1_data,
+                                                      const cmsis_nn_dims *input_1_dims,
+                                                      const float32_t *input_2_data,
+                                                      const cmsis_nn_dims *input_2_dims,
+                                                      float32_t *output_data,
+                                                      const cmsis_nn_dims *output_dims,
+                                                      float32_t out_activation_min,
+                                                      float32_t out_activation_max);
+
+/**
  * @brief Elementwise multiply with optional output clamp.
  *
  * NaN propagates through the clamp (TensorFlow Lite semantics): a quiet NaN in either input operand, or a
@@ -3967,6 +4016,55 @@ arm_cmsis_nn_status arm_strided_slice_f16(const float16_t *input_data,
                                           const cmsis_nn_dims *const begin_dims,
                                           const cmsis_nn_dims *const stride_dims,
                                           const cmsis_nn_dims *const output_dims);
+
+/**
+ * @brief Elementwise float16_t division: output = clamp(input_1 / input_2).
+ * @param[in] input_1_vect Numerator, block_size elements.
+ * @param[in] input_2_vect Denominator, block_size elements.
+ * @param[out] output Result, block_size elements; exact in-place alias with either input is allowed.
+ * @param[in] out_activation_min Lower activation bound (not NaN).
+ * @param[in] out_activation_max Upper activation bound (not NaN, at least the lower bound).
+ * @param[in] block_size Positive element count, at most INT32_MAX / sizeof(float16_t).
+ * @return ARM_CMSIS_NN_ARG_ERROR for null data or invalid count; no output writes on error.
+ * @return ARM_CMSIS_NN_SUCCESS otherwise. No scratch buffer is required.
+ * @note Uses division, never a rounded reciprocal multiplication. FP16 operands are widened to FP32, divided, then
+ * rounded to FP16 before clamping. Round-to-nearest and gradual underflow are required for reference parity. The caller
+ * owns the floating-point environment, valid storage and ordered activation bounds. NaNs propagate (payload
+ * unspecified); signed zeros and infinities follow IEEE division before clamping. Other partial overlaps are
+ * unsupported. MVE and DSP builds use scalar division.
+ */
+arm_cmsis_nn_status arm_elementwise_div_f16(const float16_t *input_1_vect,
+                                            const float16_t *input_2_vect,
+                                            float16_t *output,
+                                            float16_t out_activation_min,
+                                            float16_t out_activation_max,
+                                            int32_t block_size);
+
+/**
+ * @brief float16_t division with positive, contiguous NHWC broadcasting.
+ * @param[in] input_1_data Numerator tensor.
+ * @param[in] input_1_dims Numerator NHWC dimensions.
+ * @param[in] input_2_data Denominator tensor.
+ * @param[in] input_2_dims Denominator NHWC dimensions.
+ * @param[out] output_data Output tensor, disjoint from both inputs and dimension structures.
+ * @param[in] output_dims Output NHWC dimensions: the maximum input extent on each axis.
+ * @param[in] out_activation_min Lower activation bound (not NaN).
+ * @param[in] out_activation_max Upper activation bound (not NaN, at least the lower bound).
+ * @return ARM_CMSIS_NN_ARG_ERROR for null pointers, nonpositive extents, incompatible shapes,
+ *         or output element count exceeding INT32_MAX / sizeof(float16_t); no output writes on error.
+ * @return ARM_CMSIS_NN_SUCCESS otherwise. Each pair of input extents must be equal or one must be 1.
+ * @note No scratch or materialized broadcast is needed. Smaller ranks are left-padded with ones.
+ *       Arithmetic and activation semantics match arm_elementwise_div_f16; the caller owns
+ *       valid storage and ordered activation bounds. Dimension structures must remain unchanged.
+ */
+arm_cmsis_nn_status arm_elementwise_div_broadcast_f16(const float16_t *input_1_data,
+                                                      const cmsis_nn_dims *input_1_dims,
+                                                      const float16_t *input_2_data,
+                                                      const cmsis_nn_dims *input_2_dims,
+                                                      float16_t *output_data,
+                                                      const cmsis_nn_dims *output_dims,
+                                                      float16_t out_activation_min,
+                                                      float16_t out_activation_max);
 
 /**
  * @copydoc arm_elementwise_mul_f32
