@@ -109,6 +109,10 @@ arm_cmsis_nn_status arm_vector_sum_s8(int32_t *vector_sum_buf,
                 arm_nn_mac_wrap_s32_bits(vector_sum_buf[i_row_loop_cnt], vector_sum_0, lhs_offset);
         }
 #else
+    #if defined(__clang__)
+        /* Keep one row reduction: duplicating it increases size and can worsen load scheduling. */
+        #pragma clang loop unroll(disable)
+    #endif
         for (int i = 0; i < vector_rows; i++)
         {
             uint32_t sum_bits = 0;
