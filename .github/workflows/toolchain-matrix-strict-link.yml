@@ -544,6 +544,15 @@ jobs:
           fi
           echo "ATfE $GOT (pinned)"
 
+      - name: Check floating-point register access by architecture
+        if: matrix.target_cpu == 'cortex-m55'
+        env:
+          TOOLCHAIN_ROOT: ${{ steps.fetch_toolchain.outputs.toolchain_root }}
+        run: |
+          python3 scripts/check_fp_control_arch.py \
+            --cc "${TOOLCHAIN_ROOT}/bin/clang" \
+            --output "${RUNNER_TEMP}/fp-control-arch"
+
       - name: Build static library
         env:
           TOOLCHAIN_ROOT: ${{ steps.fetch_toolchain.outputs.toolchain_root }}
