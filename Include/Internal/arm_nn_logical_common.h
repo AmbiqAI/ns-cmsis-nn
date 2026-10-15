@@ -89,9 +89,10 @@ arm_nn_logical_compare(const bool *a, const bool *b, bool *out, int32_t count, b
     uint32_t i = 0;
 #if defined(ARM_MATH_MVEI) && !defined(ARM_MATH_AUTOVECTORIZE)
     const uint8x16_t invert = vdupq_n_u8(is_equal ? 1 : 0);
-    for (; i < (uint32_t)count; i += 16)
+    /* A signed countdown permits low-overhead tail-predicated loop formation. */
+    for (int32_t remaining = count; remaining > 0; remaining -= 16, i += 16)
     {
-        const mve_pred16_t p = vctp8q((uint32_t)count - i);
+        const mve_pred16_t p = vctp8q((uint32_t)remaining);
         const uint8x16_t va = vldrbq_z_u8((const uint8_t *)a + i, p);
         const uint8x16_t vb = scalar_b ? vdupq_n_u8(*b) : vldrbq_z_u8((const uint8_t *)b + i, p);
         vstrbq_p_u8((uint8_t *)out + i, veorq_u8(veorq_u8(va, vb), invert), p);
