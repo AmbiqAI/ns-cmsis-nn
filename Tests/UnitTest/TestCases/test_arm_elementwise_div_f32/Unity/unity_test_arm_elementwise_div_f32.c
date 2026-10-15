@@ -4,6 +4,7 @@
  */
 
 #include <Internal/arm_nn_fp_control.h>
+#include <stdlib.h>
 #include "../test_arm_elementwise_div_f32.c"
 #ifdef USING_FVP_CORSTONE_300
 extern void uart_init(void);
