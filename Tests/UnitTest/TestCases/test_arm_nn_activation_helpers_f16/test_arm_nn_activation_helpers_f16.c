@@ -248,6 +248,8 @@ void nn_activation_helpers_f16_tanh_fp_controls(void)
             input[i] = f16_from_bits(patterns[i % 8U]);
         }
         arm_nn_set_fp_control(selected);
+        /* Unsupported controls may read as zero; preserve the effective hardware state. */
+        const arm_nn_fp_control_t effective = arm_nn_get_fp_control();
         const arm_cmsis_nn_status status = arm_nn_activation_f16(input, output, 9, ARM_NN_FLT_ACT_TANH, 0);
         /* Also exercise the scalar helper when the public dispatch selects MVE. */
         const uint16_t scalar_positive_zero = f16_bits(arm_nn_tanh_scalar_ref_f16(input[0]));
@@ -255,7 +257,7 @@ void nn_activation_helpers_f16_tanh_fp_controls(void)
         const arm_nn_fp_control_t after = arm_nn_get_fp_control();
         arm_nn_set_fp_control(saved);
         errors += status != ARM_CMSIS_NN_SUCCESS;
-        errors += (after & controls) != (selected & controls);
+        errors += (after & controls) != (effective & controls);
         errors += scalar_positive_zero != 0x0000U;
         errors += scalar_negative_zero != 0x8000U;
         for (uint32_t i = 0; i < 9U; ++i)
