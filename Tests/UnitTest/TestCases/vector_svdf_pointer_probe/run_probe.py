@@ -16,6 +16,8 @@ parser.add_argument('--compiler', default='clang++')
 parser.add_argument('--target')
 args = parser.parse_args()
 shim = Path(__file__).with_name('pointer_shim.h').read_text()
+shim += '\n' + (Path(__file__).resolve().parent.parent /
+                  'kernel_pointer_probe' / 'wrap_shim.h').read_text()
 failed = False
 for name in ['arm_vector_sum_s8', 'arm_vector_sum_s8_s64',
              'arm_svdf_s8', 'arm_svdf_state_s16_s8']:

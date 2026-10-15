@@ -81,13 +81,14 @@ __STATIC_FORCEINLINE void arm_nn_mat_mult_nt_t_s8_mve(const int32_t *weight_sum_
             const int8_t *col_base = rhs + i * rhs_cols;
 
     #if defined(ARM_MATH_AUTOVECTORIZE)
+            /* Each int8 product fits int32; only the accumulation needs wrapping. */
             for (int j = 0; j < rhs_cols; j++)
             {
                 int32_t col = col_base[j];
-                acc_n0 += lhs_vec[j] * col;
-                acc_n1 += ip_row_1[j] * col;
-                acc_n2 += ip_row_2[j] * col;
-                acc_n3 += ip_row_3[j] * col;
+                acc_n0 = arm_nn_mac_wrap_s32_bits(acc_n0, lhs_vec[j] * col, 1);
+                acc_n1 = arm_nn_mac_wrap_s32_bits(acc_n1, ip_row_1[j] * col, 1);
+                acc_n2 = arm_nn_mac_wrap_s32_bits(acc_n2, ip_row_2[j] * col, 1);
+                acc_n3 = arm_nn_mac_wrap_s32_bits(acc_n3, ip_row_3[j] * col, 1);
             }
     #else
             __ASM volatile(" .p2align 2                             \n"
@@ -150,10 +151,12 @@ __STATIC_FORCEINLINE void arm_nn_mat_mult_nt_t_s8_mve(const int32_t *weight_sum_
             const int8_t *lhs_vec = lhs;
             const int8_t *col_base = rhs + i * rhs_cols;
     #if defined(ARM_MATH_AUTOVECTORIZE)
+            uint32_t acc_bits = 0;
             for (int j = 0; j < rhs_cols; j++)
             {
-                acc_n0 += lhs_vec[j] * col_base[j];
+                acc_bits += (uint32_t)(lhs_vec[j] * col_base[j]);
             }
+            memcpy(&acc_n0, &acc_bits, sizeof(acc_n0));
     #else
             __ASM volatile(" .p2align 2                             \n"
                            "   wlstp.8         lr, %[cnt], 1f       \n"
@@ -170,7 +173,7 @@ __STATIC_FORCEINLINE void arm_nn_mat_mult_nt_t_s8_mve(const int32_t *weight_sum_
     #endif
             /* Modified: Replace accumulation with precomputed value */
             const int32_t index = i & 0x3;
-            acc[index] = acc_n0 + weight_sum_buf[i];
+            acc[index] = arm_nn_mac_wrap_s32_bits(acc_n0, weight_sum_buf[i], 1);
 
             if (index == 3)
             {
@@ -309,15 +312,15 @@ arm_cmsis_nn_status arm_nn_mat_mult_nt_t_s8(const int32_t *weight_sum_buf,
         int32_t lhs_offset_contribution1 = 0;
         for (int32_t x = 0; x < rhs_cols; ++x)
         {
-            lhs_offset_contribution0 += rhs[x];
-            lhs_offset_contribution1 += rhs[x + rhs_cols];
+            lhs_offset_contribution0 = arm_nn_mac_wrap_s32_bits(lhs_offset_contribution0, rhs[x], 1);
+            lhs_offset_contribution1 = arm_nn_mac_wrap_s32_bits(lhs_offset_contribution1, rhs[x + rhs_cols], 1);
         }
-        lhs_offset_contribution0 *= lhs_offset;
-        lhs_offset_contribution1 *= lhs_offset;
+        lhs_offset_contribution0 = arm_nn_mac_wrap_s32_bits(0, lhs_offset_contribution0, lhs_offset);
+        lhs_offset_contribution1 = arm_nn_mac_wrap_s32_bits(0, lhs_offset_contribution1, lhs_offset);
         if (bias)
         {
-            lhs_offset_contribution0 += bias[rhs_rows_idx];
-            lhs_offset_contribution1 += bias[rhs_rows_idx + 1];
+            lhs_offset_contribution0 = arm_nn_mac_wrap_s32_bits(lhs_offset_contribution0, bias[rhs_rows_idx], 1);
+            lhs_offset_contribution1 = arm_nn_mac_wrap_s32_bits(lhs_offset_contribution1, bias[rhs_rows_idx + 1], 1);
         }
         for (int32_t lhs_rows_idx = 0; lhs_rows_idx + 1 < lhs_rows; lhs_rows_idx += 2)
         {
@@ -471,12 +474,12 @@ arm_cmsis_nn_status arm_nn_mat_mult_nt_t_s8(const int32_t *weight_sum_buf,
                 int8_t rhs_value1 = rhs_ptr[rhs_cols];
                 int8_t lhs_value = lhs_ptr[0];
 
-                res00 += lhs_value * rhs_value0;
-                res01 += lhs_value * rhs_value1;
+                res00 = arm_nn_mac_wrap_s32_bits(res00, lhs_value, rhs_value0);
+                res01 = arm_nn_mac_wrap_s32_bits(res01, lhs_value, rhs_value1);
 
                 lhs_value = lhs_ptr[lhs_cols_offset];
-                res10 += lhs_value * rhs_value0;
-                res11 += lhs_value * rhs_value1;
+                res10 = arm_nn_mac_wrap_s32_bits(res10, lhs_value, rhs_value0);
+                res11 = arm_nn_mac_wrap_s32_bits(res11, lhs_value, rhs_value1);
 
                 ++rhs_ptr;
                 ++lhs_ptr;
@@ -617,8 +620,8 @@ arm_cmsis_nn_status arm_nn_mat_mult_nt_t_s8(const int32_t *weight_sum_buf,
                 int8_t rhs_value1 = rhs_ptr[rhs_cols];
                 int8_t lhs_value = lhs_ptr[0];
 
-                res00 += lhs_value * rhs_value0;
-                res01 += lhs_value * rhs_value1;
+                res00 = arm_nn_mac_wrap_s32_bits(res00, lhs_value, rhs_value0);
+                res01 = arm_nn_mac_wrap_s32_bits(res01, lhs_value, rhs_value1);
 
                 ++rhs_ptr;
                 ++lhs_ptr;
@@ -664,7 +667,7 @@ arm_cmsis_nn_status arm_nn_mat_mult_nt_t_s8(const int32_t *weight_sum_buf,
                 int32_t rhs_value = rhs_ptr[0];
                 int32_t lhs_value = lhs_ptr[0] + lhs_offset;
 
-                res00 += lhs_value * rhs_value;
+                res00 = arm_nn_mac_wrap_s32_bits(res00, lhs_value, rhs_value);
 
                 ++rhs_ptr;
                 ++lhs_ptr;
@@ -693,16 +696,16 @@ arm_cmsis_nn_status arm_nn_mat_mult_nt_t_s8(const int32_t *weight_sum_buf,
 
         for (int32_t x = 0; x < rhs_cols; ++x)
         {
-            lhs_offset_contribution0 += rhs[x];
-            lhs_offset_contribution1 += rhs[x + rhs_cols];
+            lhs_offset_contribution0 = arm_nn_mac_wrap_s32_bits(lhs_offset_contribution0, rhs[x], 1);
+            lhs_offset_contribution1 = arm_nn_mac_wrap_s32_bits(lhs_offset_contribution1, rhs[x + rhs_cols], 1);
         }
 
-        lhs_offset_contribution0 *= lhs_offset;
-        lhs_offset_contribution1 *= lhs_offset;
+        lhs_offset_contribution0 = arm_nn_mac_wrap_s32_bits(0, lhs_offset_contribution0, lhs_offset);
+        lhs_offset_contribution1 = arm_nn_mac_wrap_s32_bits(0, lhs_offset_contribution1, lhs_offset);
         if (bias)
         {
-            lhs_offset_contribution0 += bias[rhs_rows_idx];
-            lhs_offset_contribution1 += bias[rhs_rows_idx + 1];
+            lhs_offset_contribution0 = arm_nn_mac_wrap_s32_bits(lhs_offset_contribution0, bias[rhs_rows_idx], 1);
+            lhs_offset_contribution1 = arm_nn_mac_wrap_s32_bits(lhs_offset_contribution1, bias[rhs_rows_idx + 1], 1);
         }
 
         for (int32_t lhs_rows_idx = 0; lhs_rows_idx + 1 < lhs_rows; lhs_rows_idx += 2)
@@ -722,12 +725,12 @@ arm_cmsis_nn_status arm_nn_mat_mult_nt_t_s8(const int32_t *weight_sum_buf,
                 int8_t rhs_value1 = rhs_ptr[rhs_cols];
                 int8_t lhs_value = lhs_ptr[0];
 
-                res00 += lhs_value * rhs_value0;
-                res01 += lhs_value * rhs_value1;
+                res00 = arm_nn_mac_wrap_s32_bits(res00, lhs_value, rhs_value0);
+                res01 = arm_nn_mac_wrap_s32_bits(res01, lhs_value, rhs_value1);
 
                 lhs_value = lhs_ptr[lhs_cols_offset];
-                res10 += lhs_value * rhs_value0;
-                res11 += lhs_value * rhs_value1;
+                res10 = arm_nn_mac_wrap_s32_bits(res10, lhs_value, rhs_value0);
+                res11 = arm_nn_mac_wrap_s32_bits(res11, lhs_value, rhs_value1);
 
                 ++rhs_ptr;
                 ++lhs_ptr;
@@ -778,8 +781,8 @@ arm_cmsis_nn_status arm_nn_mat_mult_nt_t_s8(const int32_t *weight_sum_buf,
                 int8_t rhs_value1 = rhs_ptr[rhs_cols];
                 int8_t lhs_value = lhs_ptr[0];
 
-                res00 += lhs_value * rhs_value0;
-                res01 += lhs_value * rhs_value1;
+                res00 = arm_nn_mac_wrap_s32_bits(res00, lhs_value, rhs_value0);
+                res01 = arm_nn_mac_wrap_s32_bits(res01, lhs_value, rhs_value1);
 
                 ++rhs_ptr;
                 ++lhs_ptr;
@@ -825,7 +828,7 @@ arm_cmsis_nn_status arm_nn_mat_mult_nt_t_s8(const int32_t *weight_sum_buf,
                 int32_t rhs_value = rhs_ptr[0];
                 int32_t lhs_value = lhs_ptr[0] + lhs_offset;
 
-                res00 += lhs_value * rhs_value;
+                res00 = arm_nn_mac_wrap_s32_bits(res00, lhs_value, rhs_value);
 
                 ++rhs_ptr;
                 ++lhs_ptr;

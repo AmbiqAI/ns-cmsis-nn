@@ -25,6 +25,7 @@ if (ARM_NN_ENABLE_F32)
                       arm_elementwise_add_f32.c
                       arm_elementwise_sub_f32.c
                       arm_elementwise_mul_f32.c
+                      arm_elementwise_div_f32.c
                       arm_elementwise_sub_broadcast_f32.c
                       arm_elementwise_add_broadcast_f32.c
                       arm_elementwise_mul_broadcast_f32.c
@@ -48,6 +49,7 @@ if (ARM_NN_ENABLE_F16)
                       arm_elementwise_sub_f16.c
                       arm_elementwise_squared_difference_f16.c
                       arm_elementwise_mul_f16.c
+                      arm_elementwise_div_f16.c
                       arm_elementwise_sub_broadcast_f16.c
                       arm_elementwise_add_broadcast_f16.c
                       arm_elementwise_mul_broadcast_f16.c
@@ -63,3 +65,10 @@ if (ARM_NN_ENABLE_F16)
                       arm_rsqrt_f16.c)
 endif()
 target_sources(cmsis-nn PRIVATE ${SRC} ${SRC_FLT})
+
+include("${CMAKE_CURRENT_LIST_DIR}/../../cmake/ns_cmsis_nn_div_options.cmake")
+if (ARM_NN_ENABLE_F32 OR ARM_NN_ENABLE_F16)
+  ns_cmsis_nn_div_options(cmsis-nn
+    "${CMAKE_CURRENT_LIST_DIR}/arm_elementwise_div_f16.c"
+    "${CMAKE_CURRENT_LIST_DIR}/arm_elementwise_div_f32.c")
+endif()

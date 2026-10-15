@@ -86,6 +86,7 @@
         <file category="header" name="Include/Internal/arm_nn_arg_extrema_flt.h"/>
         <file category="header" name="Include/Internal/arm_nn_broadcast_walk.h"/>
         <file category="header" name="Include/Internal/arm_nn_compare_s32.h"/>
+        <file category="header" name="Include/Internal/arm_nn_div_flt.h"/>
         <file category="header" name="Include/Internal/arm_nn_logical_common.h"/>
         <file category="header" name="Include/Internal/arm_nn_reduce_bool.h"/>
         <file category="header" name="Include/Internal/arm_nn_reduce_extrema_flt.h"/>
@@ -160,6 +161,8 @@
         <file category="source" name="Source/BasicMathFunctions/arm_elementwise_add_fp16.c"/>
         <file category="source" name="Source/BasicMathFunctions/arm_elementwise_add_s16.c"/>
         <file category="source" name="Source/BasicMathFunctions/arm_elementwise_add_s8.c"/>
+        <file category="source" name="Source/BasicMathFunctions/arm_elementwise_div_f16.c"/>
+        <file category="source" name="Source/BasicMathFunctions/arm_elementwise_div_f32.c"/>
         <file category="source" name="Source/BasicMathFunctions/arm_elementwise_mul_acc_s16.c"/>
         <file category="source" name="Source/BasicMathFunctions/arm_elementwise_mul_broadcast_f16.c"/>
         <file category="source" name="Source/BasicMathFunctions/arm_elementwise_mul_broadcast_f32.c"/>
