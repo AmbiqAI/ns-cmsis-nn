@@ -82,4 +82,43 @@ arm_nn_logical_scalar(const bool *scalar, const bool *vec, bool *out, int32_t co
     }
 }
 
+/* Both choices are constant at each direct entry/callback. */
+__STATIC_FORCEINLINE void
+arm_nn_logical_compare(const bool *a, const bool *b, bool *out, int32_t count, bool is_equal, bool scalar_b)
+{
+    uint32_t i = 0;
+#if defined(ARM_MATH_MVEI) && !defined(ARM_MATH_AUTOVECTORIZE)
+    const uint8x16_t invert = vdupq_n_u8(is_equal ? 1 : 0);
+    for (; i < (uint32_t)count; i += 16)
+    {
+        const mve_pred16_t p = vctp8q((uint32_t)count - i);
+        const uint8x16_t va = vldrbq_z_u8((const uint8_t *)a + i, p);
+        const uint8x16_t vb = scalar_b ? vdupq_n_u8(*b) : vldrbq_z_u8((const uint8_t *)b + i, p);
+        vstrbq_p_u8((uint8_t *)out + i, veorq_u8(veorq_u8(va, vb), invert), p);
+    }
+#else
+    #if defined(ARM_MATH_DSP)
+    for (; i + 4 <= (uint32_t)count; i += 4)
+    {
+        uint32_t va, vb;
+        memcpy(&va, a + i, sizeof(va));
+        if (scalar_b)
+        {
+            vb = *b ? 0x01010101u : 0;
+        }
+        else
+        {
+            memcpy(&vb, b + i, sizeof(vb));
+        }
+        const uint32_t result = va ^ vb ^ (is_equal ? 0x01010101u : 0);
+        memcpy(out + i, &result, sizeof(result));
+    }
+    #endif
+    for (; i < (uint32_t)count; ++i)
+    {
+        out[i] = (a[i] == b[scalar_b ? 0 : i]) == is_equal;
+    }
+#endif
+}
+
 #endif /* ARM_NN_LOGICAL_COMMON_H */
