@@ -3006,6 +3006,8 @@ arm_cmsis_nn_status arm_depthwise_conv_wrapper_f16_acc16(const cmsis_nn_context 
 
 /**
  * @copydoc arm_depthwise_conv_f32_get_buffer_size
+ * @note On MVE float16 builds, eligible one-input-channel routes include space for the packed filter and at least
+ *       one patch row. Larger existing allocations are retained to allow processing multiple rows per step.
  */
 int32_t arm_depthwise_conv_f16_get_buffer_size(const cmsis_nn_dw_conv_params_f16 *dw_conv_params,
                                                const cmsis_nn_dims *input_dims,

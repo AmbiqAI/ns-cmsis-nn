@@ -387,7 +387,7 @@ void depthwise_conv_sizer_one_input_channel_f16(void)
     const int32_t size8 = arm_depthwise_conv_f16_get_buffer_size(&dp, &in, &flt8, &out8, ARM_NN_LAYOUT_NHWC);
     TEST_ASSERT_EQUAL_INT32(size8, arm_depthwise_conv_wrapper_f16_get_buffer_size(&dp, &in, &flt8, &out8));
 #if defined(ARM_MATH_MVE_FLOAT16) && !defined(ARM_MATH_AUTOVECTORIZE)
-    TEST_ASSERT_TRUE(size8 > 0);
+    TEST_ASSERT_EQUAL_INT32(8192, size8); /* Packed filter plus the existing eight patch rows. */
 #else
     TEST_ASSERT_EQUAL_INT32(0, size8);
 #endif
@@ -731,8 +731,8 @@ void depthwise_conv_direct_entries_f16(void)
     dw_direct_entries_case_f16(1, 6, 6, 1, 12, 3, 3, 1, DW_ROUTE_CIN1_F16);
     /* 49 taps per output */
     dw_direct_entries_case_f16(1, 9, 9, 1, 12, 7, 7, 3, DW_ROUTE_CIN1_F16);
-    /* A 1x1 filter: the size query leaves no patch row, so the router keeps the generic route */
-    dw_direct_entries_case_f16(1, 6, 6, 1, 12, 1, 1, 0, DW_ROUTE_GENERIC_F16);
+    /* The 1x1 size query includes a patch row even though regular 1x1 convolution needs none. */
+    dw_direct_entries_case_f16(1, 6, 6, 1, 12, 1, 1, 0, DW_ROUTE_CIN1_F16);
 #else
     dw_direct_entries_case_f16(1, 6, 6, 1, 12, 3, 3, 1, DW_ROUTE_GENERIC_F16);
     dw_direct_entries_case_f16(1, 9, 9, 1, 12, 7, 7, 3, DW_ROUTE_GENERIC_F16);
@@ -740,6 +740,85 @@ void depthwise_conv_direct_entries_f16(void)
     dw_direct_entries_case_f16(1, 5, 5, 3, 2, 3, 3, 1, DW_ROUTE_GENERIC_F16);
     /* 49 taps per output */
     dw_direct_entries_case_f16(1, 9, 9, 3, 2, 7, 7, 3, DW_ROUTE_GENERIC_F16);
+}
+
+/* The query must fund the packed filter and a patch row, even for scratch-free 1x1 convolution. */
+void depthwise_conv_cin1_exact_scratch_f16(void)
+{
+#if defined(ARM_MATH_MVE_FLOAT16) && !defined(ARM_MATH_AUTOVECTORIZE)
+    const int channels[] = {4, 8, 12, 16};
+    const cmsis_nn_dims in = {1, 6, 6, 1};
+    const float16_t guard = (float16_t)123.0f;
+    float16_t input[36], weights[16], scratch[19], output[36 * 16 + 2];
+    for (int i = 0; i < 36; ++i)
+    {
+        input[i] = (float16_t)((i % 7 - 3) * 0.25f);
+    }
+    for (int i = 0; i < 16; ++i)
+    {
+        weights[i] = (float16_t)((i % 5 + 1) * 0.125f);
+    }
+    for (unsigned c = 0; c < sizeof(channels) / sizeof(channels[0]); ++c)
+    {
+        const int ch = channels[c];
+        const cmsis_nn_dims flt = {1, 1, 1, ch}, out = {1, 6, 6, ch}, bias_dims = {1, 1, 1, ch};
+        cmsis_nn_dw_conv_params_f16 dp;
+        dw_f16_params(&dp, ch, 1, 1, 0, 0, 1, 1);
+        const int size = arm_depthwise_conv_wrapper_f16_get_buffer_size(&dp, &in, &flt, &out);
+        if (!arm_nn_dw_f16_is_cin1(&in, &out))
+        {
+            TEST_ASSERT_EQUAL_INT32(0, size);
+            continue;
+        }
+        TEST_ASSERT_EQUAL_INT32(((ch + 7) / 8 * 8 + 1) * 2, size);
+        TEST_ASSERT_EQUAL_INT32(size, arm_depthwise_conv_f16_get_buffer_size(&dp, &in, &flt, &out, ARM_NN_LAYOUT_NHWC));
+        for (int acc = 0; acc < 2; ++acc)
+        {
+            for (int call = 0; call < 3; ++call)
+            {
+                for (unsigned i = 0; i < sizeof(scratch) / sizeof(scratch[0]); ++i)
+                {
+                    scratch[i] = guard;
+                }
+                output[0] = output[36 * ch + 1] = guard;
+                const cmsis_nn_context ctx = {scratch + 1, size - (call == 2)};
+                if (call == 2)
+                {
+                    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR,
+                                      dw_entries_f16[DW_ROUTE_CIN1_F16][acc](
+                                          &ctx, &dp, &in, input, &flt, weights, &bias_dims, NULL, &out, output + 1));
+                }
+                TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
+                                  (call == 1 ? dw_entries_f16[DW_ROUTE_CIN1_F16][acc] : dw_routers_f16[acc])(
+                                      &ctx, &dp, &in, input, &flt, weights, &bias_dims, NULL, &out, output + 1));
+                for (int i = 0; i < 36 * ch; ++i)
+                {
+                    const float16_t expected = (float16_t)((float)input[i / ch] * (float)weights[i % ch]);
+                    TEST_ASSERT_EQUAL_MEMORY(&expected, &output[i + 1], sizeof(expected));
+                }
+                TEST_ASSERT_EQUAL_MEMORY(&guard, &output[0], sizeof(guard));
+                TEST_ASSERT_EQUAL_MEMORY(&guard, &output[36 * ch + 1], sizeof(guard));
+                TEST_ASSERT_EQUAL_MEMORY(&guard, &scratch[0], sizeof(guard));
+                TEST_ASSERT_EQUAL_MEMORY(&guard, &scratch[size / 2 + 1], sizeof(guard));
+                /* Only the cin1 route packs weights into scratch; the generic fallback leaves it alone. */
+                const float16_t first = call == 2 ? guard : weights[0];
+                TEST_ASSERT_EQUAL_MEMORY(&first, &scratch[1], sizeof(first));
+            }
+        }
+    }
+    cmsis_nn_dw_conv_params_f16 dp;
+    dw_f16_params(&dp, 8, 1, 1, 0, 0, 1, 1);
+    cmsis_nn_dims flt = {1, 1, 1, 8}, out = {1, 6, 6, 8};
+    const int invalid_taps[] = {-1, 0, INT32_MAX};
+    for (unsigned i = 0; i < sizeof(invalid_taps) / sizeof(invalid_taps[0]); ++i)
+    {
+        flt.h = invalid_taps[i];
+        TEST_ASSERT_EQUAL_INT32(0, arm_depthwise_conv_wrapper_f16_get_buffer_size(&dp, &in, &flt, &out));
+    }
+    flt.h = 1;
+    out.c = INT32_MAX;
+    TEST_ASSERT_EQUAL_INT32(0, arm_depthwise_conv_wrapper_f16_get_buffer_size(&dp, &in, &flt, &out));
+#endif
 }
 
 /* Each term of the depthwise route predicates against a fixed answer: one layer inside each gate, then that layer
