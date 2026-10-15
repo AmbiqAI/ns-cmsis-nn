@@ -63,3 +63,6 @@ void test_buffer_size_out_of_range_dsp_arm_convolve_1x1_s8_fast(void)
     buffer_size_out_of_range_dsp_arm_convolve_1x1_s8_fast();
 }
 void test_extent_checks_arm_convolve_1x1_s8_fast(void) { extent_checks_arm_convolve_1x1_s8_fast(); }
+
+extern void kernel1x1_wrapping_bias(void);
+void test_kernel1x1_wrapping_bias(void) { kernel1x1_wrapping_bias(); }
