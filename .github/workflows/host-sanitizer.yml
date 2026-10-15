@@ -9,13 +9,13 @@ name: Host sanitizer unit tests
 #
 # Float16 needs _Float16 on x86, which the ubuntu-24.04 gcc provides.
 #
-# Every UBSan check is on, including shift-base (#711): a left shift of a
-# negative value, or a signed left shift whose result does not fit in 'int', is
-# well defined on every Arm target but UB in C, and fails the suite. The int4
-# decode paths (#612), the shared s16 pack macros (#357) and the softmax code
-# (#704) shift unsigned values. Zero reports is not zero sites: TUs that inline
-# arm_nn_requantize still carry shift-base-instrumentable code that no test
-# reaches. The M4 DSP sites are not compiled on x86 at all.
+# Nothing in -fsanitize=undefined is masked, including shift-base (#711): a
+# left shift of a negative value, or a signed left shift whose result does not
+# fit in 'int', is well defined on every Arm target but UB in C, and fails the
+# suite. The int4 decode paths (#612), the shared s16 pack macros (#357) and
+# the softmax code (#704) shift unsigned values. Zero reports is not zero
+# sites: TUs that inline arm_nn_requantize still carry shift-base-instrumentable
+# code that no test reaches. The M4 DSP sites are not compiled on x86 at all.
 #
 # shift-exponent is on as well, so a shift count at or past the operand width is
 # still reported. LeakSanitizer is on (it is part of ASan by default), so a test
