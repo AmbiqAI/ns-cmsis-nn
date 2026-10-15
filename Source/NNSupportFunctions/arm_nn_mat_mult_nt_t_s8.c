@@ -151,10 +151,12 @@ __STATIC_FORCEINLINE void arm_nn_mat_mult_nt_t_s8_mve(const int32_t *weight_sum_
             const int8_t *lhs_vec = lhs;
             const int8_t *col_base = rhs + i * rhs_cols;
     #if defined(ARM_MATH_AUTOVECTORIZE)
+            uint32_t acc_bits = 0;
             for (int j = 0; j < rhs_cols; j++)
             {
-                acc_n0 = arm_nn_mac_wrap_s32_bits(acc_n0, lhs_vec[j] * col_base[j], 1);
+                acc_bits += (uint32_t)(lhs_vec[j] * col_base[j]);
             }
+            memcpy(&acc_n0, &acc_bits, sizeof(acc_n0));
     #else
             __ASM volatile(" .p2align 2                             \n"
                            "   wlstp.8         lr, %[cnt], 1f       \n"
