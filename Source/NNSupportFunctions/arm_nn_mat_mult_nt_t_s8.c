@@ -40,35 +40,33 @@
  * @{
  */
 
-/*
- * s8 matrix multiplication with the right-hand-side matrix transposed
- *
- * Refer header file for details.
- *
- */
-arm_cmsis_nn_status arm_nn_mat_mult_nt_t_s8(const int32_t *weight_sum_buf,
-                                            const int8_t *lhs,
-                                            const int8_t *rhs,
-                                            const int32_t *bias,
-                                            int8_t *dst,
-                                            const int32_t *dst_multipliers,
-                                            const int32_t *dst_shifts,
-                                            const int32_t lhs_rows,
-                                            const int32_t rhs_rows,
-                                            const int32_t rhs_cols,
-                                            const int32_t lhs_offset,
-                                            const int32_t dst_offset,
-                                            const int32_t activation_min,
-                                            const int32_t activation_max,
-                                            const int32_t row_address_offset,
-                                            const int32_t lhs_cols_offset)
-{
-    (void)lhs_offset;
 #if defined(ARM_MATH_MVEI)
-    (void)bias;
+/* The MVE path of arm_nn_mat_mult_nt_t_s8(). It is instantiated once with rshift_only true, where every channel
+ * requantizes with a right shift only (arm_nn_requantize_rshift_only()), and once with it false, so neither copy
+ * tests the flag inside its loops. */
+__STATIC_FORCEINLINE void arm_nn_mat_mult_nt_t_s8_mve(const int32_t *weight_sum_buf,
+                                                      const int8_t *lhs,
+                                                      const int8_t *rhs,
+                                                      int8_t *dst,
+                                                      const int32_t *dst_multipliers,
+                                                      const int32_t *dst_shifts,
+                                                      const int32_t lhs_rows,
+                                                      const int32_t rhs_rows,
+                                                      const int32_t rhs_cols,
+                                                      const int32_t dst_offset,
+                                                      const int32_t activation_min,
+                                                      const int32_t activation_max,
+                                                      const int32_t row_address_offset,
+                                                      const int32_t lhs_cols_offset,
+                                                      const bool rshift_only)
+{
+    const int8_t *lhs_base = lhs;
+    int8_t *dst_base = dst;
     int i_items = 0;
     for (; i_items <= (lhs_rows - 4); i_items += 4)
     {
+        lhs = lhs_base + (size_t)i_items * (size_t)lhs_cols_offset;
+        dst = dst_base + (size_t)i_items * (size_t)row_address_offset;
         for (int i = 0; i < rhs_rows; i++)
         {
             int32_t acc_n0 = 0;
@@ -98,8 +96,8 @@ arm_cmsis_nn_status arm_nn_mat_mult_nt_t_s8(const int32_t *weight_sum_buf,
                            "   mov             %[out1], 0           \n"
                            "   mov             %[out2], 0           \n"
                            "   mov             %[out3], 0           \n"
-                           "   vldrb.8         q0, [%[col]], #16    \n"
                            "2:                                      \n"
+                           "   vldrb.8         q0, [%[col]], #16    \n"
                            "   vldrb.8         q1, [%[row0]], #16   \n"
                            "   vmladava.s8    %[out0], q0, q1       \n"
                            "   vldrb.8         q2, [%[row1]], #16   \n"
@@ -108,7 +106,6 @@ arm_cmsis_nn_status arm_nn_mat_mult_nt_t_s8(const int32_t *weight_sum_buf,
                            "   vmladava.s8     %[out2], q0, q3      \n"
                            "   vldrb.8         q4, [%[row3]], #16   \n"
                            "   vmladava.s8     %[out3], q0, q4      \n"
-                           "   vldrb.8         q0, [%[col]], #16    \n"
                            "   letp            lr, 2b               \n"
                            "1:                                      \n"
                            : [col] "+r"(col_base),
@@ -126,7 +123,8 @@ arm_cmsis_nn_status arm_nn_mat_mult_nt_t_s8(const int32_t *weight_sum_buf,
             int32x4_t res = {acc_n0, acc_n1, acc_n2, acc_n3};
             res = vaddq_n_s32(res, weight_sum_buf[i]);
 
-            res = arm_requantize_mve(res, dst_multipliers[i], dst_shifts[i]);
+            res = rshift_only ? arm_requantize_mve_rshift(res, dst_multipliers[i], dst_shifts[i])
+                              : arm_requantize_mve(res, dst_multipliers[i], dst_shifts[i]);
             res = vaddq_n_s32(res, dst_offset);
 
             res = vmaxq_s32(res, vdupq_n_s32(activation_min));
@@ -137,12 +135,12 @@ arm_cmsis_nn_status arm_nn_mat_mult_nt_t_s8(const int32_t *weight_sum_buf,
             vstrbq_scatter_offset_s32(dst, scatter_offset, res);
             dst++;
         }
-        lhs += 4 * lhs_cols_offset;
-        dst += 4 * row_address_offset - rhs_rows;
     }
 
     for (; i_items < lhs_rows; i_items++)
     {
+        lhs = lhs_base + (size_t)i_items * (size_t)lhs_cols_offset;
+        dst = dst_base + (size_t)i_items * (size_t)row_address_offset;
         int32_t acc[4];
         const int32_t *multipliers = dst_multipliers;
         const int32_t *shifts = dst_shifts;
@@ -160,11 +158,10 @@ arm_cmsis_nn_status arm_nn_mat_mult_nt_t_s8(const int32_t *weight_sum_buf,
             __ASM volatile(" .p2align 2                             \n"
                            "   wlstp.8         lr, %[cnt], 1f       \n"
                            "   mov             %[out0], 0            \n"
-                           "   vldrb.8         q0, [%[col]], #16    \n"
                            "2:                                      \n"
+                           "   vldrb.8         q0, [%[col]], #16    \n"
                            "   vldrb.8         q1, [%[row0]], #16   \n"
                            "   vmladava.s8    %[out0], q0, q1       \n"
-                           "   vldrb.8         q0, [%[col]], #16    \n"
                            "   letp            lr, 2b               \n"
                            "1:                                      \n"
                            : [col] "+r"(col_base), [row0] "+r"(lhs_vec), [out0] "=Te"(acc_n0)
@@ -178,7 +175,8 @@ arm_cmsis_nn_status arm_nn_mat_mult_nt_t_s8(const int32_t *weight_sum_buf,
             if (index == 3)
             {
                 int32x4_t res = vldrwq_s32(acc);
-                res = arm_requantize_mve_32x4(res, vldrwq_s32(multipliers), vldrwq_s32(shifts));
+                res = rshift_only ? arm_requantize_mve_32x4_rshift(res, vldrwq_s32(multipliers), vldrwq_s32(shifts))
+                                  : arm_requantize_mve_32x4(res, vldrwq_s32(multipliers), vldrwq_s32(shifts));
                 multipliers += 4;
                 shifts += 4;
                 res = vaddq_n_s32(res, dst_offset);
@@ -188,7 +186,6 @@ arm_cmsis_nn_status arm_nn_mat_mult_nt_t_s8(const int32_t *weight_sum_buf,
                 dst += 4;
             }
         }
-        lhs += lhs_cols_offset;
         const int32_t tail_rows = rhs_rows & 0x3;
         for (int i = 0; i < tail_rows; i++)
         {
@@ -199,7 +196,105 @@ arm_cmsis_nn_status arm_nn_mat_mult_nt_t_s8(const int32_t *weight_sum_buf,
             acc_n0 = ARM_NN_MIN(acc_n0, activation_max);
             *dst++ = (int8_t)acc_n0;
         }
-        dst += row_address_offset - rhs_rows;
+    }
+}
+
+/* The right-shift variant in a function of its own, so the general path keeps its code inline in the entry. */
+static __attribute__((noinline)) void arm_nn_mat_mult_nt_t_s8_mve_rshift(const int32_t *weight_sum_buf,
+                                                                         const int8_t *lhs,
+                                                                         const int8_t *rhs,
+                                                                         int8_t *dst,
+                                                                         const int32_t *dst_multipliers,
+                                                                         const int32_t *dst_shifts,
+                                                                         const int32_t lhs_rows,
+                                                                         const int32_t rhs_rows,
+                                                                         const int32_t rhs_cols,
+                                                                         const int32_t dst_offset,
+                                                                         const int32_t activation_min,
+                                                                         const int32_t activation_max,
+                                                                         const int32_t row_address_offset,
+                                                                         const int32_t lhs_cols_offset)
+{
+    arm_nn_mat_mult_nt_t_s8_mve(weight_sum_buf,
+                                lhs,
+                                rhs,
+                                dst,
+                                dst_multipliers,
+                                dst_shifts,
+                                lhs_rows,
+                                rhs_rows,
+                                rhs_cols,
+                                dst_offset,
+                                activation_min,
+                                activation_max,
+                                row_address_offset,
+                                lhs_cols_offset,
+                                true);
+}
+#endif
+
+/*
+ * s8 matrix multiplication with the right-hand-side matrix transposed
+ *
+ * Refer header file for details.
+ *
+ */
+arm_cmsis_nn_status arm_nn_mat_mult_nt_t_s8(const int32_t *weight_sum_buf,
+                                            const int8_t *lhs,
+                                            const int8_t *rhs,
+                                            const int32_t *bias,
+                                            int8_t *dst,
+                                            const int32_t *dst_multipliers,
+                                            const int32_t *dst_shifts,
+                                            const int32_t lhs_rows,
+                                            const int32_t rhs_rows,
+                                            const int32_t rhs_cols,
+                                            const int32_t lhs_offset,
+                                            const int32_t dst_offset,
+                                            const int32_t activation_min,
+                                            const int32_t activation_max,
+                                            const int32_t row_address_offset,
+                                            const int32_t lhs_cols_offset)
+{
+    (void)lhs_offset;
+#if defined(ARM_MATH_MVEI)
+    (void)bias;
+    /* Calls of a few rows, such as the 4-pixel blocks of arm_convolve_s8()'s im2col path, keep the general
+     * requantization rather than pay for the channel check on every call. */
+    if (lhs_rows >= 8 && arm_nn_requantize_rshift_only(dst_multipliers, dst_shifts, rhs_rows))
+    {
+        arm_nn_mat_mult_nt_t_s8_mve_rshift(weight_sum_buf,
+                                           lhs,
+                                           rhs,
+                                           dst,
+                                           dst_multipliers,
+                                           dst_shifts,
+                                           lhs_rows,
+                                           rhs_rows,
+                                           rhs_cols,
+                                           dst_offset,
+                                           activation_min,
+                                           activation_max,
+                                           row_address_offset,
+                                           lhs_cols_offset);
+    }
+    else
+    {
+        arm_nn_mat_mult_nt_t_s8_mve(weight_sum_buf,
+                                    lhs,
+                                    rhs,
+                                    dst,
+                                    dst_multipliers,
+                                    dst_shifts,
+                                    lhs_rows,
+                                    rhs_rows,
+                                    rhs_cols,
+                                    dst_offset,
+                                    activation_min,
+                                    activation_max,
+                                    row_address_offset,
+                                    lhs_cols_offset,
+                                    false);
     }
 
 #elif defined(ARM_MATH_DSP)
@@ -210,9 +305,6 @@ arm_cmsis_nn_status arm_nn_mat_mult_nt_t_s8(const int32_t *weight_sum_buf,
 
     for (int32_t rhs_rows_idx = 0; rhs_rows_idx <= (rhs_rows - 2); rhs_rows_idx += 2)
     {
-        const int8_t *lhs_ptr = &lhs[0];
-        int8_t *dst_ptr = &dst[0];
-
         int32_t lhs_offset_contribution0 = 0;
         int32_t lhs_offset_contribution1 = 0;
         for (int32_t x = 0; x < rhs_cols; ++x)
@@ -227,9 +319,10 @@ arm_cmsis_nn_status arm_nn_mat_mult_nt_t_s8(const int32_t *weight_sum_buf,
             lhs_offset_contribution0 += bias[rhs_rows_idx];
             lhs_offset_contribution1 += bias[rhs_rows_idx + 1];
         }
-        int32_t lhs_rows_idx = lhs_rows >> 1;
-        while (lhs_rows_idx)
+        for (int32_t lhs_rows_idx = 0; lhs_rows_idx + 1 < lhs_rows; lhs_rows_idx += 2)
         {
+            const int8_t *lhs_ptr = lhs + (size_t)lhs_rows_idx * (size_t)lhs_cols_offset;
+            int8_t *dst_ptr = dst + (size_t)lhs_rows_idx * (size_t)rhs_rows;
             const int8_t *rhs_ptr = &rhs[0];
 
             int32_t res00 = lhs_offset_contribution0;
@@ -416,17 +509,13 @@ arm_cmsis_nn_status arm_nn_mat_mult_nt_t_s8(const int32_t *weight_sum_buf,
             dst_ptr += rhs_rows;
             dst_ptr[0] = (int8_t)res10;
             dst_ptr[1] = (int8_t)res11;
-            dst_ptr += rhs_rows;
-
-            lhs_ptr -= rhs_cols;
-            lhs_ptr += 2 * lhs_cols_offset;
-
-            lhs_rows_idx--;
         }
 
         // Left-over rows
         if (lhs_rows % 2)
         {
+            const int8_t *lhs_ptr = lhs + (size_t)(lhs_rows - 1) * (size_t)lhs_cols_offset;
+            int8_t *dst_ptr = dst + (size_t)(lhs_rows - 1) * (size_t)rhs_rows;
             const int8_t *rhs_ptr = &rhs[0];
 
             int32_t res00 = lhs_offset_contribution0;
@@ -559,11 +648,10 @@ arm_cmsis_nn_status arm_nn_mat_mult_nt_t_s8(const int32_t *weight_sum_buf,
 
     if (rhs_rows % 2)
     {
-        const int8_t *lhs_ptr = &lhs[0];
-        int8_t *dst_ptr = &dst[0];
-
         for (int32_t lhs_rows_idx = 0; lhs_rows_idx < lhs_rows; ++lhs_rows_idx)
         {
+            const int8_t *lhs_ptr = lhs + (size_t)lhs_rows_idx * (size_t)lhs_cols_offset;
+            int8_t *dst_ptr = dst + (size_t)lhs_rows_idx * (size_t)rhs_rows;
             const int8_t *rhs_ptr = &rhs[0];
             int32_t res00 = 0;
             if (bias)
@@ -581,8 +669,6 @@ arm_cmsis_nn_status arm_nn_mat_mult_nt_t_s8(const int32_t *weight_sum_buf,
                 ++rhs_ptr;
                 ++lhs_ptr;
             }
-            lhs_ptr -= rhs_cols;
-            lhs_ptr += lhs_cols_offset;
 
             // Quantize down
             res00 = arm_nn_requantize(res00, dst_multipliers[rhs_rows - 1], dst_shifts[rhs_rows - 1]);
@@ -595,7 +681,6 @@ arm_cmsis_nn_status arm_nn_mat_mult_nt_t_s8(const int32_t *weight_sum_buf,
             res00 = ARM_NN_MIN(res00, activation_max);
 
             dst_ptr[0] = (int8_t)res00;
-            dst_ptr += rhs_rows;
         }
     }
 #else
@@ -603,9 +688,6 @@ arm_cmsis_nn_status arm_nn_mat_mult_nt_t_s8(const int32_t *weight_sum_buf,
     (void)row_address_offset;
     for (int32_t rhs_rows_idx = 0; rhs_rows_idx <= (rhs_rows - 2); rhs_rows_idx += 2)
     {
-        const int8_t *lhs_ptr = &lhs[0];
-        int8_t *dst_ptr = &dst[0];
-
         int32_t lhs_offset_contribution0 = 0;
         int32_t lhs_offset_contribution1 = 0;
 
@@ -623,10 +705,10 @@ arm_cmsis_nn_status arm_nn_mat_mult_nt_t_s8(const int32_t *weight_sum_buf,
             lhs_offset_contribution1 += bias[rhs_rows_idx + 1];
         }
 
-        int32_t lhs_rows_idx = lhs_rows >> 1;
-
-        while (lhs_rows_idx)
+        for (int32_t lhs_rows_idx = 0; lhs_rows_idx + 1 < lhs_rows; lhs_rows_idx += 2)
         {
+            const int8_t *lhs_ptr = lhs + (size_t)lhs_rows_idx * (size_t)lhs_cols_offset;
+            int8_t *dst_ptr = dst + (size_t)lhs_rows_idx * (size_t)rhs_rows;
             const int8_t *rhs_ptr = &rhs[0];
 
             int32_t res00 = lhs_offset_contribution0;
@@ -678,17 +760,13 @@ arm_cmsis_nn_status arm_nn_mat_mult_nt_t_s8(const int32_t *weight_sum_buf,
             dst_ptr += rhs_rows;
             dst_ptr[0] = (int8_t)res10;
             dst_ptr[1] = (int8_t)res11;
-            dst_ptr += rhs_rows;
-
-            lhs_ptr -= rhs_cols;
-            lhs_ptr += 2 * lhs_cols_offset;
-
-            lhs_rows_idx--;
         }
 
         // Left-over rows
         if (lhs_rows % 2)
         {
+            const int8_t *lhs_ptr = lhs + (size_t)(lhs_rows - 1) * (size_t)lhs_cols_offset;
+            int8_t *dst_ptr = dst + (size_t)(lhs_rows - 1) * (size_t)rhs_rows;
             const int8_t *rhs_ptr = &rhs[0];
 
             int32_t res00 = lhs_offset_contribution0;
@@ -731,11 +809,10 @@ arm_cmsis_nn_status arm_nn_mat_mult_nt_t_s8(const int32_t *weight_sum_buf,
 
     if (rhs_rows % 2)
     {
-        const int8_t *lhs_ptr = &lhs[0];
-        int8_t *dst_ptr = &dst[0];
-
         for (int32_t lhs_rows_idx = 0; lhs_rows_idx < lhs_rows; ++lhs_rows_idx)
         {
+            const int8_t *lhs_ptr = lhs + (size_t)lhs_rows_idx * (size_t)lhs_cols_offset;
+            int8_t *dst_ptr = dst + (size_t)lhs_rows_idx * (size_t)rhs_rows;
             const int8_t *rhs_ptr = &rhs[0];
             int32_t res00 = 0;
             if (bias)
@@ -753,8 +830,6 @@ arm_cmsis_nn_status arm_nn_mat_mult_nt_t_s8(const int32_t *weight_sum_buf,
                 ++rhs_ptr;
                 ++lhs_ptr;
             }
-            lhs_ptr -= rhs_cols;
-            lhs_ptr += lhs_cols_offset;
 
             // Quantize down
             res00 = arm_nn_requantize(res00, dst_multipliers[rhs_rows - 1], dst_shifts[rhs_rows - 1]);
@@ -767,7 +842,6 @@ arm_cmsis_nn_status arm_nn_mat_mult_nt_t_s8(const int32_t *weight_sum_buf,
             res00 = ARM_NN_MIN(res00, activation_max);
 
             dst_ptr[0] = (int8_t)res00;
-            dst_ptr += rhs_rows;
         }
     }
 #endif

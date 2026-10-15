@@ -77,15 +77,15 @@ arm_convolve_s16_fast_small_kernel(const cmsis_nn_context *ctx,
     int32_t *output_mult = quant_params->multiplier;
     int32_t *output_shift = quant_params->shift;
 
+    if (arm_nn_convolve_groups_invalid(input_dims, filter_dims, output_dims))
+    {
+        return ARM_CMSIS_NN_ARG_ERROR;
+    }
+
     const int32_t kernel_ch = filter_dims->c;
     const int32_t rhs_cols = kernel_ch * kernel_y * kernel_x;
     const int32_t groups = input_ch / kernel_ch;
     const int32_t output_ch_per_group = output_ch / groups;
-
-    if (input_ch % groups != 0 || output_ch % groups != 0)
-    {
-        return ARM_CMSIS_NN_ARG_ERROR;
-    }
     int32_t stride_edge = input_x - (output_x - 1) * stride_x + (stride_y - 1) * input_x;
     uint16x8_t offset_src;
     if (rhs_cols < 9)

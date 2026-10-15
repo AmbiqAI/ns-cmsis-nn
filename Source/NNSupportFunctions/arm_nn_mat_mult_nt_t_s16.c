@@ -104,8 +104,8 @@ arm_cmsis_nn_status arm_nn_mat_mult_nt_t_s16(const int16_t *lhs,
                            "   mov             %[out1], 0            \n"
                            "   mov             %[out2], 0            \n"
                            "   mov             %[out3], 0            \n"
-                           "   vldrb.s16       q0, [%[col]], #8      \n"
                            "2:                                       \n"
+                           "   vldrb.s16       q0, [%[col]], #8      \n"
                            "   vldrh.u16       q1, [%[row0]], #16     \n"
                            "   vmlava.s16      %[out0], q0, q1       \n"
                            "   vldrh.u16       q2, [%[row1]], #16     \n"
@@ -114,7 +114,6 @@ arm_cmsis_nn_status arm_nn_mat_mult_nt_t_s16(const int16_t *lhs,
                            "   vmlava.s16      %[out2], q0, q3       \n"
                            "   vldrh.u16       q4, [%[row3]], #16     \n"
                            "   vmlava.s16      %[out3], q0, q4       \n"
-                           "   vldrb.s16       q0, [%[col]], #8      \n"
                            "   letp            lr, 2b                \n"
                            "1:                                       \n"
                            : [col] "+l"(col_base),

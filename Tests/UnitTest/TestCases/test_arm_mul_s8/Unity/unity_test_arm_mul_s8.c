@@ -45,3 +45,5 @@ void test_mul_broadcast_batch_scalar_s8_arm_mul_s8(void) { mul_broadcast_batch_s
 void test_mul_dims_arg_error_s8_arm_mul_s8(void) { mul_dims_arg_error_s8_arm_mul_s8(); }
 
 void test_mul_row_broadcast_s8_arm_mul_s8(void) { mul_row_broadcast_s8_arm_mul_s8(); }
+
+void test_mul_row_broadcast_entry_s8_arm_mul_s8(void) { mul_row_broadcast_entry_s8_arm_mul_s8(); }

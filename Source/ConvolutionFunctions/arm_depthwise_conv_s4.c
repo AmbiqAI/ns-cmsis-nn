@@ -145,7 +145,7 @@ static void depthwise_conv_s4_generic(const int8_t *input,
                                     int8_t ker_val0, ker_val1;
 
                                     ker_val0 = arm_nn_s4_low_nibble(kernel[ker_idx_0]);
-                                    ker_val1 = (kernel[ker_idx_0] >> 4);
+                                    ker_val1 = (arm_nn_s4_high_nibble(kernel[ker_idx_0]));
 
                                     acc_0 += (input[idx_0] + input_offset) * ker_val0;
                                     acc_1 += (input[idx_0 + 1] + input_offset) * ker_val1;
@@ -242,7 +242,7 @@ static void depthwise_conv_s4_generic(const int8_t *input,
                                         }
                                         else
                                         {
-                                            ker_val0 = (kernel[ker_idx_0] >> 4);
+                                            ker_val0 = (arm_nn_s4_high_nibble(kernel[ker_idx_0]));
                                         }
 
                                         acc_0 += (input[idx_0] + input_offset) * ker_val0;
@@ -330,7 +330,7 @@ static void depthwise_conv_s4_generic(const int8_t *input,
                                         int8_t ker_val0, ker_val1;
 
                                         ker_val0 = arm_nn_s4_low_nibble(kernel[ker_idx_0]);
-                                        ker_val1 = (kernel[ker_idx_0] >> 4);
+                                        ker_val1 = (arm_nn_s4_high_nibble(kernel[ker_idx_0]));
 
                                         acc_0 += (input[idx_0] + input_offset) * ker_val0;
                                         acc_1 += (input[idx_0] + input_offset) * ker_val1;
@@ -430,8 +430,8 @@ static void depthwise_conv_s4_generic(const int8_t *input,
                                 for (int i_ker_x = ker_x_start; i_ker_x < ker_x_end; i_ker_x++)
                                 {
                                     const int8_t ker_byte = kernel[ker_nibble >> 1];
-                                    const int8_t ker_val =
-                                        (ker_nibble & 1) ? (int8_t)(ker_byte >> 4) : arm_nn_s4_low_nibble(ker_byte);
+                                    const int8_t ker_val = (ker_nibble & 1) ? arm_nn_s4_high_nibble(ker_byte)
+                                                                            : arm_nn_s4_low_nibble(ker_byte);
 
                                     acc_0 += (input[idx_0] + input_offset) * ker_val;
                                     idx_0 += dilation_x * input_ch;

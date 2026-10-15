@@ -75,7 +75,11 @@
 # and every leg is already covered by staticlib-dryrun.yml. Adding it
 # would be more jobs for a strictly narrower cell.
 #
-# This is a BUILD-and-LINK gate only. The numerics suite stays on the
+# This is a BUILD-and-LINK gate, plus one compile-and-disassemble check
+# on each GCC cortex-m55 cell: the float16 format contract, whose
+# expectation depends on the GCC version (AmbiqAI/ns-cmsis-nn#487). That
+# check runs one small scalar program under QEMU and is not a numerics
+# suite. The numerics suite stays on the
 # container's single 14.3.1 toolchain and is deliberately NOT multiplied
 # across toolchains or GCC versions -- running it once per toolchain
 # would cost ~8 min of PR latency per added leg to re-test compilers
@@ -177,6 +181,16 @@ jobs:
             --enable-f32 \
             "${f16_flag[@]}"
 
+      - name: Compile the integer-only MVE library
+        if: matrix.target_cpu == 'cortex-m55' && matrix.gcc_release == '15.3.Rel1'
+        run: |
+          cmake -S . -B "${RUNNER_TEMP}/integer-mve" \
+            -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain/arm-none-eabi-gcc.cmake \
+            -DNS_CMSIS_NN_TARGET_CPU=cortex-m55 \
+            -DCMAKE_C_FLAGS="-mcpu=cortex-m55+nomve.fp -mthumb -mfloat-abi=hard -Werror" \
+            -DARM_NN_ENABLE_F32=OFF -DARM_NN_ENABLE_F16=OFF
+          cmake --build "${RUNNER_TEMP}/integer-mve" --target cmsis-nn --parallel 4
+
       - name: Strict smoke link
         # smoke_staticlib.sh is strict by default: no --gc-sections and
         # no --unresolved-symbols=ignore-all, so every object in the
@@ -188,6 +202,48 @@ jobs:
             --toolchain  gcc \
             --library    "./output/gcc/${TARGET_CPU}/libns-cmsis-nn-${TARGET_CPU}-${VERSION}.a" \
             --outdir     "./output/gcc/${TARGET_CPU}/smoke"
+
+      - name: Install QEMU for the float16 format contract check
+        # The same floor unity-f16-exec-gcc-floor.yml asserts: an older QEMU
+        # would fail to start in a way that reads like a check failure.
+        if: matrix.target_cpu == 'cortex-m55'
+        env:
+          QEMU_MIN: '6.0.0'
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends qemu-system-arm
+          banner="$(qemu-system-arm --version | head -1)"
+          echo "${banner}"
+          got="$(sed -n 's/.*version \([0-9][0-9.]*\).*/\1/p' <<<"${banner}")"
+          if [[ -z "${got}" ]]; then
+            echo "::error title=Cannot read the QEMU version::Unparsable banner: ${banner}" >&2
+            exit 1
+          fi
+          if [[ "$(printf '%s\n%s\n' "${QEMU_MIN}" "${got}" | sort -V | head -1)" != "${QEMU_MIN}" ]]; then
+            echo "::error title=QEMU is too old::The contract check needs QEMU ${QEMU_MIN} or newer; this runner has ${got}." >&2
+            exit 1
+          fi
+
+      - name: Check the float16 format contract on this release
+        # float16 on Armv8.1-M without MVE is rejected on GCC before 15.3 and
+        # accepted from 15.3 (AmbiqAI/ns-cmsis-nn#487). The floor cell in
+        # unity-f16-exec-gcc-floor.yml checks the rejection on 13.2 only;
+        # running the check on every gated release gates both sides of the
+        # bound, and on 15.3 that the build has no Advanced SIMD loads or
+        # stores. The check derives the expectation from the compiler's own
+        # version, so the release must report the version it is named for.
+        if: matrix.target_cpu == 'cortex-m55'
+        run: |
+          set -euo pipefail
+          reported="$(arm-none-eabi-gcc -dumpfullversion)"
+          if [[ "${reported%.*}" != "${GCC_RELEASE%.Rel*}" ]]; then
+            echo "::error title=Unexpected GCC version::${GCC_RELEASE} reports GCC ${reported}" >&2
+            exit 1
+          fi
+          python3 Tests/UnitTest/TestCases/Utils/check_f16_format_contract.py \
+            --cc arm-none-eabi-gcc \
+            --output "${RUNNER_TEMP}/f16-format-contract"
 
   gcc-f16-probe:
     # On the floor's assembler the float16 build only works because the
@@ -515,6 +571,51 @@ jobs:
             --toolchain-root "$TOOLCHAIN_ROOT" \
             --library    "./output/atfe/${TARGET_CPU}/libns-cmsis-nn-atfe-${TARGET_CPU}-${VERSION}.a" \
             --outdir     "./output/atfe/${TARGET_CPU}/smoke"
+
+      - name: Install GNU harness compiler
+        if: matrix.target_cpu == 'cortex-m4'
+        uses: carlosperate/arm-none-eabi-gcc-action@v1
+        with:
+          release: '14.3.Rel1'
+
+      - name: Execute ATfE M4 word-copy suites
+        if: matrix.target_cpu == 'cortex-m4'
+        env:
+          TOOLCHAIN_ROOT: ${{ steps.fetch_toolchain.outputs.toolchain_root }}
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends qemu-system-arm ruby
+          python3 -m venv "${RUNNER_TEMP}/word-copy-env"
+          "${RUNNER_TEMP}/word-copy-env/bin/pip" install pyserial termcolor
+          for dep in CMSIS_5 ethos-u-core-platform; do
+            pin_name=CMSIS_5_COMMIT
+            url_name=CMSIS_5_URL
+            if [[ "$dep" == ethos-u-core-platform ]]; then
+              pin_name=ETHOS_U_CORE_PLATFORM_COMMIT
+              url_name=ETHOS_U_CORE_PLATFORM_URL
+            fi
+            pin=$(sed -n "s/^${pin_name}=\"\(.*\)\"/\1/p" Tests/UnitTest/build_and_run_tests.sh)
+            test -n "$pin"
+            url=$(sed -n "s/^${url_name}=\"\(.*\)\"/\1/p" Tests/UnitTest/build_and_run_tests.sh)
+            test -n "$url"
+            git clone "$url" "${RUNNER_TEMP}/${dep}"
+            git -C "${RUNNER_TEMP}/${dep}" checkout --detach "$pin"
+          done
+          "$TOOLCHAIN_ROOT/bin/clang" --target=arm-none-eabi -mcpu=cortex-m4 \
+            -I Include -include arm_nnsupportfunctions.h -E -dM -x c /dev/null \
+            > "${RUNNER_TEMP}/word-copy-macros.txt"
+          grep -q '^#define ARM_NN_WORD_COPY' "${RUNNER_TEMP}/word-copy-macros.txt"
+          cmake -S Tests/UnitTest -B "${RUNNER_TEMP}/word-copy" \
+            -DPython3_EXECUTABLE="${RUNNER_TEMP}/word-copy-env/bin/python" \
+            -DCMAKE_TOOLCHAIN_FILE="${RUNNER_TEMP}/ethos-u-core-platform/cmake/toolchain/arm-none-eabi-gcc.cmake" \
+            -DTARGET_CPU=cortex-m4 -DCMSIS_PATH="${RUNNER_TEMP}/CMSIS_5" \
+            -DCMAKE_C_FLAGS=-DARM_NN_WORD_COPY \
+            -DCMSIS_NN_TEST_LIBRARY="${GITHUB_WORKSPACE}/output/atfe/cortex-m4/libns-cmsis-nn-atfe-cortex-m4-${VERSION}.a" \
+            -DARM_NN_ENABLE_F32=OFF -DARM_NN_ENABLE_F16=OFF
+          "${RUNNER_TEMP}/word-copy-env/bin/python" scripts/tests/test_unittest_targets_paths.py
+          python3 scripts/tests/test_check_atfe_word_copy.py
+          python3 scripts/check_atfe_word_copy.py --build "${RUNNER_TEMP}/word-copy"
 
   armclang:
     name: armclang / cortex-m55 + cortex-m4

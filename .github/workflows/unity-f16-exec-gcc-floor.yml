@@ -25,7 +25,8 @@ name: Unity f16 exec (oldest gated GCC)
 # wider net would import QEMU's own modeling quirks into a PR gate for no
 # added coverage of this class. That scoping is derived from the tree and
 # checked against SUITES below, so a new kernel reaching a conversion cannot
-# quietly land outside this gate.
+# quietly land outside this gate. A few plain float16 suites are listed on top
+# of the derived set; SUITES names them.
 
 on:
   workflow_call:
@@ -46,8 +47,10 @@ jobs:
       # One suite per kernel source that reaches a Q-form vcvt f16<->f32
       # conversion, directly or through a wrapper or an inline helper:
       #
-      #   Source/QuantizationFunctions/arm_dequantize_f16_f32.c
-      #       -> test_arm_dequantize_f16_f32 (arm_nn_vcvt{b,t}q_f32_f16)
+      #   Source/QuantizationFunctions/arm_dequantize_half_bits.c
+      #       -> test_arm_dequantize_f16_bits_f32 (arm_nn_vcvt{b,t}q_f32_f16;
+      #          arm_dequantize_f16_f32 calls it, and test_arm_dequantize_f16_f32
+      #          stays listed for that entry)
       #   Source/BasicMathFunctions/arm_nn_mean_f16.c
       #       -> test_arm_nn_mean_f16      (arm_nn_vcvt{b,t}q_f32_f16)
       #   Source/BasicMathFunctions/arm_reduce_sum_f16.c
@@ -72,7 +75,10 @@ jobs:
       # test_arm_hard_swish_f16 is listed too and is not derived: that
       # kernel's MVE leg is pure half precision and reaches no conversion at
       # all. It stays here as a plain float16 execution suite on the oldest
-      # gated compiler, which is worth having on its own.
+      # gated compiler, which is worth having on its own. The ARG, GELU, sqrt
+      # and rsqrt f16 suites are listed on the same footing: pull requests ran
+      # them only on the host (host-sanitizer.yml), and on an Arm target only
+      # nightly and at release (AmbiqAI/ns-cmsis-nn#511, #400).
       #
       # The step below re-derives the mapping from the tree and fails if
       # this list is short of it, so the comment is a reader's aid and the
@@ -80,15 +86,21 @@ jobs:
       # arm_softmax_f16's second suite is listed here by hand: the shapes
       # around the 8-lane boundary are worth running on this toolchain too.
       SUITES: >-
+        test_arm_argmax_f16
+        test_arm_argmin_f16
         test_arm_batch_matmul_f16
         test_arm_convolve_packed_f16
         test_arm_depthwise_conv_f16
+        test_arm_dequantize_f16_bits_f32
         test_arm_dequantize_f16_f32
         test_arm_f16_block_accum
         test_arm_fully_connected_f16
         test_arm_hard_swish_f16
+        test_arm_nn_gelu_f16
         test_arm_nn_mean_f16
+        test_arm_nn_sqrt_f16
         test_arm_reduce_sum_f16
+        test_arm_rsqrt_f16
         test_arm_softmax_f16
         test_arm_softmax_f16_shapes
       TOOLCHAIN_MANIFEST: ci/toolchains/arm-gnu-floor.json
@@ -241,6 +253,8 @@ jobs:
               "arm_convolve_f16_fast_small_kernel": "test_arm_convolve_packed_f16",
               "arm_convolve_f16_group_ch_mult_1": "test_arm_convolve_packed_f16",
           }
+          # The dtype-independent source holds the half-bit dequantizer.
+          SUITE_FOR["arm_dequantize_half_bits"] = "test_arm_dequantize_f16_bits_f32"
           # Kernels without a suite of their own reach the conversions through
           # the blockwise float16 fold helpers (AmbiqAI/ns-cmsis-nn#586);
           # test_arm_f16_block_accum runs each of them on its fold path.
@@ -430,7 +444,7 @@ jobs:
           # The runner generator shells out to ruby; the image ships it.
           ruby --version
 
-      - name: Build the f16 conversion suites
+      - name: Build the f16 suites
         # -Ofast and the F32/F16 pair are legacy-tester.yml's cortex-m55 leg.
         # Tests/UnitTest puts -fno-finite-math-only on everything it configures
         # below the library, which the release build does not.
@@ -451,7 +465,7 @@ jobs:
           # shellcheck disable=SC2086  # SUITES is a deliberate word list.
           cmake --build "${RUNNER_TEMP}/build" --target ${SUITES}
 
-      - name: Run the f16 conversion suites under QEMU
+      - name: Run the f16 suites under QEMU
         run: |
           set -euo pipefail
           log_dir="${RUNNER_TEMP}/qemu-logs"

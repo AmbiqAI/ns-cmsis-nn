@@ -44,6 +44,13 @@ concurrency:
   group: ci-${{ github.ref }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
+# Callee jobs run with at most this token. actions: read is for the
+# coverage gate in helia-core-tester.yml, packages: read for resolve-ci-image.yml.
+permissions:
+  contents: read
+  actions: read
+  packages: read
+
 jobs:
 
   # Draft pull requests are work pushed for backup, and this pipeline is the

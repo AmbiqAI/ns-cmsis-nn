@@ -40,27 +40,27 @@
  * @{
  */
 
-/*
- * Basic s8 convolution function.
- *
- * Refer header file for details. Optimal use case for the DSP/MVE implementation is when input and output channels
- * are multiples of 4 or atleast greater than 4.
- *
- */
-
-arm_cmsis_nn_status arm_convolve_s8(const cmsis_nn_context *ctx,
-                                    const cmsis_nn_context *weight_sum_ctx,
-                                    const cmsis_nn_conv_params *conv_params,
-                                    const cmsis_nn_per_channel_quant_params *quant_params,
-                                    const cmsis_nn_dims *input_dims,
-                                    const int8_t *input_data,
-                                    const cmsis_nn_dims *filter_dims,
-                                    const int8_t *filter_data,
-                                    const cmsis_nn_dims *bias_dims,
-                                    const int32_t *bias_data,
-                                    const cmsis_nn_dims *upscale_dims,
-                                    const cmsis_nn_dims *output_dims,
-                                    int8_t *output_data)
+/* The convolution after the argument check. It is kept out of line, and GCC is kept from cloning it, so the check's
+   call does not change the register allocation of its loops. */
+#if defined(__GNUC__) && !defined(__clang__)
+    #define ARM_CONVOLVE_S8_KERNEL_ATTR __attribute__((noinline, noipa))
+#else
+    #define ARM_CONVOLVE_S8_KERNEL_ATTR __attribute__((noinline))
+#endif
+static ARM_CONVOLVE_S8_KERNEL_ATTR arm_cmsis_nn_status
+arm_convolve_s8_kernel(const cmsis_nn_context *ctx,
+                       const cmsis_nn_context *weight_sum_ctx,
+                       const cmsis_nn_conv_params *conv_params,
+                       const cmsis_nn_per_channel_quant_params *quant_params,
+                       const cmsis_nn_dims *input_dims,
+                       const int8_t *input_data,
+                       const cmsis_nn_dims *filter_dims,
+                       const int8_t *filter_data,
+                       const cmsis_nn_dims *bias_dims,
+                       const int32_t *bias_data,
+                       const cmsis_nn_dims *upscale_dims,
+                       const cmsis_nn_dims *output_dims,
+                       int8_t *output_data)
 {
     (void)bias_dims;
 
@@ -92,17 +92,19 @@ arm_cmsis_nn_status arm_convolve_s8(const cmsis_nn_context *ctx,
     const int32_t out_activation_max = conv_params->activation.max;
     const int32_t input_offset = conv_params->input_offset;
 
+    /* Never true here: the kernel is entered only through arm_convolve_s8(), which checks more. The test tells the
+       compiler that the depths fit 16 bits and divide evenly. */
+    if (input_dims->c > UINT16_MAX || output_dims->c > UINT16_MAX ||
+        arm_nn_convolve_groups_invalid(input_dims, filter_dims, output_dims))
+    {
+        return ARM_CMSIS_NN_ARG_ERROR;
+    }
     const int32_t groups = input_ch / kernel_ch;
     const int32_t rhs_cols = kernel_x * kernel_y * kernel_ch;
     const int32_t output_ch_per_group = output_ch / groups;
 
     const int32_t *output_mult = quant_params->multiplier;
     const int32_t *output_shift = quant_params->shift;
-
-    if (input_ch % groups != 0 || output_ch % groups != 0)
-    {
-        return ARM_CMSIS_NN_ARG_ERROR;
-    }
 
     // For upscale_dims == 2, the actual index of the input data is the index of the upscaled input divided by two. In
     // the ordinary case, there is no difference. The division is implemented as a rshift for optimization purposes.
@@ -113,6 +115,12 @@ arm_cmsis_nn_status arm_convolve_s8(const cmsis_nn_context *ctx,
     {
         y_rshift = upscale_dims->h == 2 ? 1 : 0;
         x_rshift = upscale_dims->w == 2 ? 1 : 0;
+    }
+
+    /* The upscaled im2col reads the input from its first channel, so it serves one group only */
+    if (groups != 1 && (x_rshift != 0 || y_rshift != 0))
+    {
+        return ARM_CMSIS_NN_ARG_ERROR;
     }
 
     const int32_t input_x_rshifted = input_x >> x_rshift;
@@ -148,7 +156,8 @@ arm_cmsis_nn_status arm_convolve_s8(const cmsis_nn_context *ctx,
         int32_t lhs_rows = 0;
 
         const int8_t *filter_data_ptr = &filter_data[0];
-        const int32_t *bias_data_ptr = &bias_data[0];
+        /* NULL when there is no bias; then it stays NULL in every group */
+        const int32_t *bias_data_ptr = bias_data;
         const int32_t *output_mult_ptr = &output_mult[0];
         const int32_t *output_shift_ptr = &output_shift[0];
 
@@ -198,6 +207,24 @@ arm_cmsis_nn_status arm_convolve_s8(const cmsis_nn_context *ctx,
                             }
                         }
                     }
+#if ARM_NN_DEPTH1_STORE
+                    /* From 4 taps up one call per pixel beats a call per tap */
+                    else if (kernel_ch == 1 && kernel_x * kernel_y >= 4)
+                    {
+                        im2col_buf = arm_nn_im2col_depth1_s8(im2col_buf,
+                                                             input_data + i_group,
+                                                             input_ch,
+                                                             input_x,
+                                                             input_y,
+                                                             base_idx_x,
+                                                             base_idx_y,
+                                                             kernel_x,
+                                                             kernel_y,
+                                                             dilation_x,
+                                                             dilation_y,
+                                                             (int8_t)-input_offset);
+                    }
+#endif
                     else
                     {
                         for (int32_t i_ker_y = 0; i_ker_y < kernel_y; i_ker_y++)
@@ -354,7 +381,7 @@ arm_cmsis_nn_status arm_convolve_s8(const cmsis_nn_context *ctx,
 
     #if defined(ARM_MATH_DSP)
                     /* 4 multiply and accumulates are done in one loop. */
-                    uint16_t col_count = rhs_cols / 4;
+                    int32_t col_count = rhs_cols / 4;
                     while (col_count)
                     {
                         int32_t ker_a1, ker_a2;
@@ -372,7 +399,7 @@ arm_cmsis_nn_status arm_convolve_s8(const cmsis_nn_context *ctx,
                     /* Handle left over mac */
                     col_count = rhs_cols & 0x3;
     #else
-                    uint16_t col_count = rhs_cols;
+                    int32_t col_count = rhs_cols;
 
     #endif
                     while (col_count)
@@ -400,7 +427,10 @@ arm_cmsis_nn_status arm_convolve_s8(const cmsis_nn_context *ctx,
             weight_sum_data_ptr += output_ch_per_group;
 #endif
             filter_data_ptr += output_ch_per_group * rhs_cols;
-            bias_data_ptr += output_ch_per_group;
+            if (bias_data_ptr)
+            {
+                bias_data_ptr += output_ch_per_group;
+            }
             output_mult_ptr += output_ch_per_group;
             output_shift_ptr += output_ch_per_group;
         }
@@ -411,6 +441,48 @@ arm_cmsis_nn_status arm_convolve_s8(const cmsis_nn_context *ctx,
 
     /* Return to application */
     return ARM_CMSIS_NN_SUCCESS;
+}
+
+/*
+ * Basic s8 convolution function.
+ *
+ * Refer header file for details. Optimal use case for the DSP/MVE implementation is when input and output channels
+ * are multiples of 4 or atleast greater than 4.
+ *
+ */
+
+arm_cmsis_nn_status arm_convolve_s8(const cmsis_nn_context *ctx,
+                                    const cmsis_nn_context *weight_sum_ctx,
+                                    const cmsis_nn_conv_params *conv_params,
+                                    const cmsis_nn_per_channel_quant_params *quant_params,
+                                    const cmsis_nn_dims *input_dims,
+                                    const int8_t *input_data,
+                                    const cmsis_nn_dims *filter_dims,
+                                    const int8_t *filter_data,
+                                    const cmsis_nn_dims *bias_dims,
+                                    const int32_t *bias_data,
+                                    const cmsis_nn_dims *upscale_dims,
+                                    const cmsis_nn_dims *output_dims,
+                                    int8_t *output_data)
+{
+    /* Checked before the kernel divides by the filter depth or the group count */
+    if (arm_nn_convolve_s8_args_invalid(conv_params, input_dims, filter_dims, output_dims))
+    {
+        return ARM_CMSIS_NN_ARG_ERROR;
+    }
+    return arm_convolve_s8_kernel(ctx,
+                                  weight_sum_ctx,
+                                  conv_params,
+                                  quant_params,
+                                  input_dims,
+                                  input_data,
+                                  filter_dims,
+                                  filter_data,
+                                  bias_dims,
+                                  bias_data,
+                                  upscale_dims,
+                                  output_dims,
+                                  output_data);
 }
 
 /**
