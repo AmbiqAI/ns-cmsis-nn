@@ -17,7 +17,7 @@
   <repository type="git">https://github.com/AmbiqAI/ns-cmsis-nn</repository>
 
   <releases>
-    <release version="7.35.1"> <!-- x-release-please-version -->
+    <release version="7.44.2"> <!-- x-release-please-version -->
       Active development
     </release>
   </releases>
@@ -59,13 +59,17 @@
 
   <components>
     <!-- heliaCORE NN — Source variant: build the 200+ kernel sources in-tree. -->
-    <component Cclass="Machine Learning" Cgroup="NN Lib" Csub="heliaCORE" Cvariant="Source" Cvendor="Ambiq" Cversion="7.35.1" condition="CMSIS-NN"> <!-- x-release-please-version -->
-      <description>heliaCORE NN — Ambiq's optimized superset of Arm CMSIS-NN, tuned for Apollo SoCs.</description>
+    <component Cclass="Machine Learning" Cgroup="NN Lib" Csub="heliaCORE" Cvariant="Source" Cvendor="Ambiq" Cversion="7.44.2" condition="CMSIS-NN"> <!-- x-release-please-version -->
+      <description>heliaCORE NN - Ambiq's optimized superset of Arm CMSIS-NN, tuned for Apollo SoCs.</description>
       <files>
         <file category="doc" name="Documentation/html/index.html"/>
+        <!-- The pack root, for the Include/-prefixed spelling that TFLM-based runtimes use
+             (#include "Include/arm_nnfunctions.h"). -->
+        <file category="include" name="./"/>
         <file category="header" name="Include/arm_nn_types.h"/>
         <file category="header" name="Include/arm_nnfunctions.h"/>
         <file category="header" name="Include/arm_nnsupportfunctions.h"/>
+        <file category="header" name="Include/Internal/arm_nn_vector_sum_s8_mve.h"/>
         <file category="header" name="Include/arm_nn_tables.h"/>
         <file category="header" name="Include/arm_nn_math_types.h"/>
         <file category="header" name="Include/arm_nnfunctions_flt.h"/>
@@ -81,12 +85,29 @@
         <file category="header" name="Include/Internal/arm_depthwise_conv_opt_f32.h"/>
         <file category="header" name="Include/Internal/arm_nn_arg_extrema_flt.h"/>
         <file category="header" name="Include/Internal/arm_nn_broadcast_walk.h"/>
+        <file category="header" name="Include/Internal/arm_nn_compare_s32.h"/>
+        <file category="header" name="Include/Internal/arm_nn_logical_common.h"/>
+        <file category="header" name="Include/Internal/arm_nn_reduce_bool.h"/>
         <file category="header" name="Include/Internal/arm_nn_reduce_extrema_flt.h"/>
+        <file category="header" name="Include/Internal/arm_nn_resize_bilinear.h"/>
         <file category="header" name="Include/Internal/arm_nn_s4_decode.h"/>
         <file category="header" name="Include/Internal/arm_nn_sqrt_flt.h"/>
         <file category="header" name="Include/Internal/arm_minmax_f16_common.h"/>
         <file category="header" name="Include/Internal/arm_minmax_f32_common.h"/>
         <file category="header" name="Include/Internal/arm_resize_nearest_neighbor_common.h"/>
+        <file category="header" name="Include/Internal/arm_concatenation_common.h"/>
+        <file category="header" name="Include/Internal/arm_conv1x1_opt_common.h"/>
+        <file category="header" name="Include/Internal/arm_conv_opt_common.h"/>
+        <file category="header" name="Include/Internal/arm_depthwise_conv_opt_common.h"/>
+        <file category="header" name="Include/Internal/arm_nn_axis_copy_common.h"/>
+        <file category="header" name="Include/Internal/arm_nn_compiler.h"/>
+        <file category="header" name="Include/Internal/arm_nn_config.h"/>
+        <file category="header" name="Include/Internal/arm_nn_gather_common.h"/>
+        <file category="header" name="Include/Internal/arm_nn_pool_window_common.h"/>
+        <file category="header" name="Include/Internal/arm_nn_vcvt_f16.h"/>
+        <file category="header" name="Include/Internal/arm_strided_slice_common.h"/>
+        <file category="header" name="Include/Internal/arm_transpose_common.h"/>
+        <file category="header" name="Source/NNSupportFunctions/arm_get_buffer_size_common.h"/>
 
         <file category="source" name="Source/ActivationFunctions/arm_clamp_s16.c"/>
         <file category="source" name="Source/ActivationFunctions/arm_clamp_s8.c"/>
@@ -103,6 +124,8 @@
         <file category="source" name="Source/ActivationFunctions/arm_nn_activation_f16.c"/>
         <file category="source" name="Source/ActivationFunctions/arm_nn_activation_f32.c"/>
         <file category="source" name="Source/ActivationFunctions/arm_nn_activation_s16.c"/>
+        <file category="source" name="Source/ActivationFunctions/arm_nn_gelu_f16.c"/>
+        <file category="source" name="Source/ActivationFunctions/arm_nn_gelu_f32.c"/>
         <file category="source" name="Source/ActivationFunctions/arm_prelu_f16.c"/>
         <file category="source" name="Source/ActivationFunctions/arm_prelu_f32.c"/>
         <file category="source" name="Source/ActivationFunctions/arm_prelu_s16.c"/>
@@ -145,6 +168,7 @@
         <file category="source" name="Source/BasicMathFunctions/arm_elementwise_mul_s16_batch_offset.c"/>
         <file category="source" name="Source/BasicMathFunctions/arm_elementwise_mul_s16_s8.c"/>
         <file category="source" name="Source/BasicMathFunctions/arm_elementwise_mul_s8.c"/>
+        <file category="source" name="Source/BasicMathFunctions/arm_elementwise_squared_difference_f16.c"/>
         <file category="source" name="Source/BasicMathFunctions/arm_elementwise_squared_difference_s16.c"/>
         <file category="source" name="Source/BasicMathFunctions/arm_elementwise_squared_difference_s8.c"/>
         <file category="source" name="Source/BasicMathFunctions/arm_elementwise_sub_broadcast_f16.c"/>
@@ -175,6 +199,8 @@
         <file category="source" name="Source/BasicMathFunctions/arm_nn_fill_f32.c"/>
         <file category="source" name="Source/BasicMathFunctions/arm_nn_mean_f16.c"/>
         <file category="source" name="Source/BasicMathFunctions/arm_nn_mean_f32.c"/>
+        <file category="source" name="Source/BasicMathFunctions/arm_nn_neg_f16.c"/>
+        <file category="source" name="Source/BasicMathFunctions/arm_nn_neg_f32.c"/>
         <file category="source" name="Source/BasicMathFunctions/arm_nn_sqrt_f16.c"/>
         <file category="source" name="Source/BasicMathFunctions/arm_nn_sqrt_f32.c"/>
         <file category="source" name="Source/BasicMathFunctions/arm_reduce_max_f16.c"/>
@@ -191,6 +217,7 @@
         <file category="source" name="Source/BasicMathFunctions/arm_rsqrt_f32.c"/>
         <file category="source" name="Source/BasicMathFunctions/arm_rsqrt_s16.c"/>
         <file category="source" name="Source/BasicMathFunctions/arm_sqrt_s16.c"/>
+        <file category="source" name="Source/BasicMathFunctions/arm_sqrt_s16_tablefree.c"/>
         <file category="source" name="Source/BasicMathFunctions/arm_sqrt_s8.c"/>
         <file category="source" name="Source/BasicMathFunctions/arm_squared_difference_s16.c"/>
         <file category="source" name="Source/BasicMathFunctions/arm_squared_difference_s8.c"/>
@@ -202,6 +229,19 @@
         <file category="source" name="Source/BasicMathFunctions/arm_sub_scalar_s8.c"/>
         <file category="source" name="Source/ComparisonFunctions/arm_comparison_s16.c"/>
         <file category="source" name="Source/ComparisonFunctions/arm_comparison_s8.c"/>
+        <file category="source" name="Source/ComparisonFunctions/arm_equal_bool.c"/>
+        <file category="source" name="Source/ComparisonFunctions/arm_equal_s32.c"/>
+        <file category="source" name="Source/ComparisonFunctions/arm_greater_equal_s32.c"/>
+        <file category="source" name="Source/ComparisonFunctions/arm_greater_s32.c"/>
+        <file category="source" name="Source/ComparisonFunctions/arm_less_equal_s32.c"/>
+        <file category="source" name="Source/ComparisonFunctions/arm_less_s32.c"/>
+        <file category="source" name="Source/ComparisonFunctions/arm_logical_and_bool.c"/>
+        <file category="source" name="Source/ComparisonFunctions/arm_logical_not_bool.c"/>
+        <file category="source" name="Source/ComparisonFunctions/arm_logical_or_bool.c"/>
+        <file category="source" name="Source/ComparisonFunctions/arm_not_equal_bool.c"/>
+        <file category="source" name="Source/ComparisonFunctions/arm_not_equal_s32.c"/>
+        <file category="source" name="Source/ComparisonFunctions/arm_reduce_all_bool.c"/>
+        <file category="source" name="Source/ComparisonFunctions/arm_reduce_any_bool.c"/>
         <file category="source" name="Source/ConcatenationFunctions/arm_concatenation_f16.c"/>
         <file category="source" name="Source/ConcatenationFunctions/arm_concatenation_f32.c"/>
         <file category="source" name="Source/ConcatenationFunctions/arm_concatenation_s16.c"/>
@@ -231,6 +271,7 @@
         <file category="source" name="Source/ConvolutionFunctions/arm_convolve_1x1_s4_fast.c"/>
         <file category="source" name="Source/ConvolutionFunctions/arm_convolve_1x1_s8.c"/>
         <file category="source" name="Source/ConvolutionFunctions/arm_convolve_1x1_s8_fast.c"/>
+        <file category="source" name="Source/ConvolutionFunctions/arm_convolve_1x1_s8_short_k.c"/>
         <file category="source" name="Source/ConvolutionFunctions/arm_convolve_even_s4.c"/>
         <file category="source" name="Source/ConvolutionFunctions/arm_convolve_f16.c"/>
         <file category="source" name="Source/ConvolutionFunctions/arm_convolve_f32.c"/>
@@ -242,6 +283,8 @@
         <file category="source" name="Source/ConvolutionFunctions/arm_convolve_s16_group_ch_mult_1.c"/>
         <file category="source" name="Source/ConvolutionFunctions/arm_convolve_s4.c"/>
         <file category="source" name="Source/ConvolutionFunctions/arm_convolve_s8.c"/>
+        <file category="source" name="Source/ConvolutionFunctions/arm_convolve_s8_3x3_c16_s1.c"/>
+        <file category="source" name="Source/ConvolutionFunctions/arm_convolve_s8_small_cin.c"/>
         <file category="source" name="Source/ConvolutionFunctions/arm_convolve_weight_sum_s8.c"/>
         <file category="source" name="Source/ConvolutionFunctions/arm_convolve_wrapper_s16.c"/>
         <file category="source" name="Source/ConvolutionFunctions/arm_convolve_wrapper_s4.c"/>
@@ -258,6 +301,7 @@
         <file category="source" name="Source/ConvolutionFunctions/arm_depthwise_conv_s4_opt.c"/>
         <file category="source" name="Source/ConvolutionFunctions/arm_depthwise_conv_s8.c"/>
         <file category="source" name="Source/ConvolutionFunctions/arm_depthwise_conv_s8_opt.c"/>
+        <file category="source" name="Source/ConvolutionFunctions/arm_depthwise_conv_s8_opt_3x3.c"/>
         <file category="source" name="Source/ConvolutionFunctions/arm_depthwise_conv_wrapper_s16.c"/>
         <file category="source" name="Source/ConvolutionFunctions/arm_depthwise_conv_wrapper_s4.c"/>
         <file category="source" name="Source/ConvolutionFunctions/arm_depthwise_conv_wrapper_s8.c"/>
@@ -270,7 +314,9 @@
         <file category="source" name="Source/ConvolutionFunctions/arm_nn_mat_mult_s8.c"/>
         <file category="source" name="Source/ConvolutionFunctions/arm_transpose_conv_f16.c"/>
         <file category="source" name="Source/ConvolutionFunctions/arm_transpose_conv_f32.c"/>
+        <file category="source" name="Source/ConvolutionFunctions/arm_transpose_conv_get_buffer_sizes_s16.c"/>
         <file category="source" name="Source/ConvolutionFunctions/arm_transpose_conv_get_buffer_sizes_s8.c"/>
+        <file category="source" name="Source/ConvolutionFunctions/arm_transpose_conv_s16.c"/>
         <file category="source" name="Source/ConvolutionFunctions/arm_transpose_conv_s8.c"/>
         <file category="source" name="Source/ConvolutionFunctions/arm_transpose_conv_wrapper_s8.c"/>
         <file category="source" name="Source/FullyConnectedFunctions/arm_batch_matmul_f16.c"/>
@@ -283,6 +329,7 @@
         <file category="source" name="Source/FullyConnectedFunctions/arm_fully_connected_get_buffer_sizes_s16.c"/>
         <file category="source" name="Source/FullyConnectedFunctions/arm_fully_connected_get_buffer_sizes_s8.c"/>
         <file category="source" name="Source/FullyConnectedFunctions/arm_fully_connected_per_channel_s16.c"/>
+        <file category="source" name="Source/FullyConnectedFunctions/arm_fully_connected_per_channel_packed_s8.c"/>
         <file category="source" name="Source/FullyConnectedFunctions/arm_fully_connected_per_channel_s8.c"/>
         <file category="source" name="Source/FullyConnectedFunctions/arm_fully_connected_s16.c"/>
         <file category="source" name="Source/FullyConnectedFunctions/arm_fully_connected_s4.c"/>
@@ -317,6 +364,7 @@
         <file category="source" name="Source/NNSupportFunctions/arm_nn_conv1d_k5_f32.c"/>
         <file category="source" name="Source/NNSupportFunctions/arm_nn_conv1d_k5_packed_f16.c"/>
         <file category="source" name="Source/NNSupportFunctions/arm_nn_conv1d_k5_packed_f32.c"/>
+        <file category="source" name="Source/NNSupportFunctions/arm_nn_convolve_s8_args_invalid.c"/>
         <file category="source" name="Source/NNSupportFunctions/arm_nn_depthwise_conv1d_k3_f16.c"/>
         <file category="source" name="Source/NNSupportFunctions/arm_nn_depthwise_conv1d_k3_f32.c"/>
         <file category="source" name="Source/NNSupportFunctions/arm_nn_depthwise_conv2x5_f16.c"/>
@@ -324,6 +372,7 @@
         <file category="source" name="Source/NNSupportFunctions/arm_nn_depthwise_conv_nt_t_s16.c"/>
         <file category="source" name="Source/NNSupportFunctions/arm_nn_depthwise_conv_nt_t_s4.c"/>
         <file category="source" name="Source/NNSupportFunctions/arm_nn_depthwise_conv_nt_t_s8.c"/>
+        <file category="source" name="Source/NNSupportFunctions/arm_nn_depthwise_conv_s8_planar.c"/>
         <file category="source" name="Source/NNSupportFunctions/arm_nn_gru_step_f16.c"/>
         <file category="source" name="Source/NNSupportFunctions/arm_nn_gru_step_f32.c"/>
         <file category="source" name="Source/NNSupportFunctions/arm_nn_lstm_calculate_gate_s16.c"/>
@@ -381,6 +430,7 @@
         <file category="source" name="Source/PadFunctions/arm_mirror_pad_s16.c"/>
 
         <file category="source" name="Source/QuantizationFunctions/arm_dequantize_f16_f32.c"/>
+        <file category="source" name="Source/QuantizationFunctions/arm_dequantize_half_bits.c"/>
         <file category="source" name="Source/QuantizationFunctions/arm_dequantize_s8_f32.c"/>
         <file category="source" name="Source/QuantizationFunctions/arm_dequantize_s16_f32.c"/>
         <file category="source" name="Source/QuantizationFunctions/arm_quantize_f32_s16.c"/>
@@ -394,6 +444,8 @@
         <file category="source" name="Source/ReshapeFunctions/arm_reshape_f16.c"/>
         <file category="source" name="Source/ReshapeFunctions/arm_reshape_f32.c"/>
         <file category="source" name="Source/ReshapeFunctions/arm_reshape_s8.c"/>
+        <file category="source" name="Source/ReshapeFunctions/arm_resize_bilinear_s8.c"/>
+        <file category="source" name="Source/ReshapeFunctions/arm_resize_bilinear_s8_pow2.c"/>
         <file category="source" name="Source/ReshapeFunctions/arm_resize_nearest_neighbor_f16.c"/>
         <file category="source" name="Source/ReshapeFunctions/arm_resize_nearest_neighbor_f32.c"/>
         <file category="source" name="Source/ReshapeFunctions/arm_resize_nearest_neighbor_s16.c"/>
@@ -430,10 +482,11 @@
         <file category="source" name="Source/BroadcastFunctions/arm_broadcast_to_s16.c"/>
         <file category="source" name="Source/ScatterFunctions/arm_scatter_nd_s8.c"/>
         <file category="source" name="Source/ScatterFunctions/arm_scatter_nd_s16.c"/>
-        <file category="source" name="Source/SelectFunctions/arm_select_v2_s8.c"/>
         <file category="source" name="Source/SelectFunctions/arm_select_v2_s16.c"/>
-        <file category="source" name="Source/SelectFunctions/arm_where_s8.c"/>
+        <file category="source" name="Source/SelectFunctions/arm_select_v2_s32.c"/>
+        <file category="source" name="Source/SelectFunctions/arm_select_v2_s8.c"/>
         <file category="source" name="Source/SelectFunctions/arm_where_s16.c"/>
+        <file category="source" name="Source/SelectFunctions/arm_where_s8.c"/>
         <file category="source" name="Source/ReverseSequenceFunctions/arm_reverse_sequence_s8.c"/>
         <file category="source" name="Source/ReverseSequenceFunctions/arm_reverse_sequence_s16.c"/>
         <file category="source" name="Source/DynamicUpdateSliceFunctions/arm_dynamic_update_slice_s8.c"/>
@@ -446,19 +499,25 @@
          libns-cmsis-nn.a instead of compiling sources. One <file> entry per
          supported core; CMSIS-Pack pickers (Keil/CMSIS-Toolbox) resolve the
          right archive via the Dcore + Tcompiler conditions above. -->
-    <component Cclass="Machine Learning" Cgroup="NN Lib" Csub="heliaCORE" Cvariant="Prebuilt" Cvendor="Ambiq" Cversion="7.35.1" condition="CMSIS-NN"> <!-- x-release-please-version -->
-      <description>heliaCORE NN — Ambiq's prebuilt GCC archive for Cortex-M0/M0+/M4/M55.</description>
+    <component Cclass="Machine Learning" Cgroup="NN Lib" Csub="heliaCORE" Cvariant="Prebuilt" Cvendor="Ambiq" Cversion="7.44.2" condition="CMSIS-NN"> <!-- x-release-please-version -->
+      <description>heliaCORE NN - Ambiq's prebuilt GCC archive for Cortex-M0/M0+/M4/M55.</description>
       <files>
         <file category="doc"    name="Documentation/html/index.html"/>
+        <!-- The pack root, for the Include/-prefixed spelling (see the Source variant). -->
+        <file category="include" name="./"/>
         <file category="header" name="Include/arm_nn_types.h"/>
         <file category="header" name="Include/arm_nnfunctions.h"/>
         <file category="header" name="Include/arm_nnsupportfunctions.h"/>
+        <file category="header" name="Include/Internal/arm_nn_vector_sum_s8_mve.h"/>
         <file category="header" name="Include/arm_nn_tables.h"/>
         <file category="header" name="Include/arm_nn_math_types.h"/>
         <file category="header" name="Include/arm_nnfunctions_flt.h"/>
         <file category="header" name="Include/arm_nnsupportfunctions_flt.h"/>
         <file category="header" name="Include/arm_nn_types_flt.h"/>
         <file category="header" name="Include/arm_nn_math_types_flt.h"/>
+        <file category="header" name="Include/Internal/arm_nn_compiler.h"/>
+        <file category="header" name="Include/Internal/arm_nn_config.h"/>
+        <file category="header" name="Include/Internal/arm_nn_vcvt_f16.h"/>
 
         <file category="library" condition="ARMv6-M GCC"        name="lib/cortex-m0/libns-cmsis-nn.a"/>
         <file category="library" condition="ARMv6-M+ GCC"       name="lib/cortex-m0/libns-cmsis-nn.a"/>

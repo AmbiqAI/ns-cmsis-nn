@@ -32,7 +32,7 @@
 
 #include "arm_nn_types_flt.h"
 
-#define ARM_TRANSPOSE_DEFINE(FUNC_NAME, SCALAR_T, PARAMS_T, LAYOUT_T, TRANSPOSE_2D_FUNC)                               \
+#define ARM_TRANSPOSE_DEFINE(FUNC_NAME, SCALAR_T, PARAMS_T, TRANSPOSE_2D_FUNC)                                         \
     static void FUNC_NAME##_copy_elems(const SCALAR_T *input, SCALAR_T *output, size_t elems)                          \
     {                                                                                                                  \
         for (size_t i = 0; i < elems; ++i)                                                                             \
@@ -103,7 +103,7 @@
             return ARM_CMSIS_NN_ARG_ERROR;                                                                             \
         }                                                                                                              \
                                                                                                                        \
-        const LAYOUT_T layout = params->layout;                                                                        \
+        const int32_t layout = params->layout;                                                                         \
         if (layout != ARM_NN_LAYOUT_NHWC)                                                                              \
         {                                                                                                              \
             return ARM_CMSIS_NN_ARG_ERROR;                                                                             \

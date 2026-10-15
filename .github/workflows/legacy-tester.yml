@@ -34,6 +34,11 @@ on:
         default: ''
         type: string
 
+# packages: read is for the resolve-ci-image.yml call.
+permissions:
+  contents: read
+  packages: read
+
 jobs:
   resolve-container-image:
     uses: ./.github/workflows/resolve-ci-image.yml

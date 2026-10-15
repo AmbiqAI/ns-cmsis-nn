@@ -48,3 +48,6 @@ void test_basic_arm_grouped_convolve_1_s8(void) { grouped_conv_arm_grouped_convo
 void test_basic_arm_grouped_convolve_2_s8(void) { grouped_conv_arm_grouped_convolve_2_s8(); }
 void test_basic_arm_grouped_convolve_3_s8(void) { grouped_conv_arm_grouped_convolve_3_s8(); }
 void test_basic_arm_grouped_convolve_4_s8(void) { grouped_conv_arm_grouped_convolve_4_s8(); }
+void test_null_bias_arm_grouped_convolve_s8(void) { grouped_conv_null_bias_arm_grouped_convolve_s8(); }
+void test_arg_errors_arm_grouped_convolve_s8(void) { grouped_conv_arg_errors_arm_grouped_convolve_s8(); }
+void test_depth_bounds_arm_grouped_convolve_s8(void) { grouped_conv_depth_bounds_arm_grouped_convolve_s8(); }

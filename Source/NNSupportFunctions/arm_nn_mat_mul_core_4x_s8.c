@@ -82,9 +82,9 @@ int8_t *arm_nn_mat_mul_core_4x_s8(const int32_t row_elements,
         }
     #else
         __ASM volatile(" .p2align 2                             \n"
-                       "   vldrb.8         q0, [%[col]], #16    \n"
                        "   wlstp.8         lr, %[cnt], 1f       \n"
                        "2:                                      \n"
+                       "   vldrb.8         q0, [%[col]], #16    \n"
                        "   vaddva.s8      %[sum], q0            \n"
                        "   vldrb.8         q1, [%[row0]], #16   \n"
                        "   vmladava.s8    %[out0], q0, q1       \n"
@@ -94,7 +94,6 @@ int8_t *arm_nn_mat_mul_core_4x_s8(const int32_t row_elements,
                        "   vmladava.s8     %[out2], q0, q3      \n"
                        "   vldrb.8         q4, [%[row3]], #16   \n"
                        "   vmladava.s8     %[out3], q0, q4      \n"
-                       "   vldrb.8         q0, [%[col]], #16    \n"
                        "   letp            lr, 2b               \n"
                        "1:                                      \n"
                        : [col] "+r"(col_base),
