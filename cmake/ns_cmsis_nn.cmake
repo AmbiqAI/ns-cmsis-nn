@@ -138,6 +138,7 @@ function(_ns_cmsis_nn_group_def group out_subdir out_patterns out_extras)
                          "arm_elementwise_add_f32.c"
                          "arm_elementwise_sub_f32.c"
                          "arm_elementwise_mul_f32.c"
+                         "arm_elementwise_div_f32.c"
                          "arm_elementwise_sub_broadcast_f32.c"
                          "arm_elementwise_add_broadcast_f32.c"
                          "arm_elementwise_mul_broadcast_f32.c"
@@ -162,6 +163,7 @@ function(_ns_cmsis_nn_group_def group out_subdir out_patterns out_extras)
                          "arm_elementwise_sub_f16.c"
                          "arm_elementwise_squared_difference_f16.c"
                          "arm_elementwise_mul_f16.c"
+                         "arm_elementwise_div_f16.c"
                          "arm_elementwise_sub_broadcast_f16.c"
                          "arm_elementwise_add_broadcast_f16.c"
                          "arm_elementwise_mul_broadcast_f16.c"
@@ -446,6 +448,8 @@ endfunction()
 # ----------------------------------------------------------------------------
 # Public: absolute source paths for <group> (no dtype filtering).
 # ----------------------------------------------------------------------------
+include("${CMAKE_CURRENT_LIST_DIR}/ns_cmsis_nn_div_options.cmake")
+
 function(ns_cmsis_nn_group_sources group out_var)
   _ns_cmsis_nn_group_def("${group}" subdir patterns extras)
 
@@ -562,6 +566,7 @@ function(ns_cmsis_nn_attach target)
     endif()
   endforeach()
 
+  ns_cmsis_nn_div_options(${target} ${all_sources})
   target_sources(${target} PRIVATE ${all_sources})
   # Wrap in $<BUILD_INTERFACE:...> so consumers that re-export <target> via
   # install(TARGETS ... EXPORT ...) do not leak this absolute build-tree path
