@@ -39,6 +39,12 @@
 arm_cmsis_nn_status
 arm_dequantize_s8_f32(const int8_t *input, float *output, int32_t size, int32_t zero_point, float scale)
 {
+    /* The Helium loop reads size as an unsigned count, and a zero point outside the input type could overflow the
+     * subtraction in the scalar loop. */
+    if (size < 0 || zero_point < INT8_MIN || zero_point > INT8_MAX)
+    {
+        return ARM_CMSIS_NN_ARG_ERROR;
+    }
 
 #if defined(ARM_MATH_MVEF) && !defined(ARM_MATH_AUTOVECTORIZE)
     /* vcvt.f32 and vmul.f32 need the MVE floating-point extension; integer-only MVE takes the loop below */

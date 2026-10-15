@@ -160,7 +160,7 @@ void ds_cnn_l_s8_inference(void)
     cmsis_nn_dims conv_filter_dims;
     cmsis_nn_dims dw_conv_filter_dims;
     cmsis_nn_dims in_out_dim_1;
-    cmsis_nn_dims bias_dims;
+    cmsis_nn_dims bias_dims = {1, 1, 1, 0};
 
     conv_params.padding.h = CONV_2D_1_PAD_H;
     conv_params.padding.w = CONV_2D_1_PAD_W;

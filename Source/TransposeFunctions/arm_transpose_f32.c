@@ -53,20 +53,39 @@ arm_transpose_2d_kernel_f32(const float32_t *input, float32_t *output, int32_t r
         const uint32_t cols_u32 = (uint32_t)cols;
         const uint32x4_t row_offsets = vmulq(vidupq_u32((uint32_t)0, 1), cols_u32);
 
-        for (int32_t c = 0; c < cols; ++c)
-        {
-            const float32_t *input_col = input + c;
-            float32_t *output_col = output + (size_t)c * (size_t)rows;
-
-            for (int32_t r = 0; r < rows; r += 4)
-            {
-                const mve_pred16_t p = vctp32q((uint32_t)(rows - r));
-                const float32x4_t vin = vldrwq_gather_shifted_offset_z(input_col, row_offsets, p);
-                vst1q_p(output_col, vin, p);
-                input_col += (size_t)4U * (size_t)cols;
-                output_col += 4;
-            }
-        }
+        /* Register storage avoids unnecessary spills of assembly-only state in unoptimized builds. */
+        register uintptr_t input_addr = (uintptr_t)input;
+        register uintptr_t output_addr = (uintptr_t)output;
+        register uint32_t columns = (uint32_t)cols;
+        register uintptr_t input_col, output_col;
+        register uint32_t saved_predicate;
+        const uint32_t input_step = 4U * (uint32_t)cols * sizeof(float32_t);
+        const uint32_t output_step = (uint32_t)rows * sizeof(float32_t);
+        /* Keep tail predication and address updates in registers, without forming unused C pointers. */
+        __ASM volatile(
+            "vmrs %[saved], p0\n"
+            "1:\n"
+            "mov %[src_col], %[src]\n"
+            "mov %[dst_col], %[dst]\n"
+            "dlstp.32 lr, %[rows]\n"
+            "2:\n"
+            "vldrw.u32 q0, [%[src_col], %q[offsets], uxtw #2]\n"
+            "add %[src_col], %[step]\n"
+            "vstrw.32 q0, [%[dst_col]], #16\n"
+            "letp lr, 2b\n"
+            "add %[src], #4\n"
+            "add %[dst], %[out_step]\n"
+            "subs %[columns], #1\n"
+            "bne 1b\n"
+            "vmsr p0, %[saved]\n"
+            : [src] "+&r"(input_addr),
+              [dst] "+&r"(output_addr),
+              [columns] "+&r"(columns),
+              [src_col] "=&r"(input_col),
+              [dst_col] "=&r"(output_col),
+              [saved] "=&r"(saved_predicate)
+            : [rows] "r"(rows), [step] "r"(input_step), [out_step] "r"(output_step), [offsets] "w"(row_offsets)
+            : "q0", "lr", "cc", "memory");
 
         return ARM_CMSIS_NN_SUCCESS;
     }

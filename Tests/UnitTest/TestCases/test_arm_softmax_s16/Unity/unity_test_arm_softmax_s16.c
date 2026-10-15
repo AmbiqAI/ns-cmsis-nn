@@ -45,3 +45,7 @@ void setUp(void)
 void tearDown(void) {}
 
 void test_softmax_s16_arm_softmax_s16(void) { softmax_s16_arm_softmax_s16(); }
+
+void test_softmax_s16_shift31_arm_softmax_s16(void) { softmax_s16_shift31_arm_softmax_s16(); }
+
+void test_softmax_s16_row_domains_arm_softmax_s16(void) { softmax_s16_row_domains_arm_softmax_s16(); }

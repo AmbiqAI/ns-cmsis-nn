@@ -103,6 +103,7 @@ void basic_arm_depthwise_conv_s8_opt(void)
                                       lhs_offset,
                                       bias_data);
 
+    bias_dims = (cmsis_nn_dims){1, 1, 1, output_dims.c};
     arm_cmsis_nn_status result = arm_depthwise_conv_s8_opt(&ctx,
                                                            &weights_sum_ctx,
                                                            &dw_conv_params,
@@ -234,6 +235,7 @@ void depthwise_null_weight_sum_arm_depthwise_conv_s8_opt(void)
     ctx.buf = malloc((size_t)ctx.size);
     TEST_ASSERT_TRUE(ctx.size == 0 || ctx.buf != NULL);
 
+    bias_dims = (cmsis_nn_dims){1, 1, 1, output_dims.c};
     /* weight_sum_ctx is left as {0} (buf == NULL) on purpose: this is the precondition the NULL guard exists to
      * diagnose, so ctx must otherwise be entirely valid. */
     arm_cmsis_nn_status result = arm_depthwise_conv_s8_opt(&ctx,
@@ -326,6 +328,7 @@ void depthwise_eq_in_out_ch_arm_depthwise_conv_s8_opt(void)
                                       lhs_offset,
                                       bias_data);
 
+    bias_dims = (cmsis_nn_dims){1, 1, 1, output_dims.c};
     arm_cmsis_nn_status result = arm_depthwise_conv_s8_opt(&ctx,
                                                            &weights_sum_ctx,
                                                            &dw_conv_params,
@@ -470,6 +473,7 @@ void depthwise_sub_block_arm_depthwise_conv_s8_opt(void)
                                       lhs_offset,
                                       bias_data);
 
+    bias_dims = (cmsis_nn_dims){1, 1, 1, output_dims.c};
     arm_cmsis_nn_status result = arm_depthwise_conv_s8_opt(&ctx,
                                                            &weights_sum_ctx,
                                                            &dw_conv_params,
@@ -901,6 +905,7 @@ void depthwise_x_stride_arm_depthwise_conv_s8_opt(void)
                                       lhs_offset,
                                       bias_data);
 
+    bias_dims = (cmsis_nn_dims){1, 1, 1, output_dims.c};
     arm_cmsis_nn_status result = arm_depthwise_conv_s8_opt(&ctx,
                                                            &weights_sum_ctx,
                                                            &dw_conv_params,
@@ -2817,13 +2822,30 @@ static void dw3_case(const dw3_shape *s, int32_t input_offset, int32_t output_of
     const int32_t opt_size = arm_depthwise_conv_s8_opt_get_buffer_size(&input_dims, &filter_dims);
     const int32_t size = (s->exact || opt_size < need) ? need : opt_size;
     TEST_ASSERT_TRUE(size <= DW3_MAX_SCRATCH);
-#if defined(ARM_MATH_MVEI)
+#if defined(ARM_MATH_MVEI) && !defined(ARM_MATH_AUTOVECTORIZE)
     /* The 3x3 scratch of arm_depthwise_conv_s8_opt() covers every input W x C <= 1440. */
     TEST_ASSERT_TRUE(opt_size >= 3008 + 1440 + 16);
     TEST_ASSERT_EQUAL(s->exact || s->iw * s->ch > 1440, size == need);
 #endif
     const int32_t misalign = (s->ih + s->iw + s->ch + s->sx) % 16;
     const cmsis_nn_context ctx = {dw3_scratch + DW3_GUARD + misalign, size};
+
+    /* Exercise the portable/DSP implementation too, using its required aligned scratch. */
+    const cmsis_nn_context opt_ctx = {dw3_scratch, opt_size};
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
+                      arm_depthwise_conv_s8_opt_channelwise(&opt_ctx,
+                                                           &wsum,
+                                                           &params,
+                                                           &quant,
+                                                           &input_dims,
+                                                           dw3_in,
+                                                           &filter_dims,
+                                                           dw3_ker,
+                                                           &bias_dims,
+                                                           dw3_bias,
+                                                           &output_dims,
+                                                           dw3_out));
+    TEST_ASSERT_EQUAL_INT8_ARRAY(dw3_ref, dw3_out, out_bytes);
 
     const dw3_entry_fn entries[] = {arm_depthwise_conv_s8_opt_3x3, arm_depthwise_conv_s8_opt_3x3_c64_s1};
     for (size_t e = 0; e < sizeof(entries) / sizeof(entries[0]); e++)
@@ -2842,7 +2864,7 @@ static void dw3_case(const dw3_shape *s, int32_t input_offset, int32_t output_of
                                                       dw3_bias,
                                                       &output_dims,
                                                       dw3_out + DW3_GUARD);
-#if defined(ARM_MATH_MVEI)
+#if defined(ARM_MATH_MVEI) && !defined(ARM_MATH_AUTOVECTORIZE)
         const int32_t takes = e == 0 || (s->ch == 64 && s->sy == 1);
 #else
         const int32_t takes = 0;
@@ -2882,6 +2904,21 @@ void dw3_shapes_arm_depthwise_conv_s8_opt(void)
 {
     /* ih, iw, ch, stride_y, stride_x, pad_y, pad_x, oh, ow, exact scratch */
     const dw3_shape shapes[] = {
+        /* Partial vectors on either side of a 64-channel packing pass, including #814. */
+        {7, 9, 17, 1, 1, 1, 1, 0, 0, 1},
+        {7, 9, 18, 2, 1, 1, 1, 0, 0, 1},
+        {7, 9, 19, 1, 2, 1, 1, 0, 0, 1},
+        {7, 9, 63, 2, 2, 1, 1, 0, 0, 1},
+        {7, 9, 65, 1, 1, 1, 1, 0, 0, 1},
+        {7, 9, 66, 2, 1, 1, 1, 0, 0, 1},
+        {7, 9, 67, 1, 2, 1, 1, 0, 0, 1},
+        {7, 9, 80, 1, 1, 1, 1, 0, 0, 1},
+        {7, 9, 81, 1, 1, 1, 1, 0, 0, 1},
+        {7, 9, 82, 1, 1, 1, 1, 0, 0, 1},
+        {7, 9, 83, 2, 2, 1, 1, 0, 0, 1},
+        {7, 9, 84, 1, 1, 1, 1, 0, 0, 1},
+        {7, 9, 127, 1, 1, 1, 1, 0, 0, 1},
+        {7, 9, 129, 1, 1, 1, 1, 0, 0, 1},
         {25, 5, 64, 1, 1, 1, 1, 0, 0, 0},    /* KWS DS-CNN, output_y % 3 == 1 */
         {12, 12, 64, 1, 1, 1, 1, 0, 0, 0},   /* VWW dw9, output_y % 3 == 0 */
         {12, 12, 64, 2, 2, 0, 0, 6, 6, 0},   /* VWW dw11, SAME: bottom and right padding only */
@@ -2991,24 +3028,18 @@ static void dw3_declines(const dw3_entry_fn entry, const int32_t ch)
                                              dw3_bias,
                                              &output_dims,
                                              dw3_out + DW3_GUARD);
-#if defined(ARM_MATH_MVEI)
+#if defined(ARM_MATH_MVEI) && !defined(ARM_MATH_AUTOVECTORIZE)
     TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, status);
 #else
     TEST_ASSERT_EQUAL(ARM_CMSIS_NN_NO_IMPL_ERROR, status);
 #endif
 
-    /* Channel count: below 16, not a multiple of 4. */
-    const int32_t bad_ch[] = {12, 62, 18};
+    /* Channel count below the direct kernel gate. */
+    const int32_t bad_ch[] = {1, 12, 15};
     for (size_t i = 0; i < sizeof(bad_ch) / sizeof(bad_ch[0]); i++)
     {
         const cmsis_nn_dims in_c = {1, 8, 8, bad_ch[i]}, f_c = {1, 3, 3, bad_ch[i]}, out_c = {1, 8, 8, bad_ch[i]};
         dw3_expect_decline(entry, &ctx, &wsum, &params, &in_c, &f_c, &out_c);
-    }
-    {
-        /* The KWS shape with 62 channels */
-        const cmsis_nn_dims in_c = {1, 25, 5, 62}, f_c = {1, 3, 3, 62}, out_c = {1, 25, 5, 62};
-        const cmsis_nn_context big = {dw3_scratch + DW3_GUARD, 3008 + 5 * 62 + 16};
-        dw3_expect_decline(entry, &big, &wsum, &params, &in_c, &f_c, &out_c);
     }
     /* Filter 5x5; 1x3, 3x1, 5x3 and 3x5 (H x W), each with the output of the 3x3 layer so that only the filter is
        outside the gate */
@@ -3238,7 +3269,7 @@ void dw3_buffer_size_arm_depthwise_conv_s8_opt(void)
    scratch layout at the gap, so a write past the pad row faults even where the documented minimum leaves slack. */
 void dw3_bounds_arm_depthwise_conv_s8_opt(void)
 {
-#if defined(MPU_GUARD_AVAILABLE)
+#if defined(MPU_GUARD_AVAILABLE) && !defined(ARM_MATH_AUTOVECTORIZE)
     enum
     {
         op_none,
@@ -3253,6 +3284,13 @@ void dw3_bounds_arm_depthwise_conv_s8_opt(void)
         op_end
     };
     const dw3_shape shapes[] = {
+        {4, 5, 17, 1, 1, 1, 1, 0, 0, 1},
+        {4, 5, 18, 1, 1, 1, 1, 0, 0, 1},
+        {4, 5, 19, 1, 1, 1, 1, 0, 0, 1},
+        {4, 5, 65, 1, 1, 1, 1, 0, 0, 1},
+        {4, 5, 66, 1, 1, 1, 1, 0, 0, 1},
+        {4, 5, 67, 1, 1, 1, 1, 0, 0, 1},
+        {4, 5, 82, 1, 1, 1, 1, 0, 0, 1},
         {6, 5, 16, 1, 1, 1, 1, 0, 0, 1},
         {7, 6, 64, 1, 1, 1, 1, 0, 0, 1},
         {5, 11, 36, 2, 2, 1, 1, 0, 0, 1},
@@ -3319,8 +3357,8 @@ void dw3_bounds_arm_depthwise_conv_s8_opt(void)
                 {
                     /* The layout (parameters, then the pad row) is need - 16 bytes from a 16-byte aligned start.
                        ctx->buf one byte past a 16-byte boundary spends 15 of the 16 slack bytes on alignment, so the
-                       layout ends at the gap when W x C is a multiple of 16 (every shape here but 11 x 36), and the
-                       last byte of ctx->size lies in the gap. */
+                       layout ends at the gap when W x C is a multiple of 16, with the last byte of ctx->size in
+                       the gap. Otherwise up to 15 bytes of alignment slack precede the gap. */
                     const uintptr_t layout_start = ((uintptr_t)guard_end(0) - (uintptr_t)(need - 16)) & ~(uintptr_t)15;
                     scratch = (int8_t *)(layout_start - 15);
                 }
@@ -3347,6 +3385,8 @@ void dw3_bounds_arm_depthwise_conv_s8_opt(void)
             }
         }
     }
+#else
+    TEST_IGNORE_MESSAGE("Requires explicit MVE intrinsics and the MPU guard platform");
 #endif
 }
 

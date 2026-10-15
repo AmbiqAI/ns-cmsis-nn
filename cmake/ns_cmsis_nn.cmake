@@ -176,7 +176,7 @@ function(_ns_cmsis_nn_group_def group out_subdir out_patterns out_extras)
                          "arm_rsqrt_f16.c")
     endif()
   elseif(group STREQUAL "comparison")
-    set(subdir   "ComparisonFunctions")
+    set(subdir   "ComparisonFunctions") # Numeric comparisons and Boolean logical entries.
     set(patterns "*.c")
   elseif(group STREQUAL "concatenation")
     set(subdir   "ConcatenationFunctions")
@@ -315,6 +315,8 @@ function(_ns_cmsis_nn_group_def group out_subdir out_patterns out_extras)
                  "arm_batch_to_space_nd_s16.c"
                  "arm_depth_to_space_s8.c"
                  "arm_depth_to_space_s16.c"
+                 "arm_resize_bilinear_s8.c"
+                 "arm_resize_bilinear_s8_pow2.c"
                  "arm_resize_nearest_neighbor_s8.c"
                  "arm_resize_nearest_neighbor_s16.c"
                  "arm_space_to_batch_nd_s8.c"

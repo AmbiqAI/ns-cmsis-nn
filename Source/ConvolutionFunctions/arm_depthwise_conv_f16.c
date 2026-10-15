@@ -953,6 +953,7 @@ arm_depthwise_conv_nhwc_dispatch_f16(const cmsis_nn_context *ctx,
 {
     /* Read by the table and the to-conv route only; neither is compiled on every leg. */
     (void)ctx;
+    (void)bias_dims;
 
     #ifndef NN_DISABLE_SPECIALIZATION
     /* First try the exact-shape NHWC specializations (1D-k3, 2x5). */

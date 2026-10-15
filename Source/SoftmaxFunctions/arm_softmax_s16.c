@@ -51,6 +51,14 @@ arm_cmsis_nn_status arm_softmax_s16(const int16_t *input,
     {
         return ARM_CMSIS_NN_ARG_ERROR;
     }
+    if (num_rows < 0 || row_size < 0)
+    {
+        return ARM_CMSIS_NN_ARG_ERROR;
+    }
+    if (num_rows == 0 || row_size == 0)
+    {
+        return ARM_CMSIS_NN_SUCCESS;
+    }
 
     for (row_idx = 0; row_idx < num_rows; ++row_idx)
     {
@@ -68,7 +76,17 @@ arm_cmsis_nn_status arm_softmax_s16(const int16_t *input,
         for (col = 0; col < row_size; ++col)
         {
             diff = input[col] - max;
-            const int32_t scaled_diff = arm_nn_requantize(diff, mult, shift);
+            int32_t scaled_diff;
+            if (shift == 31)
+            {
+                /* Q31 scaling at shift 31 is an exact product; clamp before narrowing to the LUT domain. */
+                const int64_t product = (int64_t)diff * mult;
+                scaled_diff = (int32_t)ARM_NN_MAX(ARM_NN_MIN(product, 0), -65535);
+            }
+            else
+            {
+                scaled_diff = arm_nn_requantize(diff, mult, shift);
+            }
             const int32_t symmetric_scaled_diff = scaled_diff + NN_Q15_MAX;
             const int16_t saturated_symmetric_scaled_diff =
                 ARM_NN_MIN(ARM_NN_MAX(symmetric_scaled_diff, NN_Q15_MIN), NN_Q15_MAX);

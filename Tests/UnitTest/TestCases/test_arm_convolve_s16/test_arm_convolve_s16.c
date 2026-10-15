@@ -94,6 +94,7 @@ void int16xint8_1x1_ns_np_nd_arm_convolve_s16(void)
 
     int buf_size = arm_convolve_s16_get_buffer_size(&input_dims, &filter_dims);
 
+    bias_dims = (cmsis_nn_dims){1, 1, 1, output_dims.c};
     ctx.buf = malloc(buf_size);
     arm_cmsis_nn_status result;
     result = arm_convolve_s16(&ctx,
@@ -186,6 +187,7 @@ void int16xint8_kernel_less_than_9_arm_convolve_s16(void)
 
     int buf_size = arm_convolve_s16_get_buffer_size(&input_dims, &filter_dims);
 
+    bias_dims = (cmsis_nn_dims){1, 1, 1, output_dims.c};
     ctx.buf = malloc(buf_size);
     arm_cmsis_nn_status result;
     result = arm_convolve_s16(&ctx,
@@ -277,6 +279,7 @@ void int16xint8_group_depthwise_arm_convolve_s16(void)
 
     int buf_size = arm_convolve_s16_get_buffer_size(&input_dims, &filter_dims);
 
+    bias_dims = (cmsis_nn_dims){1, 1, 1, output_dims.c};
     ctx.buf = malloc(buf_size);
     arm_cmsis_nn_status result;
     result = arm_convolve_s16(&ctx,
@@ -368,6 +371,7 @@ void int16xint8_group_depthwise_3x3_arm_convolve_s16(void)
 
     int buf_size = arm_convolve_s16_get_buffer_size(&input_dims, &filter_dims);
 
+    bias_dims = (cmsis_nn_dims){1, 1, 1, output_dims.c};
     ctx.buf = malloc(buf_size);
     arm_cmsis_nn_status result;
     result = arm_convolve_s16(&ctx,
@@ -458,6 +462,7 @@ void int16xint8_group_depthwise_3x3_pad_arm_convolve_s16(void)
 
     int buf_size = arm_convolve_s16_get_buffer_size(&input_dims, &filter_dims);
 
+    bias_dims = (cmsis_nn_dims){1, 1, 1, output_dims.c};
     ctx.buf = malloc(buf_size);
     arm_cmsis_nn_status result;
     result = arm_convolve_s16(&ctx,
@@ -548,6 +553,7 @@ void int16xint8_group_depthwise_3x3_stride_dilation_arm_convolve_s16(void)
 
     int buf_size = arm_convolve_s16_get_buffer_size(&input_dims, &filter_dims);
 
+    bias_dims = (cmsis_nn_dims){1, 1, 1, output_dims.c};
     ctx.buf = malloc(buf_size);
     arm_cmsis_nn_status result;
     result = arm_convolve_s16(&ctx,
@@ -638,6 +644,7 @@ void int16xint8_group2_arm_convolve_s16(void)
 
     int buf_size = arm_convolve_s16_get_buffer_size(&input_dims, &filter_dims);
 
+    bias_dims = (cmsis_nn_dims){1, 1, 1, output_dims.c};
     ctx.buf = malloc(buf_size);
     arm_cmsis_nn_status result;
     result = arm_convolve_s16(&ctx,
@@ -729,6 +736,7 @@ void int16xint8_group_same_arm_convolve_s16(void)
 
     int buf_size = arm_convolve_s16_get_buffer_size(&input_dims, &filter_dims);
 
+    bias_dims = (cmsis_nn_dims){1, 1, 1, output_dims.c};
     ctx.buf = malloc(buf_size);
     arm_cmsis_nn_status result;
     result = arm_convolve_s16(&ctx,
@@ -819,6 +827,7 @@ void int16xint8_group_batch2_dilated_arm_convolve_s16(void)
     quant_params.multiplier = (int32_t *)int16xint8_group_batch2_dilated_output_mult;
     quant_params.shift = (int32_t *)int16xint8_group_batch2_dilated_output_shift;
 
+    bias_dims = (cmsis_nn_dims){1, 1, 1, output_dims.c};
     int buf_size = arm_convolve_s16_get_buffer_size(&input_dims, &filter_dims);
     ctx.buf = malloc(buf_size);
     arm_cmsis_nn_status result;
@@ -909,6 +918,7 @@ void int16xint8_arm_convolve_s16(void)
     quant_params.multiplier = (int32_t *)int16xint8_output_mult;
     quant_params.shift = (int32_t *)int16xint8_output_shift;
 
+    bias_dims = (cmsis_nn_dims){1, 1, 1, output_dims.c};
     int buf_size = arm_convolve_s16_get_buffer_size(&input_dims, &filter_dims);
     ctx.buf = malloc(buf_size);
     arm_cmsis_nn_status result;
@@ -1004,6 +1014,7 @@ void requantize_s64_arm_convolve_s16(void)
     int buf_size = arm_convolve_s16_get_buffer_size(&input_dims, &filter_dims);
     ctx.buf = malloc(buf_size);
 
+    bias_dims = (cmsis_nn_dims){1, 1, 1, output_dims.c};
     arm_cmsis_nn_status result = arm_convolve_s16(&ctx,
                                                   &conv_params,
                                                   &quant_params,
@@ -1096,6 +1107,7 @@ void int16xint8_dilation_1_arm_convolve_s16(void)
     int buf_size = arm_convolve_s16_get_buffer_size(&input_dims, &filter_dims);
     ctx.buf = malloc(buf_size);
 
+    bias_dims = (cmsis_nn_dims){1, 1, 1, output_dims.c};
     arm_cmsis_nn_status result = arm_convolve_s16(&ctx,
                                                   &conv_params,
                                                   &quant_params,
@@ -1188,6 +1200,7 @@ void int16xint8_dilation_2_arm_convolve_s16(void)
     int buf_size = arm_convolve_s16_get_buffer_size(&input_dims, &filter_dims);
     ctx.buf = malloc(buf_size);
 
+    bias_dims = (cmsis_nn_dims){1, 1, 1, output_dims.c};
     arm_cmsis_nn_status result = arm_convolve_s16(&ctx,
                                                   &conv_params,
                                                   &quant_params,
@@ -1279,6 +1292,7 @@ void int16xint8_dilation_3_arm_convolve_s16(void)
     int buf_size = arm_convolve_s16_get_buffer_size(&input_dims, &filter_dims);
     ctx.buf = malloc(buf_size);
 
+    bias_dims = (cmsis_nn_dims){1, 1, 1, output_dims.c};
     arm_cmsis_nn_status result = arm_convolve_s16(&ctx,
                                                   &conv_params,
                                                   &quant_params,
@@ -1486,6 +1500,7 @@ void int16xint8_spill_arm_convolve_s16(void)
     quant_params.multiplier = (int32_t *)int16xint8_spill_output_mult;
     quant_params.shift = (int32_t *)int16xint8_spill_output_shift;
 
+    bias_dims = (cmsis_nn_dims){1, 1, 1, output_dims.c};
     int buf_size = arm_convolve_s16_get_buffer_size(&input_dims, &filter_dims);
     ctx.buf = malloc(buf_size);
     arm_cmsis_nn_status result;
@@ -1577,6 +1592,7 @@ void int16xint8_spill2_arm_convolve_s16(void)
     quant_params.multiplier = (int32_t *)int16xint8_spill2_output_mult;
     quant_params.shift = (int32_t *)int16xint8_spill2_output_shift;
 
+    bias_dims = (cmsis_nn_dims){1, 1, 1, output_dims.c};
     int buf_size = arm_convolve_s16_get_buffer_size(&input_dims, &filter_dims);
     ctx.buf = malloc(buf_size);
     arm_cmsis_nn_status result;
@@ -1668,6 +1684,7 @@ void int16xint8xint32_1_arm_convolve_s16(void)
     quant_params.multiplier = (int32_t *)int16xint8xint32_1_output_mult;
     quant_params.shift = (int32_t *)int16xint8xint32_1_output_shift;
 
+    bias_dims = (cmsis_nn_dims){1, 1, 1, output_dims.c};
     int buf_size = arm_convolve_s16_get_buffer_size(&input_dims, &filter_dims);
     ctx.buf = malloc(buf_size);
     arm_cmsis_nn_status result;
@@ -1759,6 +1776,7 @@ void int16xint8xint32_2_arm_convolve_s16(void)
     quant_params.multiplier = (int32_t *)int16xint8xint32_2_output_mult;
     quant_params.shift = (int32_t *)int16xint8xint32_2_output_shift;
 
+    bias_dims = (cmsis_nn_dims){1, 1, 1, output_dims.c};
     int buf_size = arm_convolve_s16_get_buffer_size(&input_dims, &filter_dims);
     ctx.buf = malloc(buf_size);
     arm_cmsis_nn_status result;
@@ -1850,6 +1868,7 @@ void int16xint8xint32_3_arm_convolve_s16(void)
     quant_params.multiplier = (int32_t *)int16xint8xint32_3_output_mult;
     quant_params.shift = (int32_t *)int16xint8xint32_3_output_shift;
 
+    bias_dims = (cmsis_nn_dims){1, 1, 1, output_dims.c};
     int buf_size = arm_convolve_s16_get_buffer_size(&input_dims, &filter_dims);
     ctx.buf = malloc(buf_size);
     arm_cmsis_nn_status result;
@@ -1941,6 +1960,7 @@ void int16xint8xint32_4_arm_convolve_s16(void)
     quant_params.multiplier = (int32_t *)int16xint8xint32_4_output_mult;
     quant_params.shift = (int32_t *)int16xint8xint32_4_output_shift;
 
+    bias_dims = (cmsis_nn_dims){1, 1, 1, output_dims.c};
     int buf_size = arm_convolve_s16_get_buffer_size(&input_dims, &filter_dims);
     ctx.buf = malloc(buf_size);
     arm_cmsis_nn_status result;
@@ -2032,6 +2052,7 @@ void int16xint8xint32_5_arm_convolve_s16(void)
     quant_params.multiplier = (int32_t *)int16xint8xint32_5_output_mult;
     quant_params.shift = (int32_t *)int16xint8xint32_5_output_shift;
 
+    bias_dims = (cmsis_nn_dims){1, 1, 1, output_dims.c};
     int buf_size = arm_convolve_s16_get_buffer_size(&input_dims, &filter_dims);
     ctx.buf = malloc(buf_size);
     arm_cmsis_nn_status result;
@@ -2123,6 +2144,7 @@ void int16xint8xint32_6_arm_convolve_s16(void)
     quant_params.multiplier = (int32_t *)int16xint8xint32_6_output_mult;
     quant_params.shift = (int32_t *)int16xint8xint32_6_output_shift;
 
+    bias_dims = (cmsis_nn_dims){1, 1, 1, output_dims.c};
     int buf_size = arm_convolve_s16_get_buffer_size(&input_dims, &filter_dims);
     ctx.buf = malloc(buf_size);
     arm_cmsis_nn_status result;
