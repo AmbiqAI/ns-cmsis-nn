@@ -23,9 +23,11 @@
 // most 32 taps must agree byte for byte between the two entries. A +0 / -0 difference counts as agreement. The tap
 // count is the output's own: the direct kernels skip padded taps, so an edge output counts only its in-range taps;
 // the paths that multiply a zero-padded patch (patch-GEMM, the 1xN padded regions, the depthwise to-conv route)
-// count every tap of the patch. Under clang (-ffast-math) the float16 reduction of a short dot is the compiler's
-// order, so there outputs of at most 32 taps are checked only against the other entry and `_acc16` only for its
-// checksum; the fold, whose order the kernels pin, is checked exactly on every compiler.
+// count every tap of the patch. With a library built by clang (-ffast-math) the float16 reduction of a short dot is
+// the compiler's order, so there outputs of at most 32 taps are checked only against the other entry and `_acc16`
+// only for its checksum; the fold, whose order the kernels pin, is checked exactly on every compiler. The generic
+// depthwise kernel's taps are scalar multiply-adds that match the fused emulation only where the compiler contracts
+// them, as the library's builds do, and the shapes here keep its rows short of where GCC -Ofast vectorizes them.
 //
 // Two lane shapes are emulated. A lane kernel keeps one output per vector lane and adds one tap per step, the bias
 // starting the first partial. A reduction kernel spreads one output's taps over the eight lanes of a vector
@@ -45,7 +47,11 @@
 #define BA_BLOCK 32
 #define BA_NONE INT32_MAX
 
-#if defined(__clang__)
+// The short-dot relaxation follows the compiler that built the library, taken to be the test's own compiler unless
+// the harness says otherwise: NN_TEST_LIBRARY_CLANG=1 for a library built by clang, 0 for one built by GCC.
+#if defined(NN_TEST_LIBRARY_CLANG)
+    #define BA_EXACT_SHORT (!(NN_TEST_LIBRARY_CLANG))
+#elif defined(__clang__)
     #define BA_EXACT_SHORT 0
 #else
     #define BA_EXACT_SHORT 1

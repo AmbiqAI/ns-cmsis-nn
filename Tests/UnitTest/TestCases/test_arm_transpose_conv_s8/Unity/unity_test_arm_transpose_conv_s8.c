@@ -58,3 +58,15 @@ void test_transpose_conv_buffer_size_covers_direct_call_arm_transpose_conv_s8(vo
 {
     transpose_conv_buffer_size_covers_direct_call_arm_transpose_conv_s8();
 }
+void test_transpose_conv_rows_outside_output_arm_transpose_conv_s8(void)
+{
+    transpose_conv_rows_outside_output_arm_transpose_conv_s8();
+}
+void test_transpose_conv_geometry_rejected_arm_transpose_conv_s8(void)
+{
+    transpose_conv_geometry_rejected_arm_transpose_conv_s8();
+}
+void test_transpose_conv_requested_windows_arm_transpose_conv_s8(void)
+{
+    transpose_conv_requested_windows_arm_transpose_conv_s8();
+}

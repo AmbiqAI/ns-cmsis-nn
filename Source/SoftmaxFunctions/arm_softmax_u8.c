@@ -49,7 +49,8 @@ void arm_softmax_u8(const uint8_t *input,
                     const int32_t diff_min,
                     uint8_t *output)
 {
-    const int32_t mask = (1 << shift);
+    /* Keep the shift and multiply defined at shift 31, matching the MVE lane arithmetic. */
+    const uint32_t mask = 1U << shift;
 
     int32_t col = 0;
     int32_t row_idx;
@@ -72,7 +73,7 @@ void arm_softmax_u8(const uint8_t *input,
             diff = input[col] - max;
             if (diff >= diff_min)
             {
-                sum += DIV_POW2(EXP_ON_NEG(MUL_SAT(diff * mask, mult)), ACCUM_BITS);
+                sum += DIV_POW2(EXP_ON_NEG(MUL_SAT((int32_t)((uint32_t)diff * mask), mult)), ACCUM_BITS);
             }
         }
 
@@ -85,7 +86,8 @@ void arm_softmax_u8(const uint8_t *input,
             if (diff >= diff_min)
             {
                 const int32_t res =
-                    DIV_POW2(MUL_SAT(shifted_scale, EXP_ON_NEG(MUL_SAT(diff * mask, mult))), bits_over_unit);
+                    DIV_POW2(MUL_SAT(shifted_scale, EXP_ON_NEG(MUL_SAT((int32_t)((uint32_t)diff * mask), mult))),
+                             bits_over_unit);
                 output[col] = (uint8_t)ARM_NN_CLAMP(res, (int32_t)255, (int32_t)0);
             }
             else

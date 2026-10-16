@@ -211,6 +211,29 @@ jobs:
       - name: Run API group classification check
         run: python3 scripts/check_api_group_classification.py
 
+  public_struct_enums:
+    # No public struct may carry an enum-typed field: arm-none-eabi-gcc sizes
+    # enums short and ATfE/armclang size them as int, so such a field gives a
+    # caller and a library built with different conventions different struct
+    # layouts. That misrouted the FP16 fully connected and batch matmul
+    # entries (#693, #764). The check parses the headers with the runner
+    # image's clang (printed below). Its tests pass with clang 18.1.6 and
+    # 22.1. Clang's JSON AST output differs between releases, so a runner
+    # clang must pass scripts/tests/test_check_public_struct_enums.py. The
+    # forms it does not cover are listed in the script.
+    name: Public struct enum fields
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Show clang version
+        run: clang --version
+
+      - name: Run public struct enum check
+        run: python3 scripts/check_public_struct_enums.py
+
   doxygen_params:
     # Every function in the public headers must carry a doc block with one
     # direction-tagged @param per parameter (or a @copydoc to a non-static
@@ -272,6 +295,11 @@ jobs:
       # float_cmsis_components job, which runs the checker itself.
       - name: Install dependencies
         run: python -m pip install pyyaml==6.0.3
+
+      # test_check_public_struct_enums.py parses headers with the runner
+      # image's clang (tested with 18.1.6 and 22.1; see public_struct_enums).
+      - name: Show clang version
+        run: clang --version
 
       - name: Run every scripts/tests/test_check_*.py
         run: |

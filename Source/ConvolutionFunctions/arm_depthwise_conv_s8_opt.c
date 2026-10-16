@@ -299,9 +299,11 @@ arm_cmsis_nn_status arm_depthwise_conv_s8_opt_channelwise(const cmsis_nn_context
 
             /* Out of bounds is only considered for the y axis as it provides a contiguous zero'ing opportunity than
                along the x axis */
-            const int ker_y_start = ARM_NN_MAX(0, -base_idx_y);
+            /* Rows above and below the input are zeros; both bounds stay in [0, kernel_y] so the fill writes
+               exactly kernel_y rows of the buffer */
+            const int ker_y_start = ARM_NN_MIN(ARM_NN_MAX(0, -base_idx_y), kernel_y);
             /* Condition for kernel end dimension: (base_idx_y + ker_y_end) < input_y */
-            const int ker_y_end = ARM_NN_MIN(kernel_y, input_y - base_idx_y);
+            const int ker_y_end = ARM_NN_MAX(ker_y_start, ARM_NN_MIN(kernel_y, input_y - base_idx_y));
 
             int32_t index = 0;
             if (ker_y_start != 0)

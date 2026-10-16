@@ -384,6 +384,16 @@ arm_nn_vector_clamp_f32(float32_t *data, int32_t block_size, float32_t activatio
 
 #endif /* ARM_NN_ENABLE_F32 */
 
+#if ARM_NN_FLOAT_API_ENABLED
+
+/*
+ * Exact-mode GELU of TensorFlow Lite v2.16.1 in float32, 0.5f * x * erfcf(x * -float(1/sqrt(2))), shared by
+ * arm_nn_gelu_f32 and arm_nn_gelu_f16. erfc avoids cancellation in the negative tail of x * Phi(x).
+ */
+__STATIC_INLINE float32_t arm_nn_gelu_scalar_f32(float32_t x) { return 0.5f * x * erfcf(x * -0x1.6a09e6p-1f); }
+
+#endif /* ARM_NN_FLOAT_API_ENABLED */
+
 #if ARM_NN_ENABLE_F16
 
 __STATIC_INLINE float16_t arm_nn_clamp_scalar_f16(float16_t x, float16_t min_v, float16_t max_v)
