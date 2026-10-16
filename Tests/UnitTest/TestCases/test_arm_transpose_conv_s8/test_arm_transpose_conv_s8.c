@@ -1131,3 +1131,188 @@ void transpose_conv_rows_outside_output_arm_transpose_conv_s8(void)
         TEST_ASSERT_EQUAL_INT8_ARRAY(expected, output, output_dims.c);
     }
 }
+
+void transpose_conv_geometry_rejected_arm_transpose_conv_s8(void)
+{
+    const int8_t input[1] = {2};
+    const int8_t filter[1] = {3};
+    int32_t multiplier = 1 << 30;
+    int32_t shift = 1;
+    const cmsis_nn_per_channel_quant_params quant = {&multiplier, &shift};
+    const cmsis_nn_dims bias_dims = {0};
+    const cmsis_nn_context unused_ctx = {NULL, 0};
+
+    for (int scenario = 0; scenario < 18; scenario++)
+    {
+        cmsis_nn_dims input_dims = {1, 1, 1, 1};
+        cmsis_nn_dims filter_dims = {1, 1, 1, 1};
+        cmsis_nn_dims output_dims = {1, 1, 1, 1};
+        cmsis_nn_transpose_conv_params params = {0};
+        params.stride.h = params.stride.w = 1;
+        params.dilation.h = params.dilation.w = 1;
+        params.activation.min = -128;
+        params.activation.max = 127;
+        switch (scenario)
+        {
+        case 0:
+            output_dims.h = 2;
+            break;
+        case 1:
+            output_dims.w = 2;
+            break;
+        case 2:
+            input_dims.h = 32769;
+            params.stride.h = 65536;
+            break;
+        case 3:
+            params.padding.h = INT32_MAX;
+            filter_dims.h = 2;
+            break;
+        case 4:
+            input_dims.w = INT32_MAX;
+            params.stride.w = 2;
+            break;
+        case 5:
+            output_dims.c = filter_dims.n = INT32_MAX;
+            break;
+        case 6:
+            filter_dims.h = INT32_MAX;
+            break;
+        case 7:
+            params.stride.w = 0;
+            break;
+        case 8:
+            params.stride.h = 0;
+            break;
+        case 9:
+            params.padding.w = -1;
+            break;
+        case 10:
+            params.padding.h = -1;
+            break;
+        case 11:
+            input_dims.h = 0;
+            break;
+        case 12:
+            input_dims.n = output_dims.n = -1;
+            break;
+        case 13:
+            filter_dims.c = 2;
+            break;
+        case 14:
+            filter_dims.n = 2;
+            break;
+        case 15:
+            output_dims.n = 2;
+            break;
+        case 16:
+            input_dims.c = filter_dims.c = 65536;
+            input_dims.w = 65536;
+            break;
+        case 17:
+            input_dims.c = filter_dims.c = INT32_MAX;
+            break;
+        default:
+            TEST_FAIL_MESSAGE("Unexpected geometry scenario");
+            break;
+        }
+        int32_t scratch[4] = {12345, 12345, 12345, 12345};
+        const int32_t scratch_before[4] = {12345, 12345, 12345, 12345};
+        int8_t output[8] = {77, 77, 77, 77, 77, 77, 77, 77};
+        const int8_t output_before[8] = {77, 77, 77, 77, 77, 77, 77, 77};
+        const cmsis_nn_context ctx = {scratch, sizeof(scratch)};
+        TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR,
+                          arm_transpose_conv_s8(&ctx,
+                                                &unused_ctx,
+                                                &params,
+                                                &quant,
+                                                &input_dims,
+                                                input,
+                                                &filter_dims,
+                                                filter,
+                                                &bias_dims,
+                                                NULL,
+                                                &output_dims,
+                                                output));
+        TEST_ASSERT_EQUAL_INT32_ARRAY(scratch_before, scratch, 4);
+        TEST_ASSERT_EQUAL_INT8_ARRAY(output_before, output, 8);
+    }
+}
+
+void transpose_conv_requested_windows_arm_transpose_conv_s8(void)
+{
+    const int32_t multiplier[1] = {1 << 30};
+    const int32_t shift[1] = {1};
+    const int32_t bias[1] = {4};
+    const cmsis_nn_per_channel_quant_params quant = {(int32_t *)multiplier, (int32_t *)shift};
+    const cmsis_nn_dims bias_dims = {1, 1, 1, 1};
+    const cmsis_nn_context unused_ctx = {NULL, 0};
+    const int8_t cropped_input[4] = {1, 2, 3, 4};
+    const int8_t cropped_filter[9] = {1, 2, 3, 4, 5, 6, 7, 8, 9};
+    const int8_t cropped_expected[4] = {9, 18, 18, 40};
+    const int8_t gap_input[1] = {2};
+    const int8_t gap_filter[1] = {3};
+    const int8_t gap_expected[9] = {10, 4, 4, 4, 4, 4, 4, 4, 4};
+
+    for (int scenario = 0; scenario < 2; scenario++)
+    {
+        const cmsis_nn_dims input_dims = {1, scenario == 0 ? 2 : 1, scenario == 0 ? 2 : 1, 1};
+        const cmsis_nn_dims filter_dims = {1, scenario == 0 ? 3 : 1, scenario == 0 ? 3 : 1, 1};
+        const cmsis_nn_dims output_dims = {1, scenario == 0 ? 2 : 3, scenario == 0 ? 2 : 3, 1};
+        const int8_t *input = scenario == 0 ? cropped_input : gap_input;
+        const int8_t *filter = scenario == 0 ? cropped_filter : gap_filter;
+        const int8_t *expected = scenario == 0 ? cropped_expected : gap_expected;
+        cmsis_nn_transpose_conv_params params = {0};
+        params.stride.h = params.stride.w = scenario == 0 ? 2 : 3;
+        params.padding.h = params.padding.w = scenario == 0 ? 1 : 0;
+        params.dilation.h = params.dilation.w = 1;
+        params.activation.min = -128;
+        params.activation.max = 127;
+        const int32_t size = arm_transpose_conv_s8_get_buffer_size(&params, &input_dims, &filter_dims, &output_dims);
+        TEST_ASSERT_TRUE(size > 0);
+        void *scratch = malloc((size_t)size);
+        TEST_ASSERT_NOT_NULL(scratch);
+        const cmsis_nn_context ctx = {scratch, size};
+        int8_t output[9] = {0};
+        int8_t reference[9] = {0};
+        transpose_conv_s8_reference(&params, &input_dims, input, &filter_dims, filter, bias, &output_dims, reference);
+        const arm_cmsis_nn_status status = arm_transpose_conv_s8(&ctx,
+                                                                 &unused_ctx,
+                                                                 &params,
+                                                                 &quant,
+                                                                 &input_dims,
+                                                                 input,
+                                                                 &filter_dims,
+                                                                 filter,
+                                                                 &bias_dims,
+                                                                 bias,
+                                                                 &output_dims,
+                                                                 output);
+        free(scratch);
+        TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, status);
+        TEST_ASSERT_EQUAL_INT8_ARRAY(expected, reference, output_dims.h * output_dims.w);
+        TEST_ASSERT_EQUAL_INT8_ARRAY(expected, output, output_dims.h * output_dims.w);
+    }
+
+    const cmsis_nn_dims empty_input_dims = {0, 1, 1, 1};
+    const cmsis_nn_dims empty_output_dims = {0, 1, 1, 1};
+    const cmsis_nn_dims empty_filter_dims = {1, 1, 1, 1};
+    cmsis_nn_transpose_conv_params empty_params = {0};
+    empty_params.stride.h = empty_params.stride.w = 1;
+    empty_params.dilation.h = empty_params.dilation.w = 1;
+    int8_t untouched = 77;
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
+                      arm_transpose_conv_s8(&unused_ctx,
+                                            &unused_ctx,
+                                            &empty_params,
+                                            &quant,
+                                            &empty_input_dims,
+                                            NULL,
+                                            &empty_filter_dims,
+                                            NULL,
+                                            &bias_dims,
+                                            NULL,
+                                            &empty_output_dims,
+                                            &untouched));
+    TEST_ASSERT_EQUAL_INT8(77, untouched);
+}

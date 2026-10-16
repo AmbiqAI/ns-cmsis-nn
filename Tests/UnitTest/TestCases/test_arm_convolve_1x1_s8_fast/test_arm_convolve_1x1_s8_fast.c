@@ -17,8 +17,8 @@
  */
 
 #include <arm_nnfunctions.h>
+#include <arm_nnsupportfunctions.h>
 #include <stdlib.h>
-#include <string.h>
 #include <unity.h>
 
 #include "../TestData/kernel1x1/test_data.h"
@@ -926,6 +926,136 @@ void extent_checks_arm_convolve_1x1_s8_fast(void)
         TEST_ASSERT_EQUAL_INT8(0x55, output[j]);
     }
 #endif
+}
+
+void kernel1x1_wrapping_bias(void)
+{
+    enum
+    {
+        PIXELS = 5,
+        CHANNELS = 7,
+        DEPTH = 18
+    };
+    int8_t input[PIXELS * DEPTH];
+    int8_t weights[CHANNELS * DEPTH];
+    int8_t output[PIXELS * CHANNELS];
+    int32_t bias[CHANNELS], sums[CHANNELS], multipliers[CHANNELS], shifts[CHANNELS];
+    const cmsis_nn_dims input_dims = {1, 1, PIXELS, DEPTH};
+    const cmsis_nn_dims filter_dims = {CHANNELS, 1, 1, DEPTH};
+    const cmsis_nn_dims output_dims = {1, 1, PIXELS, CHANNELS};
+    const cmsis_nn_dims bias_dims = {1, 1, 1, CHANNELS};
+    const cmsis_nn_context ctx = {0};
+    const cmsis_nn_context weight_ctx = {sums, sizeof(sums)};
+    cmsis_nn_conv_params params = {0};
+    params.stride.h = params.stride.w = 1;
+    params.dilation.h = params.dilation.w = 1;
+    params.input_offset = 128;
+    params.activation.min = -128;
+    params.activation.max = 127;
+    cmsis_nn_per_channel_quant_params quant = {multipliers, shifts};
+    for (int mode = 0; mode < 3; ++mode)
+    {
+        for (int i = 0; i < PIXELS * DEPTH; ++i)
+        {
+            input[i] = (int8_t)(mode == 2 ? -128 : -128 + i % 5);
+        }
+        for (int ch = 0; ch < CHANNELS; ++ch)
+        {
+            const int8_t weight = mode == 1 ? 127 : -128;
+            bias[ch] = mode == 1 ? INT32_MAX - 256 : INT32_MIN + 256;
+            multipliers[ch] = 1073741824;
+            shifts[ch] = -24;
+            memset(weights + ch * DEPTH, weight, DEPTH);
+            const uint32_t bits = (uint32_t)((int64_t)bias[ch] + DEPTH * (int64_t)weight * params.input_offset);
+            sums[ch] = (int32_t)(bits > INT32_MAX ? (int64_t)bits - 4294967296LL : bits);
+        }
+        TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
+                          arm_convolve_1x1_s8_fast(&ctx,
+                                                   &weight_ctx,
+                                                   &params,
+                                                   &quant,
+                                                   &input_dims,
+                                                   input,
+                                                   &filter_dims,
+                                                   weights,
+                                                   &bias_dims,
+                                                   bias,
+                                                   &output_dims,
+                                                   output));
+        for (int pixel = 0; pixel < PIXELS; ++pixel)
+        {
+            for (int ch = 0; ch < CHANNELS; ++ch)
+            {
+                int64_t wide = bias[ch];
+                for (int k = 0; k < DEPTH; ++k)
+                {
+                    wide += (int64_t)(input[pixel * DEPTH + k] + params.input_offset) * weights[ch * DEPTH + k];
+                }
+                const uint32_t bits = (uint32_t)wide;
+                const int32_t wrapped = (int32_t)(bits > INT32_MAX ? (int64_t)bits - 4294967296LL : bits);
+                int32_t expected = arm_nn_requantize(wrapped, multipliers[ch], shifts[ch]);
+                expected = ARM_NN_MAX(-128, ARM_NN_MIN(127, expected));
+                TEST_ASSERT_EQUAL_INT8(expected, output[pixel * CHANNELS + ch]);
+            }
+        }
+    }
+}
+
+/* The largest case crosses INT32_MAX in both the four-row and remaining-row dot products. */
+void matrix_s8_large_dot_wrapping(void)
+{
+#if defined(USING_FVP_CORSTONE_300)
+    #define LARGE_DOT_SECTION __attribute__((section(".bss.NoInit")))
+#else
+    #define LARGE_DOT_SECTION
+#endif
+    enum
+    {
+        MAX_DEPTH = 131073,
+        MAX_ROWS = 9
+    };
+    // Reuse identical input rows while exercising all row-block/tail counts.
+    static int8_t input[MAX_DEPTH] LARGE_DOT_SECTION;
+    static int8_t weights[MAX_DEPTH] LARGE_DOT_SECTION;
+    const int32_t depths[] = {131071, 131072, 131073};
+    const int32_t rows[] = {1, 4, 9};
+    const int32_t sum = 0;
+    const int32_t multiplier = 1073741824;
+    const int32_t shift = -24;
+    int8_t output[MAX_ROWS];
+    memset(input, -128, sizeof(input));
+    memset(weights, -128, sizeof(weights));
+    for (unsigned d = 0; d < sizeof(depths) / sizeof(depths[0]); ++d)
+    {
+        const uint32_t bits = (uint32_t)((int64_t)depths[d] * 16384);
+        const int32_t wrapped = (int32_t)(bits > INT32_MAX ? (int64_t)bits - 4294967296LL : bits);
+        const int32_t expected = arm_nn_requantize(wrapped, multiplier, shift);
+        for (unsigned n = 0; n < sizeof(rows) / sizeof(rows[0]); ++n)
+        {
+            TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
+                              arm_nn_mat_mult_nt_t_s8(&sum,
+                                                      input,
+                                                      weights,
+                                                      NULL,
+                                                      output,
+                                                      &multiplier,
+                                                      &shift,
+                                                      rows[n],
+                                                      1,
+                                                      depths[d],
+                                                      0,
+                                                      0,
+                                                      -128,
+                                                      127,
+                                                      1,
+                                                      0));
+            for (int row = 0; row < rows[n]; ++row)
+            {
+                TEST_ASSERT_EQUAL_INT8(expected, output[row]);
+            }
+        }
+    }
+#undef LARGE_DOT_SECTION
 }
 
 /*

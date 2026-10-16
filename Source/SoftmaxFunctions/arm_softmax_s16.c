@@ -106,12 +106,13 @@ arm_cmsis_nn_status arm_softmax_s16(const int16_t *input,
         const int32_t headroom = CLZ(sum);
 
         // Compute the reciprocal 1/sum
-        const int32_t shifted_sum = (((sum) << (headroom - 1)) + (1 << 13)) >> 14;
+        const int32_t shifted_sum = (int32_t)((((uint32_t)sum << (headroom - 1)) + (1U << 13)) >> 14);
 
         // Since LUT computes 1/(1 + x), compute x = (sum - 1) => -65536
         // Since LUT expects a symmetrical input, recenter from [UINT16_MIN, UINT16_MAX] to [INT16_MIN, INT16_MAX] =>
         // -32768 ==> So in total -65536 -32768 => -98304
-        const int16_t symmetric_shifted_sum = shifted_sum - 98304;
+        /* Rounding can reach the upper endpoint; keep the input inside the LUT domain. */
+        const int16_t symmetric_shifted_sum = ARM_NN_MIN(shifted_sum - 98304, NN_Q15_MAX);
 
         // Lookup from one by one table
         const int16_t index = (256 + (symmetric_shifted_sum >> 7));
@@ -121,13 +122,27 @@ arm_cmsis_nn_status arm_softmax_s16(const int16_t *input,
         const int16_t delta = (slope * offset + 64) >> 7;
         const int16_t one_by_one_result = (base + delta);
 
+#if defined(ARM_MATH_MVEI) && !defined(ARM_MATH_AUTOVECTORIZE)
+        /* Combine the two right shifts into one rounded shift, then clamp before narrowing. */
+        const int32x4_t output_shift = vdupq_n_s32(headroom - 31);
+        for (col = 0; col < row_size; col += 4)
+        {
+            const mve_pred16_t p = vctp32q(row_size - col);
+            int32x4_t result = vldrhq_z_s32(cached_exp_results + col, p);
+            result = vmulq_n_s32(result, one_by_one_result);
+            result = vrshlq_s32(result, output_shift);
+            result = vminq_s32(result, vdupq_n_s32(NN_Q15_MAX));
+            vstrhq_p_s32(output + col, result, p);
+        }
+#else
         for (col = 0; col < row_size; ++col)
         {
             const int16_t right_shift = 30 - headroom;
             int32_t result = (cached_exp_results[col] * one_by_one_result) >> right_shift;
             result = (result + 1) >> 1; // Last shift position and insert round
-            output[col] = (int16_t)result;
+            output[col] = (int16_t)ARM_NN_MIN(result, NN_Q15_MAX);
         }
+#endif
 
         output += row_size;
         input += row_size;

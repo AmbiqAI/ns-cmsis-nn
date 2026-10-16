@@ -33,6 +33,17 @@ static int oracle_index(int i, const cmsis_nn_dims out, const cmsis_nn_dims in)
     return (((n % in.n) * in.h + h % in.h) * in.w + w % in.w) * in.c + c % in.c;
 }
 
+static bool binary_expected(bool a, bool b, int op)
+{
+    switch (op)
+    {
+    case 0: return a && b;
+    case 1: return a || b;
+    case 2: return a == b;
+    default: return a != b;
+    }
+}
+
 static void check_binary(cmsis_nn_dims a_dims, cmsis_nn_dims b_dims, cmsis_nn_dims out_dims)
 {
     const int size = count(out_dims);
@@ -54,8 +65,8 @@ static void check_binary(cmsis_nn_dims a_dims, cmsis_nn_dims b_dims, cmsis_nn_di
     {
         b[i] = (i % 5) < 2;
     }
-    const binary_fn functions[2] = {arm_logical_and_bool, arm_logical_or_bool};
-    for (int op = 0; op < 2; ++op)
+    const binary_fn functions[4] = {arm_logical_and_bool, arm_logical_or_bool, arm_equal_bool, arm_not_equal_bool};
+    for (int op = 0; op < 4; ++op)
     {
         memset(storage, 0xa5, (size_t)size + 2);
         TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, functions[op](a, &a_dims, b, &b_dims, out, &out_dims));
@@ -63,7 +74,7 @@ static void check_binary(cmsis_nn_dims a_dims, cmsis_nn_dims b_dims, cmsis_nn_di
         {
             const bool x = a[oracle_index(i, out_dims, a_dims)];
             const bool y = b[oracle_index(i, out_dims, b_dims)];
-            const unsigned char expected = op ? (x || y) : (x && y);
+            const unsigned char expected = binary_expected(x, y, op);
             TEST_ASSERT_EQUAL_UINT8(expected, storage[i + 1]);
         }
         TEST_ASSERT_EQUAL_HEX8(0xa5, storage[0]);
@@ -135,8 +146,8 @@ void logical_broadcast(void)
     for (int value = 0; value < 2; ++value)
     {
         const bool s = value != 0;
-        const binary_fn functions[2] = {arm_logical_and_bool, arm_logical_or_bool};
-        for (int op = 0; op < 2; ++op)
+        const binary_fn functions[4] = {arm_logical_and_bool, arm_logical_or_bool, arm_equal_bool, arm_not_equal_bool};
+        for (int op = 0; op < 4; ++op)
         {
             for (int swap = 0; swap < 2; ++swap)
             {
@@ -146,7 +157,7 @@ void logical_broadcast(void)
                         swap ? vec : &s, swap ? &dims : &scalar, swap ? &s : vec, swap ? &scalar : &dims, out, &dims));
                 for (int i = 0; i < 17; ++i)
                 {
-                    TEST_ASSERT_EQUAL(op ? (s || vec[i]) : (s && vec[i]), out[i]);
+                    TEST_ASSERT_EQUAL(binary_expected(s, vec[i], op), out[i]);
                 }
             }
         }
@@ -160,8 +171,8 @@ void logical_rejects_without_writes(void)
     const cmsis_nn_dims one = {1, 1, 1, 1};
     const cmsis_nn_dims invalid[] = {
         {0, 1, 1, 1}, {1, -1, 1, 1}, {INT32_MAX, 2, 1, 1}, {1, 46341, 46341, 1}, {1, 1, 2, INT32_MAX}};
-    const binary_fn functions[2] = {arm_logical_and_bool, arm_logical_or_bool};
-    for (int op = 0; op < 2; ++op)
+    const binary_fn functions[4] = {arm_logical_and_bool, arm_logical_or_bool, arm_equal_bool, arm_not_equal_bool};
+    for (int op = 0; op < 4; ++op)
     {
         for (unsigned i = 0; i < sizeof(invalid) / sizeof(invalid[0]); ++i)
         {
@@ -183,4 +194,101 @@ void logical_rejects_without_writes(void)
     TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR, arm_logical_not_bool(NULL, (bool *)&output, 1));
     TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR, arm_logical_not_bool(&input, NULL, 1));
     TEST_ASSERT_EQUAL_HEX8(0xa5, output);
+}
+
+typedef arm_cmsis_nn_status (*reduce_fn)(const bool *, const cmsis_nn_dims *, const cmsis_nn_dims *, bool *, const cmsis_nn_dims *);
+
+void logical_reductions(void)
+{
+    const cmsis_nn_dims shapes[] = {{2,3,5,17}, {2,1,3,33}, {1,1,1,1}, {2,0,3,17},
+                                    {0,3,5,1}, {2,3,0,17}, {2,3,5,0}};
+    bool input_store[512], expected[512];
+    unsigned char output_store[514];
+    bool *input = input_store + 1;
+    const reduce_fn functions[2] = {arm_reduce_any_bool, arm_reduce_all_bool};
+    for (unsigned shape = 0; shape < sizeof(shapes)/sizeof(shapes[0]); ++shape)
+    {
+        const cmsis_nn_dims d = shapes[shape];
+        const int length = count(d);
+        for (int mask = 0; mask < 16; ++mask)
+        {
+            const cmsis_nn_dims axis = {(mask >> 3)&1, (mask >> 2)&1, (mask >> 1)&1, mask&1};
+            const cmsis_nn_dims out = {axis.n ? 1 : d.n, axis.h ? 1 : d.h, axis.w ? 1 : d.w, axis.c ? 1 : d.c};
+            const int size = count(out);
+            for (int op = 0; op < 2; ++op)
+            {
+                for (int pattern = 0; pattern < 4; ++pattern)
+                {
+                    for (int i = 0; i < length; ++i)
+                    {
+                        input[i] = pattern == 0 ? false : pattern == 1 ? true :
+                            pattern == 2 ? (i % 7 == 0) : ((i != length - 1) == (op != 0));
+                    }
+                    for (int i = 0; i < size; ++i) expected[i] = op != 0;
+                    /* Independent flat-index oracle; no block collapsing or shared traversal. */
+                    for (int i = 0; i < length; ++i)
+                    {
+                        int q = i;
+                        const int cc = q % d.c; q /= d.c;
+                        const int ww = q % d.w; q /= d.w;
+                        const int hh = q % d.h; q /= d.h;
+                        const int oi = (((axis.n ? 0 : q)*out.h + (axis.h ? 0 : hh))*out.w +
+                                        (axis.w ? 0 : ww))*out.c + (axis.c ? 0 : cc);
+                        expected[oi] = op ? (expected[oi] && input[i]) : (expected[oi] || input[i]);
+                    }
+                    memset(output_store, 0xa5, sizeof(output_store));
+                    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, functions[op](input, &d, &axis, (bool *)(output_store+1), &out));
+                    for (int i = 0; i < size; ++i) TEST_ASSERT_EQUAL_UINT8(expected[i], output_store[i+1]);
+                    TEST_ASSERT_EQUAL_HEX8(0xa5, output_store[0]);
+                    for (unsigned i = (unsigned)size+1; i < sizeof(output_store); ++i) TEST_ASSERT_EQUAL_HEX8(0xa5, output_store[i]);
+                }
+            }
+        }
+    }
+    /* Every SIMD tail with the only decisive element last, including ALL's inactive lanes. */
+    for (int length = 1; length <= 35; ++length)
+    {
+        const cmsis_nn_dims d = {1,1,1,length}, axis = {0,0,0,1}, out = {1,1,1,1};
+        for (int op = 0; op < 2; ++op)
+        {
+            memset(input, op, (size_t)length);
+            bool result = !op;
+            TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, functions[op](input, &d, &axis, &result, &out));
+            TEST_ASSERT_EQUAL(op, result);
+            input[length-1] = !op;
+            TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, functions[op](input, &d, &axis, &result, &out));
+            TEST_ASSERT_EQUAL(!op, result);
+        }
+    }
+}
+
+void logical_reduction_rejects(void)
+{
+    const reduce_fn functions[2] = {arm_reduce_any_bool, arm_reduce_all_bool};
+    const cmsis_nn_dims one = {1,1,1,1}, all = {1,1,1,1}, none = {0,0,0,0};
+    const cmsis_nn_dims bad_input[] = {{-1,1,1,1}, {1,2,INT32_MAX,1}, {1,46341,46341,1}};
+    const cmsis_nn_dims bad_axis[] = {{2,0,0,0}, {0,-1,0,0}, {0,0,2,0}, {0,0,0,2}};
+    bool input = true;
+    unsigned char output = 0xa5;
+    for (int op = 0; op < 2; ++op)
+    {
+        for (unsigned i = 0; i < sizeof(bad_input)/sizeof(bad_input[0]); ++i)
+            TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR, functions[op](&input, &bad_input[i], &all, (bool *)&output, &one));
+        for (unsigned i = 0; i < sizeof(bad_axis)/sizeof(bad_axis[0]); ++i)
+            TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR, functions[op](&input, &one, &bad_axis[i], (bool *)&output, &one));
+        const cmsis_nn_dims two = {1,1,1,2}, empty = {0,INT32_MAX,2,1}, empty_axis = {1,0,0,0}, huge = {1,INT32_MAX,2,1};
+        TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR, functions[op](&input, &one, &none, (bool *)&output, &two));
+        TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR, functions[op](&input, &empty, &empty_axis, (bool *)&output, &huge));
+        TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR, functions[op](NULL, &one, &all, (bool *)&output, &one));
+        TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR, functions[op](&input, NULL, &all, (bool *)&output, &one));
+        TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR, functions[op](&input, &one, NULL, (bool *)&output, &one));
+        TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR, functions[op](&input, &one, &all, NULL, &one));
+        TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR, functions[op](&input, &one, &all, (bool *)&output, NULL));
+        TEST_ASSERT_EQUAL_HEX8(0xa5, output);
+        /* A zero extent avoids spurious intermediate product overflow. */
+        const cmsis_nn_dims late_zero = {INT32_MAX,INT32_MAX,0,1};
+        TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, functions[op](&input, &late_zero, &all, (bool *)&output, &one));
+        TEST_ASSERT_EQUAL_UINT8(op, output);
+        output = 0xa5;
+    }
 }

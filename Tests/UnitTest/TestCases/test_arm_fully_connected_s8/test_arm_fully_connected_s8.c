@@ -1055,3 +1055,40 @@ void vector_sum_tail_boundaries(void)
         }
     }
 }
+
+/* Wide references keep overflow expectations independent of the production arithmetic. */
+void vector_sum_wrapping(void)
+{
+    static int8_t weights[131200];
+    const int32_t columns[] = {16, 17, 131200};
+    const int32_t offsets[] = {0, 128, -127};
+    const int32_t biases[6] = {INT32_MIN, INT32_MAX, INT32_MIN + 256, INT32_MAX - 256, -1, 0};
+    for (unsigned shape = 0; shape < sizeof(columns) / sizeof(columns[0]); ++shape)
+    {
+        const int32_t cols = columns[shape];
+        const int32_t rows = cols > 17 ? 1 : 6;
+        memset(weights, -128, (size_t)cols * rows);
+        for (unsigned o = 0; o < sizeof(offsets) / sizeof(offsets[0]); ++o)
+        {
+            for (int rhs_offset = 0; rhs_offset <= 127; rhs_offset += 127)
+            {
+                for (int with_bias = 0; with_bias <= 1; ++with_bias)
+                {
+                    int32_t actual[6];
+                    TEST_ASSERT_EQUAL(
+                        ARM_CMSIS_NN_SUCCESS,
+                        arm_vector_sum_s8(
+                            actual, cols, rows, weights, offsets[o], rhs_offset, with_bias ? biases : NULL));
+                    for (int row = 0; row < rows; ++row)
+                    {
+                        const int64_t wide =
+                            (int64_t)cols * (-128 + rhs_offset) * offsets[o] + (with_bias ? biases[row] : 0);
+                        const uint32_t bits = (uint32_t)wide;
+                        const int32_t expected = (int32_t)(bits > INT32_MAX ? (int64_t)bits - 4294967296LL : bits);
+                        TEST_ASSERT_EQUAL_INT32(expected, actual[row]);
+                    }
+                }
+            }
+        }
+    }
+}

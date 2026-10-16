@@ -931,6 +931,13 @@ arm_cmsis_nn_status arm_transpose_conv_wrapper_s8(const cmsis_nn_context *ctx,
  *    2. Additional memory is required for optimization. Refer to argument 'ctx' for details; 'output_ctx' is unused.
  *    3. Dilation is not supported: transpose_conv_params->dilation must be 1 in both dimensions,
  *       otherwise <code>ARM_CMSIS_NN_ARG_ERROR</code> is returned.
+ *    4. Spatial and channel dimensions and strides must be positive. Batch count and padding must be nonnegative,
+ *       with consistent batch/channel dimensions. Input channels must not exceed INT32_MAX - 15, so the MVE
+ *       channel-rounding expression is representable. Tensor and scratch sizes and row arithmetic must fit int32_t.
+ *       Requested output width plus padding must not exceed (input width - 1) * stride width +
+ *       max(filter width, stride width). Output height must not exceed max(0, input height * stride height -
+ *       padding height) + max(0, filter height - stride height). Unsupported geometry returns
+ *       <code>ARM_CMSIS_NN_ARG_ERROR</code> before tensor or scratch access; cropped outputs remain supported.
  *
  */
 arm_cmsis_nn_status arm_transpose_conv_s8(const cmsis_nn_context *ctx,
@@ -4918,6 +4925,173 @@ arm_cmsis_nn_status arm_logical_or_bool(const bool *input_1,
 arm_cmsis_nn_status arm_logical_not_bool(const bool *input, bool *output, int32_t count);
 
 /**
+ * @brief Exact signed INT32 equality with NHWC singleton broadcasting.
+ *
+ * Compares full-width signed values without quantization or subtraction. All
+ * dimensions must be positive, input extents equal or one, and output dimensions
+ * must be their broadcast shape. Output count must be <= INT32_MAX / sizeof(int32_t).
+ * Logical lower ranks use leading singleton dimensions. NULL arguments and invalid
+ * geometry return ARG_ERROR before writes. Buffers must be adequately sized,
+ * naturally aligned and nonoverlapping; output contains one-byte bool values.
+ * No scratch or float support is required.
+ *
+ * @param[in] input_1 First operand.
+ * @param[in] input_1_dims First operand shape.
+ * @param[in] input_2 Second operand.
+ * @param[in] input_2_dims Second operand shape.
+ * @param[out] output Boolean results.
+ * @param[in] output_dims Broadcast result shape.
+ * @return ARM_CMSIS_NN_SUCCESS or ARM_CMSIS_NN_ARG_ERROR.
+ */
+arm_cmsis_nn_status arm_equal_s32(const int32_t *input_1,
+                                  const cmsis_nn_dims *input_1_dims,
+                                  const int32_t *input_2,
+                                  const cmsis_nn_dims *input_2_dims,
+                                  bool *output,
+                                  const cmsis_nn_dims *output_dims);
+
+/**
+ * @brief Exact signed INT32 not equal comparison.
+ * @copydetails arm_equal_s32
+ */
+arm_cmsis_nn_status arm_not_equal_s32(const int32_t *input_1,
+                                      const cmsis_nn_dims *input_1_dims,
+                                      const int32_t *input_2,
+                                      const cmsis_nn_dims *input_2_dims,
+                                      bool *output,
+                                      const cmsis_nn_dims *output_dims);
+
+/**
+ * @brief Exact signed INT32 greater comparison.
+ * @copydetails arm_equal_s32
+ */
+arm_cmsis_nn_status arm_greater_s32(const int32_t *input_1,
+                                    const cmsis_nn_dims *input_1_dims,
+                                    const int32_t *input_2,
+                                    const cmsis_nn_dims *input_2_dims,
+                                    bool *output,
+                                    const cmsis_nn_dims *output_dims);
+
+/**
+ * @brief Exact signed INT32 greater equal comparison.
+ * @copydetails arm_equal_s32
+ */
+arm_cmsis_nn_status arm_greater_equal_s32(const int32_t *input_1,
+                                          const cmsis_nn_dims *input_1_dims,
+                                          const int32_t *input_2,
+                                          const cmsis_nn_dims *input_2_dims,
+                                          bool *output,
+                                          const cmsis_nn_dims *output_dims);
+
+/**
+ * @brief Exact signed INT32 less comparison.
+ * @copydetails arm_equal_s32
+ */
+arm_cmsis_nn_status arm_less_s32(const int32_t *input_1,
+                                 const cmsis_nn_dims *input_1_dims,
+                                 const int32_t *input_2,
+                                 const cmsis_nn_dims *input_2_dims,
+                                 bool *output,
+                                 const cmsis_nn_dims *output_dims);
+
+/**
+ * @brief Exact signed INT32 less equal comparison.
+ * @copydetails arm_equal_s32
+ */
+arm_cmsis_nn_status arm_less_equal_s32(const int32_t *input_1,
+                                       const cmsis_nn_dims *input_1_dims,
+                                       const int32_t *input_2,
+                                       const cmsis_nn_dims *input_2_dims,
+                                       bool *output,
+                                       const cmsis_nn_dims *output_dims);
+
+/**
+ * @brief Boolean equality with the same shape and buffer contract as arm_logical_and_bool.
+ * @param[in] input_1 First Boolean tensor.
+ * @param[in] input_1_dims First positive shape, left-padded with ones to NHWC.
+ * @param[in] input_2 Second Boolean tensor.
+ * @param[in] input_2_dims Second positive shape, left-padded with ones to NHWC.
+ * @param[out] output Nonoverlapping Boolean result, sized by output_dims.
+ * @param[in] output_dims Exact broadcast output shape.
+ * @return ARM_CMSIS_NN_SUCCESS, or ARM_CMSIS_NN_ARG_ERROR without writes for null
+ *         arguments, nonpositive/incompatible dimensions or output count exceeding INT32_MAX.
+ * @details Inputs must be valid one-byte C bool objects (0/1 on Arm). Caller owns
+ *          capacity and nonoverlap. Generic, DSP and MVE supported; no scratch or quantization.
+ */
+arm_cmsis_nn_status arm_equal_bool(const bool *input_1,
+                                   const cmsis_nn_dims *input_1_dims,
+                                   const bool *input_2,
+                                   const cmsis_nn_dims *input_2_dims,
+                                   bool *output,
+                                   const cmsis_nn_dims *output_dims);
+
+/**
+ * @brief Boolean inequality (Boolean XOR) with the same shape and buffer contract as arm_logical_and_bool.
+ * @param[in] input_1 First Boolean tensor.
+ * @param[in] input_1_dims First positive shape, left-padded with ones to NHWC.
+ * @param[in] input_2 Second Boolean tensor.
+ * @param[in] input_2_dims Second positive shape, left-padded with ones to NHWC.
+ * @param[out] output Nonoverlapping Boolean result, sized by output_dims.
+ * @param[in] output_dims Exact broadcast output shape.
+ * @return ARM_CMSIS_NN_SUCCESS, or ARM_CMSIS_NN_ARG_ERROR without writes for null
+ *         arguments, nonpositive/incompatible dimensions or output count exceeding INT32_MAX.
+ * @details Inputs must be valid one-byte C bool objects (0/1 on Arm). Caller owns
+ *          capacity and nonoverlap. Generic, DSP and MVE supported; no scratch or quantization.
+ */
+arm_cmsis_nn_status arm_not_equal_bool(const bool *input_1,
+                                       const cmsis_nn_dims *input_1_dims,
+                                       const bool *input_2,
+                                       const cmsis_nn_dims *input_2_dims,
+                                       bool *output,
+                                       const cmsis_nn_dims *output_dims);
+
+/**
+ * @brief Boolean ANY reduction over selected NHWC axes.
+ * @param[in] input Valid one-byte C bool objects (0/1 on Arm).
+ * @param[in] input_dims Nonnegative input shape, left-padded with ones to NHWC.
+ * @param[in] axis_dims Binary axis mask: 1 reduces the axis, 0 preserves it.
+ * @param[out] output Nonoverlapping Boolean result with capacity for output_dims.
+ * @param[in] output_dims Input dimensions with each reduced axis replaced by one.
+ * @return ARM_CMSIS_NN_SUCCESS, or ARM_CMSIS_NN_ARG_ERROR without writes for null
+ *         arguments, invalid shapes/masks or nonempty input/output counts above INT32_MAX.
+ * @details Empty reductions produce false; empty outputs write nothing. All pointers
+ *          must be nonnull even for empty tensors. A zero mask copies input to output.
+ *          The caller normalizes axis lists (including negative/duplicate axes) to the
+ *          mask. Reduced dimensions stay one in output_dims for both keep_dims modes;
+ *          removing those dimensions changes metadata only, not flat output order.
+ *          Caller owns buffer capacity, valid bool objects and nonoverlap, including
+ *          dimension structures. No scratch or quantization; generic, DSP and MVE supported.
+ */
+arm_cmsis_nn_status arm_reduce_any_bool(const bool *input,
+                                        const cmsis_nn_dims *input_dims,
+                                        const cmsis_nn_dims *axis_dims,
+                                        bool *output,
+                                        const cmsis_nn_dims *output_dims);
+
+/**
+ * @brief Boolean ALL reduction over selected NHWC axes.
+ * @param[in] input Valid one-byte C bool objects (0/1 on Arm).
+ * @param[in] input_dims Nonnegative input shape, left-padded with ones to NHWC.
+ * @param[in] axis_dims Binary axis mask: 1 reduces the axis, 0 preserves it.
+ * @param[out] output Nonoverlapping Boolean result with capacity for output_dims.
+ * @param[in] output_dims Input dimensions with each reduced axis replaced by one.
+ * @return ARM_CMSIS_NN_SUCCESS, or ARM_CMSIS_NN_ARG_ERROR without writes for null
+ *         arguments, invalid shapes/masks or nonempty input/output counts above INT32_MAX.
+ * @details Empty reductions produce true; empty outputs write nothing. All pointers
+ *          must be nonnull even for empty tensors. A zero mask copies input to output.
+ *          The caller normalizes axis lists (including negative/duplicate axes) to the
+ *          mask. Reduced dimensions stay one in output_dims for both keep_dims modes;
+ *          removing those dimensions changes metadata only, not flat output order.
+ *          Caller owns buffer capacity, valid bool objects and nonoverlap, including
+ *          dimension structures. No scratch or quantization; generic, DSP and MVE supported.
+ */
+arm_cmsis_nn_status arm_reduce_all_bool(const bool *input,
+                                        const cmsis_nn_dims *input_dims,
+                                        const cmsis_nn_dims *axis_dims,
+                                        bool *output,
+                                        const cmsis_nn_dims *output_dims);
+
+/**
  * @brief s8 elementwise comparison with support for broadcasting.
  *
  * @param[in]   ctx                   Unused; may be NULL.
@@ -8353,6 +8527,30 @@ arm_where_s8(const int8_t *condition, const cmsis_nn_where_params *params, int64
  */
 arm_cmsis_nn_status
 arm_where_s16(const int16_t *condition, const cmsis_nn_where_params *params, int64_t *output, int32_t *num_true);
+
+/**
+ * @brief SELECT_V2 with broadcast or strided INT32 values and a BOOL condition.
+ *
+ * Rank is 1..8; represent a scalar as shape [1]. Output extents must be positive.
+ * Strides are nonnegative element offsets, with zero broadcasting that dimension.
+ * Output bytes and the maximum reachable input byte spans must fit INT32_MAX.
+ * NULL pointers, invalid rank/extents/strides or overflow return ARG_ERROR before
+ * output writes. The caller supplies valid bool representations, naturally aligned
+ * and adequately sized buffers, and output disjoint from inputs/metadata.
+ * Values are copied exactly; no quantization, scratch or float support is required.
+ *
+ * @param[in] condition Boolean condition buffer.
+ * @param[in] x Values selected by true.
+ * @param[in] y Values selected by false.
+ * @param[in] params Rank, output shape and input element strides.
+ * @param[out] output Contiguous INT32 result buffer.
+ * @return ARM_CMSIS_NN_SUCCESS or ARM_CMSIS_NN_ARG_ERROR.
+ */
+arm_cmsis_nn_status arm_select_v2_s32(const bool *condition,
+                                      const int32_t *x,
+                                      const int32_t *y,
+                                      const cmsis_nn_select_v2_params *params,
+                                      int32_t *output);
 
 /**
  * @brief SELECT_V2 with broadcast for int8 tensors.

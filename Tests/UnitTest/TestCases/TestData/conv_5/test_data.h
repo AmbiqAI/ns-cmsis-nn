@@ -4,6 +4,10 @@
 #include "config_data.h"
 #include "input_data.h"
 #include "output_mult_data.h"
+#if defined(CMSIS_NN_USE_SINGLE_ROUNDING)
+#include "output_ref_single_rounding_data.h"
+#else
 #include "output_ref_data.h"
+#endif
 #include "output_shift_data.h"
 #include "weights_data.h"

@@ -341,6 +341,32 @@ __STATIC_FORCEINLINE int64_t arm_nn_size_add(const int64_t acc, const int64_t ad
     return (sum > INT32_MAX) ? -1 : sum;
 }
 
+/**
+ * @brief Rolling scratch bytes shared by the s8 transpose entry and its buffer-size queries.
+ * @param[in] params       Transpose convolution parameters.
+ * @param[in] input_dims   Input dimensions.
+ * @param[in] filter_dims  Filter dimensions.
+ * @param[in] output_dims  Output dimensions.
+ * @return Required bytes, or -1 if the rolling geometry or size is out of range.
+ */
+__STATIC_FORCEINLINE int32_t arm_nn_transpose_conv_s8_rolling_buffer_size(const cmsis_nn_transpose_conv_params *params,
+                                                                          const cmsis_nn_dims *input_dims,
+                                                                          const cmsis_nn_dims *filter_dims,
+                                                                          const cmsis_nn_dims *output_dims)
+{
+    if (input_dims->w < 0 || output_dims->c < 0 || filter_dims->w < 0 || filter_dims->h < 0 || params->stride.w <= 0 ||
+        params->stride.h <= 0)
+    {
+        return -1;
+    }
+
+    const int64_t row_span =
+        ((int64_t)input_dims->w - 1) * params->stride.w + ARM_NN_MAX(filter_dims->w, params->stride.w);
+    const int64_t row_elements = arm_nn_size_mul(row_span, output_dims->c);
+    const int64_t buffer_elements = arm_nn_size_mul(row_elements, ARM_NN_MAX(filter_dims->h, params->stride.h));
+    return (int32_t)arm_nn_size_mul(buffer_elements, sizeof(int32_t));
+}
+
 #if ARM_NN_FLOAT_API_ENABLED
     #include "arm_nnsupportfunctions_flt.h"
 #endif
@@ -3082,10 +3108,10 @@ __STATIC_FORCEINLINE int32x4_t arm_doubling_high_mult_mve(const int32x4_t m1, co
  */
 __STATIC_FORCEINLINE int32x4_t arm_divide_by_power_of_two_mve(const int32x4_t dividend, const int32_t exponent)
 {
-    const int32x4_t shift = vdupq_n_s32(-exponent);
-    const int32x4_t fixup = vshrq_n_s32(vandq_s32(dividend, shift), 31);
+    /* Scalar-operand VRSHL keeps the shift out of a Q register; only the fixup mask needs one. */
+    const int32x4_t fixup = vshrq_n_s32(vandq_s32(dividend, vdupq_n_s32(-exponent)), 31);
     const int32x4_t fixed_up_dividend = vqaddq_s32(dividend, fixup);
-    return vrshlq_s32(fixed_up_dividend, shift);
+    return vrshlq_n_s32(fixed_up_dividend, -exponent);
 }
 
 /**
@@ -3142,8 +3168,39 @@ __STATIC_FORCEINLINE int32x4_t arm_requantize_mve(const int32x4_t val, const int
 
     return result;
     #else
+    return arm_divide_by_power_of_two_mve(arm_doubling_high_mult_mve(vshlq_r_s32(val, LEFT_SHIFT(shift)), multiplier),
+                                          RIGHT_SHIFT(shift));
+    #endif
+}
+
+/**
+ * @brief           Requantize a given vector that still needs a left shift applied first.
+ * @param[in]       val             Vector to be requantized
+ * @param[in]       pre_left_shift  Extra left shift to apply to val, folded into the internal one
+ * @param[in]       multiplier      multiplier
+ * @param[in]       shift           shift
+ *
+ * @return          Same result as applying vshlq_r_s32(val, pre_left_shift) before arm_requantize_mve,
+ *                  but with one VSHL instead of two. Both shift counts must be >= 0 and sum to <= 31.
+ *
+ */
+__STATIC_FORCEINLINE int32x4_t arm_requantize_shifted_mve(const int32x4_t val,
+                                                          const int32_t pre_left_shift,
+                                                          const int32_t multiplier,
+                                                          const int32_t shift)
+{
+    #ifdef CMSIS_NN_USE_SINGLE_ROUNDING
+    const int right_shift = ARM_NN_MIN(-1, shift);
+    const int left_shift = shift - right_shift;
+
+    int32x4_t result = vqdmulhq_n_s32(vshlq_r_s32(val, left_shift + pre_left_shift), multiplier);
+    result = vrshlq_n_s32(result, right_shift);
+
+    return result;
+    #else
     return arm_divide_by_power_of_two_mve(
-        arm_doubling_high_mult_mve(vshlq_s32(val, vdupq_n_s32(LEFT_SHIFT(shift))), multiplier), RIGHT_SHIFT(shift));
+        arm_doubling_high_mult_mve(vshlq_r_s32(val, LEFT_SHIFT(shift) + pre_left_shift), multiplier),
+        RIGHT_SHIFT(shift));
     #endif
 }
 
@@ -3269,7 +3326,8 @@ __STATIC_FORCEINLINE int32x4_t arm_requantize_mve_pred(const int32x4_t val,
     const int32x4_t left_shift_dup = vdupq_x_n_s32(left_shift, p);
     const int32x4_t right_shift_dup = vdupq_x_n_s32(right_shift, p);
 
-    int32x4_t result = vqrdmulhq_m_n_s32(v_zero, vshlq_m_s32(v_zero, val, left_shift_dup, p), multiplier, p);
+    /* Truncate here: vrshl below performs the single rounding step. */
+    int32x4_t result = vqdmulhq_m_n_s32(v_zero, vshlq_m_s32(v_zero, val, left_shift_dup, p), multiplier, p);
     result = vrshlq_m_s32(v_zero, result, right_shift_dup, p);
 
     return result;
