@@ -1737,11 +1737,12 @@ int32_t arm_nn_convolve_s8_args_invalid(const cmsis_nn_conv_params *conv_params,
                                         const cmsis_nn_dims *output_dims);
 
 /**
- * @brief Whether the generic kernel of arm_depthwise_conv_s16() and the DSP path of arm_depthwise_conv_fast_s16()
- *        could wrap the first tap index of an output, stride * output index - padding, which they keep as int16_t
- *        (the MVE kernel keeps it as int32_t): it stays in
- *        [-INT16_MAX, INT16_MAX] when padding and stride are in [0, INT16_MAX] and (output size - 1) * stride -
- *        padding is at most INT16_MAX, in W and in H. See AmbiqAI/ns-cmsis-nn#727.
+ * @brief Whether the generic kernels of arm_depthwise_conv_s16(), arm_depthwise_conv_s8() and
+ *        arm_depthwise_conv_s4() and the DSP path of arm_depthwise_conv_fast_s16() could wrap the first tap index of
+ *        an output, stride * output index - padding, which they keep as int16_t (the s16 MVE kernel keeps it as
+ *        int32_t): it stays in [-INT16_MAX, INT16_MAX] when padding and stride are in [0, INT16_MAX] and
+ *        (output size - 1) * stride - padding is at most INT16_MAX, in W and in H. See AmbiqAI/ns-cmsis-nn#727 and
+ *        #786.
  *
  * @param[in]      dw_conv_params  Depthwise convolution parameters
  * @param[in]      output_dims     Output tensor dimensions. Format: [N, H, W, C_OUT]
@@ -1813,8 +1814,9 @@ __STATIC_FORCEINLINE int32_t arm_nn_depthwise_conv_s16_index_invalid(const cmsis
 
 /**
  * @brief Whether the generic kernel of arm_depthwise_conv_s16() cannot take a layer that
- *        arm_nn_depthwise_conv_s16_index_invalid() accepts: it takes every dimension, ch_mult, padding, stride and
- *        dilation as uint16_t, so each must be in [0, UINT16_MAX]. See AmbiqAI/ns-cmsis-nn#707.
+ *        arm_nn_depthwise_conv_s16_index_invalid() accepts, or the generic kernel of arm_depthwise_conv_s8() cannot
+ *        take a layer: they take every dimension, ch_mult, padding, stride and dilation as uint16_t, so each must be
+ *        in [0, UINT16_MAX]. See AmbiqAI/ns-cmsis-nn#707 and #786.
  *
  * @param[in]      dw_conv_params  Depthwise convolution parameters
  * @param[in]      input_dims      Input tensor dimensions. Format: [N, H, W, C_IN]
@@ -3106,10 +3108,10 @@ __STATIC_FORCEINLINE int32x4_t arm_doubling_high_mult_mve(const int32x4_t m1, co
  */
 __STATIC_FORCEINLINE int32x4_t arm_divide_by_power_of_two_mve(const int32x4_t dividend, const int32_t exponent)
 {
-    const int32x4_t shift = vdupq_n_s32(-exponent);
-    const int32x4_t fixup = vshrq_n_s32(vandq_s32(dividend, shift), 31);
+    /* Scalar-operand VRSHL keeps the shift out of a Q register; only the fixup mask needs one. */
+    const int32x4_t fixup = vshrq_n_s32(vandq_s32(dividend, vdupq_n_s32(-exponent)), 31);
     const int32x4_t fixed_up_dividend = vqaddq_s32(dividend, fixup);
-    return vrshlq_s32(fixed_up_dividend, shift);
+    return vrshlq_n_s32(fixed_up_dividend, -exponent);
 }
 
 /**
@@ -3166,8 +3168,39 @@ __STATIC_FORCEINLINE int32x4_t arm_requantize_mve(const int32x4_t val, const int
 
     return result;
     #else
+    return arm_divide_by_power_of_two_mve(arm_doubling_high_mult_mve(vshlq_r_s32(val, LEFT_SHIFT(shift)), multiplier),
+                                          RIGHT_SHIFT(shift));
+    #endif
+}
+
+/**
+ * @brief           Requantize a given vector that still needs a left shift applied first.
+ * @param[in]       val             Vector to be requantized
+ * @param[in]       pre_left_shift  Extra left shift to apply to val, folded into the internal one
+ * @param[in]       multiplier      multiplier
+ * @param[in]       shift           shift
+ *
+ * @return          Same result as applying vshlq_r_s32(val, pre_left_shift) before arm_requantize_mve,
+ *                  but with one VSHL instead of two. Both shift counts must be >= 0 and sum to <= 31.
+ *
+ */
+__STATIC_FORCEINLINE int32x4_t arm_requantize_shifted_mve(const int32x4_t val,
+                                                          const int32_t pre_left_shift,
+                                                          const int32_t multiplier,
+                                                          const int32_t shift)
+{
+    #ifdef CMSIS_NN_USE_SINGLE_ROUNDING
+    const int right_shift = ARM_NN_MIN(-1, shift);
+    const int left_shift = shift - right_shift;
+
+    int32x4_t result = vqdmulhq_n_s32(vshlq_r_s32(val, left_shift + pre_left_shift), multiplier);
+    result = vrshlq_n_s32(result, right_shift);
+
+    return result;
+    #else
     return arm_divide_by_power_of_two_mve(
-        arm_doubling_high_mult_mve(vshlq_s32(val, vdupq_n_s32(LEFT_SHIFT(shift))), multiplier), RIGHT_SHIFT(shift));
+        arm_doubling_high_mult_mve(vshlq_r_s32(val, LEFT_SHIFT(shift) + pre_left_shift), multiplier),
+        RIGHT_SHIFT(shift));
     #endif
 }
 
@@ -3293,7 +3326,8 @@ __STATIC_FORCEINLINE int32x4_t arm_requantize_mve_pred(const int32x4_t val,
     const int32x4_t left_shift_dup = vdupq_x_n_s32(left_shift, p);
     const int32x4_t right_shift_dup = vdupq_x_n_s32(right_shift, p);
 
-    int32x4_t result = vqrdmulhq_m_n_s32(v_zero, vshlq_m_s32(v_zero, val, left_shift_dup, p), multiplier, p);
+    /* Truncate here: vrshl below performs the single rounding step. */
+    int32x4_t result = vqdmulhq_m_n_s32(v_zero, vshlq_m_s32(v_zero, val, left_shift_dup, p), multiplier, p);
     result = vrshlq_m_s32(v_zero, result, right_shift_dup, p);
 
     return result;

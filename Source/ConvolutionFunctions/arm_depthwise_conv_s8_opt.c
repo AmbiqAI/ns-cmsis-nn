@@ -66,7 +66,7 @@ arm_cmsis_nn_status arm_depthwise_conv_s8_opt_channelwise(const cmsis_nn_context
     const int32_t output_ch = output_dims->c;
 
     /* Check depth multiplier is 1 */
-    if (input_ch != output_ch)
+    if (input_ch != output_ch || dw_conv_params->ch_mult != 1)
     {
         return ARM_CMSIS_NN_ARG_ERROR;
     }
@@ -90,6 +90,14 @@ arm_cmsis_nn_status arm_depthwise_conv_s8_opt_channelwise(const cmsis_nn_context
     /* Only the MVE path reads the per-channel weight sums. Diagnose a missing buffer here rather
        than dereferencing NULL and silently returning garbage output. */
     if (weight_sum_ctx->buf == NULL)
+    {
+        return ARM_CMSIS_NN_ARG_ERROR;
+    }
+#endif
+
+#if defined(ARM_MATH_DSP) && !defined(ARM_MATH_MVEI)
+    /* The DSP path keeps its channel and tap counters as uint16_t */
+    if (input_ch > UINT16_MAX || (int64_t)filter_dims->w * filter_dims->h > UINT16_MAX)
     {
         return ARM_CMSIS_NN_ARG_ERROR;
     }
@@ -277,10 +285,10 @@ arm_cmsis_nn_status arm_depthwise_conv_s8_opt_channelwise(const cmsis_nn_context
 
     for (int i_out_y = 0; i_out_y < output_y; i_out_y++)
     {
-        const int16_t base_idx_y = (i_out_y * stride_y) - pad_y;
+        const int32_t base_idx_y = (i_out_y * stride_y) - pad_y;
         for (int i_out_x = 0; i_out_x < output_x; i_out_x++)
         {
-            const int16_t base_idx_x = (i_out_x * stride_x) - pad_x;
+            const int32_t base_idx_x = (i_out_x * stride_x) - pad_x;
 
             /* Out of bounds is only considered for the y axis as it provides a contiguous zero'ing opportunity than
                along the x axis */
