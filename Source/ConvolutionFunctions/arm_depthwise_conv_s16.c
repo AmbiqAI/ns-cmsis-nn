@@ -294,7 +294,8 @@ __STATIC_FORCEINLINE uintptr_t dw_s16_step(uintptr_t address, const uintptr_t by
     return address;
 }
 
-/* Integer byte cursors may advance beyond the object after the final tap; only live addresses become pointers. */
+/* Clang keeps hardware loops with live array-relative offsets; GCC needs independent byte cursors to avoid spills.
+ * Unused final advances remain integers, so no out-of-object pointer arithmetic is formed. */
 /* Sum taps for one pixel */
 __STATIC_FORCEINLINE int32x4_t dw_s16_taps1(int32x4_t acc,
                                             const int16_t *ip,
@@ -309,6 +310,21 @@ __STATIC_FORCEINLINE int32x4_t dw_s16_taps1(int32x4_t acc,
                                             const int32_t ker_col,
                                             const int32_t ker_row)
 {
+    #if defined(__clang__)
+    for (int32_t ky = 0; ky < n_y; ky++)
+    {
+        for (int32_t kx = 0; kx < n_x; kx++)
+        {
+            acc = dw_s16_mac(acc,
+                             ip + (ky * in_row + kx * in_col),
+                             dw_s16_ker(rhs + (ky * ker_row + kx * ker_col), mode, p),
+                             mode,
+                             offs,
+                             p);
+        }
+    }
+    return acc;
+    #else
     uintptr_t ip_addr = (uintptr_t)ip;
     uintptr_t rhs_addr = (uintptr_t)rhs;
     for (int32_t ky = 0; ky < n_y; ky++,
@@ -325,6 +341,7 @@ __STATIC_FORCEINLINE int32x4_t dw_s16_taps1(int32x4_t acc,
         }
     }
     return acc;
+    #endif
 }
 
 /* Sum taps for four pixels */
@@ -344,6 +361,27 @@ __STATIC_FORCEINLINE void dw_s16_taps4(int32x4_t *acc,
                                        const int32_t ker_col,
                                        const int32_t ker_row)
 {
+    #if defined(__clang__)
+    int32x4_t acc_0 = acc[0];
+    int32x4_t acc_1 = acc[1];
+    int32x4_t acc_2 = acc[2];
+    int32x4_t acc_3 = acc[3];
+    for (int32_t ky = 0; ky < n_y; ky++)
+    {
+        for (int32_t kx = 0; kx < n_x; kx++)
+        {
+            const int32x4_t ker = dw_s16_ker(rhs + (ky * ker_row + kx * ker_col), mode, p);
+            acc_0 = dw_s16_mac(acc_0, ip_0 + (ky * in_row + kx * in_col), ker, mode, offs, p);
+            acc_1 = dw_s16_mac(acc_1, ip_1 + (ky * in_row + kx * in_col), ker, mode, offs, p);
+            acc_2 = dw_s16_mac(acc_2, ip_2 + (ky * in_row + kx * in_col), ker, mode, offs, p);
+            acc_3 = dw_s16_mac(acc_3, ip_3 + (ky * in_row + kx * in_col), ker, mode, offs, p);
+        }
+    }
+    acc[0] = acc_0;
+    acc[1] = acc_1;
+    acc[2] = acc_2;
+    acc[3] = acc_3;
+    #else
     uintptr_t ip_0_addr = (uintptr_t)ip_0;
     uintptr_t ip_1_addr = (uintptr_t)ip_1;
     uintptr_t ip_2_addr = (uintptr_t)ip_2;
@@ -380,6 +418,7 @@ __STATIC_FORCEINLINE void dw_s16_taps4(int32x4_t *acc,
     acc[1] = acc_1;
     acc[2] = acc_2;
     acc[3] = acc_3;
+    #endif
 }
 
 /* Exact s64 requant, one lane each */
