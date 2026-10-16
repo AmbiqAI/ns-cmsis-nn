@@ -46,3 +46,8 @@ void test_softmax_f16_shapes_full_vector_rows_sum_to_one_arm_softmax_f16(void)
 }
 
 void test_softmax_f16_shapes_arg_error_arm_softmax_f16(void) { softmax_f16_shapes_arg_error_arm_softmax_f16(); }
+
+void test_softmax_f16_shapes_nonfinite_rows_arm_softmax_f16(void)
+{
+    softmax_f16_shapes_nonfinite_rows_arm_softmax_f16();
+}

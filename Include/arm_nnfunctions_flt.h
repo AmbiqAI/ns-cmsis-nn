@@ -2388,12 +2388,19 @@ int32_t arm_gru_unidirectional_f32_temp1_get_buffer_size(const cmsis_nn_gru_para
 /**
  * @brief Softmax using the float-native API signature.
  *
+ * Each row is normalized independently, and input values never affect the return status at any
+ * optimization or floating-point mode. In a row that also holds a finite entry, a -Inf entry gets a
+ * small probability that is not guaranteed to be exactly 0 (the scalar exponential clamps its
+ * argument). A row holding NaN or +Inf, or only -Inf entries, yields unspecified output values for
+ * that row; every other row is still computed.
+ *
  * @param[in]  input    Pointer to the input matrix stored as @p num_rows rows of @p row_size values.
  * @param[in]  num_rows Number of rows in the input matrix.
  * @param[in]  row_size Number of columns per row.
  * @param[out] output   Pointer to the output matrix.
  *
- * @return `ARM_CMSIS_NN_SUCCESS` on success or `ARM_CMSIS_NN_ARG_ERROR` on invalid arguments.
+ * @return `ARM_CMSIS_NN_SUCCESS` on success or `ARM_CMSIS_NN_ARG_ERROR` on invalid arguments
+ *         (NULL pointer, @p num_rows < 1 or @p row_size < 1); on error nothing is written.
  */
 arm_cmsis_nn_status arm_softmax_f32(const float32_t *input, int32_t num_rows, int32_t row_size, float32_t *output);
 
