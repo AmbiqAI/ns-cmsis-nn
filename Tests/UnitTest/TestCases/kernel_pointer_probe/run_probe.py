@@ -11,7 +11,7 @@ p = argparse.ArgumentParser()
 p.add_argument('--source', type=Path, required=True)
 p.add_argument('--compiler', default='clang++')
 p.add_argument('--target')
-p.add_argument('--case', choices=['scalar', 'dsp', 'mve', 'f16_scalar', 'f32_scalar'], required=True)
+p.add_argument('--case', choices=['scalar', 'dsp', 'mve', 'f16_scalar', 'f32_scalar', 'depthwise'], required=True)
 a = p.parse_args()
 here = Path(__file__).resolve().parent
 
@@ -88,6 +88,30 @@ static_assert(transpose<16,9>());
 static_assert(transpose<17,9>());
 static_assert(transpose<9,17>());
 static_assert(transpose<2,3>());
+'''
+elif case == 'depthwise':
+    s = '#include "depthwise_shim.h"\n'
+    path = 'Source/ConvolutionFunctions/arm_depthwise_conv_s16.c'
+    for name in ('dw_s16_ker', 'dw_s16_mac', 'dw_s16_taps1', 'dw_s16_taps4', 'dw_s16_mve'):
+        s += body(path, name)
+    s += '''
+template<int C,int CM,int B,int W,int H,int K,int D,int S> constexpr bool depthwise() {
+ constexpr int OC=C*CM,OX=(W-(K-1)*D-1)/S+1,OY=(H-(K-1)*D-1)/S+1;
+ int16_t input[B*H*W*C]={},output[B*OY*OX*OC]={};int8_t kernel[K*K*OC]={};
+ int32_t mult[OC]={},shift[OC]={};int64_t bias[OC]={};
+ for(int i=0;i<B*H*W*C;i++)input[i]=i%3-1;
+ for(int i=0;i<K*K*OC;i++)kernel[i]=i%3-1;
+ dw_s16_mve(input,B,W,H,C,kernel,CM,K,K,0,0,S,S,bias,output,shift,mult,OX,OY,-32768,32767,D,D,0);
+ for(int b=0;b<B;b++)for(int y=0;y<OY;y++)for(int x=0;x<OX;x++)for(int c=0;c<OC;c++) {
+ int ref=0;for(int ky=0;ky<K;ky++)for(int kx=0;kx<K;kx++)ref+=input[((b*H+y*S+ky*D)*W+x*S+kx*D)*C+c/CM]*kernel[(ky*K+kx)*OC+c];
+ if(output[((b*OY+y)*OX+x)*OC+c]!=ref)return false;
+ }return true;
+}
+static_assert(depthwise<8,1,2,7,4,3,1,1>());
+static_assert(depthwise<3,1,2,5,4,3,1,1>());
+static_assert(depthwise<3,2,2,7,4,3,1,1>());
+static_assert(depthwise<2,4,2,7,4,3,1,1>());
+static_assert(depthwise<5,1,1,9,7,3,2,2>());
 '''
 with tempfile.TemporaryDirectory(prefix='kernel-pointer-') as directory:
     generated = Path(directory) / (case + '.cpp')

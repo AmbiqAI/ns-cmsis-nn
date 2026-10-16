@@ -981,6 +981,39 @@ void zero_taps_arm_depthwise_conv_s16(void)
         edge_quant(cases[i].in_ch * cases[i].ch_mult, 1, -6);
         (void)edge_run(&cases[i]);
     }
+
+    /* Empty tensors must bypass the MVE address setup and retain the generic bias-only result. */
+    for (int empty = 0; empty < 4; ++empty)
+    {
+        cmsis_nn_dims input_dims = {1, 1, 1, 1};
+        cmsis_nn_dims filter_dims = {1, 1, 1, 1};
+        const cmsis_nn_dims output_dims = {1, 1, 1, 1};
+        if (empty == 0) filter_dims.w = 0;
+        if (empty == 1) filter_dims.h = 0;
+        if (empty == 2) input_dims.w = 0;
+        if (empty == 3) input_dims.h = 0;
+        cmsis_nn_dw_conv_params params = {0};
+        params.ch_mult = 1;
+        params.stride.w = params.stride.h = params.dilation.w = params.dilation.h = 1;
+        params.activation.min = -32768;
+        params.activation.max = 32767;
+        int32_t multiplier = 1073741824, shift = 1;
+        const cmsis_nn_per_channel_quant_params quant = {&multiplier, &shift};
+        const int16_t input = 0;
+        const int8_t weight = 0;
+        const int64_t bias = 12;
+        int16_t output = -1;
+#if defined(ARM_MATH_MVEI) && !defined(ARM_MATH_AUTOVECTORIZE)
+        TEST_ASSERT_FALSE(arm_nn_depthwise_conv_s16_mve(
+            &params, &quant, &input_dims, &input, &filter_dims, &weight, &bias, &output_dims, &output));
+        TEST_ASSERT_EQUAL(-1, output);
+#endif
+        TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
+                          arm_depthwise_conv_s16(NULL, &params, &quant, &input_dims, &input, &filter_dims, &weight,
+                                                 NULL, &bias, &output_dims, &output));
+        TEST_ASSERT_EQUAL(12, output);
+    }
+
 }
 
 void wide_bias_arm_depthwise_conv_s16(void)
