@@ -1012,8 +1012,21 @@ void zero_taps_arm_depthwise_conv_s16(void)
                           arm_depthwise_conv_s16(NULL, &params, &quant, &input_dims, &input, &filter_dims, &weight,
                                                  NULL, &bias, &output_dims, &output));
         TEST_ASSERT_EQUAL(12, output);
+#if defined(ARM_MATH_MVEI) && !defined(ARM_MATH_AUTOVECTORIZE)
+        int16_t scratch[8] = {0};
+        const cmsis_nn_context ctx = {scratch, sizeof(scratch)};
+        output = -1;
+        TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
+                          arm_depthwise_conv_fast_s16(&ctx, &params, &quant, &input_dims, &input, &filter_dims, &weight,
+                                                      NULL, &bias, &output_dims, &output));
+        TEST_ASSERT_EQUAL(12, output);
+        output = -1;
+        TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
+                          arm_depthwise_conv_wrapper_s16(&ctx, &params, &quant, &input_dims, &input, &filter_dims, &weight,
+                                                         NULL, &bias, &output_dims, &output));
+        TEST_ASSERT_EQUAL(12, output);
+#endif
     }
-
 }
 
 void wide_bias_arm_depthwise_conv_s16(void)
