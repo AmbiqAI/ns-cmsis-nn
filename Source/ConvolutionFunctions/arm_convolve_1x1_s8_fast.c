@@ -169,7 +169,7 @@ arm_cmsis_nn_status arm_convolve_1x1_s8_fast(const cmsis_nn_context *ctx,
                     const int16_t *ip_as_col = buffer_a;
 
                     /* 4 multiply and accumulates are done in one loop. */
-                    uint16_t col_count = rhs_cols >> 2;
+                    int32_t col_count = rhs_cols >> 2;
                     while (col_count)
                     {
                         int32_t ker_a1, ker_a2;
