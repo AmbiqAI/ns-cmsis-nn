@@ -889,7 +889,7 @@ static int32_t conv_route_f32(const cmsis_nn_context *ctx,
         return ROUTE_K3_F32;
     }
 #if defined(ARM_MATH_MVEF) && !defined(ARM_MATH_AUTOVECTORIZE)
-    if (arm_nn_conv_f32_is_small_c(in, out) &&
+    if ((arm_nn_conv_f32_is_small_c(in, out) || arm_nn_conv_f32_is_small_c_3x3(in, flt, out)) &&
         arm_nn_conv_f32_small_c_coords_ok(&cp->stride, &cp->padding, &cp->dilation, in, flt, out))
     {
         return ROUTE_SMALL_C_F32;
@@ -1056,8 +1056,15 @@ void convolve_direct_entries_f32(void)
 #else
     conv_direct_entries_case_f32(1, 6, 6, 3, 3, 3, 8, 1, ROUTE_PATCH_F32);
 #endif
+#if defined(ARM_MATH_MVEF) && !defined(ARM_MATH_AUTOVECTORIZE)
+    conv_direct_entries_case_f32(2, 6, 6, 4, 3, 3, 9, 1, ROUTE_SMALL_C_F32);
+    conv_direct_entries_case_f32(1, 5, 5, 4, 3, 3, 4, 1, ROUTE_SMALL_C_F32);
+#else
     conv_direct_entries_case_f32(2, 6, 6, 4, 3, 3, 9, 1, ROUTE_PATCH_F32);
     conv_direct_entries_case_f32(1, 5, 5, 4, 3, 3, 4, 1, ROUTE_DIRECT_F32);
+#endif
+    conv_direct_entries_case_f32(1, 5, 5, 4, 3, 3, 17, 1, ROUTE_PATCH_F32);
+    conv_direct_entries_case_f32(1, 7, 7, 4, 5, 5, 8, 2, ROUTE_PATCH_F32);
 }
 
 /* The float32 small-C predicate against a fixed answer: 1 to 3 input channels and a non-empty output */
@@ -1074,8 +1081,68 @@ void convolve_route_predicates_f32(void)
     TEST_ASSERT_FALSE(arm_nn_conv_f32_is_small_c(&in0, &out));
     TEST_ASSERT_FALSE(arm_nn_conv_f32_is_small_c(&in, &out_c0));
     TEST_ASSERT_FALSE(arm_nn_conv_f32_is_small_c(&in, &out_w0));
+    const cmsis_nn_dims filter3 = {8, 3, 3, 4}, filter5 = {8, 5, 5, 4};
+    const cmsis_nn_dims out16 = {1, 6, 6, 16}, out17 = {1, 6, 6, 17};
+    TEST_ASSERT_TRUE(arm_nn_conv_f32_is_small_c_3x3(&in4, &filter3, &out));
+    TEST_ASSERT_TRUE(arm_nn_conv_f32_is_small_c_3x3(&in4, &filter3, &out16));
+    TEST_ASSERT_FALSE(arm_nn_conv_f32_is_small_c_3x3(&in4, &filter3, &out17));
+    TEST_ASSERT_FALSE(arm_nn_conv_f32_is_small_c_3x3(&in4, &filter5, &out));
+    TEST_ASSERT_FALSE(arm_nn_conv_f32_is_small_c_3x3(&in0, &filter3, &out));
+    TEST_ASSERT_FALSE(arm_nn_conv_f32_is_small_c_3x3(&in4, &filter3, &out_c0));
+    TEST_ASSERT_FALSE(arm_nn_conv_f32_is_small_c_3x3(&in4, &filter3, &out_w0));
+
 }
 
+/* The four-channel region keeps the scalar reference's tap order and skips padded nonfinite taps. */
+void convolve_four_channel_f32(void)
+{
+    const int32_t channels[] = {1, 3, 4, 5, 8, 15, 16};
+    const cmsis_nn_dims in = {2, 5, 7, 4};
+    float32_t x[2 * 5 * 7 * 4], weights[16 * 3 * 3 * 4], bias[16];
+#if defined(ARM_MATH_MVEF) && !defined(ARM_MATH_AUTOVECTORIZE)
+    float32_t ref[2 * 5 * 7 * 16], got[2 * 5 * 7 * 16];
+#endif
+    for (unsigned ci = 0; ci < sizeof(channels) / sizeof(channels[0]); ++ci)
+    {
+        const int32_t oc = channels[ci];
+        const cmsis_nn_dims filter = {oc, 3, 3, 4};
+        for (int32_t scenario = 0; scenario < 3; ++scenario)
+        {
+            cmsis_nn_dims out = {2, scenario == 1 ? 3 : 5, scenario == 1 ? 4 : 7, oc};
+            for (int32_t i = 0; i < 2 * 5 * 7 * 4; ++i)
+                x[i] = scenario == 2 ? 1.0f : (float32_t)(i % 17 - 8) / 8.0f;
+            for (int32_t i = 0; i < oc * 36; ++i)
+                weights[i] = (float32_t)(i % 13 - 6) / 8.0f;
+            for (int32_t i = 0; i < oc; ++i)
+                bias[i] = (float32_t)(i - 3) / 8.0f;
+            if (scenario == 2)
+                weights[12] = INFINITY; /* output channel 0, middle row, left column */
+            float32_t *packed = pack_rhs_nt_n_from_nt_t_f32(weights, oc, 36);
+            TEST_ASSERT_NOT_NULL(packed);
+            for (int32_t format = 0; format < 2; ++format)
+            {
+                cmsis_nn_conv_params_f32 cp;
+                conv_f32_params(&cp, scenario == 1 ? 2 : 1, scenario == 1 ? 2 : 1, format);
+                cp.stride.h = cp.stride.w = scenario == 1 ? 2 : 1;
+                cp.dilation.h = cp.dilation.w = scenario == 1 ? 2 : 1;
+                const float32_t *w = format ? packed : weights;
+                const float32_t *b = scenario == 2 ? NULL : bias;
+                conv_f32_check(&cp, &in, x, &filter, w, weights, b, &out, 0);
+                /* Scalar patch-GEMM multiplies padded zeros by nonfinite weights. */
+                if (scenario != 2)
+                    conv_f32_check(&cp, &in, x, &filter, w, weights, b, &out, 1);
+#if defined(ARM_MATH_MVEF) && !defined(ARM_MATH_AUTOVECTORIZE)
+                conv_f32_reference(&cp, &in, x, &filter, weights, b, &out, ref);
+                TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
+                                  arm_convolve_small_c_nhwc_f32(NULL, &cp, &in, x, &filter, w, NULL, b, &out, got));
+                for (int32_t i = 0; i < out.n * out.h * out.w * oc; ++i)
+                    TEST_ASSERT_FLOAT_WITHIN(1.0e-4f, ref[i], got[i]);
+#endif
+            }
+            free(packed);
+        }
+    }
+}
 /* Every public route rejects malformed metadata before touching tensors, including empty requests. */
 void convolve_argument_domains_f32(void)
 {

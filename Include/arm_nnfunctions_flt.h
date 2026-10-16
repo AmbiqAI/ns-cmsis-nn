@@ -731,7 +731,7 @@ arm_cmsis_nn_status arm_convolve_1d_k3_nhwc_packed_f32(const cmsis_nn_context *c
                                                        float32_t *output_data);
 
 /**
- * @brief Basic float32 direct convolution for fewer input channels than one vector.
+ * @brief Basic float32 direct convolution for small input-channel counts.
  *
  * The small-C route of arm_convolve_f32() and arm_convolve_f16(), as a direct entry. Lanes are output x positions and
  * weights are scalars.
@@ -755,8 +755,10 @@ arm_cmsis_nn_status arm_convolve_1d_k3_nhwc_packed_f32(const cmsis_nn_context *c
  *                <code>ARM_CMSIS_NN_SUCCESS</code> - Successful operation
  *
  * @details
- *    - Gate: arm_nn_conv_f32_is_small_c for float32, arm_nn_conv_f16_is_small_c for float16. Either filter
- *      format; the format changes only the weight stride inside one kernel. No scratch.
+ *    - Gate: arm_nn_conv_f32_is_small_c or arm_nn_conv_f32_is_small_c_3x3 for float32, subject to
+ *      arm_nn_conv_f32_small_c_coords_ok; arm_nn_conv_f16_is_small_c for float16. Either filter format;
+ *      the format changes only the weight stride inside one kernel. No scratch. The additional float32
+ *      region uses 3x3 filters, four input channels and at most 16 output channels.
  *    - arm_convolve_small_c_nhwc_f16() takes the same arguments and return codes. It accumulates in float32, the
  *      kernel both arm_convolve_f16() and arm_convolve_f16_acc16() run on this route. For 3x3 filters,
  *      2..3 input channels and output height/width >= 32, it caches two channels of weights in a fixed

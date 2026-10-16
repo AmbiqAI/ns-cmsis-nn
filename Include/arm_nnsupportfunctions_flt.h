@@ -1798,6 +1798,21 @@ __STATIC_INLINE bool arm_nn_conv_f32_is_small_c(const cmsis_nn_dims *input_dims,
 }
 
 /**
+ * @brief Additional float32 small-C region: 3x3 filters, four input channels and up to 16 output channels.
+ * @param[in] input_dims  Input dimensions [N, H, W, C_IN]
+ * @param[in] filter_dims Filter dimensions [C_OUT, HK, WK, C_IN]
+ * @param[in] output_dims Output dimensions [N, H, W, C_OUT]
+ * @return true if the shape uses the small-C route, subject to its coordinate bounds
+ */
+__STATIC_INLINE bool arm_nn_conv_f32_is_small_c_3x3(const cmsis_nn_dims *input_dims,
+                                                    const cmsis_nn_dims *filter_dims,
+                                                    const cmsis_nn_dims *output_dims)
+{
+    return input_dims->c == 4 && filter_dims->h == 3 && filter_dims->w == 3 && output_dims->c > 0 &&
+        output_dims->c <= 16 && output_dims->w > 0;
+}
+
+/**
  * @brief The shape part of the packed-patch GEMM route: at least ARM_NN_CONV_NHWC_PATCH_GEMM_F16_MIN_OC output
  *        channels and ARM_NN_CONV_NHWC_PATCH_GEMM_F16_MIN_POS output positions per batch (the float32 thresholds
  *        are equal). The router also needs ctx to hold one patch row (KH x KW x C_IN elements).
