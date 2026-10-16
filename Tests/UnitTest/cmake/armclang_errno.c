@@ -7,10 +7,9 @@
  * See LICENSE (root) or LICENSES/LicenseRef-Ambiq-Apollo-SDK.txt for the full text.
  */
 
-#include <errno.h>
-
-/* Bind Arm's errno accessor to the single-thread GNU test harness. */
+/* Arm errno codes differ from GNU's; keep their storage domains separate. */
+static volatile int arm_errno;
 volatile int *__aeabi_errno_addr(void)
 {
-    return &errno;
+    return &arm_errno;
 }

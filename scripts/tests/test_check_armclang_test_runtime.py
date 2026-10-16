@@ -14,26 +14,45 @@ ROOT = Path(__file__).resolve().parents[2]
 MODULE = ROOT / "Tests/UnitTest/cmake/armclang_runtime.cmake"
 
 
-@unittest.skipUnless(all(shutil.which(x) for x in ("cmake", "gcc", "ar")), "CMake/GNU tools required")
+@unittest.skipUnless(all(shutil.which(x) for x in ("cmake", "gcc", "ar", "nm", "objcopy")), "CMake/GNU tools required")
 class ArmclangTestRuntime(unittest.TestCase):
-    def configure(self, cpu="cortex-m4", missing=None, host=False):
+    def configure(self, cpu="cortex-m4", missing=None, host=False, unsafe_call=False, public_export=False):
         directory = tempfile.TemporaryDirectory()
         self.addCleanup(directory.cleanup)
         source = Path(directory.name)
         lib = source / "arm/lib/armlib"
         lib.mkdir(parents=True)
+        bodies = {
+            "erfcf.o": "void erfcf(void) {} void __hardfp_erfcf(void) {}",
+            "floorf.o": "void floorf(void) {} void __hardfp_floorf(void) {}",
+            "roundf.o": "void roundf(void) {} void __hardfp_roundf(void) {}",
+            "expf_i.o": "void __mathlib_expf(void) {}",
+            "fpclassifyf.o": "void __ARM_fpclassifyf(void) {}",
+            "funder.o": "void __mathlib_flt_underflow(void) {}",
+            "_rserrno.o": "extern volatile int *__aeabi_errno_addr(void); "
+                           "void __set_errno(int value) { *__aeabi_errno_addr() = value; }",
+            "frnd.o": "void _frnd(void) {}",
+            "fnaninf.o": "void __fpl_fnaninf(void) {}",
+            "usenofp.o": "void __I$use$fp(void) {}",
+        }
+        if unsafe_call:
+            bodies["expf_i.o"] = "extern void erfcf(void); void __mathlib_expf(void) { erfcf(); }"
+        if public_export:
+            bodies["funder.o"] += " void unexpected_public_math(void) {}"
+        for name, body in bodies.items():
+            src = source / (name + ".c")
+            src.write_text(body)
+            subprocess.run(["gcc", "-fno-builtin", "-c", str(src), "-o", str(source / name)],
+                           check=True, capture_output=True)
+        math_members = ["erfcf.o", "floorf.o", "roundf.o", "expf_i.o", "fpclassifyf.o", "funder.o"]
         for archive, members in {
-            "m_wm.l": ["math.o"],
-            "m_wv.l": ["math.o"],
+            "m_wm.l": math_members,
+            "m_wv.l": math_members,
             "c_wu.l": ["_rserrno.o"],
             "fz_wm.l": ["frnd.o", "fnaninf.o", "usenofp.o"],
+            "fz_wv.l": ["frnd.o", "fnaninf.o", "usenofp.o"],
         }.items():
-            objects = []
-            for name in members:
-                if name != missing:
-                    obj = source / name
-                    obj.write_bytes(("fixture:" + name).encode())
-                    objects.append(str(obj))
+            objects = [str(source / name) for name in members if name != missing]
             subprocess.run(["ar", "qc", str(lib / archive), *objects], check=True, capture_output=True)
         if missing == "m_wm.l":
             (lib / missing).unlink()
@@ -60,11 +79,32 @@ class ArmclangTestRuntime(unittest.TestCase):
                 build, result = self.configure(cpu)
                 self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
                 links = (build / "selected.txt").read_text()
-                self.assertIn(math, links)
+                self.assertNotIn(math, links)
+                self.assertIn("erfcf.o", links)
                 self.assertIn("cmsis_nn_test_armclang_errno", links)
-                self.assertEqual((build / "armclang-test-runtime/_rserrno.o").read_bytes(), b"fixture:_rserrno.o")
-                self.assertEqual("frnd.o" in links, cpu == "cortex-m4")
+                self.assertEqual((build / "armclang-test-runtime/_rserrno.o").read_bytes(),
+                                 (build.parent / "_rserrno.o").read_bytes())
+                symbols = subprocess.check_output(
+                    ["nm", "-g", str(build / "armclang-test-runtime/erfcf.o")], text=True)
+                self.assertIn("__hardfp_erfcf", symbols)
+                self.assertNotRegex(symbols, r"(?m)\s[TW] erfcf$")
+                self.assertIn("frnd.o", links)
                 self.assertNotIn("fz_wm.l", links)
+                # Native base-PCS aliases must not capture ordinary GNU calls.
+                probe = build / "math.c"
+                probe.write_text(
+                    "#include <assert.h>\n#include <math.h>\n"
+                    "int main(void) {\n"
+                    " float (*volatile e)(float)=erfcf, (*volatile f)(float)=floorf;\n"
+                    " float (*volatile r)(float)=roundf;\n"
+                    " float x=e(1.0f); assert(x>0.1f && x<0.2f);\n"
+                    " assert(f(-1.25f)==-2.0f && r(1.5f)==2.0f); return 0;\n}\n")
+                program = build / "math-test"
+                bridge = ROOT / "Tests/UnitTest/cmake/armclang_errno.c"
+                objects = sorted((build / "armclang-test-runtime").glob("*.o"))
+                subprocess.run(["gcc", "-fno-builtin", str(probe), str(bridge),
+                                *map(str, objects), "-lm", "-o", str(program)], check=True)
+                subprocess.run([str(program)], check=True)
 
     def test_incomplete_runtime_and_unsupported_targets_fail(self):
         cases = [
@@ -73,12 +113,33 @@ class ArmclangTestRuntime(unittest.TestCase):
             ({"missing": "m_wm.l"}, "Missing ACfE test runtime archive"),
             ({"cpu": "cortex-m0"}, "supports only cortex-m4 and cortex-m55"),
             ({"host": True}, "requires a GNU cross-compiled harness"),
+            ({"unsafe_call": True}, "Unexpected ACfE test runtime dependency: erfcf"),
+            ({"public_export": True}, "Unexpected public ACfE math symbol"),
         ]
         for kwargs, message in cases:
             with self.subTest(kwargs=kwargs):
                 _, result = self.configure(**kwargs)
                 self.assertNotEqual(result.returncode, 0)
                 self.assertIn(message, result.stdout + result.stderr)
+
+
+    def test_arm_and_gnu_errno_storage_are_independent(self):
+        with tempfile.TemporaryDirectory() as directory:
+            source = Path(directory) / "errno.c"
+            source.write_text(
+                "#include <assert.h>\n#include <errno.h>\n"
+                "extern volatile int *__aeabi_errno_addr(void);\n"
+                "int main(void) {\n"
+                "  assert(*__aeabi_errno_addr() == 0);\n"
+                "  errno = EDOM; *__aeabi_errno_addr() = 2;\n"
+                "  assert(errno == EDOM && *__aeabi_errno_addr() == 2);\n"
+                "  errno = ERANGE; *__aeabi_errno_addr() = 1;\n"
+                "  assert(errno == ERANGE && *__aeabi_errno_addr() == 1);\n"
+                "  return 0;\n}\n")
+            program = Path(directory) / "errno-test"
+            bridge = ROOT / "Tests/UnitTest/cmake/armclang_errno.c"
+            subprocess.run(["gcc", str(source), str(bridge), "-o", str(program)], check=True)
+            subprocess.run([str(program)], check=True)
 
 
 if __name__ == "__main__":

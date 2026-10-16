@@ -342,23 +342,32 @@ cmake -S Tests/UnitTest -B build-acfe-m4 \
 cmake --build build-acfe-m4 --target test_arm_quantize_f32_s8
 ```
 
-The feature flags must match the imported archive. The ACfE installation must
-match the compiler that produced it, and the harness ABI settings must match
-the archive, including floating-point calling convention and enum sizes. The qualified layout is ACfE 6.24: M4 uses
-`m_wm.l` and M55 uses `m_wv.l`. M4's `roundf` also needs `frnd.o`, `fnaninf.o` and
-`usenofp.o` from `fz_wm.l`. The helper extracts these objects unchanged, together
-with `_rserrno.o` from `c_wu.l`, and links a small GNU errno accessor. Missing
-archives or members stop configuration. It does not ignore unresolved symbols
-or substitute GNU implementations for Arm's hard-float math entries.
+The feature flags and ABI settings must match the imported archive, including
+floating-point calling convention and enum sizes. The ACfE installation must
+match the compiler that produced it. The qualified layout is ACfE 6.24.
 
-The binding is for single-thread test executables. It combines Arm kernel/math
-code with GNU startup, libc and errno; it does not qualify a fully native Arm
-runtime, multithreaded use or silicon performance. M0 needs no such binding and
-is not accepted by this option. Normal source builds and GNU/ATfE prebuilt tests
-leave the option unset. A test oracle that requires bit-identical transcendental
-results must also use matching compiler/libm settings: the legacy GELU suite
-compares against GNU `erfcf` and is not a cross-libm bit-equivalence gate.
-Independent interval-based numerical tests remain necessary for that comparison.
+The helper extracts an audited dependency closure for `__hardfp_erfcf`,
+`__hardfp_floorf` and `__hardfp_roundf` from M4's `m_wm.l` or M55's `m_wv.l`,
+plus the matching `fz_wm.l`/`fz_wv.l` support and `c_wu.l` errno accessors. It
+localizes only the three conflicting bare math aliases: Arm's ordinary `erfcf`,
+`floorf` and `roundf` entries use base PCS and must not capture GNU VFP calls.
+Native instruction bodies and hard-float names are unchanged. The selected
+objects' strong dependencies must resolve within the closure, except for the
+explicit errno accessor; unexpected dependencies or public math exports stop
+configuration. Missing archives or members also stop configuration. Other
+native math entry points require separately qualifying their dependency closure.
+
+Arm errno has its own zero-initialized cell. Its codes (EDOM=1, ERANGE=2) are
+not GNU's codes, so sharing GNU errno storage would misinterpret errors. Native
+math errors do not overwrite GNU errno, and changes to GNU errno do not alter
+Arm's cell. This binding is for single-thread test executables.
+
+This combines Arm kernel/math code with GNU startup and libc. It does not
+qualify a fully native Arm runtime, multithreaded use or silicon performance.
+M0 needs no such binding and is not accepted by this option. Normal source
+builds and GNU/ATfE prebuilt tests leave the option unset. After correct symbol
+binding, bit-identical transcendental results can still depend on compiler,
+libm and FP settings; numerical checks must use the operation's defined contract.
 
 Other GNU test harnesses can reuse the same binding after creating their
 imported `cmsis-nn` target:
