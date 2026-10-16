@@ -207,6 +207,8 @@ typedef struct
     float16x8_t vmax;
     uint16x8_t lane_x_c;    /* lane * stride_w * input_c */
     uint16x8_t out_offsets; /* lane * output_c */
+    const float32_t *cached_filter;
+    int32_t first_oc;
 } arm_conv_small_c_f16;
 
 /* Direct kernel for fewer input channels than one vector: lanes are output x positions, weights are scalars,
@@ -223,7 +225,7 @@ __STATIC_INLINE bool arm_conv_nhwc_use_small_c_f16(const cmsis_nn_conv_params_f1
 }
 
 /* n_oc (1..OC_GROUP) output channels from oc0 for one group of LANES output x positions whose first tap
- * column is in_x0. IC1 and MODE are compile-time constants at every call site. A partial group aliases the
+ * column is in_x0. IC1, MODE and CACHED are compile-time constants at every call site. A partial group aliases the
  * missing channels onto oc0 (weights and bias are read for live channels only) and skips their stores, so a
  * partial last packed block is never read past its live lanes. */
 __STATIC_FORCEINLINE void arm_conv_small_c_group_f16(const arm_conv_small_c_f16 *__RESTRICT c,
@@ -235,7 +237,8 @@ __STATIC_FORCEINLINE void arm_conv_small_c_group_f16(const arm_conv_small_c_f16 
                                                      int32_t n_oc,
                                                      const bool IC1,
                                                      const int32_t MODE,
-                                                     mve_pred16_t p_pos)
+                                                     mve_pred16_t p_pos,
+                                                     const bool CACHED)
 {
     const int32_t oc_idx0 = (0 < n_oc) ? 0 : 0;
     const int32_t oc_idx1 = (1 < n_oc) ? 1 : 0;
@@ -243,11 +246,12 @@ __STATIC_FORCEINLINE void arm_conv_small_c_group_f16(const arm_conv_small_c_f16 
     float32x4_t vacc0_hi = vacc0_lo;
     float32x4_t vacc1_lo = c->bias ? vdupq_n_f32((float32_t)c->bias[oc0 + oc_idx1]) : vdupq_n_f32(0.0f);
     float32x4_t vacc1_hi = vacc1_lo;
-    const float16_t *w0 = c->packed ? c->filter + ((size_t)(oc0 / 8) * (size_t)c->patch_len) * 8 + (size_t)(oc0 % 8)
-                                    : c->filter + (size_t)oc0 * (size_t)c->patch_len;
-    const int32_t ws = c->w_lane_stride;
-    const int32_t w_off0 = oc_idx0 * c->w_oc_step;
-    const int32_t w_off1 = oc_idx1 * c->w_oc_step;
+    const float16_t *w0 = CACHED ? NULL
+        : c->packed              ? c->filter + ((size_t)(oc0 / 8) * (size_t)c->patch_len) * 8 + (size_t)(oc0 % 8)
+                                 : c->filter + (size_t)oc0 * (size_t)c->patch_len;
+    const int32_t ws = CACHED ? 1 : c->w_lane_stride;
+    const int32_t w_off0 = oc_idx0 * (CACHED ? c->patch_len : c->w_oc_step);
+    const int32_t w_off1 = oc_idx1 * (CACHED ? c->patch_len : c->w_oc_step);
     const int32_t input_c = c->input_c;
     /* Element offset of the first input column past the row; in_x wraps negative to a huge unsigned value
      * and the routing check keeps every reachable in_x * input_c inside the offset type. */
@@ -267,7 +271,8 @@ __STATIC_FORCEINLINE void arm_conv_small_c_group_f16(const arm_conv_small_c_f16 
         for (int32_t kx = 0; kx < kernel_w; ++kx)
         {
             const int32_t x0 = in_x0 + kx * dil_w;
-            const float16_t *wt = w0 + (size_t)((ky * kernel_w + kx) * input_c) * (size_t)ws;
+            const int32_t tap = (ky * kernel_w + kx) * input_c;
+            const float16_t *wt = CACHED ? NULL : w0 + (size_t)tap * (size_t)ws;
             if (IC1 && MODE == ARM_NN_CONV_SMALL_C_MODE_EDGE)
             {
                 /* Single-channel edge column: gather unpredicated from offsets clamped into the row, then skip the
@@ -278,8 +283,8 @@ __STATIC_FORCEINLINE void arm_conv_small_c_group_f16(const arm_conv_small_c_f16 
                 __asm__ volatile("" : "+r"(c), "+r"(last_col)); /* rematerialise the clamp per column, no Q reg */
                 const uint16x8_t off = vaddq(c->lane_x_c, (uint16_t)x0);
                 const float16x8_t vin = vldrhq_gather_shifted_offset(row, vminq(off, vdupq_n_u16(last_col)));
-                const float32_t wv0 = (float32_t)wt[w_off0];
-                const float32_t wv1 = (float32_t)wt[w_off1];
+                const float32_t wv0 = (CACHED ? c->cached_filter[tap + w_off0] : (float32_t)wt[w_off0]);
+                const float32_t wv1 = (CACHED ? c->cached_filter[tap + w_off1] : (float32_t)wt[w_off1]);
                 const mve_pred16_t p_lo = vcmphiq(vdupq_n_u32((uint32_t)row_limit), vmovlbq(off));
                 const float32x4_t vin_lo = arm_nn_vcvtbq_f32_f16(vin);
                 vacc0_lo = vfmaq_m(vacc0_lo, vin_lo, wv0, p_lo);
@@ -302,10 +307,10 @@ __STATIC_FORCEINLINE void arm_conv_small_c_group_f16(const arm_conv_small_c_f16 
                 }
                 const float32x4_t vin_lo = arm_nn_vcvtbq_f32_f16(vin);
                 const float32x4_t vin_hi = arm_nn_vcvttq_f32_f16(vin);
-                const float32_t wv0 = (float32_t)wt[w_off0];
+                const float32_t wv0 = (CACHED ? c->cached_filter[tap + w_off0] : (float32_t)wt[w_off0]);
                 vacc0_lo = vfmaq(vacc0_lo, vin_lo, wv0);
                 vacc0_hi = vfmaq(vacc0_hi, vin_hi, wv0);
-                const float32_t wv1 = (float32_t)wt[w_off1];
+                const float32_t wv1 = (CACHED ? c->cached_filter[tap + w_off1] : (float32_t)wt[w_off1]);
                 vacc1_lo = vfmaq(vacc1_lo, vin_lo, wv1);
                 vacc1_hi = vfmaq(vacc1_hi, vin_hi, wv1);
             }
@@ -334,17 +339,20 @@ __STATIC_FORCEINLINE void arm_conv_small_c_group_f16(const arm_conv_small_c_f16 
                         : vldrhq_gather_shifted_offset(row + ic, off);
                     const float32x4_t vin_lo = arm_nn_vcvtbq_f32_f16(vin);
                     const float32x4_t vin_hi = arm_nn_vcvttq_f32_f16(vin);
-                    const float32_t wv0 = (float32_t)wt[w_off0];
+                    const float32_t wv0 = (CACHED ? c->cached_filter[tap + ic + w_off0] : (float32_t)wt[w_off0]);
                     vacc0_lo = (MODE == ARM_NN_CONV_SMALL_C_MODE_EDGE) ? vfmaq_m(vacc0_lo, vin_lo, wv0, p_lo)
                                                                        : vfmaq(vacc0_lo, vin_lo, wv0);
                     vacc0_hi = (MODE == ARM_NN_CONV_SMALL_C_MODE_EDGE) ? vfmaq_m(vacc0_hi, vin_hi, wv0, p_hi)
                                                                        : vfmaq(vacc0_hi, vin_hi, wv0);
-                    const float32_t wv1 = (float32_t)wt[w_off1];
+                    const float32_t wv1 = (CACHED ? c->cached_filter[tap + ic + w_off1] : (float32_t)wt[w_off1]);
                     vacc1_lo = (MODE == ARM_NN_CONV_SMALL_C_MODE_EDGE) ? vfmaq_m(vacc1_lo, vin_lo, wv1, p_lo)
                                                                        : vfmaq(vacc1_lo, vin_lo, wv1);
                     vacc1_hi = (MODE == ARM_NN_CONV_SMALL_C_MODE_EDGE) ? vfmaq_m(vacc1_hi, vin_hi, wv1, p_hi)
                                                                        : vfmaq(vacc1_hi, vin_hi, wv1);
-                    wt += ws;
+                    if (!CACHED)
+                    {
+                        wt += ws;
+                    }
                 }
             }
         }
@@ -389,10 +397,12 @@ __STATIC_FORCEINLINE void arm_conv_small_c_row_group_f16(const arm_conv_small_c_
                                                          float16_t *__RESTRICT out_pos,
                                                          const bool IC1,
                                                          const int32_t MODE,
-                                                         mve_pred16_t p_pos)
+                                                         mve_pred16_t p_pos,
+                                                         const bool CACHED)
 {
-    for (int32_t oc0 = 0; oc0 < c->output_c; oc0 += ARM_NN_CONV_SMALL_C_F16_OC_GROUP)
+    if (CACHED)
     {
+        const int32_t oc0 = c->first_oc;
         const int32_t n_oc = c->output_c - oc0;
         arm_conv_small_c_group_f16(c,
                                    input_b,
@@ -403,7 +413,27 @@ __STATIC_FORCEINLINE void arm_conv_small_c_row_group_f16(const arm_conv_small_c_
                                    (n_oc < ARM_NN_CONV_SMALL_C_F16_OC_GROUP) ? n_oc : ARM_NN_CONV_SMALL_C_F16_OC_GROUP,
                                    IC1,
                                    MODE,
-                                   p_pos);
+                                   p_pos,
+                                   CACHED);
+    }
+    else
+    {
+        for (int32_t oc0 = 0; oc0 < c->output_c; oc0 += ARM_NN_CONV_SMALL_C_F16_OC_GROUP)
+        {
+            const int32_t n_oc = c->output_c - oc0;
+            arm_conv_small_c_group_f16(c,
+                                       input_b,
+                                       in_y0,
+                                       in_x0,
+                                       out_pos,
+                                       oc0,
+                                       (n_oc < ARM_NN_CONV_SMALL_C_F16_OC_GROUP) ? n_oc
+                                                                                 : ARM_NN_CONV_SMALL_C_F16_OC_GROUP,
+                                       IC1,
+                                       MODE,
+                                       p_pos,
+                                       CACHED);
+        }
     }
 }
 
@@ -415,40 +445,43 @@ __STATIC_FORCEINLINE void arm_conv_small_c_lane_group_f16(const arm_conv_small_c
                                                           int32_t in_x0,
                                                           float16_t *__RESTRICT out_pos,
                                                           int32_t mode,
-                                                          mve_pred16_t p_pos)
+                                                          mve_pred16_t p_pos,
+                                                          const bool CACHED)
 {
     switch (mode)
     {
     case ARM_NN_CONV_SMALL_C_MODE_VLD1:
-        arm_conv_small_c_row_group_f16(c, input_b, in_y0, in_x0, out_pos, true, ARM_NN_CONV_SMALL_C_MODE_VLD1, p_pos);
+        arm_conv_small_c_row_group_f16(
+            c, input_b, in_y0, in_x0, out_pos, true, ARM_NN_CONV_SMALL_C_MODE_VLD1, p_pos, CACHED);
         break;
     case ARM_NN_CONV_SMALL_C_MODE_VLD2:
-        arm_conv_small_c_row_group_f16(c, input_b, in_y0, in_x0, out_pos, true, ARM_NN_CONV_SMALL_C_MODE_VLD2, p_pos);
+        arm_conv_small_c_row_group_f16(
+            c, input_b, in_y0, in_x0, out_pos, true, ARM_NN_CONV_SMALL_C_MODE_VLD2, p_pos, CACHED);
         break;
     case ARM_NN_CONV_SMALL_C_MODE_GATHER:
         arm_conv_small_c_row_group_f16(
-            c, input_b, in_y0, in_x0, out_pos, false, ARM_NN_CONV_SMALL_C_MODE_GATHER, p_pos);
+            c, input_b, in_y0, in_x0, out_pos, false, ARM_NN_CONV_SMALL_C_MODE_GATHER, p_pos, CACHED);
         break;
     default:
         if (c->input_c == 1)
         {
             arm_conv_small_c_row_group_f16(
-                c, input_b, in_y0, in_x0, out_pos, true, ARM_NN_CONV_SMALL_C_MODE_EDGE, p_pos);
+                c, input_b, in_y0, in_x0, out_pos, true, ARM_NN_CONV_SMALL_C_MODE_EDGE, p_pos, CACHED);
         }
         else
         {
             arm_conv_small_c_row_group_f16(
-                c, input_b, in_y0, in_x0, out_pos, false, ARM_NN_CONV_SMALL_C_MODE_EDGE, p_pos);
+                c, input_b, in_y0, in_x0, out_pos, false, ARM_NN_CONV_SMALL_C_MODE_EDGE, p_pos, CACHED);
         }
         break;
     }
 }
 
-static __attribute__((noinline)) arm_cmsis_nn_status
-arm_nn_conv_small_c_nhwc_f16(const arm_conv_small_c_f16 *__RESTRICT c,
-                             int32_t batch,
-                             const float16_t *__RESTRICT input_data,
-                             float16_t *__RESTRICT output_data)
+__STATIC_FORCEINLINE arm_cmsis_nn_status arm_conv_small_c_run_f16(const arm_conv_small_c_f16 *__RESTRICT c,
+                                                                  int32_t batch,
+                                                                  const float16_t *__RESTRICT input_data,
+                                                                  float16_t *__RESTRICT output_data,
+                                                                  const bool CACHED)
 {
     /* Keep the context behind a pointer: without this GCC's IPA-SRA clones the kernel, scalarises the
      * struct, and reloads the lane vectors from its own stack copy inside the tap loops (#417). */
@@ -504,7 +537,7 @@ arm_nn_conv_small_c_nhwc_f16(const arm_conv_small_c_f16 *__RESTRICT c,
                         : ARM_NN_CONV_SMALL_C_MODE_GATHER;
                 }
                 arm_conv_small_c_lane_group_f16(
-                    c, input_b, in_y0, in_x0, out_row + (size_t)out_x0 * output_c, mode, p_all);
+                    c, input_b, in_y0, in_x0, out_row + (size_t)out_x0 * output_c, mode, p_all, CACHED);
             }
             if (out_x0 < output_w)
             {
@@ -515,9 +548,58 @@ arm_nn_conv_small_c_nhwc_f16(const arm_conv_small_c_f16 *__RESTRICT c,
                                                 out_x0 * stride_w - c->pad_w,
                                                 out_row + (size_t)out_x0 * output_c,
                                                 ARM_NN_CONV_SMALL_C_MODE_EDGE,
-                                                p_tail);
+                                                p_tail,
+                                                CACHED);
             }
         }
+    }
+    return ARM_CMSIS_NN_SUCCESS;
+}
+
+/* Separate instantiations keep weight selection out of the tap loop. */
+static __attribute__((noinline)) arm_cmsis_nn_status arm_nn_conv_small_c_nhwc_f16(const arm_conv_small_c_f16 *c,
+                                                                                  int32_t batch,
+                                                                                  const float16_t *input_data,
+                                                                                  float16_t *output_data)
+{
+    return arm_conv_small_c_run_f16(c, batch, input_data, output_data, false);
+}
+
+static __attribute__((noinline)) arm_cmsis_nn_status arm_nn_conv_small_c_cached_nhwc_f16(const arm_conv_small_c_f16 *c,
+                                                                                         int32_t batch,
+                                                                                         const float16_t *input_data,
+                                                                                         float16_t *output_data)
+{
+    return arm_conv_small_c_run_f16(c, batch, input_data, output_data, true);
+}
+
+/* Only the cached route reserves this fixed 216-byte buffer. Convert each live
+ * output-channel pair once, then reuse it across every spatial position and batch.
+ * Admission below bounds patch_len to 3 * 3 * 3; caller scratch remains zero. */
+static __attribute__((noinline)) arm_cmsis_nn_status arm_conv_small_c_cache_f16(arm_conv_small_c_f16 *c,
+                                                                                int32_t batch,
+                                                                                const float16_t *input_data,
+                                                                                float16_t *output_data)
+{
+    float32_t weights[2 * 3 * 3 * 3];
+    c->cached_filter = weights;
+    for (int32_t oc0 = 0; oc0 < c->output_c; oc0 += ARM_NN_CONV_SMALL_C_F16_OC_GROUP)
+    {
+        c->first_oc = oc0;
+        const int32_t channels = (c->output_c - oc0 < ARM_NN_CONV_SMALL_C_F16_OC_GROUP)
+            ? c->output_c - oc0
+            : ARM_NN_CONV_SMALL_C_F16_OC_GROUP;
+        for (int32_t ch = 0; ch < channels; ++ch)
+        {
+            const int32_t oc = oc0 + ch;
+            const float16_t *src = c->packed ? c->filter + (size_t)(oc / 8) * c->patch_len * 8 + oc % 8
+                                             : c->filter + (size_t)oc * c->patch_len;
+            for (int32_t k = 0; k < c->patch_len; ++k)
+            {
+                weights[ch * c->patch_len + k] = (float32_t)src[(size_t)k * c->w_lane_stride];
+            }
+        }
+        arm_nn_conv_small_c_cached_nhwc_f16(c, batch, input_data, output_data);
     }
     return ARM_CMSIS_NN_SUCCESS;
 }
@@ -535,6 +617,8 @@ static arm_cmsis_nn_status arm_conv_small_c_dispatch_f16(const cmsis_nn_conv_par
     const uint16x8_t lane = vidupq_u16(0u, 1);
 
     c.filter = filter_data;
+    c.cached_filter = NULL;
+    c.first_oc = 0;
     c.bias = bias_data;
     c.input_h = input_dims->h;
     c.input_w = input_dims->w;
@@ -559,6 +643,12 @@ static arm_cmsis_nn_status arm_conv_small_c_dispatch_f16(const cmsis_nn_conv_par
     c.lane_x_c = vmulq(lane, (uint16_t)(c.stride_w * c.input_c));
     c.out_offsets = vmulq(lane, (uint16_t)c.output_c);
 
+    /* Start with the measured large-image, small 3x3-filter region. Tiny images,
+     * 1x1 and larger filters keep the existing traversal and have no cache setup. */
+    if (c.kernel_h == 3 && c.kernel_w == 3 && c.input_c <= 3 && c.output_h >= 32 && c.output_w >= 32)
+    {
+        return arm_conv_small_c_cache_f16(&c, input_dims->n, input_data, output_data);
+    }
     return arm_nn_conv_small_c_nhwc_f16(&c, input_dims->n, input_data, output_data);
 }
     #endif /* defined(ARM_MATH_MVE_FLOAT16) && !defined(ARM_MATH_AUTOVECTORIZE) */

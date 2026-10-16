@@ -1519,3 +1519,99 @@ void convolve_large_padding_fold_f16(void)
         TEST_ASSERT_EQUAL_FLOAT(77, (float32_t)y[1]);
     }
 }
+
+/* Exact dyadic inputs make these short FP32 sums exact before the final half
+ * rounding. Cover both sides of cache admission and use an independent scalar
+ * reference, including skipped nonfinite taps in the horizontal padding. */
+void convolve_small_c_cached_weights_f16(void)
+{
+    static const struct
+    {
+        int32_t h, w, c, oc, k, stride, dilation, batch, nonfinite;
+    } cases[] = {
+        {32, 32, 1, 1, 3, 1, 1, 1, 0},
+        {32, 33, 2, 3, 3, 1, 1, 1, 0},
+        {33, 35, 3, 9, 3, 1, 1, 2, 0},
+        {32, 33, 1, 3, 3, 2, 1, 1, 0},
+        {32, 33, 3, 3, 3, 1, 2, 1, 0},
+        {31, 33, 3, 3, 3, 1, 1, 1, 0},
+        {32, 31, 3, 3, 3, 1, 1, 1, 0},
+        {32, 33, 4, 3, 3, 1, 1, 1, 0},
+        {32, 33, 3, 3, 5, 1, 1, 1, 0},
+        {32, 33, 3, 3, 1, 1, 1, 1, 0},
+        {32, 33, 1, 3, 3, 1, 1, 1, 1},
+        {32, 33, 3, 3, 3, 1, 1, 1, 1},
+    };
+    for (size_t ci = 0; ci < sizeof(cases) / sizeof(cases[0]); ++ci)
+    {
+        const int32_t c = cases[ci].c, oc = cases[ci].oc, k = cases[ci].k;
+        const int32_t stride = cases[ci].stride, dilation = cases[ci].dilation;
+        const int32_t pad = (k - 1) * dilation / 2;
+        const cmsis_nn_dims out = {cases[ci].batch, cases[ci].h, cases[ci].w, oc};
+        const cmsis_nn_dims in = {out.n, (out.h - 1) * stride + 1, (out.w - 1) * stride + 1, c};
+        const cmsis_nn_dims flt = {oc, k, k, c};
+        const int32_t inputs = in.n * in.h * in.w * c, patch = k * k * c;
+        const int32_t outputs = out.n * out.h * out.w * oc;
+        float16_t *x = malloc((size_t)inputs * sizeof(*x));
+        float16_t *w = malloc((size_t)oc * patch * sizeof(*w));
+        float16_t *bias = malloc((size_t)oc * sizeof(*bias));
+        float32_t *ref = malloc((size_t)outputs * sizeof(*ref));
+        float16_t *y = conv_alloc_guarded((size_t)outputs * sizeof(*y));
+        TEST_ASSERT_NOT_NULL(x);
+        TEST_ASSERT_NOT_NULL(w);
+        TEST_ASSERT_NOT_NULL(bias);
+        TEST_ASSERT_NOT_NULL(ref);
+        TEST_ASSERT_NOT_NULL(y);
+        for (int32_t i = 0; i < inputs; ++i)
+        {
+            x[i] = (float16_t)((float32_t)(1 + i % 7) / 8.0f);
+        }
+        for (int32_t i = 0; i < oc * patch; ++i)
+        {
+            w[i] = conv_f16_value(i, 39);
+        }
+        for (int32_t i = 0; i < oc; ++i)
+        {
+            bias[i] = (float16_t)((float32_t)(i - 2) / 8.0f);
+        }
+        if (cases[ci].nonfinite)
+        {
+            w[(k + 0) * c] = (float16_t)INFINITY;
+            w[patch + (k + 2) * c] = -(float16_t)INFINITY;
+            w[2 * patch + k * c] = (float16_t)NAN;
+        }
+        const float16_t *bp = (ci % 2) ? NULL : bias;
+        for (int32_t packed = 0; packed < 2; ++packed)
+        {
+            cmsis_nn_conv_params_f16 cp;
+            conv_f16_params(&cp, pad, pad, packed);
+            cp.stride.h = cp.stride.w = stride;
+            cp.dilation.h = cp.dilation.w = dilation;
+            cp.activation.min = (float16_t)-4.0f;
+            cp.activation.max = (float16_t)4.0f;
+            float16_t *wp = packed ? pack_rhs_nt_n_from_nt_t_f16(w, oc, patch) : NULL;
+            const float16_t *weights = packed ? wp : w;
+            conv_f16_reference(&cp, &in, x, &flt, w, bp, &out, ref);
+#if defined(ARM_MATH_MVE_FLOAT16) && !defined(ARM_MATH_AUTOVECTORIZE)
+            TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
+                              arm_convolve_small_c_nhwc_f16(NULL, &cp, &in, x, &flt, weights, NULL, bp, &out, y));
+#else
+            const cmsis_nn_context none = {NULL, 0};
+            TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
+                              arm_convolve_wrapper_f16(&none, &cp, &in, x, &flt, weights, NULL, bp, &out, y));
+#endif
+            conv_assert_guard_intact(y, (size_t)outputs * sizeof(*y), "small-C output tail write");
+            for (int32_t i = 0; i < outputs; ++i)
+            {
+                const float16_t expected = (float16_t)ref[i];
+                TEST_ASSERT_EQUAL_MEMORY(&expected, y + i, sizeof(expected));
+            }
+            free(wp);
+        }
+        free(x);
+        free(w);
+        free(bias);
+        free(ref);
+        free(y);
+    }
+}
