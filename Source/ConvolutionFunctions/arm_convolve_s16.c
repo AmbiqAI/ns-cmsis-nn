@@ -456,7 +456,7 @@ static arm_cmsis_nn_status arm_convolve_s16_dsp(const cmsis_nn_context *ctx,
                     }
                     col_count = cols_fast & 0x3;
     #else
-                    uint16_t col_count = cols_fast;
+                    int32_t col_count = cols_fast;
     #endif
 
                     while (col_count)

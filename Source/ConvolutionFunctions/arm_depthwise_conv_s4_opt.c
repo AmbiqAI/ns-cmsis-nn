@@ -131,42 +131,25 @@ static __attribute__((noinline)) void depthwise_conv_s4_opt_tail(const int8_t *c
 }
 #endif
 
-/*
- * Optimized s4 depthwise convolution function with constraint that in_channel equals out_channel
- *
- *  Refer prototype header file for details.
- *
- */
-
-arm_cmsis_nn_status arm_depthwise_conv_s4_opt(const cmsis_nn_context *ctx,
-                                              const cmsis_nn_dw_conv_params *dw_conv_params,
-                                              const cmsis_nn_per_channel_quant_params *quant_params,
-                                              const cmsis_nn_dims *input_dims,
-                                              const int8_t *input,
-                                              const cmsis_nn_dims *filter_dims,
-                                              const int8_t *kernel,
-                                              const cmsis_nn_dims *bias_dims,
-                                              const int32_t *bias,
-                                              const cmsis_nn_dims *output_dims,
-                                              int8_t *output)
+/* The entry below validates the layer; the kernel stays out of line so the checks do not change the register
+   allocation of its loops (CODING-STANDARDS section 5). */
+static __attribute__((noinline)) arm_cmsis_nn_status
+depthwise_conv_s4_opt_kernel(const cmsis_nn_context *ctx,
+                             const cmsis_nn_dw_conv_params *dw_conv_params,
+                             const cmsis_nn_per_channel_quant_params *quant_params,
+                             const cmsis_nn_dims *input_dims,
+                             const int8_t *input,
+                             const cmsis_nn_dims *filter_dims,
+                             const int8_t *kernel,
+                             const cmsis_nn_dims *bias_dims,
+                             const int32_t *bias,
+                             const cmsis_nn_dims *output_dims,
+                             int8_t *output)
 {
     (void)bias_dims;
 
     const int32_t input_ch = input_dims->c;
     const int32_t output_ch = output_dims->c;
-
-    /* Check depth multiplier is 1 */
-    if (input_ch != output_ch)
-    {
-        return ARM_CMSIS_NN_ARG_ERROR;
-    }
-
-    /* Every leg sizes its loops and buffers from these: the im2col fill clamps its rows to [0, filter H], and the MVE
-       leg forms its tap count from filter W * H */
-    if (ctx->buf == NULL || input_ch < 0 || filter_dims->w < 0 || filter_dims->h < 0)
-    {
-        return ARM_CMSIS_NN_ARG_ERROR;
-    }
 
     const int32_t input_x = input_dims->w;
     const int32_t input_y = input_dims->h;
@@ -373,10 +356,10 @@ arm_cmsis_nn_status arm_depthwise_conv_s4_opt(const cmsis_nn_context *ctx,
 
     for (int i_out_y = 0; i_out_y < output_y; i_out_y++)
     {
-        const int16_t base_idx_y = (i_out_y * stride_y) - pad_y;
+        const int32_t base_idx_y = (i_out_y * stride_y) - pad_y;
         for (int i_out_x = 0; i_out_x < output_x; i_out_x++)
         {
-            const int16_t base_idx_x = (i_out_x * stride_x) - pad_x;
+            const int32_t base_idx_x = (i_out_x * stride_x) - pad_x;
 
             /* Out of bounds is only considered for the y axis as it provides a contiguous zero'ing opportunity than
                along the x axis */
@@ -796,6 +779,60 @@ arm_cmsis_nn_status arm_depthwise_conv_s4_opt(const cmsis_nn_context *ctx,
 #endif // ARM_MATH_MVEI
     /* Return to application */
     return ARM_CMSIS_NN_SUCCESS;
+}
+
+/*
+ * Optimized s4 depthwise convolution function with constraint that in_channel equals out_channel
+ *
+ *  Refer prototype header file for details.
+ *
+ */
+
+arm_cmsis_nn_status arm_depthwise_conv_s4_opt(const cmsis_nn_context *ctx,
+                                              const cmsis_nn_dw_conv_params *dw_conv_params,
+                                              const cmsis_nn_per_channel_quant_params *quant_params,
+                                              const cmsis_nn_dims *input_dims,
+                                              const int8_t *input,
+                                              const cmsis_nn_dims *filter_dims,
+                                              const int8_t *kernel,
+                                              const cmsis_nn_dims *bias_dims,
+                                              const int32_t *bias,
+                                              const cmsis_nn_dims *output_dims,
+                                              int8_t *output)
+{
+    /* Check depth multiplier is 1 */
+    if (input_dims->c != output_dims->c)
+    {
+        return ARM_CMSIS_NN_ARG_ERROR;
+    }
+
+    /* As in arm_depthwise_conv_s8_opt(): the sizer returns -1 for dimensions it cannot size, including a negative
+       channel count or filter dimension, and a declared non-zero ctx->size below its result is rejected; callers that
+       leave ctx->size at zero opt out of that check. */
+    const int32_t buf_size = arm_depthwise_conv_s4_opt_get_buffer_size(input_dims, filter_dims);
+    if (buf_size < 0 || ctx->buf == NULL || (ctx->size != 0 && ctx->size < buf_size))
+    {
+        return ARM_CMSIS_NN_ARG_ERROR;
+    }
+#if !defined(ARM_MATH_MVEI)
+    /* Without MVE the kernel keeps its channel and tap counters as uint16_t */
+    if (input_dims->c > UINT16_MAX || (int64_t)filter_dims->w * filter_dims->h > UINT16_MAX)
+    {
+        return ARM_CMSIS_NN_ARG_ERROR;
+    }
+#endif
+
+    return depthwise_conv_s4_opt_kernel(ctx,
+                                        dw_conv_params,
+                                        quant_params,
+                                        input_dims,
+                                        input,
+                                        filter_dims,
+                                        kernel,
+                                        bias_dims,
+                                        bias,
+                                        output_dims,
+                                        output);
 }
 
 /**

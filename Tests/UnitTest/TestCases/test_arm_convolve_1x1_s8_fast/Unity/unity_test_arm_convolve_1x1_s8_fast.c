@@ -69,3 +69,5 @@ void test_kernel1x1_wrapping_bias(void) { kernel1x1_wrapping_bias(); }
 
 extern void matrix_s8_large_dot_wrapping(void);
 void test_matrix_s8_large_dot_wrapping(void) { matrix_s8_large_dot_wrapping(); }
+
+void test_stride_and_dims_arg_errors_arm_convolve_1x1_s8(void) { stride_and_dims_arg_errors_arm_convolve_1x1_s8(); }

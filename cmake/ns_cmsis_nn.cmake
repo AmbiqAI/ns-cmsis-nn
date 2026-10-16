@@ -138,6 +138,7 @@ function(_ns_cmsis_nn_group_def group out_subdir out_patterns out_extras)
                          "arm_elementwise_add_f32.c"
                          "arm_elementwise_sub_f32.c"
                          "arm_elementwise_mul_f32.c"
+                         "arm_elementwise_squared_difference_f32.c"
                          "arm_elementwise_div_f32.c"
                          "arm_elementwise_sub_broadcast_f32.c"
                          "arm_elementwise_add_broadcast_f32.c"

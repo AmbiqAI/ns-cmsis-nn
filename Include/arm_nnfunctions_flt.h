@@ -179,8 +179,10 @@ arm_cmsis_nn_status arm_depthwise_conv_wrapper_f32(const cmsis_nn_context *ctx,
  *       at least CONVERT_DW_CONV_WITH_ONE_INPUT_CH_AND_OUTPUT_CH_ABOVE_THRESHOLD output channels can run as a regular
  *       convolution, which needs the repacked filter, `ROUND_UP(output_dims->c, 4) * filter_dims->h *
  *       filter_dims->w * sizeof(float32_t)` bytes (`ROUND_UP(output_dims->c, 8)` and `sizeof(float16_t)` for
- *       `_f16`), plus `arm_convolve_wrapper_f32_get_buffer_size` (`_f16`) for that convolution. The query reserves
- *       that for every such layer; one an exact-shape specialization takes first runs without it, so the size is an
+ *       `_f16`), plus `arm_convolve_wrapper_f32_get_buffer_size` for that convolution. For `_f16`, the added
+ *       workspace is the larger of `arm_convolve_wrapper_f16_get_buffer_size` and one patch row of
+ *       `filter_dims->h * filter_dims->w * sizeof(float16_t)` bytes. The query reserves that for every such layer;
+ *       one an exact-shape specialization takes first runs without it, so the size is an
  *       upper bound there. Every other layer -- the `ch_mult == 1` direct kernel and the generic kernel -- runs
  *       without scratch and the query returns 0 (AmbiqAI/ns-cmsis-nn#448, #625).
  *
@@ -1161,6 +1163,35 @@ arm_cmsis_nn_status arm_elementwise_sub_f32(const float32_t *input_1_vect,
                                             float32_t out_activation_min,
                                             float32_t out_activation_max,
                                             int32_t block_size);
+
+/**
+ * @brief Elementwise squared difference of contiguous FP32 vectors.
+ *
+ * Computes (input_1 - input_2) squared, rounding the subtraction to FP32 before
+ * multiplication. No activation clamp, broadcasting or scratch is used. NaNs
+ * propagate (payload unspecified); infinite differences yield positive infinity.
+ * Overflow yields positive infinity under round-to-nearest. Scalar arithmetic
+ * follows the active floating-point controls.
+ * MVE arithmetic uses round-to-nearest and flushes FP32 subnormal operands and
+ * results to signed zero regardless of FPSCR.FZ (StandardFPSCRValue). Automatic
+ * vectorization may mix these behaviors; set scalar round-to-nearest and FZ=1
+ * when consistent flushing is required. Equal finite operands produce positive zero.
+ *
+ * Buffers must be naturally aligned and hold block_size elements. Output may
+ * exactly equal either input; other partial overlaps are unsupported. Null
+ * pointers, nonpositive counts and byte counts above INT32_MAX are rejected
+ * before writing output.
+ *
+ * @param[in] input_1_vect First input vector.
+ * @param[in] input_2_vect Second input vector.
+ * @param[out] output Output vector.
+ * @param[in] block_size Number of elements (1..INT32_MAX / sizeof(float32_t)).
+ * @return ARM_CMSIS_NN_SUCCESS or ARM_CMSIS_NN_ARG_ERROR.
+ */
+arm_cmsis_nn_status arm_elementwise_squared_difference_f32(const float32_t *input_1_vect,
+                                                           const float32_t *input_2_vect,
+                                                           float32_t *output,
+                                                           int32_t block_size);
 
 /**
  * @brief Elementwise absolute value.
@@ -3006,6 +3037,8 @@ arm_cmsis_nn_status arm_depthwise_conv_wrapper_f16_acc16(const cmsis_nn_context 
 
 /**
  * @copydoc arm_depthwise_conv_f32_get_buffer_size
+ * @note On MVE float16 builds, eligible one-input-channel routes include space for the packed filter and at least
+ *       one patch row. Larger existing allocations are retained to allow processing multiple rows per step.
  */
 int32_t arm_depthwise_conv_f16_get_buffer_size(const cmsis_nn_dw_conv_params_f16 *dw_conv_params,
                                                const cmsis_nn_dims *input_dims,

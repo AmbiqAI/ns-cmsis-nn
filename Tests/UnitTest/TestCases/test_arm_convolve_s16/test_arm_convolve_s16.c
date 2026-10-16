@@ -3253,3 +3253,280 @@ void grouped_batch_boundaries_arm_convolve_s16(void)
     TEST_ASSERT_TRUE(clamped_low > 0);
     TEST_ASSERT_TRUE(clamped_high > 0);
 }
+
+/*
+ * arm_convolve_1x1_s16_ns_np_nd() writes each batch to its own slice of the output (#770): two batches equal two
+ * single-batch calls. Builds without MVE report ARM_CMSIS_NN_NO_IMPL_ERROR with nothing written.
+ */
+void batches_1x1_ns_np_nd_arm_convolve_s16(void)
+{
+    enum
+    {
+        n = 2,
+        h = 3,
+        w = 5,
+        in_ch = 8,
+        out_ch = 6,
+        batch_in = h * w * in_ch,
+        batch_out = h * w * out_ch
+    };
+    static int16_t input[n * batch_in];
+    static int8_t kernel[out_ch * in_ch];
+    int64_t bias[out_ch];
+    int32_t multiplier[out_ch];
+    int32_t shift[out_ch];
+    static int16_t output[n * batch_out];
+    static int16_t expected[n * batch_out];
+    for (int i = 0; i < n * batch_in; i++)
+    {
+        input[i] = (int16_t)((i * 193) % 4001 - 2000);
+    }
+    for (int i = 0; i < out_ch * in_ch; i++)
+    {
+        kernel[i] = (int8_t)((i * 7) % 61 - 30);
+    }
+    for (int i = 0; i < out_ch; i++)
+    {
+        bias[i] = (int64_t)i * 1000 - 2500;
+        multiplier[i] = (1 << 30) + i * (1 << 24);
+        shift[i] = -6;
+    }
+    const cmsis_nn_dims filter_dims = {out_ch, 1, 1, in_ch};
+    const cmsis_nn_dims bias_dims = {1, 1, 1, out_ch};
+    const cmsis_nn_conv_params conv_params = {
+        .input_offset = 0,
+        .output_offset = 0,
+        .stride = {1, 1},
+        .padding = {0, 0},
+        .dilation = {1, 1},
+        .activation = {-32768, 32767},
+    };
+    const cmsis_nn_per_channel_quant_params quant_params = {multiplier, shift};
+    const cmsis_nn_bias_data bias_data = {bias, false};
+    const cmsis_nn_context ctx = {NULL, 0};
+    const cmsis_nn_dims one_in = {1, h, w, in_ch}, one_out = {1, h, w, out_ch};
+    const cmsis_nn_dims two_in = {n, h, w, in_ch}, two_out = {n, h, w, out_ch};
+    memset(output, 0x55, sizeof(output));
+#if defined(ARM_MATH_MVEI)
+    for (int b = 0; b < n; b++)
+    {
+        TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
+                          arm_convolve_1x1_s16_ns_np_nd(&ctx,
+                                                        &conv_params,
+                                                        &quant_params,
+                                                        &one_in,
+                                                        input + b * batch_in,
+                                                        &filter_dims,
+                                                        kernel,
+                                                        &bias_dims,
+                                                        &bias_data,
+                                                        &one_out,
+                                                        expected + b * batch_out));
+    }
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
+                      arm_convolve_1x1_s16_ns_np_nd(&ctx,
+                                                    &conv_params,
+                                                    &quant_params,
+                                                    &two_in,
+                                                    input,
+                                                    &filter_dims,
+                                                    kernel,
+                                                    &bias_dims,
+                                                    &bias_data,
+                                                    &two_out,
+                                                    output));
+    TEST_ASSERT_EQUAL_INT16_ARRAY(expected, output, n * batch_out);
+#else
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_NO_IMPL_ERROR,
+                      arm_convolve_1x1_s16_ns_np_nd(&ctx,
+                                                    &conv_params,
+                                                    &quant_params,
+                                                    &two_in,
+                                                    input,
+                                                    &filter_dims,
+                                                    kernel,
+                                                    &bias_dims,
+                                                    &bias_data,
+                                                    &two_out,
+                                                    output));
+    TEST_ASSERT_EQUAL_INT16(0x5555, output[0]);
+    (void)expected;
+    (void)one_in;
+    (void)one_out;
+#endif
+}
+
+/*
+ * Column counts past 65,535 (#780): an int32 bias with 65,544 columns and one output pixel (the leftover loop of
+ * non-DSP builds), and an int64 bias with 66,560 columns, two output pixels and three output channels (the DSP pair
+ * and odd-channel loops past 512 columns). Small values keep the int32 accumulation exact; outputs are checked
+ * against an int64 reference. The buffers sit in SRAM on the Corstone-300 FVP.
+ */
+#if defined(USING_FVP_CORSTONE_300)
+    #define WIDE_COLS_SECTION __attribute__((section(".bss.NoInit")))
+#else
+    #define WIDE_COLS_SECTION
+#endif
+#define WIDE_COLS_IN (129 * 520)
+#define WIDE_COLS_KER (3 * 262144)
+static int16_t wide_cols_input[WIDE_COLS_IN] WIDE_COLS_SECTION;
+static int8_t wide_cols_kernel[WIDE_COLS_KER] WIDE_COLS_SECTION;
+static int16_t wide_cols_buffer[2 * 262144 + 64] WIDE_COLS_SECTION;
+
+void wide_columns_counters_arm_convolve_s16(void)
+{
+#if defined(ARM_MATH_DSP) && !defined(ARM_MATH_MVEI)
+    {
+        /* Both DSP quad counters must reach 65536: channels 0/1 use the pair loop, channel 2 the odd loop.
+           Reuse the im2col buffer as two explicit input columns to fit the Corstone SRAM allocation. */
+        const int32_t cols = 262144;
+        for (int32_t k = 0; k < cols; k++)
+        {
+            wide_cols_buffer[k] = 1;
+            wide_cols_buffer[cols + k] = 2;
+            for (int32_t oc = 0; oc < 3; oc++)
+            {
+                wide_cols_kernel[oc * cols + k] = (int8_t)(oc + 1);
+            }
+        }
+        const int32_t bias[3] = {0, 0, 0};
+        const int32_t mult[3] = {1 << 30, 1 << 30, 1 << 30};
+        const int32_t shift[3] = {-5, -5, -5};
+        const cmsis_nn_bias_data bias_data = {bias, true};
+        int16_t output[6] = {0};
+        TEST_ASSERT_EQUAL_PTR(output + 6,
+                              arm_nn_mat_mult_kernel_s16(wide_cols_kernel,
+                                                         wide_cols_buffer,
+                                                         3,
+                                                         shift,
+                                                         mult,
+                                                         -32768,
+                                                         32767,
+                                                         cols,
+                                                         &bias_data,
+                                                         output,
+                                                         3));
+        for (int32_t x = 0; x < 2; x++)
+        {
+            for (int32_t oc = 0; oc < 3; oc++)
+            {
+                /* Exact sum = 262144 * (x + 1) * (oc + 1); requantization divides by 64. */
+                TEST_ASSERT_EQUAL_INT16(4096 * (x + 1) * (oc + 1), output[x * 3 + oc]);
+            }
+        }
+    }
+#endif
+    /* kernel W, input channels, input W, output channels, int64 bias */
+    const int32_t cases[2][5] = {{8, 8193, 8, 2, 0}, {128, 520, 129, 3, 1}};
+    for (int32_t c = 0; c < 2; c++)
+    {
+        const int32_t kw = cases[c][0], in_ch = cases[c][1], in_w = cases[c][2], out_ch = cases[c][3];
+        const int32_t out_w = in_w - kw + 1, cols = kw * in_ch;
+        for (int32_t i = 0; i < in_w * in_ch; i++)
+        {
+            wide_cols_input[i] = (int16_t)(i % 7 - 3);
+        }
+        for (int32_t i = 0; i < out_ch * cols; i++)
+        {
+            wide_cols_kernel[i] = (int8_t)((i + i / cols) % 3 - 1);
+        }
+        int64_t bias64[3] = {11, -7, 5};
+        int32_t bias32[3] = {11, -7, 5};
+        int32_t multiplier[3] = {1 << 30, 1 << 30, 1 << 30};
+        int32_t shift[3] = {0, 0, 0};
+        int16_t output[2 * 3];
+        const cmsis_nn_dims input_dims = {1, 1, in_w, in_ch};
+        const cmsis_nn_dims filter_dims = {out_ch, 1, kw, in_ch};
+        const cmsis_nn_dims bias_dims = {1, 1, 1, out_ch};
+        const cmsis_nn_dims output_dims = {1, 1, out_w, out_ch};
+        const cmsis_nn_conv_params conv_params = {
+            .input_offset = 0,
+            .output_offset = 0,
+            .stride = {1, 1},
+            .padding = {0, 0},
+            .dilation = {1, 1},
+            .activation = {-32768, 32767},
+        };
+        const cmsis_nn_per_channel_quant_params quant_params = {multiplier, shift};
+        const cmsis_nn_bias_data bias_data = {cases[c][4] ? (const void *)bias64 : (const void *)bias32,
+                                              cases[c][4] == 0};
+        const int32_t buffer_size = arm_convolve_s16_get_buffer_size(&input_dims, &filter_dims);
+        TEST_ASSERT_TRUE(buffer_size >= 0 && buffer_size <= (int32_t)sizeof(wide_cols_buffer));
+        const cmsis_nn_context ctx = {wide_cols_buffer, buffer_size};
+        TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
+                          arm_convolve_s16(&ctx,
+                                           &conv_params,
+                                           &quant_params,
+                                           &input_dims,
+                                           wide_cols_input,
+                                           &filter_dims,
+                                           wide_cols_kernel,
+                                           &bias_dims,
+                                           &bias_data,
+                                           &output_dims,
+                                           output));
+        for (int32_t x = 0; x < out_w; x++)
+        {
+            for (int32_t oc = 0; oc < out_ch; oc++)
+            {
+                int64_t acc = 0;
+                for (int32_t k = 0; k < cols; k++)
+                {
+                    acc += (int64_t)wide_cols_kernel[oc * cols + k] * wide_cols_input[x * in_ch + k];
+                }
+                const int32_t expected = cases[c][4]
+                    ? arm_nn_requantize_s64(acc + bias64[oc], REDUCE_MULTIPLIER(multiplier[oc]), shift[oc])
+                    : arm_nn_requantize((int32_t)acc + bias32[oc], multiplier[oc], shift[oc]);
+                TEST_ASSERT_EQUAL_INT16(ARM_NN_MIN(ARM_NN_MAX(expected, -32768), 32767), output[x * out_ch + oc]);
+            }
+        }
+    }
+
+
+}
+
+/*
+ * arm_convolve_1x1_s16_ns_np_nd() maps each input pixel to the output pixel at the same place (#771): an output H or
+ * W other than the input's, or a filter other than 1x1, is an argument error on every build with the output untouched.
+ */
+void dims_arg_errors_1x1_ns_np_nd_arm_convolve_s16(void)
+{
+    static const int16_t input[2 * 2 * 2] = {100, -200, 300, -400, 500, -600, 700, -800};
+    static const int8_t weights[2 * 3 * 3 * 2] = {0};
+    static const int64_t bias[2] = {0, 0};
+    static int32_t mult[2] = {1 << 30, 1 << 30};
+    static int32_t shift[2] = {0, 0};
+    int16_t output[3 * 3 * 2];
+    const cmsis_nn_per_channel_quant_params quant = {mult, shift};
+    const cmsis_nn_bias_data bias_data = {bias, false};
+    const cmsis_nn_conv_params params = {.input_offset = 0,
+                                         .output_offset = 0,
+                                         .stride = {1, 1},
+                                         .padding = {0, 0},
+                                         .dilation = {1, 1},
+                                         .activation = {-32768, 32767}};
+    const cmsis_nn_context ctx = {NULL, 0};
+    const cmsis_nn_dims input_dims = {1, 2, 2, 2}, bias_dims = {1, 1, 1, 2};
+    const cmsis_nn_dims filters[3] = {{2, 1, 1, 2}, {2, 1, 1, 2}, {2, 3, 3, 2}};
+    const cmsis_nn_dims outputs[3] = {{1, 3, 2, 2}, {1, 2, 3, 2}, {1, 2, 2, 2}};
+    for (int32_t i = 0; i < 3; i++)
+    {
+        memset(output, 0x5A, sizeof(output));
+        TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR,
+                          arm_convolve_1x1_s16_ns_np_nd(&ctx,
+                                                        &params,
+                                                        &quant,
+                                                        &input_dims,
+                                                        input,
+                                                        &filters[i],
+                                                        weights,
+                                                        &bias_dims,
+                                                        &bias_data,
+                                                        &outputs[i],
+                                                        output));
+        for (size_t k = 0; k < sizeof(output) / sizeof(output[0]); k++)
+        {
+            TEST_ASSERT_EQUAL_HEX16(0x5A5A, (uint16_t)output[k]);
+        }
+    }
+}
