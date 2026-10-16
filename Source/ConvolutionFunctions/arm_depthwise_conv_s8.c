@@ -264,38 +264,25 @@ static void depthwise_conv_s8_generic(const int8_t *input,
     }
 }
 
-/*
- *  Basic s8 depthwise convolution function.
- *
- *  Refer header file for details.
- *  Optimization using DSP extension is not available for the generic case where channel multiplier is > 1.
- *
- */
-arm_cmsis_nn_status arm_depthwise_conv_s8(const cmsis_nn_context *ctx,
-                                          const cmsis_nn_dw_conv_params *dw_conv_params,
-                                          const cmsis_nn_per_channel_quant_params *quant_params,
-                                          const cmsis_nn_dims *input_dims,
-                                          const int8_t *input,
-                                          const cmsis_nn_dims *filter_dims,
-                                          const int8_t *kernel,
-                                          const cmsis_nn_dims *bias_dims,
-                                          const int32_t *bias,
-                                          const cmsis_nn_dims *output_dims,
-                                          int8_t *output)
+/* Pre-MVE paths, kept out of line */
+static __attribute__((noinline)) arm_cmsis_nn_status
+depthwise_conv_s8_ref(const cmsis_nn_context *ctx,
+                      const cmsis_nn_dw_conv_params *dw_conv_params,
+                      const cmsis_nn_per_channel_quant_params *quant_params,
+                      const cmsis_nn_dims *input_dims,
+                      const int8_t *input,
+                      const cmsis_nn_dims *filter_dims,
+                      const int8_t *kernel,
+                      const cmsis_nn_dims *bias_dims,
+                      const int32_t *bias,
+                      const cmsis_nn_dims *output_dims,
+                      int8_t *output)
 {
     const uint16_t dilation_x = dw_conv_params->dilation.w;
     const uint16_t dilation_y = dw_conv_params->dilation.h;
 
     (void)bias_dims;
     (void)ctx;
-
-    /* Use the MVE kernel when built */
-    if (arm_nn_depthwise_conv_s8_mve(
-            dw_conv_params, quant_params, input_dims, input, filter_dims, kernel, bias, output_dims, output) ==
-        ARM_CMSIS_NN_SUCCESS)
-    {
-        return ARM_CMSIS_NN_SUCCESS;
-    }
 
     if (dw_conv_params->ch_mult % 4 == 0 && input_dims->n == 1 && dw_conv_params->dilation.w == 1 &&
         dw_conv_params->dilation.h == 1)
@@ -356,6 +343,57 @@ arm_cmsis_nn_status arm_depthwise_conv_s8(const cmsis_nn_context *ctx,
 
     /* Return to application */
     return ARM_CMSIS_NN_SUCCESS;
+}
+
+/*
+ *  Basic s8 depthwise convolution function.
+ *
+ *  Refer header file for details.
+ *  Optimization using DSP extension is not available for the generic case where channel multiplier is > 1.
+ *
+ */
+arm_cmsis_nn_status arm_depthwise_conv_s8(const cmsis_nn_context *ctx,
+                                          const cmsis_nn_dw_conv_params *dw_conv_params,
+                                          const cmsis_nn_per_channel_quant_params *quant_params,
+                                          const cmsis_nn_dims *input_dims,
+                                          const int8_t *input,
+                                          const cmsis_nn_dims *filter_dims,
+                                          const int8_t *kernel,
+                                          const cmsis_nn_dims *bias_dims,
+                                          const int32_t *bias,
+                                          const cmsis_nn_dims *output_dims,
+                                          int8_t *output)
+{
+    const int32_t use_mult_4 = dw_conv_params->ch_mult % 4 == 0 && input_dims->n == 1 &&
+        dw_conv_params->dilation.w == 1 && dw_conv_params->dilation.h == 1;
+#if defined(__clang__)
+    /* clang builds mult_4 faster than MVE */
+    const int32_t try_mve = !use_mult_4;
+#else
+    const int32_t try_mve = 1;
+    (void)use_mult_4;
+#endif
+
+    /* Use the MVE kernel when built */
+    if (try_mve &&
+        arm_nn_depthwise_conv_s8_mve(
+            dw_conv_params, quant_params, input_dims, input, filter_dims, kernel, bias, output_dims, output) ==
+            ARM_CMSIS_NN_SUCCESS)
+    {
+        return ARM_CMSIS_NN_SUCCESS;
+    }
+
+    return depthwise_conv_s8_ref(ctx,
+                                 dw_conv_params,
+                                 quant_params,
+                                 input_dims,
+                                 input,
+                                 filter_dims,
+                                 kernel,
+                                 bias_dims,
+                                 bias,
+                                 output_dims,
+                                 output);
 }
 
 /**
