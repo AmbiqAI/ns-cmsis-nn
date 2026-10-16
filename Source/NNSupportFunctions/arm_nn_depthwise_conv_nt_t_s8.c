@@ -86,7 +86,7 @@ arm_cmsis_nn_status arm_nn_depthwise_conv_nt_t_s8(const int32_t *weight_sum_buf,
         /* Index only the taps read: no final pointer beyond the last channel slice and no per-tap guard. */
         for (int i_row_x_col = 0; i_row_x_col < row_x_col; i_row_x_col++)
         {
-            const int32x4_t ker_0 = vldrbq_s32(rhs_0 + i_row_x_col * total_ch);
+            const int32x4_t ker_0 = vldrbq_s32(rhs_0 + (size_t)i_row_x_col * total_ch);
 
             int32x4_t ip_0 = vldrbq_s32(lhs_0 + i_row_x_col * CH_IN_BLOCK_MVE);
             out_0 += vmulq_s32(ip_0, ker_0);
@@ -151,7 +151,7 @@ arm_cmsis_nn_status arm_nn_depthwise_conv_nt_t_s8(const int32_t *weight_sum_buf,
 
         for (int i_row_x_col = 0; i_row_x_col < row_x_col; i_row_x_col++)
         {
-            const int32x4_t ker_0 = vldrbq_z_s32(rhs_0 + i_row_x_col * total_ch, p);
+            const int32x4_t ker_0 = vldrbq_z_s32(rhs_0 + (size_t)i_row_x_col * total_ch, p);
 
             int32x4_t ip_0 = vldrbq_z_s32(lhs_0 + i_row_x_col * CH_IN_BLOCK_MVE, p);
             out_0 += vmulq_s32(ip_0, ker_0);

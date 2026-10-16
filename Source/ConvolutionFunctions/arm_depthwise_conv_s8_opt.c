@@ -211,7 +211,7 @@ arm_cmsis_nn_status arm_depthwise_conv_s8_opt_channelwise(const cmsis_nn_context
 
                 for (int i_ker = 0; i_ker < kernel_size; i_ker++)
                 {
-                    const int32x4_t ker_0 = vldrbq_s32(row_0 + i_ker * input_ch);
+                    const int32x4_t ker_0 = vldrbq_s32(row_0 + (size_t)i_ker * input_ch);
                     int32x4_t ip_0 = vldrbq_s32(col_0 + i_ker * CH_IN_BLOCK_MVE);
                     out_0 += vmulq_s32(ip_0, ker_0);
                 }
@@ -239,7 +239,7 @@ arm_cmsis_nn_status arm_depthwise_conv_s8_opt_channelwise(const cmsis_nn_context
 
                 for (int i_ker = 0; i_ker < kernel_size; i_ker++)
                 {
-                    const int32x4_t ker_0 = vldrbq_z_s32(row_0 + i_ker * input_ch, p);
+                    const int32x4_t ker_0 = vldrbq_z_s32(row_0 + (size_t)i_ker * input_ch, p);
                     int32x4_t ip_0 = vldrbq_z_s32(col_0 + i_ker * CH_IN_BLOCK_MVE, p);
                     out_0 += vmulq_s32(ip_0, ker_0);
                 }
