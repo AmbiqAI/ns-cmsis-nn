@@ -1553,7 +1553,7 @@ arm_cmsis_nn_status arm_nn_gru_step_f32(const float32_t *data_in,
 
 /** Lanes of the float16 small-C kernel: the route takes fewer input channels than this. */
 #define ARM_NN_CONV_SMALL_C_F16_LANES (8)
-/** Lanes of the float32 small-C kernel: the route takes fewer input channels than this. */
+/** Lanes of the float32 small-C kernel; the general gate takes fewer input channels. */
 #define ARM_NN_CONV_SMALL_C_F32_LANES (4)
 
 /**
@@ -1795,6 +1795,22 @@ __STATIC_INLINE bool arm_nn_conv_f32_is_small_c(const cmsis_nn_dims *input_dims,
 {
     return input_dims->c > 0 && input_dims->c < ARM_NN_CONV_SMALL_C_F32_LANES && output_dims->c > 0 &&
         output_dims->w > 0;
+}
+
+/**
+ * @brief Additional float32 small-C region: 3x3 filters, four input channels and up to 8 output channels.
+ * @note Requires at least one full four-column output tile.
+ * @param[in] input_dims  Input dimensions [N, H, W, C_IN]
+ * @param[in] filter_dims Filter dimensions [C_OUT, HK, WK, C_IN]
+ * @param[in] output_dims Output dimensions [N, H, W, C_OUT]
+ * @return true if the shape uses the small-C route, subject to its coordinate bounds
+ */
+__STATIC_INLINE bool arm_nn_conv_f32_is_small_c_3x3(const cmsis_nn_dims *input_dims,
+                                                    const cmsis_nn_dims *filter_dims,
+                                                    const cmsis_nn_dims *output_dims)
+{
+    return input_dims->c == 4 && filter_dims->h == 3 && filter_dims->w == 3 && output_dims->c > 0 &&
+        output_dims->c <= 8 && output_dims->w >= ARM_NN_CONV_SMALL_C_F32_LANES;
 }
 
 /**
