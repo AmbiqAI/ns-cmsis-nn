@@ -287,12 +287,14 @@ __STATIC_FORCEINLINE int32x4_t dw_s16_mac(int32x4_t acc,
     return vaddq_s32(acc, vmulq_s32(vldrhq_gather_shifted_offset_z_s32(ip, offs, p), ker));
 }
 
+    #if !defined(__clang__)
 /* Keep independent byte-address walks: combining them increases MVE register pressure. */
 __STATIC_FORCEINLINE uintptr_t dw_s16_step(uintptr_t address, const uintptr_t bytes)
 {
     __asm__("add %0, %0, %1" : "+r"(address) : "r"(bytes));
     return address;
 }
+    #endif
 
 /* Clang keeps hardware loops with live array-relative offsets; GCC needs independent byte cursors to avoid spills.
  * Unused final advances remain integers, so no out-of-object pointer arithmetic is formed. */
