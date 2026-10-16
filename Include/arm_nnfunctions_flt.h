@@ -179,8 +179,10 @@ arm_cmsis_nn_status arm_depthwise_conv_wrapper_f32(const cmsis_nn_context *ctx,
  *       at least CONVERT_DW_CONV_WITH_ONE_INPUT_CH_AND_OUTPUT_CH_ABOVE_THRESHOLD output channels can run as a regular
  *       convolution, which needs the repacked filter, `ROUND_UP(output_dims->c, 4) * filter_dims->h *
  *       filter_dims->w * sizeof(float32_t)` bytes (`ROUND_UP(output_dims->c, 8)` and `sizeof(float16_t)` for
- *       `_f16`), plus `arm_convolve_wrapper_f32_get_buffer_size` (`_f16`) for that convolution. The query reserves
- *       that for every such layer; one an exact-shape specialization takes first runs without it, so the size is an
+ *       `_f16`), plus `arm_convolve_wrapper_f32_get_buffer_size` for that convolution. For `_f16`, the added
+ *       workspace is the larger of `arm_convolve_wrapper_f16_get_buffer_size` and one patch row of
+ *       `filter_dims->h * filter_dims->w * sizeof(float16_t)` bytes. The query reserves that for every such layer;
+ *       one an exact-shape specialization takes first runs without it, so the size is an
  *       upper bound there. Every other layer -- the `ch_mult == 1` direct kernel and the generic kernel -- runs
  *       without scratch and the query returns 0 (AmbiqAI/ns-cmsis-nn#448, #625).
  *

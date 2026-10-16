@@ -801,8 +801,8 @@ void depthwise_conv_cin1_exact_scratch_f16(void)
                 TEST_ASSERT_EQUAL_MEMORY(&guard, &scratch[0], sizeof(guard));
                 TEST_ASSERT_EQUAL_MEMORY(&guard, &scratch[size / 2 + 1], sizeof(guard));
                 /* Only the cin1 route packs weights into scratch; the generic fallback leaves it alone. */
-                const float16_t first = call == 2 ? guard : weights[0];
-                TEST_ASSERT_EQUAL_MEMORY(&first, &scratch[1], sizeof(first));
+                const float16_t *first = call == 2 ? &guard : &weights[0];
+                TEST_ASSERT_EQUAL_MEMORY(first, &scratch[1], sizeof(*first));
             }
         }
     }
