@@ -71,6 +71,12 @@ arm_cmsis_nn_status arm_convolve_1x1_s8_fast(const cmsis_nn_context *ctx,
     {
         return ARM_CMSIS_NN_ARG_ERROR;
     }
+    /* The kernel writes one output pixel per input pixel, so the output H and W must be the input's
+       (AmbiqAI/ns-cmsis-nn#771); the output N is not read */
+    if (output_dims->h != input_dims->h || output_dims->w != input_dims->w)
+    {
+        return ARM_CMSIS_NN_ARG_ERROR;
+    }
 
 #if defined(ARM_MATH_MVEI)
     /* Only the MVE path of arm_nn_mat_mult_nt_t_s8() reads the per-channel weight sums. Diagnose a

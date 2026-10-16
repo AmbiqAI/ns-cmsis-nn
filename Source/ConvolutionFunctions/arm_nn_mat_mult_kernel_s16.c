@@ -87,7 +87,7 @@ int16_t *arm_nn_mat_mult_kernel_s16(const int8_t *input_a,
         int32_t ch_1_out_1 = 0;
 
     #if defined(ARM_MATH_DSP)
-        uint16_t col_count = num_col_a_fast / 4;
+        int32_t col_count = num_col_a_fast / 4;
 
         /* Accumulate over the vector */
         while (col_count)
@@ -248,7 +248,7 @@ int16_t *arm_nn_mat_mult_kernel_s16(const int8_t *input_a,
         int32_t ch_0_out_1 = 0;
 
     #if defined(ARM_MATH_DSP)
-        uint16_t col_count = num_col_a_fast >> 2;
+        int32_t col_count = num_col_a_fast >> 2;
         while (col_count)
         {
             int32_t a01, a02;

@@ -1737,11 +1737,12 @@ int32_t arm_nn_convolve_s8_args_invalid(const cmsis_nn_conv_params *conv_params,
                                         const cmsis_nn_dims *output_dims);
 
 /**
- * @brief Whether the generic kernel of arm_depthwise_conv_s16() and the DSP path of arm_depthwise_conv_fast_s16()
- *        could wrap the first tap index of an output, stride * output index - padding, which they keep as int16_t
- *        (the MVE kernel keeps it as int32_t): it stays in
- *        [-INT16_MAX, INT16_MAX] when padding and stride are in [0, INT16_MAX] and (output size - 1) * stride -
- *        padding is at most INT16_MAX, in W and in H. See AmbiqAI/ns-cmsis-nn#727.
+ * @brief Whether the generic kernels of arm_depthwise_conv_s16(), arm_depthwise_conv_s8() and
+ *        arm_depthwise_conv_s4() and the DSP path of arm_depthwise_conv_fast_s16() could wrap the first tap index of
+ *        an output, stride * output index - padding, which they keep as int16_t (the s16 MVE kernel keeps it as
+ *        int32_t): it stays in [-INT16_MAX, INT16_MAX] when padding and stride are in [0, INT16_MAX] and
+ *        (output size - 1) * stride - padding is at most INT16_MAX, in W and in H. See AmbiqAI/ns-cmsis-nn#727 and
+ *        #786.
  *
  * @param[in]      dw_conv_params  Depthwise convolution parameters
  * @param[in]      output_dims     Output tensor dimensions. Format: [N, H, W, C_OUT]
@@ -1813,8 +1814,9 @@ __STATIC_FORCEINLINE int32_t arm_nn_depthwise_conv_s16_index_invalid(const cmsis
 
 /**
  * @brief Whether the generic kernel of arm_depthwise_conv_s16() cannot take a layer that
- *        arm_nn_depthwise_conv_s16_index_invalid() accepts: it takes every dimension, ch_mult, padding, stride and
- *        dilation as uint16_t, so each must be in [0, UINT16_MAX]. See AmbiqAI/ns-cmsis-nn#707.
+ *        arm_nn_depthwise_conv_s16_index_invalid() accepts, or the generic kernel of arm_depthwise_conv_s8() cannot
+ *        take a layer: they take every dimension, ch_mult, padding, stride and dilation as uint16_t, so each must be
+ *        in [0, UINT16_MAX]. See AmbiqAI/ns-cmsis-nn#707 and #786.
  *
  * @param[in]      dw_conv_params  Depthwise convolution parameters
  * @param[in]      input_dims      Input tensor dimensions. Format: [N, H, W, C_IN]

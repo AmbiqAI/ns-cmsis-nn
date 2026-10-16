@@ -64,7 +64,13 @@ arm_cmsis_nn_status arm_convolve_1x1_s8(const cmsis_nn_context *ctx,
     (void)ctx;
     (void)filter_dims;
     (void)bias_dims;
-    if (conv_params->padding.w != 0 || conv_params->padding.h != 0)
+    /* A stride below 1 would step the input pointer backwards or not at all, the last output row and column must
+       start inside the input, and a negative output extent or no input channels would run the row loop away
+       (AmbiqAI/ns-cmsis-nn#771) */
+    if (conv_params->padding.w != 0 || conv_params->padding.h != 0 || conv_params->stride.w < 1 ||
+        conv_params->stride.h < 1 || output_dims->w < 0 || output_dims->h < 0 || input_dims->c < 1 ||
+        ((int64_t)output_dims->w - 1) * conv_params->stride.w >= input_dims->w ||
+        ((int64_t)output_dims->h - 1) * conv_params->stride.h >= input_dims->h)
     {
         return ARM_CMSIS_NN_ARG_ERROR;
     }
