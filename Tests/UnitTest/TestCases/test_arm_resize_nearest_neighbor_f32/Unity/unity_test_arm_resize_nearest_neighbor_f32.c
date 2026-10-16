@@ -36,3 +36,9 @@ void test_resize_nearest_neighbor_f32_special_values(void) { resize_nearest_neig
 void test_resize_nearest_neighbor_f32_rejects_bad_args(void) { resize_nearest_neighbor_f32_rejects_bad_args(); }
 
 void test_resize_nearest_neighbor_f32_buffer_size(void) { resize_nearest_neighbor_f32_buffer_size(); }
+
+#define RESIZE_NN_ROUND_TYPE float32_t
+#define RESIZE_NN_ROUND_FUNC arm_resize_nearest_neighbor_f32
+#include "../../Utils/resize_nearest_neighbor_rounding.h"
+
+void test_resize_nearest_neighbor_f32_rounding_boundaries(void) { resize_nn_rounding_boundaries(); }
