@@ -224,21 +224,28 @@ __STATIC_INLINE bool arm_conv_nhwc_use_small_c_f16(const cmsis_nn_conv_params_f1
         &conv_params->stride, &conv_params->padding, &conv_params->dilation, input_dims, filter_dims, output_dims);
 }
 
-/* n_oc (1..OC_GROUP) output channels from oc0 for one group of LANES output x positions whose first tap
- * column is in_x0. IC1, MODE and CACHED are compile-time constants at every call site. A partial group aliases the
- * missing channels onto oc0 (weights and bias are read for live channels only) and skips their stores, so a
- * partial last packed block is never read past its live lanes. */
-__STATIC_FORCEINLINE void arm_conv_small_c_group_f16(const arm_conv_small_c_f16 *__RESTRICT c,
-                                                     const float16_t *__RESTRICT input_b,
-                                                     int32_t in_y0,
-                                                     int32_t in_x0,
-                                                     float16_t *__RESTRICT out_pos,
-                                                     int32_t oc0,
-                                                     int32_t n_oc,
-                                                     const bool IC1,
-                                                     const int32_t MODE,
-                                                     mve_pred16_t p_pos,
-                                                     const bool CACHED)
+        /* n_oc (1..OC_GROUP) output channels from oc0 for one group of LANES output x positions whose first tap
+         * column is in_x0. IC1, MODE and CACHED are compile-time constants at every call site. A partial group aliases
+         * the missing channels onto oc0 (weights and bias are read for live channels only) and skips their stores, so a
+         * partial last packed block is never read past its live lanes. */
+        /* Without optimization, forced expansion duplicates every mode and weight-load
+         * branch at each call site. Keep one helper body in debug/coverage builds. */
+        #if defined(__OPTIMIZE__)
+__STATIC_FORCEINLINE
+        #else
+__STATIC_INLINE
+        #endif
+void arm_conv_small_c_group_f16(const arm_conv_small_c_f16 *__RESTRICT c,
+                                const float16_t *__RESTRICT input_b,
+                                int32_t in_y0,
+                                int32_t in_x0,
+                                float16_t *__RESTRICT out_pos,
+                                int32_t oc0,
+                                int32_t n_oc,
+                                const bool IC1,
+                                const int32_t MODE,
+                                mve_pred16_t p_pos,
+                                const bool CACHED)
 {
     const int32_t oc_idx0 = (0 < n_oc) ? 0 : 0;
     const int32_t oc_idx1 = (1 < n_oc) ? 1 : 0;
@@ -601,6 +608,7 @@ static __attribute__((noinline)) arm_cmsis_nn_status arm_conv_small_c_cache_f16(
         }
         arm_nn_conv_small_c_cached_nhwc_f16(c, batch, input_data, output_data);
     }
+    c->cached_filter = NULL;
     return ARM_CMSIS_NN_SUCCESS;
 }
 
