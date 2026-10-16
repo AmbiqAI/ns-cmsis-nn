@@ -93,6 +93,11 @@ args:
     -C  Path to cmsis 5
     -D  Pass through a CMake -D argument, e.g. CMSIS_NN_USE_REQUANTIZE_INLINE_ASSEMBLY=ON (default: empty)
 
+environment:
+    FVP_TEST_TIMEOUT_SECONDS  Positive per-image timeout in seconds (default: 90).
+    GNU timeout is required; a timed-out image fails even if it printed a PASS summary.
+    Simulator stdout/stderr are saved beside each image as <image>.fvp.log.
+
     example usage: $(basename "$0") -c cortex-m3,cortex-m4 -o '-O2' -q
 "
 
