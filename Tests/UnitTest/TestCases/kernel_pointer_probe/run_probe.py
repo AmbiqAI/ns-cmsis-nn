@@ -11,7 +11,7 @@ p = argparse.ArgumentParser()
 p.add_argument('--source', type=Path, required=True)
 p.add_argument('--compiler', default='clang++')
 p.add_argument('--target')
-p.add_argument('--case', choices=['scalar', 'dsp', 'mve', 'f16_scalar', 'f32_scalar', 'depthwise'], required=True)
+p.add_argument('--case', choices=['scalar', 'dsp', 'mve', 'f16_scalar', 'f32_scalar', 'depthwise', 'depthwise_gnu'], required=True)
 a = p.parse_args()
 here = Path(__file__).resolve().parent
 
@@ -89,8 +89,11 @@ static_assert(transpose<17,9>());
 static_assert(transpose<9,17>());
 static_assert(transpose<2,3>());
 '''
-elif case == 'depthwise':
+elif case in ('depthwise', 'depthwise_gnu'):
     s = '#include "depthwise_shim.h"\n'
+    if case == 'depthwise_gnu':
+        # Select the GNU source branch; Clang still evaluates its pointer bounds.
+        s += '#undef __clang__\n'
     path = 'Source/ConvolutionFunctions/arm_depthwise_conv_s16.c'
     for name in ('dw_s16_ker', 'dw_s16_mac', 'dw_s16_taps1', 'dw_s16_taps4', 'dw_s16_mve'):
         s += body(path, name)
