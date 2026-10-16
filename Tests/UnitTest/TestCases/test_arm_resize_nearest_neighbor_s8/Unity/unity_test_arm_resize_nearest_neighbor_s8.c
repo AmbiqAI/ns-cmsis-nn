@@ -54,8 +54,4 @@ void test_resize_nearest_neighbor_s8_batch_channels(void)
     resize_nn_batch_channels_s8_arm_resize_nearest_neighbor_s8();
 }
 
-#define RESIZE_NN_ROUND_TYPE int8_t
-#define RESIZE_NN_ROUND_FUNC arm_resize_nearest_neighbor_s8
-#include "../../Utils/resize_nearest_neighbor_rounding.h"
-
 void test_resize_nearest_neighbor_s8_rounding_boundaries(void) { resize_nn_rounding_boundaries(); }
