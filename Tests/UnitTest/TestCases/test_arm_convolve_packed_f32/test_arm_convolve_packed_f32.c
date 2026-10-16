@@ -158,9 +158,9 @@ static void conv_f32_params(cmsis_nn_conv_params_f32 *cp, int32_t pad_h, int32_t
     cp->weight_format = packed ? ARM_NN_WEIGHT_FORMAT_NT_N_PACKED : ARM_NN_WEIGHT_FORMAT_STANDARD;
 }
 
-// 3x3, in_c = 4, out_c = 8 on a 4x4 input (in_c = 4 is one full vector, so the direct small-C kernel does not
-// claim it on MVE): with scratch this takes the patch-GEMM path, without it the generic fallback. Both must honour
-// NT_N_PACKED; the fallback used to read packed weights as OHWI.
+// 3x3, in_c = 4, out_c = 8 on a 4x4 input: MVE uses the direct small-C kernel.
+// Other builds use patch-GEMM with scratch or the generic fallback without it.
+// Every route must honour NT_N_PACKED; the fallback used to read packed weights as OHWI.
 void convolve_packed_3x3_f32(void)
 {
     const cmsis_nn_dims in = {1, 4, 4, 4};
@@ -1057,13 +1057,15 @@ void convolve_direct_entries_f32(void)
     conv_direct_entries_case_f32(1, 6, 6, 3, 3, 3, 8, 1, ROUTE_PATCH_F32);
 #endif
 #if defined(ARM_MATH_MVEF) && !defined(ARM_MATH_AUTOVECTORIZE)
-    conv_direct_entries_case_f32(2, 6, 6, 4, 3, 3, 9, 1, ROUTE_SMALL_C_F32);
+    conv_direct_entries_case_f32(2, 6, 6, 4, 3, 3, 9, 1, ROUTE_PATCH_F32);
     conv_direct_entries_case_f32(1, 5, 5, 4, 3, 3, 4, 1, ROUTE_SMALL_C_F32);
 #else
     conv_direct_entries_case_f32(2, 6, 6, 4, 3, 3, 9, 1, ROUTE_PATCH_F32);
     conv_direct_entries_case_f32(1, 5, 5, 4, 3, 3, 4, 1, ROUTE_DIRECT_F32);
 #endif
     conv_direct_entries_case_f32(1, 5, 5, 4, 3, 3, 17, 1, ROUTE_PATCH_F32);
+    conv_direct_entries_case_f32(1, 1, 1, 4, 3, 3, 8, 1, ROUTE_DIRECT_F32);
+    conv_direct_entries_case_f32(1, 3, 3, 4, 3, 3, 8, 1, ROUTE_PATCH_F32);
     conv_direct_entries_case_f32(1, 7, 7, 4, 5, 5, 8, 2, ROUTE_PATCH_F32);
 }
 
@@ -1082,10 +1084,11 @@ void convolve_route_predicates_f32(void)
     TEST_ASSERT_FALSE(arm_nn_conv_f32_is_small_c(&in, &out_c0));
     TEST_ASSERT_FALSE(arm_nn_conv_f32_is_small_c(&in, &out_w0));
     const cmsis_nn_dims filter3 = {8, 3, 3, 4}, filter5 = {8, 5, 5, 4};
-    const cmsis_nn_dims out16 = {1, 6, 6, 16}, out17 = {1, 6, 6, 17};
+    const cmsis_nn_dims out9 = {1, 6, 6, 9}, out_w3 = {1, 6, 3, 8}, out_w4 = {1, 6, 4, 8};
     TEST_ASSERT_TRUE(arm_nn_conv_f32_is_small_c_3x3(&in4, &filter3, &out));
-    TEST_ASSERT_TRUE(arm_nn_conv_f32_is_small_c_3x3(&in4, &filter3, &out16));
-    TEST_ASSERT_FALSE(arm_nn_conv_f32_is_small_c_3x3(&in4, &filter3, &out17));
+    TEST_ASSERT_TRUE(arm_nn_conv_f32_is_small_c_3x3(&in4, &filter3, &out_w4));
+    TEST_ASSERT_FALSE(arm_nn_conv_f32_is_small_c_3x3(&in4, &filter3, &out_w3));
+    TEST_ASSERT_FALSE(arm_nn_conv_f32_is_small_c_3x3(&in4, &filter3, &out9));
     TEST_ASSERT_FALSE(arm_nn_conv_f32_is_small_c_3x3(&in4, &filter5, &out));
     TEST_ASSERT_FALSE(arm_nn_conv_f32_is_small_c_3x3(&in0, &filter3, &out));
     TEST_ASSERT_FALSE(arm_nn_conv_f32_is_small_c_3x3(&in4, &filter3, &out_c0));
@@ -1096,11 +1099,11 @@ void convolve_route_predicates_f32(void)
 /* The four-channel region keeps the scalar reference's tap order and skips padded nonfinite taps. */
 void convolve_four_channel_f32(void)
 {
-    const int32_t channels[] = {1, 3, 4, 5, 8, 15, 16};
-    const cmsis_nn_dims in = {2, 5, 7, 4};
-    float32_t x[2 * 5 * 7 * 4], weights[16 * 3 * 3 * 4], bias[16];
+    const int32_t channels[] = {1, 3, 4, 5, 7, 8};
+    const cmsis_nn_dims in = {2, 5, 11, 4};
+    float32_t x[2 * 5 * 11 * 4], weights[8 * 3 * 3 * 4], bias[8];
 #if defined(ARM_MATH_MVEF) && !defined(ARM_MATH_AUTOVECTORIZE)
-    float32_t ref[2 * 5 * 7 * 16], got[2 * 5 * 7 * 16];
+    float32_t ref[2 * 5 * 11 * 8], got[2 * 5 * 11 * 8];
 #endif
     for (unsigned ci = 0; ci < sizeof(channels) / sizeof(channels[0]); ++ci)
     {
@@ -1108,8 +1111,8 @@ void convolve_four_channel_f32(void)
         const cmsis_nn_dims filter = {oc, 3, 3, 4};
         for (int32_t scenario = 0; scenario < 3; ++scenario)
         {
-            cmsis_nn_dims out = {2, scenario == 1 ? 3 : 5, scenario == 1 ? 4 : 7, oc};
-            for (int32_t i = 0; i < 2 * 5 * 7 * 4; ++i)
+            cmsis_nn_dims out = {2, scenario == 1 ? 3 : 5, scenario == 1 ? 6 : 11, oc};
+            for (int32_t i = 0; i < 2 * 5 * 11 * 4; ++i)
                 x[i] = scenario == 2 ? 1.0f : (float32_t)(i % 17 - 8) / 8.0f;
             for (int32_t i = 0; i < oc * 36; ++i)
                 weights[i] = (float32_t)(i % 13 - 6) / 8.0f;

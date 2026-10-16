@@ -758,7 +758,7 @@ arm_cmsis_nn_status arm_convolve_1d_k3_nhwc_packed_f32(const cmsis_nn_context *c
  *    - Gate: arm_nn_conv_f32_is_small_c or arm_nn_conv_f32_is_small_c_3x3 for float32, subject to
  *      arm_nn_conv_f32_small_c_coords_ok; arm_nn_conv_f16_is_small_c for float16. Either filter format;
  *      the format changes only the weight stride inside one kernel. No scratch. The additional float32
- *      region uses 3x3 filters, four input channels and at most 16 output channels.
+ *      region uses 3x3 filters, four input channels, at most eight output channels and at least four output columns.
  *    - arm_convolve_small_c_nhwc_f16() takes the same arguments and return codes. It accumulates in float32, the
  *      kernel both arm_convolve_f16() and arm_convolve_f16_acc16() run on this route. For 3x3 filters,
  *      2..3 input channels and output height/width >= 32, it caches two channels of weights in a fixed
