@@ -257,8 +257,8 @@ void arm_conv_small_c_group_f16(const arm_conv_small_c_f16 *__RESTRICT c,
         : c->packed              ? c->filter + ((size_t)(oc0 / 8) * (size_t)c->patch_len) * 8 + (size_t)(oc0 % 8)
                                  : c->filter + (size_t)oc0 * (size_t)c->patch_len;
     const int32_t ws = CACHED ? 1 : c->w_lane_stride;
-    const int32_t w_off0 = oc_idx0 * (CACHED ? c->patch_len : c->w_oc_step);
-    const int32_t w_off1 = oc_idx1 * (CACHED ? c->patch_len : c->w_oc_step);
+    const int32_t w_off0 = oc_idx0 * (CACHED ? 1 : c->w_oc_step);
+    const int32_t w_off1 = (CACHED ? 1 : oc_idx1 * c->w_oc_step);
     const int32_t input_c = c->input_c;
     /* Element offset of the first input column past the row; in_x wraps negative to a huge unsigned value
      * and the routing check keeps every reachable in_x * input_c inside the offset type. */
@@ -290,8 +290,8 @@ void arm_conv_small_c_group_f16(const arm_conv_small_c_f16 *__RESTRICT c,
                 __asm__ volatile("" : "+r"(c), "+r"(last_col)); /* rematerialise the clamp per column, no Q reg */
                 const uint16x8_t off = vaddq(c->lane_x_c, (uint16_t)x0);
                 const float16x8_t vin = vldrhq_gather_shifted_offset(row, vminq(off, vdupq_n_u16(last_col)));
-                const float32_t wv0 = (CACHED ? c->cached_filter[tap + w_off0] : (float32_t)wt[w_off0]);
-                const float32_t wv1 = (CACHED ? c->cached_filter[tap + w_off1] : (float32_t)wt[w_off1]);
+                const float32_t wv0 = (CACHED ? c->cached_filter[2 * tap + w_off0] : (float32_t)wt[w_off0]);
+                const float32_t wv1 = (CACHED ? c->cached_filter[2 * tap + w_off1] : (float32_t)wt[w_off1]);
                 const mve_pred16_t p_lo = vcmphiq(vdupq_n_u32((uint32_t)row_limit), vmovlbq(off));
                 const float32x4_t vin_lo = arm_nn_vcvtbq_f32_f16(vin);
                 vacc0_lo = vfmaq_m(vacc0_lo, vin_lo, wv0, p_lo);
@@ -314,10 +314,10 @@ void arm_conv_small_c_group_f16(const arm_conv_small_c_f16 *__RESTRICT c,
                 }
                 const float32x4_t vin_lo = arm_nn_vcvtbq_f32_f16(vin);
                 const float32x4_t vin_hi = arm_nn_vcvttq_f32_f16(vin);
-                const float32_t wv0 = (CACHED ? c->cached_filter[tap + w_off0] : (float32_t)wt[w_off0]);
+                const float32_t wv0 = (CACHED ? c->cached_filter[2 * tap + w_off0] : (float32_t)wt[w_off0]);
                 vacc0_lo = vfmaq(vacc0_lo, vin_lo, wv0);
                 vacc0_hi = vfmaq(vacc0_hi, vin_hi, wv0);
-                const float32_t wv1 = (CACHED ? c->cached_filter[tap + w_off1] : (float32_t)wt[w_off1]);
+                const float32_t wv1 = (CACHED ? c->cached_filter[2 * tap + w_off1] : (float32_t)wt[w_off1]);
                 vacc1_lo = vfmaq(vacc1_lo, vin_lo, wv1);
                 vacc1_hi = vfmaq(vacc1_hi, vin_hi, wv1);
             }
@@ -346,12 +346,12 @@ void arm_conv_small_c_group_f16(const arm_conv_small_c_f16 *__RESTRICT c,
                         : vldrhq_gather_shifted_offset(row + ic, off);
                     const float32x4_t vin_lo = arm_nn_vcvtbq_f32_f16(vin);
                     const float32x4_t vin_hi = arm_nn_vcvttq_f32_f16(vin);
-                    const float32_t wv0 = (CACHED ? c->cached_filter[tap + ic + w_off0] : (float32_t)wt[w_off0]);
+                    const float32_t wv0 = (CACHED ? c->cached_filter[2 * (tap + ic) + w_off0] : (float32_t)wt[w_off0]);
                     vacc0_lo = (MODE == ARM_NN_CONV_SMALL_C_MODE_EDGE) ? vfmaq_m(vacc0_lo, vin_lo, wv0, p_lo)
                                                                        : vfmaq(vacc0_lo, vin_lo, wv0);
                     vacc0_hi = (MODE == ARM_NN_CONV_SMALL_C_MODE_EDGE) ? vfmaq_m(vacc0_hi, vin_hi, wv0, p_hi)
                                                                        : vfmaq(vacc0_hi, vin_hi, wv0);
-                    const float32_t wv1 = (CACHED ? c->cached_filter[tap + ic + w_off1] : (float32_t)wt[w_off1]);
+                    const float32_t wv1 = (CACHED ? c->cached_filter[2 * (tap + ic) + w_off1] : (float32_t)wt[w_off1]);
                     vacc1_lo = (MODE == ARM_NN_CONV_SMALL_C_MODE_EDGE) ? vfmaq_m(vacc1_lo, vin_lo, wv1, p_lo)
                                                                        : vfmaq(vacc1_lo, vin_lo, wv1);
                     vacc1_hi = (MODE == ARM_NN_CONV_SMALL_C_MODE_EDGE) ? vfmaq_m(vacc1_hi, vin_hi, wv1, p_hi)
@@ -455,6 +455,18 @@ __STATIC_FORCEINLINE void arm_conv_small_c_lane_group_f16(const arm_conv_small_c
                                                           mve_pred16_t p_pos,
                                                           const bool CACHED)
 {
+    /* Cache admission excludes single-channel inputs, so only gather and edge modes are needed. */
+    if (CACHED)
+    {
+        if (mode == ARM_NN_CONV_SMALL_C_MODE_EDGE)
+            arm_conv_small_c_row_group_f16(
+                c, input_b, in_y0, in_x0, out_pos, false, ARM_NN_CONV_SMALL_C_MODE_EDGE, p_pos, true);
+        else
+            arm_conv_small_c_row_group_f16(
+                c, input_b, in_y0, in_x0, out_pos, false, ARM_NN_CONV_SMALL_C_MODE_GATHER, p_pos, true);
+        return;
+    }
+
     switch (mode)
     {
     case ARM_NN_CONV_SMALL_C_MODE_VLD1:
@@ -593,18 +605,15 @@ static __attribute__((noinline)) arm_cmsis_nn_status arm_conv_small_c_cache_f16(
     for (int32_t oc0 = 0; oc0 < c->output_c; oc0 += ARM_NN_CONV_SMALL_C_F16_OC_GROUP)
     {
         c->first_oc = oc0;
-        const int32_t channels = (c->output_c - oc0 < ARM_NN_CONV_SMALL_C_F16_OC_GROUP)
-            ? c->output_c - oc0
-            : ARM_NN_CONV_SMALL_C_F16_OC_GROUP;
-        for (int32_t ch = 0; ch < channels; ++ch)
+        const float16_t *w0 = c->packed ? c->filter + (size_t)(oc0 / 8) * c->patch_len * 8 + oc0 % 8
+                                        : c->filter + (size_t)oc0 * c->patch_len;
+        /* A two-channel group cannot cross an eight-channel packed block.
+         * Duplicate the last live channel for an odd tail; its second result is never stored. */
+        const float16_t *w1 = w0 + ((oc0 + 1 < c->output_c) ? c->w_oc_step : 0);
+        for (int32_t k = 0; k < c->patch_len; ++k)
         {
-            const int32_t oc = oc0 + ch;
-            const float16_t *src = c->packed ? c->filter + (size_t)(oc / 8) * c->patch_len * 8 + oc % 8
-                                             : c->filter + (size_t)oc * c->patch_len;
-            for (int32_t k = 0; k < c->patch_len; ++k)
-            {
-                weights[ch * c->patch_len + k] = (float32_t)src[(size_t)k * c->w_lane_stride];
-            }
+            weights[2 * k] = (float32_t)w0[(size_t)k * c->w_lane_stride];
+            weights[2 * k + 1] = (float32_t)w1[(size_t)k * c->w_lane_stride];
         }
         arm_nn_conv_small_c_cached_nhwc_f16(c, batch, input_data, output_data);
     }
@@ -651,9 +660,9 @@ static arm_cmsis_nn_status arm_conv_small_c_dispatch_f16(const cmsis_nn_conv_par
     c.lane_x_c = vmulq(lane, (uint16_t)(c.stride_w * c.input_c));
     c.out_offsets = vmulq(lane, (uint16_t)c.output_c);
 
-    /* Start with the measured large-image, small 3x3-filter region. Tiny images,
-     * 1x1 and larger filters keep the existing traversal and have no cache setup. */
-    if (c.kernel_h == 3 && c.kernel_w == 3 && c.input_c <= 3 && c.output_h >= 32 && c.output_w >= 32)
+    /* Cache only the measured large-image, two/three-input-channel 3x3 region.
+     * Single-channel, tiny-image and other-filter cases retain their existing load modes. */
+    if (c.kernel_h == 3 && c.kernel_w == 3 && c.input_c >= 2 && c.input_c <= 3 && c.output_h >= 32 && c.output_w >= 32)
     {
         return arm_conv_small_c_cache_f16(&c, input_dims->n, input_data, output_data);
     }
