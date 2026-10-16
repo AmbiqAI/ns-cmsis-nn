@@ -45,12 +45,12 @@ class ArmclangTestRuntime(unittest.TestCase):
             subprocess.run(["gcc", "-fno-builtin", "-c", str(src), "-o", str(source / name)],
                            check=True, capture_output=True)
         math_members = ["erfcf.o", "floorf.o", "roundf.o", "expf_i.o", "fpclassifyf.o", "funder.o"]
+        suffix = "wv" if cpu == "cortex-m55" else "wm"
+        # A wrong-CPU selection must fail rather than find an identical fixture.
         for archive, members in {
-            "m_wm.l": math_members,
-            "m_wv.l": math_members,
+            f"m_{suffix}.l": math_members,
             "c_wu.l": ["_rserrno.o"],
-            "fz_wm.l": ["frnd.o", "fnaninf.o", "usenofp.o"],
-            "fz_wv.l": ["frnd.o", "fnaninf.o", "usenofp.o"],
+            f"fz_{suffix}.l": ["frnd.o", "fnaninf.o", "usenofp.o"],
         }.items():
             objects = [str(source / name) for name in members if name != missing]
             subprocess.run(["ar", "qc", str(lib / archive), *objects], check=True, capture_output=True)
