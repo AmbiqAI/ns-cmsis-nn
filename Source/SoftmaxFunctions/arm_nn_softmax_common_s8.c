@@ -31,7 +31,7 @@
 
 #define ACCUM_BITS 12
 
-#if defined(ARM_MATH_MVEI) && !defined(ARM_GCC_12_2_ICE)
+#if defined(ARM_MATH_MVEI) && !defined(ARM_MATH_AUTOVECTORIZE) && !defined(ARM_GCC_12_2_ICE)
 static int32x4_t arm_exp_on_negative_values_mve_32x4(int32x4_t val)
 {
     const int32x4_t val_mod_minus_quarter = vsubq_n_s32(vandq_s32(val, vdupq_n_s32((1 << 24) - 1)), 1 << 24);
@@ -142,7 +142,7 @@ void arm_nn_softmax_common_s8(const int8_t *input,
     /* Keep the shift and multiply defined at shift 31, matching the MVE lane arithmetic. */
     const uint32_t mask = 1U << shift;
 
-#if defined(ARM_MATH_MVEI) && !defined(ARM_GCC_12_2_ICE)
+#if defined(ARM_MATH_MVEI) && !defined(ARM_MATH_AUTOVECTORIZE) && !defined(ARM_GCC_12_2_ICE)
     /* exp_table[k] is the exponential of the difference -k, filled on demand. It pays off once the new entries a
      * row needs are no more than the elements still to process. A row that needs more computes the exponentials of its
      * own differences and stores them at their indices. */
