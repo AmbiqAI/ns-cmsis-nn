@@ -1131,8 +1131,13 @@ void depthwise_boundary_matrix_arm_depthwise_conv_s8_opt(void)
         int32_t use_wrapper;
     } depthwise_test_case;
 
-    const int32_t channels_to_test[] = {1, 2, 3, 4, 5, 7, 8, 15, 16, 17, 123, 124, 125, 126};
+    const int32_t channels_to_test[] = {1, 2, 3, 4, 5, 7, 8, 15, 16, 17, 40, 123, 124, 125, 126, 128};
     const depthwise_test_case test_cases[] = {
+        /* Temporal wakeword shapes cover full four-output blocks and one/three-output remainders. */
+        {1, 30, 1, 3, 0, 0, 1, 1, 1, 1, 0},
+        {1, 28, 1, 5, 0, 0, 1, 1, 1, 1, 0},
+        {1, 24, 1, 10, 0, 0, 1, 1, 1, 1, 0},
+        {1, 15, 1, 15, 0, 0, 1, 1, 1, 1, 0},
         {5, 1, 1, 1, 0, 0, 1, 1, 1, 1, 0},
         {6, 1, 2, 1, 0, 0, 1, 1, 1, 1, 0},
         {7, 1, 3, 1, 0, 0, 1, 1, 1, 1, 0},
