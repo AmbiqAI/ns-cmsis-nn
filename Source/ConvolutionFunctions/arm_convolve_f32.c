@@ -752,6 +752,9 @@ __STATIC_FORCEINLINE arm_cmsis_nn_status arm_convolve_nhwc_direct_f32_body(const
     #if defined(ARM_MATH_MVEF) && !defined(ARM_MATH_AUTOVECTORIZE)
     const float32x4_t vmin = vdupq_n_f32(conv_params->activation.min);
     const float32x4_t vmax = vdupq_n_f32(conv_params->activation.max);
+    const bool row_contig = dil_w == 1 && kernel_ch == input_c;
+    const size_t x_ky_step = (size_t)dil_h * input_w * input_c;
+    const size_t w_ky_step = (size_t)kernel_w * kernel_ch;
     #endif
 
     for (int32_t b = 0; b < batch; ++b)
@@ -813,6 +816,39 @@ __STATIC_FORCEINLINE arm_cmsis_nn_status arm_convolve_nhwc_direct_f32_body(const
                 uint32_t iy_first, ix_first;
                 arm_conv_f32_tap_span(in_y0, dil_h, kernel_h, input_h, &ky_first, &ky_end, &iy_first);
                 arm_conv_f32_tap_span(in_x0, dil_w, kernel_w, input_w, &kx_first, &kx_end, &ix_first);
+    #if defined(ARM_MATH_MVEF) && !defined(ARM_MATH_AUTOVECTORIZE)
+                if (row_contig)
+                {
+                    /* The valid taps of one filter row are contiguous in both the input and OHWI weights. */
+                    const int32_t row_len = (kx_end - kx_first) * kernel_ch;
+                    const float32_t *x_first = input_b + ((size_t)iy_first * input_w + ix_first) * input_c;
+                    const size_t w_first =
+                        row_len > 0 ? ((size_t)ky_first * kernel_w + (size_t)kx_first) * kernel_ch : 0;
+                    for (int32_t oc = 0; oc < output_c; ++oc)
+                    {
+                        const float32_t *x_row = x_first;
+                        const float32_t *w_row = filter_data + (size_t)oc * patch_len + w_first;
+                        float32x4_t vacc = vdupq_n_f32(0.0f);
+                        for (int32_t ky = ky_first; ky < ky_end; ++ky, x_row += x_ky_step, w_row += w_ky_step)
+                        {
+                            int32_t i = 0;
+                            for (; i + 4 <= row_len; i += 4)
+                            {
+                                vacc = vfmaq(vacc, vld1q(x_row + i), vld1q(w_row + i));
+                            }
+                            if (i < row_len)
+                            {
+                                const mve_pred16_t p = vctp32q((uint32_t)(row_len - i));
+                                vacc = vfmaq_m(vacc, vld1q_z(x_row + i, p), vld1q_z(w_row + i, p), p);
+                            }
+                        }
+                        float32_t acc = bias_data ? bias_data[oc] : 0.0f;
+                        acc += arm_nn_vec_reduce_add_f32(vacc);
+                        out_pos[oc] = ARM_NN_CLAMP(acc, conv_params->activation.max, conv_params->activation.min);
+                    }
+                    continue;
+                }
+    #endif
                 for (int32_t group = 0; group < groups; ++group)
                 {
                     const int32_t in_ch_start = group * kernel_ch;
