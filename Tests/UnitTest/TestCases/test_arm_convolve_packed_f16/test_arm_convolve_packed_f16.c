@@ -1580,7 +1580,8 @@ void convolve_small_c_cached_weights_f16(void)
             w[patch + (k + 2) * c] = -(float16_t)INFINITY;
 #if defined(ARM_MATH_MVE_FLOAT16) && !defined(ARM_MATH_AUTOVECTORIZE)
             /* This direct MVE route uses maxNum/minNum activation, suppressing
-             * NaNs like the reference. The unchanged scalar route propagates NaNs. */
+             * NaNs to the lower bound like the reference. The unchanged scalar
+             * convolution clamps them to the upper bound instead. */
             w[2 * patch + k * c] = (float16_t)NAN;
 #endif
         }
