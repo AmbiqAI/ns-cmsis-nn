@@ -6,7 +6,16 @@
 #include <stdlib.h>
 
 #include "../test_arm_nn_accumulator_wrap_s8.c"
-void setUp(void) {}
+#ifdef USING_FVP_CORSTONE_300
+extern void uart_init(void);
+#endif
+
+void setUp(void)
+{
+#ifdef USING_FVP_CORSTONE_300
+    uart_init();
+#endif
+}
 void tearDown(void) {}
 void test_vec_mat_accumulator_wrap_s8(void) { vec_mat_accumulator_wrap_s8(); }
 void test_per_ch_accumulator_wrap_s8(void) { per_ch_accumulator_wrap_s8(); }
