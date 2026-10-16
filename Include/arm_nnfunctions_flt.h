@@ -3057,7 +3057,40 @@ int32_t arm_depthwise_conv_wrapper_f16_get_buffer_size(const cmsis_nn_dw_conv_pa
                                                        const cmsis_nn_dims *output_dims);
 
 /**
- * @copydoc arm_convolve_nhwc_f32
+ * @brief Convolution, NHWC layout.
+ *
+ * @note Dimensions must be nonnegative and batch/channel/filter metadata must agree. Stride and dilation
+ *       are positive; padding is nonnegative. Nonempty work requires positive input spatial/filter/channel
+ *       extents and representable accessed products and coordinates. Invalid arguments return ARG_ERROR
+ *       without output writes. Valid zero batch or output spatial extent returns SUCCESS without tensor access.
+ *       Generic output windows are explicit and out-of-input taps are clipped; an unsafe specialization is
+ *       declined rather than imposing a derived output shape. Pointer validity, aliasing and allocation lengths
+ *       remain the caller's responsibility. Bias may be NULL.
+ *
+ * @param[in,out] ctx         Function context that may hold a temporary scratch buffer.
+ * @param[in]     conv_params Convolution parameters (stride, padding, dilation and activation clamp).
+ * @param[in]     input_dims  Input tensor dimensions. Format: [N, H, W, C_IN].
+ * @param[in]     input_data  Pointer to the input tensor data.
+ * @param[in]     filter_dims Filter tensor dimensions. Format: [C_OUT, HK, WK, C_IN / groups].
+ * @param[in]     filter_data Pointer to the filter tensor data.
+ * @param[in]     bias_dims   Bias tensor dimensions. Format: [C_OUT].
+ * @param[in]     bias_data   Optional bias tensor data.
+ * @param[in]     output_dims Output tensor dimensions. Format: [N, H, W, C_OUT].
+ * @param[out]    output_data Pointer to the output tensor data.
+ *
+ * @note When `conv_params->weight_format` is set to
+ *       `ARM_NN_WEIGHT_FORMAT_NT_N_PACKED`, every convolution path, including
+ *       the 1xN kernels and the generic fallback that runs without scratch,
+ *       interprets @p filter_data as an already prepacked `NTxN` RHS buffer
+ *       instead of the standard public filter layout.
+ *
+ * Standard filters use `[C_OUT, HK, WK, C_IN / groups]`, with groups inferred from the input and filter channels.
+ * Input and output channels must be positive and divisible by groups. Input and output batches must match;
+ * matching zero batches or zero output spatial extents select a successful no-op. Kernel extents must be positive.
+ * Grouped convolution uses no scratch and requires standard weights.
+ *
+ * @return `ARM_CMSIS_NN_SUCCESS` on success, `ARM_CMSIS_NN_ARG_ERROR` on invalid arguments, or
+ *         `ARM_CMSIS_NN_NO_IMPL_ERROR` for grouped packed weights.
  */
 arm_cmsis_nn_status arm_convolve_nhwc_f16(const cmsis_nn_context *ctx,
                                           const cmsis_nn_conv_params_f16 *conv_params,
@@ -3069,6 +3102,73 @@ arm_cmsis_nn_status arm_convolve_nhwc_f16(const cmsis_nn_context *ctx,
                                           const float16_t *bias_data,
                                           const cmsis_nn_dims *output_dims,
                                           float16_t *output_data);
+
+/**
+ * @brief Fast float16 grouped convolution for a receptive field of at most eight elements.
+ *
+ * @param[in,out] ctx         Unused; no scratch buffer is required.
+ * @param[in]     conv_params Convolution parameters. Padding must be zero and weights must use the standard format.
+ * @param[in]     input_dims  Input dimensions in `[N, H, W, C_IN]` order. A positive `N` must equal the output batch.
+ * @param[in]     input_data  Pointer to the input tensor data.
+ * @param[in]     filter_dims Filter dimensions in `[C_OUT, H_K, W_K, C_IN / groups]` order.
+ * @param[in]     filter_data Pointer to the standard-format filter tensor data.
+ * @param[in]     bias_dims   Unused.
+ * @param[in]     bias_data   Optional bias tensor with `C_OUT` elements.
+ * @param[in]     output_dims Output dimensions in `[N, H, W, C_OUT]` order. Zero batch or spatial dimensions select a
+ *                            successful no-op; negative dimensions are invalid.
+ * @param[out]    output_data Pointer to the output tensor data.
+ *
+ * @return `ARM_CMSIS_NN_SUCCESS` on success, `ARM_CMSIS_NN_ARG_ERROR` for NULL required pointers, negative dimensions,
+ *         or invalid grouped channels, or `ARM_CMSIS_NN_NO_IMPL_ERROR` for an unsupported shape, weight format, or
+ *         target.
+ */
+arm_cmsis_nn_status arm_convolve_f16_fast_small_kernel(const cmsis_nn_context *ctx,
+                                                       const cmsis_nn_conv_params_f16 *conv_params,
+                                                       const cmsis_nn_dims *input_dims,
+                                                       const float16_t *input_data,
+                                                       const cmsis_nn_dims *filter_dims,
+                                                       const float16_t *filter_data,
+                                                       const cmsis_nn_dims *bias_dims,
+                                                       const float16_t *bias_data,
+                                                       const cmsis_nn_dims *output_dims,
+                                                       float16_t *output_data);
+
+/**
+ * @brief Float16 grouped convolution with one input and one output channel per group.
+ *
+ * This is the Conv2D-layout equivalent of depthwise convolution with channel multiplier one. The filter must use
+ * standard `[C_OUT, H_K, W_K, 1]` layout. Arbitrary stride, dilation, and padding are supported.
+ *
+ * @param[in,out] ctx         Unused; no scratch buffer is required.
+ * @param[in]     conv_params Convolution parameters. Stride and dilation must be positive, and weights must use the
+ *                            standard format.
+ * @param[in]     input_dims  Input dimensions in `[N, H, W, C_IN]` order. Spatial and channel dimensions must be
+ *                            positive; a zero batch selects a successful no-op, and a positive `N` must equal the
+ *                            output batch.
+ * @param[in]     input_data  Pointer to the input tensor data.
+ * @param[in]     filter_dims Filter dimensions in `[C_OUT, H_K, W_K, 1]` order. `C_OUT` must equal `C_IN`, and spatial
+ *                            dimensions must be positive.
+ * @param[in]     filter_data Pointer to the standard-format filter tensor data.
+ * @param[in]     bias_dims   Unused.
+ * @param[in]     bias_data   Optional bias tensor with `C_OUT` elements.
+ * @param[in]     output_dims Output dimensions in `[N, H, W, C_IN]` order. Zero batch or spatial dimensions select a
+ *                            successful no-op; negative dimensions are invalid.
+ * @param[out]    output_data Pointer to the output tensor data.
+ *
+ * @return `ARM_CMSIS_NN_SUCCESS` on success or for zero-sized work, `ARM_CMSIS_NN_ARG_ERROR` for NULL required
+ *         pointers, invalid dimensions, or a channel contract other than one input and output channel per group, or
+ *         `ARM_CMSIS_NN_NO_IMPL_ERROR` when packed weights are requested.
+ */
+arm_cmsis_nn_status arm_convolve_f16_group_ch_mult_1(const cmsis_nn_context *ctx,
+                                                     const cmsis_nn_conv_params_f16 *conv_params,
+                                                     const cmsis_nn_dims *input_dims,
+                                                     const float16_t *input_data,
+                                                     const cmsis_nn_dims *filter_dims,
+                                                     const float16_t *filter_data,
+                                                     const cmsis_nn_dims *bias_dims,
+                                                     const float16_t *bias_data,
+                                                     const cmsis_nn_dims *output_dims,
+                                                     float16_t *output_data);
 
 /**
  * @copydoc arm_convolve_nhwc_f16
@@ -3090,7 +3190,33 @@ arm_cmsis_nn_status arm_convolve_nhwc_f16_acc16(const cmsis_nn_context *ctx,
                                                 float16_t *output_data);
 
 /**
- * @copydoc arm_convolve_f32
+ * @brief Convolution, dispatch by layout.
+ *
+ * @param[in,out] ctx         Function context that may hold a temporary scratch buffer.
+ * @param[in]     conv_params Convolution parameters (stride, padding, dilation and activation clamp).
+ * @param[in]     input_dims  Input tensor dimensions. Format depends on @p layout.
+ * @param[in]     input_data  Pointer to the input tensor data.
+ * @param[in]     filter_dims Filter tensor dimensions. Format depends on @p layout.
+ * @param[in]     filter_data Pointer to the filter tensor data.
+ * @param[in]     bias_dims   Bias tensor dimensions. Format: [C_OUT].
+ * @param[in]     bias_data   Optional bias tensor data.
+ * @param[in]     output_dims Output tensor dimensions. Format depends on @p layout.
+ * @param[out]    output_data Pointer to the output tensor data.
+ * @param[in]     layout      Tensor layout selector. Current float APIs require `ARM_NN_LAYOUT_NHWC`.
+ *
+ * @note When `conv_params->weight_format` is set to
+ *       `ARM_NN_WEIGHT_FORMAT_NT_N_PACKED`, every convolution path, including
+ *       the 1xN kernels and the generic fallback that runs without scratch,
+ *       interprets @p filter_data as an already prepacked `NTxN` RHS buffer
+ *       instead of the standard public filter layout.
+ *
+ * Standard filters use `[C_OUT, HK, WK, C_IN / groups]`, with groups inferred from the input and filter channels.
+ * Input and output channels must be positive and divisible by groups. Input and output batches must match;
+ * matching zero batches or zero output spatial extents select a successful no-op. Kernel extents must be positive.
+ * Grouped convolution uses no scratch and requires standard weights.
+ *
+ * @return `ARM_CMSIS_NN_SUCCESS` on success, `ARM_CMSIS_NN_ARG_ERROR` on invalid arguments, or
+ *         `ARM_CMSIS_NN_NO_IMPL_ERROR` for grouped packed weights.
  *
  * @note Accumulation width per leg. Scalar leg (non-MVE builds and ARM_MATH_AUTOVECTORIZE): the
  *       direct OHWI / NT_N_PACKED fallback accumulates bias and every tap in float32 and rounds to
@@ -3100,21 +3226,13 @@ arm_cmsis_nn_status arm_convolve_nhwc_f16_acc16(const cmsis_nn_context *ctx,
  *       specializations (#465). MVE leg: the direct small-C kernel accumulates in float32 (widened
  *       lanes); the direct OHWI / NT_N_PACKED fallback, every matmul-backed path (1x1, 1xN,
  *       patch-GEMM), the 1xN no-padding region and the conv1d specializations use blockwise float16 accumulation
- * (AmbiqAI/ns-cmsis-nn#586, superseding #446's float16-lane choice for the MVE legs): in
- * the kernel's own tap order an accumulator lane sums at most 32 taps in float16 (the bias, where the kernel starts
- * from it, opens the first block), then the partial is widened exactly and added into a float32 accumulator; the
- * float32 sum rounds to float16 once, before the clamp. An accumulator of at most 32 taps gives exactly the
- * float16-lane result. The `_acc16` entry keeps float16 lanes throughout. Where a dot product spreads its taps over the
- * lanes of one vector (OHWI rows, the contiguous-K matmul, the conv1d k=3 / k=5 OHWI kernels), each lane's own taps
- * form its blocks and, once the reduction exceeds 32 taps, each block's lanes are widened and lanes 2j and 2j+1 added
- * in float32 into pair accumulator j (the first block sets it); the four pair accumulators are summed once as
- * (0+1) + (2+3), the bias is added in float32 and the total rounds once. The k=3 / k=5 kernels close a block on a
- * whole input-channel step (30 taps per lane). An output's taps are the ones its kernel multiplies: the direct
- * fallback skips padded taps, so an edge output counts only its in-range taps, while patch-GEMM and the 1xN padded
- * regions multiply a zero-padded patch and count its padded taps too. Patch-GEMM runs only when ctx provides its
- * scratch, so an edge output's value can depend on whether ctx->buf is given. The fold's order is fixed; the float16
- * reduction of a dot of at most 32 taps is left to the compiler, which may reorder it under -ffast-math, as before
- * #586.
+ *       (AmbiqAI/ns-cmsis-nn#586, superseding #446's float16-lane choice for the MVE legs): in the kernel's own tap
+ *       order an accumulator lane sums at most 32 taps in float16, then the partial is widened exactly and added into
+ *       a float32 accumulator. The float32 sum rounds to float16 once, before the clamp. The `_acc16` entry keeps
+ *       float16 lanes throughout. Grouped convolution (`groups > 1`) adds two helpers that widen on both legs:
+ *       `arm_convolve_f16_fast_small_kernel` and `arm_convolve_f16_group_ch_mult_1` accumulate bias and every tap in
+ *       float32 and round to float16 once at the store. The generic grouped fallback follows the direct fallback:
+ *       float32 on the scalar leg and the selected blockwise or `_acc16` policy under MVE.
  */
 arm_cmsis_nn_status arm_convolve_f16(const cmsis_nn_context *ctx,
                                      const cmsis_nn_conv_params_f16 *conv_params,
@@ -3149,7 +3267,26 @@ arm_cmsis_nn_status arm_convolve_f16_acc16(const cmsis_nn_context *ctx,
                                            arm_nn_tensor_layout layout);
 
 /**
- * @copydoc arm_convolve_wrapper_f32
+ * @brief Convolution wrapper using the CMSIS-NN baseline path.
+ *
+ * @param[in,out] ctx         Function context that may hold a temporary scratch buffer.
+ * @param[in]     conv_params Convolution parameters (stride, padding, dilation and activation clamp).
+ * @param[in]     input_dims  Input tensor dimensions. Format: [N, H, W, C_IN].
+ * @param[in]     input_data  Pointer to the input tensor data.
+ * @param[in]     filter_dims Filter tensor dimensions. Format: [C_OUT, HK, WK, C_IN / groups].
+ * @param[in]     filter_data Pointer to the filter tensor data.
+ * @param[in]     bias_dims   Bias tensor dimensions. Format: [C_OUT].
+ * @param[in]     bias_data   Optional bias tensor data.
+ * @param[in]     output_dims Output tensor dimensions. Format: [N, H, W, C_OUT].
+ * @param[out]    output_data Pointer to the output tensor data.
+ *
+ * Standard filters use `[C_OUT, HK, WK, C_IN / groups]`, with groups inferred from the input and filter channels.
+ * Input and output channels must be positive and divisible by groups. Input and output batches must match;
+ * matching zero batches or zero output spatial extents select a successful no-op. Kernel extents must be positive.
+ * Grouped convolution uses no scratch and requires standard weights.
+ *
+ * @return `ARM_CMSIS_NN_SUCCESS` on success, `ARM_CMSIS_NN_ARG_ERROR` on invalid arguments, or
+ *         `ARM_CMSIS_NN_NO_IMPL_ERROR` for grouped packed weights.
  */
 arm_cmsis_nn_status arm_convolve_wrapper_f16(const cmsis_nn_context *ctx,
                                              const cmsis_nn_conv_params_f16 *conv_params,
@@ -3486,6 +3623,7 @@ arm_cmsis_nn_status arm_convolve_1_x_n_f16_acc16(const cmsis_nn_context *ctx,
 
 /**
  * @copydoc arm_convolve_f32_get_buffer_size
+ * @note Grouped convolution and invalid grouped-channel shapes require zero scratch.
  */
 int32_t arm_convolve_f16_get_buffer_size(const cmsis_nn_conv_params_f16 *conv_params,
                                          const cmsis_nn_dims *input_dims,

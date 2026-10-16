@@ -1589,28 +1589,28 @@ __STATIC_INLINE bool arm_nn_conv_flt_axis_ok(int32_t out, int32_t kernel, int32_
  * @param[in] padding Leading spatial padding.
  * @param[in] dilation Spatial filter steps.
  * @param[in] input_dims Input dimensions [N, H, W, C_IN].
- * @param[in] filter_dims Filter dimensions [C_OUT, KH, KW, C_IN].
+ * @param[in] filter_dims Filter dimensions [C_OUT, KH, KW, C_IN / groups].
  * @param[in] output_dims Output dimensions [N, H, W, C_OUT].
  * @param[in] element_size Bytes per tensor element.
  * @param[in] packed_lanes Channel block size and vector loop width for the dtype.
  * @param[in] packed Whether the filter uses NT_N_PACKED storage.
  * @return true for consistent metadata and representable nonempty work, or a valid empty request.
  */
-__STATIC_INLINE bool arm_nn_conv_flt_dims_ok(const cmsis_nn_tile *stride,
-                                             const cmsis_nn_tile *padding,
-                                             const cmsis_nn_tile *dilation,
-                                             const cmsis_nn_dims *input_dims,
-                                             const cmsis_nn_dims *filter_dims,
-                                             const cmsis_nn_dims *output_dims,
-                                             size_t element_size,
-                                             int32_t packed_lanes,
-                                             bool packed)
+__STATIC_INLINE bool arm_nn_conv_flt_grouped_dims_ok(const cmsis_nn_tile *stride,
+                                                     const cmsis_nn_tile *padding,
+                                                     const cmsis_nn_tile *dilation,
+                                                     const cmsis_nn_dims *input_dims,
+                                                     const cmsis_nn_dims *filter_dims,
+                                                     const cmsis_nn_dims *output_dims,
+                                                     size_t element_size,
+                                                     int32_t packed_lanes,
+                                                     bool packed)
 {
     if (input_dims->n < 0 || input_dims->h < 0 || input_dims->w < 0 || input_dims->c <= 0 ||
         output_dims->n != input_dims->n || output_dims->h < 0 || output_dims->w < 0 || output_dims->c <= 0 ||
-        filter_dims->n != output_dims->c || filter_dims->c != input_dims->c || filter_dims->h <= 0 ||
-        filter_dims->w <= 0 || stride->h <= 0 || stride->w <= 0 || dilation->h <= 0 || dilation->w <= 0 ||
-        padding->h < 0 || padding->w < 0)
+        filter_dims->n != output_dims->c || filter_dims->c <= 0 || input_dims->c % filter_dims->c != 0 ||
+        output_dims->c % (input_dims->c / filter_dims->c) != 0 || filter_dims->h <= 0 || filter_dims->w <= 0 ||
+        stride->h <= 0 || stride->w <= 0 || dilation->h <= 0 || dilation->w <= 0 || padding->h < 0 || padding->w < 0)
     {
         return false;
     }
@@ -1633,7 +1633,7 @@ __STATIC_INLINE bool arm_nn_conv_flt_dims_ok(const cmsis_nn_tile *stride,
     }
     const int64_t input_len = input_hw * input_dims->c;
     const int64_t output_len = output_hw * output_dims->c;
-    const int64_t patch_len = filter_hw * input_dims->c;
+    const int64_t patch_len = filter_hw * filter_dims->c;
     if (input_len > limit || output_len > limit || patch_len > limit || output_dims->c > limit)
     {
         return false;
@@ -1642,8 +1642,38 @@ __STATIC_INLINE bool arm_nn_conv_flt_dims_ok(const cmsis_nn_tile *stride,
         packed ? ((int64_t)output_dims->c + packed_lanes - 1) / packed_lanes * packed_lanes : output_dims->c;
     return input_len * input_dims->n <= limit && output_len * output_dims->n <= limit &&
         patch_len * filter_c <= limit &&
-        arm_nn_conv_flt_axis_ok(output_dims->h, filter_dims->h, stride->h, padding->h, dilation->h) &&
-        arm_nn_conv_flt_axis_ok(output_dims->w, filter_dims->w, stride->w, padding->w, dilation->w);
+        (filter_dims->c != input_dims->c ||
+         (arm_nn_conv_flt_axis_ok(output_dims->h, filter_dims->h, stride->h, padding->h, dilation->h) &&
+          arm_nn_conv_flt_axis_ok(output_dims->w, filter_dims->w, stride->w, padding->w, dilation->w)));
+}
+
+/**
+ * @brief Validate common float convolution metadata and accessed arithmetic.
+ * Output windows are explicit; generic kernels clip their out-of-input taps.
+ * @param[in] stride Spatial output steps.
+ * @param[in] padding Leading spatial padding.
+ * @param[in] dilation Spatial filter steps.
+ * @param[in] input_dims Input dimensions [N, H, W, C_IN].
+ * @param[in] filter_dims Filter dimensions [C_OUT, KH, KW, C_IN].
+ * @param[in] output_dims Output dimensions [N, H, W, C_OUT].
+ * @param[in] element_size Bytes per tensor element.
+ * @param[in] packed_lanes Channel block size and vector loop width for the dtype.
+ * @param[in] packed Whether the filter uses NT_N_PACKED storage.
+ * @return true for consistent metadata and representable nonempty work, or a valid empty request.
+ */
+__STATIC_INLINE bool arm_nn_conv_flt_dims_ok(const cmsis_nn_tile *stride,
+                                             const cmsis_nn_tile *padding,
+                                             const cmsis_nn_tile *dilation,
+                                             const cmsis_nn_dims *input_dims,
+                                             const cmsis_nn_dims *filter_dims,
+                                             const cmsis_nn_dims *output_dims,
+                                             size_t element_size,
+                                             int32_t packed_lanes,
+                                             bool packed)
+{
+    return filter_dims->c == input_dims->c &&
+        arm_nn_conv_flt_grouped_dims_ok(
+               stride, padding, dilation, input_dims, filter_dims, output_dims, element_size, packed_lanes, packed);
 }
 
 /**

@@ -70,6 +70,26 @@ __STATIC_INLINE bool arm_convolve_nhwc_f16_args_ok(const cmsis_nn_conv_params_f1
                                 conv_params->weight_format == ARM_NN_WEIGHT_FORMAT_NT_N_PACKED);
 }
 
+__STATIC_INLINE bool arm_convolve_nhwc_f16_grouped_args_ok(const cmsis_nn_conv_params_f16 *conv_params,
+                                                           const cmsis_nn_dims *input_dims,
+                                                           const float16_t *input_data,
+                                                           const cmsis_nn_dims *filter_dims,
+                                                           const float16_t *filter_data,
+                                                           const cmsis_nn_dims *output_dims,
+                                                           const float16_t *output_data)
+{
+    return conv_params && input_dims && filter_dims && output_dims && input_data && filter_data && output_data &&
+        arm_nn_conv_flt_grouped_dims_ok(&conv_params->stride,
+                                        &conv_params->padding,
+                                        &conv_params->dilation,
+                                        input_dims,
+                                        filter_dims,
+                                        output_dims,
+                                        sizeof(float16_t),
+                                        8,
+                                        conv_params->weight_format == ARM_NN_WEIGHT_FORMAT_NT_N_PACKED);
+}
+
 __STATIC_INLINE bool
 arm_conv_nhwc_use_patch_gemm_f16(const cmsis_nn_context *ctx, int32_t patch_len, const cmsis_nn_dims *output_dims)
 {
@@ -772,19 +792,23 @@ __STATIC_FORCEINLINE arm_cmsis_nn_status arm_convolve_nhwc_patch_gemm_f16(const 
     return ARM_CMSIS_NN_SUCCESS;
 }
 
-    #if defined(ARM_MATH_MVE_FLOAT16) && !defined(ARM_MATH_AUTOVECTORIZE)
-/* Taps k in [0, k_len) with base + k * dil in [0, in_len); all k_len of them for a dilation below 1. */
-__STATIC_FORCEINLINE int32_t arm_conv_f16_taps_in_range(int32_t base, int32_t dil, int32_t k_len, int32_t in_len)
+/* Clip once per output position; the channel loop then visits only valid taps. */
+__STATIC_FORCEINLINE void arm_conv_f16_tap_span(int64_t base,
+                                                int32_t dilation,
+                                                int32_t kernel,
+                                                int32_t input,
+                                                int32_t *first,
+                                                int32_t *end,
+                                                uint32_t *coordinate)
 {
-    if (dil < 1)
-    {
-        return k_len;
-    }
-    const int64_t lo = (base < 0) ? ((int64_t)dil - 1 - base) / dil : 0;
-    const int64_t hi = (in_len > base) ? ARM_NN_MIN((int64_t)k_len, ((int64_t)in_len - base + dil - 1) / dil) : 0;
-    return (hi > lo) ? (int32_t)(hi - lo) : 0;
+    /* Validated nonnegative int32 padding gives base >= -INT32_MAX. Thus both
+     * clipping distances fit uint32, even when coordinate construction needs int64. */
+    const uint32_t lo = base < 0 ? ((uint32_t)(-base) - 1u) / (uint32_t)dilation + 1u : 0;
+    const uint32_t hi = input > base ? (uint32_t)((int64_t)input - 1 - base) / (uint32_t)dilation + 1u : 0;
+    *first = (int32_t)(lo < (uint32_t)kernel ? lo : (uint32_t)kernel);
+    *end = (int32_t)(hi < (uint32_t)kernel ? hi : (uint32_t)kernel);
+    *coordinate = *first < *end ? (uint32_t)(base + (int64_t)*first * dilation) : 0;
 }
-    #endif
 
 /*
  * Direct route: any NHWC layer, no scratch. NT_N_PACKED filters (packed set) are stored as
@@ -800,7 +824,8 @@ __STATIC_FORCEINLINE arm_cmsis_nn_status arm_convolve_nhwc_direct_f16_body(const
                                                                            const cmsis_nn_dims *output_dims,
                                                                            float16_t *output_data,
                                                                            const int32_t block,
-                                                                           const bool weights_packed)
+                                                                           const bool weights_packed,
+                                                                           const bool grouped)
 {
     (void)block; /* the scalar leg accumulates in float32 and never folds */
     const int32_t batch = input_dims->n;
@@ -818,11 +843,21 @@ __STATIC_FORCEINLINE arm_cmsis_nn_status arm_convolve_nhwc_direct_f16_body(const
     const int32_t pad_w = conv_params->padding.w;
     const int32_t dil_h = conv_params->dilation.h;
     const int32_t dil_w = conv_params->dilation.w;
-    const int32_t patch_len = kernel_h * kernel_w * input_c;
+    #if defined(ARM_MATH_MVE_FLOAT16) && !defined(ARM_MATH_AUTOVECTORIZE)
+    (void)grouped;
+    const int32_t kernel_ch = filter_dims->c;
+    const int32_t groups = input_c / kernel_ch;
+    #else
+    /* `grouped` is constant per call site, so ungrouped scalar calls fold the group loop away. */
+    const int32_t kernel_ch = grouped ? filter_dims->c : input_c;
+    const int32_t groups = grouped ? input_c / kernel_ch : 1;
+    #endif
+    const int32_t output_ch_per_group = output_c / groups;
+    const int32_t patch_len = kernel_h * kernel_w * kernel_ch;
     #if defined(ARM_MATH_MVE_FLOAT16) && !defined(ARM_MATH_AUTOVECTORIZE)
     const float16x8_t vmin = vdupq_n_f16(conv_params->activation.min);
     const float16x8_t vmax = vdupq_n_f16(conv_params->activation.max);
-    const bool fold = patch_len > block;
+    const bool fold = (int64_t)kernel_h * kernel_w * kernel_ch > block;
     #endif
 
     for (int32_t b = 0; b < batch; ++b)
@@ -832,10 +867,10 @@ __STATIC_FORCEINLINE arm_cmsis_nn_status arm_convolve_nhwc_direct_f16_body(const
 
         for (int32_t out_y = 0; out_y < output_h; ++out_y)
         {
-            const int32_t in_y0 = out_y * stride_h - pad_h;
+            const int64_t in_y0 = (int64_t)out_y * stride_h - pad_h;
             for (int32_t out_x = 0; out_x < output_w; ++out_x)
             {
-                const int32_t in_x0 = out_x * stride_w - pad_w;
+                const int64_t in_x0 = (int64_t)out_x * stride_w - pad_w;
                 float16_t *out_pos = output_b + ((size_t)out_y * output_w + (size_t)out_x) * output_c;
 
     #if defined(ARM_MATH_MVE_FLOAT16) && !defined(ARM_MATH_AUTOVECTORIZE)
@@ -857,14 +892,14 @@ __STATIC_FORCEINLINE arm_cmsis_nn_status arm_convolve_nhwc_direct_f16_body(const
 
                         for (int32_t ky = 0; ky < kernel_h; ++ky)
                         {
-                            const int32_t in_y = in_y0 + ky * dil_h;
+                            const int64_t in_y = in_y0 + (int64_t)ky * dil_h;
                             if (in_y < 0 || in_y >= input_h)
                             {
                                 continue;
                             }
                             for (int32_t kx = 0; kx < kernel_w; ++kx)
                             {
-                                const int32_t in_x = in_x0 + kx * dil_w;
+                                const int64_t in_x = in_x0 + (int64_t)kx * dil_w;
                                 if (in_x < 0 || in_x >= input_w)
                                 {
                                     continue;
@@ -911,125 +946,142 @@ __STATIC_FORCEINLINE arm_cmsis_nn_status arm_convolve_nhwc_direct_f16_body(const
                 }
     #endif
 
+                int32_t ky_first, ky_end, kx_first, kx_end;
+                uint32_t iy_first, ix_first;
+                arm_conv_f16_tap_span(in_y0, dil_h, kernel_h, input_h, &ky_first, &ky_end, &iy_first);
+                arm_conv_f16_tap_span(in_x0, dil_w, kernel_w, input_w, &kx_first, &kx_end, &ix_first);
     #if defined(ARM_MATH_MVE_FLOAT16) && !defined(ARM_MATH_AUTOVECTORIZE)
-                /* The reduction below skips padded taps, so its length is this output's in-range taps: an edge
-                 * output of at most `block` of them keeps the float16 reduction however long the patch (#586). */
-                const bool fold_px = fold &&
-                    arm_conv_f16_taps_in_range(in_y0, dil_h, kernel_h, input_h) *
-                            arm_conv_f16_taps_in_range(in_x0, dil_w, kernel_w, input_w) * input_c >
-                        block;
+                const bool fold_px = fold && (int64_t)(ky_end - ky_first) * (kx_end - kx_first) * kernel_ch > block;
+    #else
+                /* Scalar leg walks input and weight pointers across the clipped taps. */
+                const size_t w_lane = weights_packed ? 8 : 1;
+                const bool any_tap = ky_first < ky_end && kx_first < kx_end;
+                const float16_t *x_first = input_b + ((size_t)iy_first * input_w + ix_first) * input_c;
+                const size_t w_first =
+                    any_tap ? ((size_t)ky_first * kernel_w + (size_t)kx_first) * kernel_ch * w_lane : 0;
+                const size_t x_kx_step = (size_t)dil_w * input_c;
+                const size_t x_ky_step = (size_t)dil_h * input_w * input_c;
+                const size_t w_kx_step = (size_t)kernel_ch * w_lane;
+                const size_t w_ky_step = (size_t)kernel_w * kernel_ch * w_lane;
     #endif
 
-                for (int32_t oc = 0; oc < output_c; ++oc)
+                for (int32_t group = 0; group < groups; ++group)
                 {
+                    const int32_t in_ch_start = group * kernel_ch;
+                    const int32_t oc_end = (group + 1) * output_ch_per_group;
+                    for (int32_t oc = group * output_ch_per_group; oc < oc_end; ++oc)
+                    {
     #if defined(ARM_MATH_MVE_FLOAT16) && !defined(ARM_MATH_AUTOVECTORIZE)
-                    /* Packed weights never reach here under MVE; OHWI rows only. One accumulator is carried
-                     * across every tap and reduced once per output (#417). */
-                    const float16_t *w_oc = filter_data + (size_t)oc * kernel_h * kernel_w * input_c;
-                    float16x8_t vacc = vdupq_n_f16((float16_t)0.0f);
-                    /* Folding (#586): at most `block` channel vectors per float16 partial, each block's lanes folded
-                     * into float32 pair accumulators, summed once; the bias is added in float32 and the total
-                     * rounds once. */
-                    float32x4_t acc_pairs = vdupq_n_f32(0.0f);
-                    bool first_block = true;
-                    int32_t n_vec = 0;
+                        /* Packed weights never reach here under MVE; OHWI rows only. One accumulator is carried
+                         * across every tap and reduced once per output (#417). */
+                        const float16_t *w_oc = filter_data + (size_t)oc * kernel_h * kernel_w * kernel_ch;
+                        float16x8_t vacc = vdupq_n_f16((float16_t)0.0f);
+                        /* Folding (#586): at most `block` channel vectors per float16 partial, each block's lanes
+                         * folded into float32 pair accumulators, summed once; the bias is added in float32 and the
+                         * total rounds once. */
+                        float32x4_t acc_pairs = vdupq_n_f32(0.0f);
+                        bool first_block = true;
+                        int32_t n_vec = 0;
     #else
-                    /* Scalar leg: float32 accumulation, one f16 rounding at the store (#449, #457). */
-                    float32_t acc32 = bias_data ? (float32_t)bias_data[oc] : 0.0f;
-                    const float16_t *w_oc = weights_packed
-                        ? filter_data + ((size_t)(oc / 8) * patch_len) * 8 + (size_t)(oc % 8)
-                        : filter_data + (size_t)oc * kernel_h * kernel_w * input_c;
+                        /* Scalar leg: float32 accumulation, one f16 rounding at the store (#449, #457). */
+                        float32_t acc32 = bias_data ? (float32_t)bias_data[oc] : 0.0f;
+                        const float16_t *w_oc = weights_packed
+                            ? filter_data + ((size_t)(oc / 8) * patch_len) * 8 + (size_t)(oc % 8)
+                            : filter_data + (size_t)oc * kernel_h * kernel_w * kernel_ch;
+                        const float16_t *x_row = x_first + in_ch_start;
+                        const float16_t *w_row = w_oc + w_first;
+                        for (int32_t ky = ky_first; ky < ky_end; ++ky, x_row += x_ky_step, w_row += w_ky_step)
+                        {
+                            const float16_t *x = x_row;
+                            const float16_t *w = w_row;
+                            for (int32_t kx = kx_first; kx < kx_end; ++kx, x += x_kx_step, w += w_kx_step)
+                            {
+                                if (weights_packed)
+                                {
+                                    for (int32_t ic = 0; ic < kernel_ch; ++ic)
+                                    {
+                                        acc32 += (float32_t)x[ic] * (float32_t)w[(size_t)ic * 8];
+                                    }
+                                }
+                                else
+                                {
+                                    for (int32_t ic = 0; ic < kernel_ch; ++ic)
+                                    {
+                                        acc32 += (float32_t)x[ic] * (float32_t)w[ic];
+                                    }
+                                }
+                            }
+                        }
     #endif
 
-                    for (int32_t ky = 0; ky < kernel_h; ++ky)
-                    {
-                        const int32_t in_y = in_y0 + ky * dil_h;
-                        if (in_y < 0 || in_y >= input_h)
-                        {
-                            continue;
-                        }
-                        for (int32_t kx = 0; kx < kernel_w; ++kx)
-                        {
-                            const int32_t in_x = in_x0 + kx * dil_w;
-                            if (in_x < 0 || in_x >= input_w)
-                            {
-                                continue;
-                            }
-                            const size_t k0 = ((size_t)ky * kernel_w + (size_t)kx) * input_c;
-                            const float16_t *x = input_b + ((size_t)in_y * input_w + (size_t)in_x) * input_c;
     #if defined(ARM_MATH_MVE_FLOAT16) && !defined(ARM_MATH_AUTOVECTORIZE)
-                            /* Full blocks unpredicated, one predicated tail: no vctp inside a loop. */
-                            const float16_t *w_tap = w_oc + k0;
-                            int32_t ic = 0;
-                            while (ic < input_c)
+                        uint32_t in_y = iy_first;
+                        for (int32_t ky = ky_first; ky < ky_end; ++ky, in_y += (uint32_t)dil_h)
+                        {
+                            uint32_t in_x = ix_first;
+                            for (int32_t kx = kx_first; kx < kx_end; ++kx, in_x += (uint32_t)dil_w)
                             {
-                                int32_t ic_end = input_c;
-                                if (fold)
+                                const size_t k0 = ((size_t)ky * kernel_w + (size_t)kx) * kernel_ch;
+                                const float16_t *x =
+                                    input_b + ((size_t)in_y * input_w + (size_t)in_x) * input_c + in_ch_start;
+                                /* Full blocks unpredicated, one predicated tail: no vctp inside a loop. */
+                                const float16_t *w_tap = w_oc + k0;
+                                int32_t ic = 0;
+                                while (ic < kernel_ch)
                                 {
-                                    if (n_vec == block)
+                                    int32_t ic_end = kernel_ch;
+                                    if (fold_px)
                                     {
-                                        arm_nn_f16_fold_pairs_f32(&acc_pairs, vacc, first_block);
-                                        first_block = false;
-                                        vacc = vdupq_n_f16((float16_t)0.0f);
-                                        n_vec = 0;
+                                        if (n_vec == block)
+                                        {
+                                            arm_nn_f16_fold_pairs_f32(&acc_pairs, vacc, first_block);
+                                            first_block = false;
+                                            vacc = vdupq_n_f16((float16_t)0.0f);
+                                            n_vec = 0;
+                                        }
+                                        const int32_t n_left = (kernel_ch - ic + 7) / 8;
+                                        if (n_left > block - n_vec)
+                                        {
+                                            ic_end = ic + (block - n_vec) * 8;
+                                        }
+                                        n_vec += (ic_end - ic + 7) / 8;
                                     }
-                                    const int32_t n_left = (input_c - ic + 7) / 8;
-                                    if (n_left > block - n_vec)
+                                    for (; ic + 8 <= ic_end; ic += 8)
                                     {
-                                        ic_end = ic + (block - n_vec) * 8;
+                                        vacc = vfmaq(vacc, vld1q(x + ic), vld1q(w_tap + ic));
                                     }
-                                    n_vec += (ic_end - ic + 7) / 8;
-                                }
-                                for (; ic + 8 <= ic_end; ic += 8)
-                                {
-                                    vacc = vfmaq(vacc, vld1q(x + ic), vld1q(w_tap + ic));
-                                }
-                                if (ic < ic_end)
-                                {
-                                    const mve_pred16_t p = vctp16q((uint32_t)(ic_end - ic));
-                                    vacc = vfmaq_m(vacc, vld1q_z(x + ic, p), vld1q_z(w_tap + ic, p), p);
-                                    ic = ic_end;
+                                    if (ic < ic_end)
+                                    {
+                                        const mve_pred16_t p = vctp16q((uint32_t)(ic_end - ic));
+                                        vacc = vfmaq_m(vacc, vld1q_z(x + ic, p), vld1q_z(w_tap + ic, p), p);
+                                        ic = ic_end;
+                                    }
                                 }
                             }
-    #else
-                            if (weights_packed)
-                            {
-                                for (int32_t ic = 0; ic < input_c; ++ic)
-                                {
-                                    acc32 += (float32_t)x[ic] * (float32_t)w_oc[(k0 + (size_t)ic) * 8];
-                                }
-                            }
-                            else
-                            {
-                                for (int32_t ic = 0; ic < input_c; ++ic)
-                                {
-                                    acc32 += (float32_t)x[ic] * (float32_t)w_oc[k0 + (size_t)ic];
-                                }
-                            }
-    #endif
                         }
-                    }
+    #endif
 
     #if defined(ARM_MATH_MVE_FLOAT16) && !defined(ARM_MATH_AUTOVECTORIZE)
-                    _Float16 acc;
-                    if (fold_px)
-                    {
-                        arm_nn_f16_fold_pairs_f32(&acc_pairs, vacc, first_block);
-                        acc = (_Float16)((bias_data ? (float32_t)bias_data[oc] : 0.0f) +
-                                         arm_nn_f16_pairs_sum_f32(acc_pairs));
-                    }
-                    else
-                    {
-                        acc = bias_data ? (_Float16)bias_data[oc] : (_Float16)0;
-                        acc += (_Float16)arm_nn_vec_reduce_add_f16(vacc);
-                    }
+                        _Float16 acc;
+                        if (fold_px)
+                        {
+                            arm_nn_f16_fold_pairs_f32(&acc_pairs, vacc, first_block);
+                            acc = (_Float16)((bias_data ? (float32_t)bias_data[oc] : 0.0f) +
+                                             arm_nn_f16_pairs_sum_f32(acc_pairs));
+                        }
+                        else
+                        {
+                            acc = bias_data ? (_Float16)bias_data[oc] : (_Float16)0;
+                            acc += (_Float16)arm_nn_vec_reduce_add_f16(vacc);
+                        }
     #else
-                    /* Single rounding; the f16 clamp below keeps the NaN/Inf contract unchanged. */
-                    _Float16 acc = (_Float16)acc32;
+                        /* Single rounding; the f16 clamp below keeps the NaN/Inf contract unchanged. */
+                        _Float16 acc = (_Float16)acc32;
     #endif
-                    acc = arm_nn_clamp_f16h(
-                        acc, (_Float16)conv_params->activation.max, (_Float16)conv_params->activation.min);
-                    out_pos[oc] = (float16_t)acc;
+                        acc = arm_nn_clamp_f16h(
+                            acc, (_Float16)conv_params->activation.max, (_Float16)conv_params->activation.min);
+                        out_pos[oc] = (float16_t)acc;
+                    }
                 }
             }
         }
@@ -1052,14 +1104,63 @@ __STATIC_FORCEINLINE arm_cmsis_nn_status arm_convolve_nhwc_f16_body(const cmsis_
 {
     const bool acc16 = block == ARM_NN_F16_ACC_BLOCK_NONE;
 
-    if (!arm_convolve_nhwc_f16_args_ok(
+    if (!arm_convolve_nhwc_f16_grouped_args_ok(
             conv_params, input_dims, input_data, filter_dims, filter_data, output_dims, output_data))
     {
         return ARM_CMSIS_NN_ARG_ERROR;
     }
+    const int32_t groups = input_dims->c / filter_dims->c;
+    if (groups > 1 && conv_params->weight_format != ARM_NN_WEIGHT_FORMAT_STANDARD)
+    {
+        return ARM_CMSIS_NN_NO_IMPL_ERROR;
+    }
     if (arm_nn_conv_flt_empty(output_dims))
     {
         return ARM_CMSIS_NN_SUCCESS;
+    }
+
+    if (groups > 1)
+    {
+    #if defined(ARM_MATH_MVE_FLOAT16) && !defined(ARM_MATH_AUTOVECTORIZE)
+        const arm_cmsis_nn_status st = arm_convolve_f16_fast_small_kernel(ctx,
+                                                                          conv_params,
+                                                                          input_dims,
+                                                                          input_data,
+                                                                          filter_dims,
+                                                                          filter_data,
+                                                                          bias_dims,
+                                                                          bias_data,
+                                                                          output_dims,
+                                                                          output_data);
+        if (st != ARM_CMSIS_NN_NO_IMPL_ERROR)
+        {
+            return st;
+        }
+    #endif
+        if (filter_dims->c == 1 && input_dims->c == output_dims->c)
+        {
+            return arm_convolve_f16_group_ch_mult_1(ctx,
+                                                    conv_params,
+                                                    input_dims,
+                                                    input_data,
+                                                    filter_dims,
+                                                    filter_data,
+                                                    bias_dims,
+                                                    bias_data,
+                                                    output_dims,
+                                                    output_data);
+        }
+        return arm_convolve_nhwc_direct_f16_body(conv_params,
+                                                 input_dims,
+                                                 input_data,
+                                                 filter_dims,
+                                                 filter_data,
+                                                 bias_data,
+                                                 output_dims,
+                                                 output_data,
+                                                 block,
+                                                 false,
+                                                 true);
     }
 
     const int32_t patch_len = filter_dims->h * filter_dims->w * input_dims->c;
@@ -1154,7 +1255,8 @@ __STATIC_FORCEINLINE arm_cmsis_nn_status arm_convolve_nhwc_f16_body(const cmsis_
                                              output_dims,
                                              output_data,
                                              block,
-                                             conv_params->weight_format == ARM_NN_WEIGHT_FORMAT_NT_N_PACKED);
+                                             conv_params->weight_format == ARM_NN_WEIGHT_FORMAT_NT_N_PACKED,
+                                             false);
 }
 
 /* One out-of-line instantiation per block length, so the public entries below stay thin. */
@@ -1903,6 +2005,7 @@ arm_cmsis_nn_status arm_convolve_direct_nhwc_ohwi_f16(const cmsis_nn_context *ct
                                              output_dims,
                                              output_data,
                                              ARM_NN_F16_ACC_BLOCK,
+                                             false,
                                              false);
 }
 
@@ -1941,6 +2044,7 @@ arm_cmsis_nn_status arm_convolve_direct_nhwc_ohwi_f16_acc16(const cmsis_nn_conte
                                              output_dims,
                                              output_data,
                                              ARM_NN_F16_ACC_BLOCK_NONE,
+                                             false,
                                              false);
 }
 
@@ -1979,7 +2083,8 @@ arm_cmsis_nn_status arm_convolve_direct_nhwc_packed_f16(const cmsis_nn_context *
                                              output_dims,
                                              output_data,
                                              ARM_NN_F16_ACC_BLOCK,
-                                             true);
+                                             true,
+                                             false);
 }
 
 arm_cmsis_nn_status arm_convolve_direct_nhwc_packed_f16_acc16(const cmsis_nn_context *ctx,
@@ -2017,7 +2122,8 @@ arm_cmsis_nn_status arm_convolve_direct_nhwc_packed_f16_acc16(const cmsis_nn_con
                                              output_dims,
                                              output_data,
                                              ARM_NN_F16_ACC_BLOCK_NONE,
-                                             true);
+                                             true,
+                                             false);
 }
 
 /**

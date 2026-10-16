@@ -29,6 +29,14 @@ void setUp(void)
 
 void tearDown(void) {}
 
+void test_convolve_grouped_f16(void) { convolve_grouped_f16(); }
+
+void test_convolve_grouped_contracts_f16(void) { convolve_grouped_contracts_f16(); }
+
+void test_convolve_group_ch_mult_1_f16(void) { convolve_group_ch_mult_1_f16(); }
+
+void test_convolve_packed_single_channel_f16(void) { convolve_packed_single_channel_f16(); }
+
 void test_convolve_packed_3x3_f16(void) { convolve_packed_3x3_f16(); }
 
 void test_convolve_packed_1xn_f16(void) { convolve_packed_1xn_f16(); }
@@ -36,6 +44,14 @@ void test_convolve_packed_1xn_f16(void) { convolve_packed_1xn_f16(); }
 void test_convolve_1xn_pad_wider_than_kernel_f16(void) { convolve_1xn_pad_wider_than_kernel_f16(); }
 
 void test_convolve_packed_matmul_nan_f16(void) { convolve_packed_matmul_nan_f16(); }
+
+void test_convolve_widened_single_group_dispatch_f16(void) { convolve_widened_single_group_dispatch_f16(); }
+
+void test_convolve_widened_group_ch_mult_1_f16(void) { convolve_widened_group_ch_mult_1_f16(); }
+
+void test_convolve_widened_fast_small_kernel_f16(void) { convolve_widened_fast_small_kernel_f16(); }
+
+void test_convolve_single_group_nan_compatibility_f16(void) { convolve_single_group_nan_compatibility_f16(); }
 
 void test_convolve_small_k_3x3_s2_f16(void) { convolve_small_k_3x3_s2_f16(); }
 
