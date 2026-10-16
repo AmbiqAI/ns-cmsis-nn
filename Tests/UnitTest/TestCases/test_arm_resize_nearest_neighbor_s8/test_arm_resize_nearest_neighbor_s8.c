@@ -280,3 +280,7 @@ void resize_nn_batch_channels_s8_arm_resize_nearest_neighbor_s8(void)
     }
     free(scratch_buffer);
 }
+
+#define RESIZE_NN_ROUND_TYPE int8_t
+#define RESIZE_NN_ROUND_FUNC arm_resize_nearest_neighbor_s8
+#include "../Utils/resize_nearest_neighbor_rounding.h"

@@ -421,6 +421,11 @@ __STATIC_FORCEINLINE int32_t GetNearestNeighbor(const int input_value,
                                                 const bool align_corners,
                                                 const bool half_pixel_centers)
 {
+#if defined(__clang__)
+    /* Index selection needs the rounded float32 scale before multiplication.
+     * Reassociating the division into this product can select a different pixel. */
+    #pragma clang fp contract(off) reassociate(off)
+#endif
     const float scaled = ((float)input_value + offset) * scale;
     int32_t output_value = align_corners ? (int32_t)roundf(scaled) : (int32_t)floorf(scaled);
 

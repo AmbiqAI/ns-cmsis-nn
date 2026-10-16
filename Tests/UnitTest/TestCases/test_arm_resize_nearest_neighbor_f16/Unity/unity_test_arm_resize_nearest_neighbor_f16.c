@@ -36,3 +36,5 @@ void test_resize_nearest_neighbor_f16_special_values(void) { resize_nearest_neig
 void test_resize_nearest_neighbor_f16_rejects_bad_args(void) { resize_nearest_neighbor_f16_rejects_bad_args(); }
 
 void test_resize_nearest_neighbor_f16_buffer_size(void) { resize_nearest_neighbor_f16_buffer_size(); }
+
+void test_resize_nearest_neighbor_f16_rounding_boundaries(void) { resize_nn_rounding_boundaries(); }
