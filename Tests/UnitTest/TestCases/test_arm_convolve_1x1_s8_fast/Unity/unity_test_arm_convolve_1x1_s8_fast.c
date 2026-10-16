@@ -71,3 +71,5 @@ extern void matrix_s8_large_dot_wrapping(void);
 void test_matrix_s8_large_dot_wrapping(void) { matrix_s8_large_dot_wrapping(); }
 
 void test_stride_and_dims_arg_errors_arm_convolve_1x1_s8(void) { stride_and_dims_arg_errors_arm_convolve_1x1_s8(); }
+
+void test_kernel1x1_dsp_quad_counter_boundary(void) { kernel1x1_dsp_quad_counter_boundary(); }

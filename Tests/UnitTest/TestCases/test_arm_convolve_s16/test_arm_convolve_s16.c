@@ -3153,6 +3153,107 @@ void wide_columns_int64_bias_arm_convolve_s16(void)
     }
 }
 
+/* Direct-entry regressions: widths 4/5/6 and 8/9/10 straddle the four-output loop,
+ * its scalar remainder, and the separately handled last column. */
+void grouped_batch_boundaries_arm_convolve_s16(void)
+{
+    const int32_t widths[] = {1, 4, 5, 6, 8, 9, 10};
+    const int32_t channels[] = {1, 3, 5};
+    const int32_t kernel_heights[] = {1, 3, 4};
+    int16_t input[2070];
+    int8_t weights[60];
+    int16_t guarded_output[202];
+    int32_t bias32[5], multipliers[5], shifts[5];
+    int64_t bias64[5];
+    int32_t clamped_low = 0, clamped_high = 0;
+
+    for (size_t wi = 0; wi < sizeof(widths) / sizeof(widths[0]); ++wi)
+        for (size_t ci = 0; ci < sizeof(channels) / sizeof(channels[0]); ++ci)
+            for (size_t ki = 0; ki < sizeof(kernel_heights) / sizeof(kernel_heights[0]); ++ki)
+                for (int32_t stride = 1; stride <= 2; ++stride)
+                    for (int32_t dilation = 1; dilation <= 2; ++dilation)
+                    {
+                        const int32_t count = channels[ci], kh = kernel_heights[ki], kw = 3;
+                        const cmsis_nn_dims in = {2,
+                                                  stride + (kh - 1) * dilation + 1,
+                                                  (widths[wi] - 1) * stride + (kw - 1) * dilation + 1,
+                                                  count};
+                        const cmsis_nn_dims filter = {count, kh, kw, 1};
+                        const cmsis_nn_dims out = {2, 2, widths[wi], count};
+                        const cmsis_nn_dims bias_dims = {1, 1, 1, count};
+                        const int32_t input_len = in.n * in.h * in.w * count;
+                        const int32_t output_len = out.n * out.h * out.w * count;
+                        for (int32_t i = 0; i < input_len; ++i)
+                            input[i] = (int16_t)((i * 13) % 101 - 50);
+                        for (int32_t i = 0; i < count * kh * kw; ++i)
+                            weights[i] = (int8_t)((i * 7) % 13 - 6);
+                        for (int32_t c = 0; c < count; ++c)
+                        {
+                            bias32[c] = c * 19 - 31;
+                            bias64[c] = bias32[c];
+                            multipliers[c] = 1073741824 + c * 12345;
+                            shifts[c] = -c % 3;
+                        }
+                        cmsis_nn_per_channel_quant_params quant = {multipliers, shifts};
+                        for (int32_t bias_mode = 0; bias_mode < 3; ++bias_mode)
+                            for (int32_t narrow = 0; narrow < 2; ++narrow)
+                            {
+                                cmsis_nn_conv_params params = {0};
+                                params.stride.h = params.stride.w = stride;
+                                params.dilation.h = params.dilation.w = dilation;
+                                params.activation.min = narrow ? -23 : INT16_MIN;
+                                params.activation.max = narrow ? 29 : INT16_MAX;
+                                const cmsis_nn_bias_data bias = {
+                                    bias_mode == 0 ? (const void *)bias32 : (const void *)bias64, bias_mode == 0};
+                                for (int32_t i = 0; i < 202; ++i)
+                                    guarded_output[i] = 0x5A5A;
+                                TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
+                                                  arm_convolve_s16_group_ch_mult_1(NULL,
+                                                                                   &params,
+                                                                                   &quant,
+                                                                                   &in,
+                                                                                   input,
+                                                                                   &filter,
+                                                                                   weights,
+                                                                                   &bias_dims,
+                                                                                   bias_mode == 2 ? NULL : &bias,
+                                                                                   &out,
+                                                                                   guarded_output + 1));
+                                for (int32_t n = 0; n < out.n; ++n)
+                                    for (int32_t y = 0; y < out.h; ++y)
+                                        for (int32_t x = 0; x < out.w; ++x)
+                                            for (int32_t c = 0; c < count; ++c)
+                                            {
+                                                int64_t acc = bias_mode == 2 ? 0 : bias32[c];
+                                                for (int32_t ky = 0; ky < kh; ++ky)
+                                                    for (int32_t kx = 0; kx < kw; ++kx)
+                                                    {
+                                                        const int32_t iy = y * stride + ky * dilation;
+                                                        const int32_t ix = x * stride + kx * dilation;
+                                                        acc +=
+                                                            (int32_t)input[((n * in.h + iy) * in.w + ix) * count + c] *
+                                                            weights[(c * kh + ky) * kw + kx];
+                                                    }
+                                                int32_t expected = bias_mode == 0
+                                                    ? arm_nn_requantize((int32_t)acc, multipliers[c], shifts[c])
+                                                    : arm_nn_requantize_s64(
+                                                          acc, REDUCE_MULTIPLIER(multipliers[c]), shifts[c]);
+                                                clamped_low += narrow && expected < params.activation.min;
+                                                clamped_high += narrow && expected > params.activation.max;
+                                                expected = ARM_NN_CLAMP(
+                                                    expected, params.activation.max, params.activation.min);
+                                                const int32_t index = ((n * out.h + y) * out.w + x) * count + c;
+                                                TEST_ASSERT_EQUAL_INT16((int16_t)expected, guarded_output[index + 1]);
+                                            }
+                                TEST_ASSERT_EQUAL_HEX16(0x5A5A, guarded_output[0]);
+                                for (int32_t i = output_len + 1; i < 202; ++i)
+                                    TEST_ASSERT_EQUAL_HEX16(0x5A5A, guarded_output[i]);
+                            }
+                    }
+    TEST_ASSERT_TRUE(clamped_low > 0);
+    TEST_ASSERT_TRUE(clamped_high > 0);
+}
+
 /*
  * arm_convolve_1x1_s16_ns_np_nd() writes each batch to its own slice of the output (#770): two batches equal two
  * single-batch calls. Builds without MVE report ARM_CMSIS_NN_NO_IMPL_ERROR with nothing written.

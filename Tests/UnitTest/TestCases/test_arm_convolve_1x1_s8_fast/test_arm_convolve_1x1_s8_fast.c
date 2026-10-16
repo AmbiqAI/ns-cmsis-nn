@@ -1201,3 +1201,56 @@ void stride_and_dims_arg_errors_arm_convolve_1x1_s8(void)
                                                &out_dims,
                                                output));
 }
+
+/* The buffered Arm Compiler DSP path handles an odd output pixel locally. */
+void kernel1x1_dsp_quad_counter_boundary(void)
+{
+#if defined(ARM_MATH_DSP) && !defined(ARM_MATH_MVEI) && defined(__ARMCC_VERSION) && (__ARMCC_VERSION >= 6010050)
+    enum { MAX_COLUMNS = 262147 };
+#ifdef USING_FVP_CORSTONE_300
+    /* These explicit-initialization buffers exceed DTCM; use the test platform SRAM. */
+    static int8_t input[MAX_COLUMNS] __attribute__((section(".bss.NoInit")));
+    static int8_t weights[MAX_COLUMNS] __attribute__((section(".bss.NoInit")));
+    static int16_t scratch[2 * MAX_COLUMNS] __attribute__((section(".bss.NoInit")));
+#else
+    static int8_t input[MAX_COLUMNS];
+    static int8_t weights[MAX_COLUMNS];
+    static int16_t scratch[2 * MAX_COLUMNS];
+#endif
+    const int32_t columns[] = {4, 7, 262140, 262144, 262147};
+    int32_t multiplier = 1073741824;
+    int32_t shift = 0;
+    cmsis_nn_per_channel_quant_params quant = {&multiplier, &shift};
+    cmsis_nn_conv_params params = {0};
+    params.stride.w = params.stride.h = 1;
+    params.dilation.w = params.dilation.h = 1;
+    params.activation.min = -128;
+    params.activation.max = 127;
+    cmsis_nn_context weight_sum = {0};
+    for (unsigned i = 0; i < sizeof(columns) / sizeof(columns[0]); ++i)
+    {
+        int32_t count = columns[i];
+        cmsis_nn_dims in = {1, 1, 1, count};
+        cmsis_nn_dims filter = {1, 1, 1, count};
+        cmsis_nn_dims out = {1, 1, 1, 1};
+        int8_t guarded_output[] = {73, -99, 74};
+        memset(input, 0, count);
+        memset(weights, 1, count);
+        input[0] = 8;
+        input[count - 1] = 12;
+        const int32_t bytes = arm_convolve_1x1_s8_fast_get_buffer_size(&in);
+        TEST_ASSERT_EQUAL_INT32(4 * count, bytes);
+        cmsis_nn_context context = {scratch, bytes};
+        TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
+                          arm_convolve_1x1_s8_fast(&context, &weight_sum, &params, &quant,
+                                                  &in, input, &filter, weights, NULL, NULL,
+                                                  &out, guarded_output + 1));
+        /* Independent exact oracle: (8 + 12) scaled by 1/2 = 10. */
+        TEST_ASSERT_EQUAL_INT8(10, guarded_output[1]);
+        TEST_ASSERT_EQUAL_INT8(73, guarded_output[0]);
+        TEST_ASSERT_EQUAL_INT8(74, guarded_output[2]);
+    }
+#else
+    TEST_IGNORE_MESSAGE("Requires the buffered Arm Compiler DSP path");
+#endif
+}
