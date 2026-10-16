@@ -87,6 +87,8 @@ void test_group_arg_errors_arm_convolve_s16(void) { group_arg_errors_arm_convolv
 
 void test_wide_columns_int64_bias_arm_convolve_s16(void) { wide_columns_int64_bias_arm_convolve_s16(); }
 
+void test_grouped_batch_boundaries_arm_convolve_s16(void) { grouped_batch_boundaries_arm_convolve_s16(); }
+
 void test_batches_1x1_ns_np_nd_arm_convolve_s16(void) { batches_1x1_ns_np_nd_arm_convolve_s16(); }
 
 void test_wide_columns_counters_arm_convolve_s16(void) { wide_columns_counters_arm_convolve_s16(); }
