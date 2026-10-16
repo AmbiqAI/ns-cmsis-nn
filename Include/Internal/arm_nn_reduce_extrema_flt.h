@@ -248,8 +248,10 @@ static inline uint32x4_t arm_nn_extrema_key_f32(uint32x4_t value)
     return vpselq(sign, key, vcmpeqq_n_u32(vandq(value, vdupq_n_u32(0x7fffffffu)), 0));
 }
 
+// The MVE paths load integer lanes. From a float load, LLVM rewrites the zero test as an MVE VCMP.F32/F16,
+// which treats subnormals as zero (F32 always, F16 under FPSCR.FZ16). Refs #853.
 static inline void
-arm_nn_extrema_mve_f32(const float32_t *input, float32_t *output, const arm_nn_extrema_plan *plan, bool maximum)
+arm_nn_extrema_mve_f32(const uint32_t *input, uint32_t *output, const arm_nn_extrema_plan *plan, bool maximum)
 {
     const uint32_t identity = maximum ? (0x7f800000u | 0x80000000u) : 0x7f800000u;
     if (plan->inner == 1)
@@ -262,7 +264,7 @@ arm_nn_extrema_mve_f32(const float32_t *input, float32_t *output, const arm_nn_e
             for (int32_t r = 0; r < plan->reduction; r += 4)
             {
                 const mve_pred16_t p = vctp32q((uint32_t)(plan->reduction - r));
-                const uint32x4_t value = vreinterpretq_u32_f32(vld1q_z(input + r, p));
+                const uint32x4_t value = vld1q_z(input + r, p);
                 any_nan |= vcmphiq_n_u32(vandq(value, vdupq_n_u32(0x7fffffffu)), 0x7f800000u) & p;
                 const uint32x4_t key = vpselq(arm_nn_extrema_key_f32(value), vdupq_n_u32(seed), p);
                 best = maximum ? vmaxq(best, key) : vminq(best, key);
@@ -301,7 +303,7 @@ arm_nn_extrema_mve_f32(const float32_t *input, float32_t *output, const arm_nn_e
             mve_pred16_t any_nan = 0;
             for (int32_t r = 0; r < plan->reduction; ++r)
             {
-                const uint32x4_t value = vreinterpretq_u32_f32(vld1q_z(input + r * plan->inner + c, p));
+                const uint32x4_t value = vld1q_z(input + r * plan->inner + c, p);
                 const uint32x4_t key = arm_nn_extrema_key_f32(value);
                 any_nan |= vcmphiq_n_u32(vandq(value, vdupq_n_u32(0x7fffffffu)), 0x7f800000u) & p;
                 const mve_pred16_t better = maximum ? vcmphiq(key, best_key) : vcmphiq(best_key, key);
@@ -309,7 +311,7 @@ arm_nn_extrema_mve_f32(const float32_t *input, float32_t *output, const arm_nn_e
                 best_key = vpselq(key, best_key, better);
             }
             best = vpselq(vdupq_n_u32(0x7fc00000u), best, any_nan);
-            vstrwq_p(output + c, vreinterpretq_f32_u32(best), p);
+            vstrwq_p(output + c, best, p);
         }
         input += plan->reduction * plan->inner;
         output += plan->inner;
@@ -326,7 +328,7 @@ static inline uint16x8_t arm_nn_extrema_key_f16(uint16x8_t value)
 }
 
 static inline void
-arm_nn_extrema_mve_f16(const float16_t *input, float16_t *output, const arm_nn_extrema_plan *plan, bool maximum)
+arm_nn_extrema_mve_f16(const uint16_t *input, uint16_t *output, const arm_nn_extrema_plan *plan, bool maximum)
 {
     const uint32_t identity = maximum ? (0x7c00u | 0x8000u) : 0x7c00u;
     if (plan->inner == 1)
@@ -339,7 +341,7 @@ arm_nn_extrema_mve_f16(const float16_t *input, float16_t *output, const arm_nn_e
             for (int32_t r = 0; r < plan->reduction; r += 8)
             {
                 const mve_pred16_t p = vctp16q((uint32_t)(plan->reduction - r));
-                const uint16x8_t value = vreinterpretq_u16_f16(vld1q_z(input + r, p));
+                const uint16x8_t value = vld1q_z(input + r, p);
                 any_nan |= vcmphiq_n_u16(vandq(value, vdupq_n_u16(0x7fffu)), 0x7c00u) & p;
                 const uint16x8_t key = vpselq(arm_nn_extrema_key_f16(value), vdupq_n_u16(seed), p);
                 best = maximum ? vmaxq(best, key) : vminq(best, key);
@@ -378,7 +380,7 @@ arm_nn_extrema_mve_f16(const float16_t *input, float16_t *output, const arm_nn_e
             mve_pred16_t any_nan = 0;
             for (int32_t r = 0; r < plan->reduction; ++r)
             {
-                const uint16x8_t value = vreinterpretq_u16_f16(vld1q_z(input + r * plan->inner + c, p));
+                const uint16x8_t value = vld1q_z(input + r * plan->inner + c, p);
                 const uint16x8_t key = arm_nn_extrema_key_f16(value);
                 any_nan |= vcmphiq_n_u16(vandq(value, vdupq_n_u16(0x7fffu)), 0x7c00u) & p;
                 const mve_pred16_t better = maximum ? vcmphiq(key, best_key) : vcmphiq(best_key, key);
@@ -386,7 +388,7 @@ arm_nn_extrema_mve_f16(const float16_t *input, float16_t *output, const arm_nn_e
                 best_key = vpselq(key, best_key, better);
             }
             best = vpselq(vdupq_n_u16(0x7e00u), best, any_nan);
-            vstrhq_p(output + c, vreinterpretq_f16_u16(best), p);
+            vstrhq_p(output + c, best, p);
         }
         input += plan->reduction * plan->inner;
         output += plan->inner;
