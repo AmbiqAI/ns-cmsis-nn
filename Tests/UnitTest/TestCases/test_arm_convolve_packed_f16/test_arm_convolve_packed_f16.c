@@ -47,14 +47,14 @@ static void conv_f16_reference(const cmsis_nn_conv_params_f16 *cp,
                     float32_t acc = bias ? (float32_t)bias[oc] : 0.0f;
                     for (int32_t ky = 0; ky < flt->h; ky++)
                     {
-                        const int32_t iy = oy * cp->stride.h - cp->padding.h + ky * cp->dilation.h;
+                        const int64_t iy = (int64_t)oy * cp->stride.h - cp->padding.h + (int64_t)ky * cp->dilation.h;
                         if (iy < 0 || iy >= in->h)
                         {
                             continue;
                         }
                         for (int32_t kx = 0; kx < flt->w; kx++)
                         {
-                            const int32_t ix = ox * cp->stride.w - cp->padding.w + kx * cp->dilation.w;
+                            const int64_t ix = (int64_t)ox * cp->stride.w - cp->padding.w + (int64_t)kx * cp->dilation.w;
                             if (ix < 0 || ix >= in->w)
                             {
                                 continue;
@@ -1851,15 +1851,15 @@ void convolve_argument_domains_f16(void)
 /* Explicit clipped windows remain valid even when unchecked specializations cannot take them. */
 void convolve_clipped_windows_f16(void)
 {
-    float16_t x[15], w[24], y[16];
-    float32_t reference[16];
+    float16_t x[60], w[48], y[33];
+    float32_t reference[32];
     const cmsis_nn_dims bd = {0};
     cmsis_nn_context ctx = {0};
-    for (int32_t i = 0; i < 15; ++i)
+    for (int32_t i = 0; i < 60; ++i)
         x[i] = (float16_t)(i + 1);
-    for (int32_t i = 0; i < 24; ++i)
+    for (int32_t i = 0; i < 48; ++i)
         w[i] = 1;
-    for (int32_t scenario = 0; scenario < 5; ++scenario)
+    for (int32_t scenario = 0; scenario < 8; ++scenario)
     {
         cmsis_nn_dims in = {1, 1, 5, 1}, flt = {1, 1, 3, 1}, out = {1, 1, 5, 1};
         cmsis_nn_conv_params_f16 cp = {0};
@@ -1888,7 +1888,32 @@ void convolve_clipped_windows_f16(void)
             out.w = 9;
             cp.stride.w = 8192;
         }
-        for (int32_t packed = 0; packed < 2; ++packed)
+        /* Exercise empty spans and grouped coordinates beyond signed int32. */
+        if (scenario == 5)
+        {
+            cp.padding.h = cp.padding.w = INT32_MAX;
+        }
+        if (scenario == 6)
+        {
+            cp.padding.w = cp.stride.w = cp.dilation.w = INT32_MAX;
+        }
+        if (scenario == 7)
+        {
+            in.h = 3;
+            flt.h = 2;
+            out.h = 2;
+            out.w = 4;
+            cp.padding.h = cp.padding.w = INT32_MAX;
+            cp.stride.h = cp.stride.w = INT32_MAX;
+            cp.dilation.h = cp.dilation.w = INT32_MAX;
+        }
+        if (scenario >= 6)
+        {
+            in.c = 4;
+            flt.c = 2;
+            flt.n = out.c = 2;
+        }
+        for (int32_t packed = 0; packed < (scenario >= 6 ? 1 : 2); ++packed)
         {
             cp.weight_format = packed ? ARM_NN_WEIGHT_FORMAT_NT_N_PACKED : ARM_NN_WEIGHT_FORMAT_STANDARD;
             float16_t packed_w[48] = {0};
@@ -1899,13 +1924,13 @@ void convolve_clipped_windows_f16(void)
             conv_f16_reference(&cp, &in, x, &flt, w, NULL, &out, reference);
             for (int32_t acc = 0; acc < 2; ++acc)
             {
-                for (int32_t i = 0; i < 16; ++i)
+                for (int32_t i = 0; i < 33; ++i)
                     y[i] = 77;
                 TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
                                   conv_routers_f16[acc](&ctx, &cp, &in, x, &flt, wt, &bd, NULL, &out, y));
-                for (int32_t i = 0; i < out.h * out.w; ++i)
+                for (int32_t i = 0; i < out.h * out.w * out.c; ++i)
                     TEST_ASSERT_EQUAL_FLOAT(reference[i], (float32_t)y[i]);
-                TEST_ASSERT_EQUAL_FLOAT(77, (float32_t)y[out.h * out.w]);
+                TEST_ASSERT_EQUAL_FLOAT(77, (float32_t)y[out.h * out.w * out.c]);
                 if (scenario == 0)
                 {
                     TEST_ASSERT_EQUAL(
