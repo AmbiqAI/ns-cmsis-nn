@@ -1167,8 +1167,9 @@ arm_cmsis_nn_status arm_elementwise_sub_f32(const float32_t *input_1_vect,
  *
  * Computes (input_1 - input_2) squared, rounding the subtraction to FP32 before
  * multiplication. No activation clamp, broadcasting or scratch is used. NaNs
- * propagate (payload unspecified); infinite differences and overflow yield
- * positive infinity. Scalar arithmetic follows the active floating-point controls.
+ * propagate (payload unspecified); infinite differences yield positive infinity.
+ * Overflow yields positive infinity under round-to-nearest. Scalar arithmetic
+ * follows the active floating-point controls.
  * MVE arithmetic uses round-to-nearest and flushes FP32 subnormal operands and
  * results to signed zero regardless of FPSCR.FZ (StandardFPSCRValue). Automatic
  * vectorization may mix these behaviors; set scalar round-to-nearest and FZ=1
