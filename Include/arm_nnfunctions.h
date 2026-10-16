@@ -2237,7 +2237,8 @@ arm_cmsis_nn_status arm_depthwise_conv_s4(const cmsis_nn_context *ctx,
  *             channels) holds more than INT32_MAX elements, a KW or KH times the dilation or an output W or H times
  *             the stride or C * ch_mult is above INT32_MAX / 2, or KW * KH, KW * C * ch_mult, stride W * C,
  *             max(KW, 1) * dilation W * C or max(KH, 1) * dilation H * W * max(C, 1) is above INT32_MAX. Where the
- *             generic kernel runs (builds without the MVE kernel, and filters of 512 or more taps), it is also an
+ *             generic kernel runs (builds without the MVE kernel, empty input/filter width or height, and
+ *             filters of 512 or more taps), it is also an
  *             argument error when a dimension, ch_mult, padding, stride or dilation is above 65,535, since that
  *             kernel takes them as uint16_t, or a padding or stride is above 32,767 or (output W or H - 1) * stride
  *             - padding is above 32,767, since it keeps the first tap index of an output as int16_t.
@@ -2412,7 +2413,8 @@ int32_t arm_depthwise_conv_wrapper_s16_get_buffer_size_mve(const cmsis_nn_dw_con
  *                                                      kernel or, on the DSP path (DSP builds without the MVE
  *                                                      kernel), more than 65,535 channels, a padding or stride
  *                                                      above 32,767 or (output W or H - 1) * stride - padding
- *                                                      above 32,767; builds without DSP run
+ *                                                      above 32,767; builds without DSP, and MVE calls with
+ *                                                      empty input/filter width or height, run
  *                                                      arm_depthwise_conv_s16() and return its errors
  *
  *                <code>ARM_CMSIS_NN_SUCCESS</code> - Successful operation

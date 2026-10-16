@@ -287,6 +287,17 @@ __STATIC_FORCEINLINE int32x4_t dw_s16_mac(int32x4_t acc,
     return vaddq_s32(acc, vmulq_s32(vldrhq_gather_shifted_offset_z_s32(ip, offs, p), ker));
 }
 
+    #if !defined(__clang__)
+/* Keep independent byte-address walks: combining them increases MVE register pressure. */
+__STATIC_FORCEINLINE uintptr_t dw_s16_step(uintptr_t address, const uintptr_t bytes)
+{
+    __asm__("add %0, %0, %1" : "+r"(address) : "r"(bytes));
+    return address;
+}
+    #endif
+
+/* Clang keeps hardware loops with live array-relative offsets; GCC needs independent byte cursors to avoid spills.
+ * Unused final advances remain integers, so no out-of-object pointer arithmetic is formed. */
 /* Sum taps for one pixel */
 __STATIC_FORCEINLINE int32x4_t dw_s16_taps1(int32x4_t acc,
                                             const int16_t *ip,
@@ -301,16 +312,38 @@ __STATIC_FORCEINLINE int32x4_t dw_s16_taps1(int32x4_t acc,
                                             const int32_t ker_col,
                                             const int32_t ker_row)
 {
-    for (int32_t ky = 0; ky < n_y; ky++, ip += in_row, rhs += ker_row)
+    #if defined(__clang__)
+    for (int32_t ky = 0; ky < n_y; ky++)
     {
-        const int16_t *ipx = ip;
-        const int8_t *rhsx = rhs;
-        for (int32_t kx = 0; kx < n_x; kx++, ipx += in_col, rhsx += ker_col)
+        for (int32_t kx = 0; kx < n_x; kx++)
         {
-            acc = dw_s16_mac(acc, ipx, dw_s16_ker(rhsx, mode, p), mode, offs, p);
+            acc = dw_s16_mac(acc,
+                             ip + (ky * in_row + kx * in_col),
+                             dw_s16_ker(rhs + (ky * ker_row + kx * ker_col), mode, p),
+                             mode,
+                             offs,
+                             p);
         }
     }
     return acc;
+    #else
+    uintptr_t ip_addr = (uintptr_t)ip;
+    uintptr_t rhs_addr = (uintptr_t)rhs;
+    for (int32_t ky = 0; ky < n_y; ky++,
+                 ip_addr = dw_s16_step(ip_addr, (uintptr_t)in_row * sizeof(int16_t)),
+                 rhs_addr = dw_s16_step(rhs_addr, (uintptr_t)ker_row))
+    {
+        uintptr_t ipx = ip_addr;
+        uintptr_t rhsx = rhs_addr;
+        for (int32_t kx = 0; kx < n_x; kx++,
+                     ipx = dw_s16_step(ipx, (uintptr_t)in_col * sizeof(int16_t)),
+                     rhsx = dw_s16_step(rhsx, (uintptr_t)ker_col))
+        {
+            acc = dw_s16_mac(acc, (const int16_t *)ipx, dw_s16_ker((const int8_t *)rhsx, mode, p), mode, offs, p);
+        }
+    }
+    return acc;
+    #endif
 }
 
 /* Sum taps for four pixels */
@@ -330,6 +363,32 @@ __STATIC_FORCEINLINE void dw_s16_taps4(int32x4_t *acc,
                                        const int32_t ker_col,
                                        const int32_t ker_row)
 {
+    #if defined(__clang__)
+    int32x4_t acc_0 = acc[0];
+    int32x4_t acc_1 = acc[1];
+    int32x4_t acc_2 = acc[2];
+    int32x4_t acc_3 = acc[3];
+    for (int32_t ky = 0; ky < n_y; ky++)
+    {
+        for (int32_t kx = 0; kx < n_x; kx++)
+        {
+            const int32x4_t ker = dw_s16_ker(rhs + (ky * ker_row + kx * ker_col), mode, p);
+            acc_0 = dw_s16_mac(acc_0, ip_0 + (ky * in_row + kx * in_col), ker, mode, offs, p);
+            acc_1 = dw_s16_mac(acc_1, ip_1 + (ky * in_row + kx * in_col), ker, mode, offs, p);
+            acc_2 = dw_s16_mac(acc_2, ip_2 + (ky * in_row + kx * in_col), ker, mode, offs, p);
+            acc_3 = dw_s16_mac(acc_3, ip_3 + (ky * in_row + kx * in_col), ker, mode, offs, p);
+        }
+    }
+    acc[0] = acc_0;
+    acc[1] = acc_1;
+    acc[2] = acc_2;
+    acc[3] = acc_3;
+    #else
+    uintptr_t ip_0_addr = (uintptr_t)ip_0;
+    uintptr_t ip_1_addr = (uintptr_t)ip_1;
+    uintptr_t ip_2_addr = (uintptr_t)ip_2;
+    uintptr_t ip_3_addr = (uintptr_t)ip_3;
+    uintptr_t rhs_addr = (uintptr_t)rhs;
     int32x4_t acc_0 = acc[0];
     int32x4_t acc_1 = acc[1];
     int32x4_t acc_2 = acc[2];
@@ -340,27 +399,28 @@ __STATIC_FORCEINLINE void dw_s16_taps4(int32x4_t *acc,
     {
         for (int32_t kx = 0; kx < n_x; kx++)
         {
-            const int32x4_t ker = dw_s16_ker(rhs, mode, p);
-            acc_0 = dw_s16_mac(acc_0, ip_0, ker, mode, offs, p);
-            acc_1 = dw_s16_mac(acc_1, ip_1, ker, mode, offs, p);
-            acc_2 = dw_s16_mac(acc_2, ip_2, ker, mode, offs, p);
-            acc_3 = dw_s16_mac(acc_3, ip_3, ker, mode, offs, p);
-            ip_0 += in_col;
-            ip_1 += in_col;
-            ip_2 += in_col;
-            ip_3 += in_col;
-            rhs += ker_col;
+            const int32x4_t ker = dw_s16_ker((const int8_t *)rhs_addr, mode, p);
+            acc_0 = dw_s16_mac(acc_0, (const int16_t *)ip_0_addr, ker, mode, offs, p);
+            acc_1 = dw_s16_mac(acc_1, (const int16_t *)ip_1_addr, ker, mode, offs, p);
+            acc_2 = dw_s16_mac(acc_2, (const int16_t *)ip_2_addr, ker, mode, offs, p);
+            acc_3 = dw_s16_mac(acc_3, (const int16_t *)ip_3_addr, ker, mode, offs, p);
+            ip_0_addr = dw_s16_step(ip_0_addr, (uintptr_t)in_col * sizeof(int16_t));
+            ip_1_addr = dw_s16_step(ip_1_addr, (uintptr_t)in_col * sizeof(int16_t));
+            ip_2_addr = dw_s16_step(ip_2_addr, (uintptr_t)in_col * sizeof(int16_t));
+            ip_3_addr = dw_s16_step(ip_3_addr, (uintptr_t)in_col * sizeof(int16_t));
+            rhs_addr = dw_s16_step(rhs_addr, (uintptr_t)ker_col);
         }
-        ip_0 += row_step;
-        ip_1 += row_step;
-        ip_2 += row_step;
-        ip_3 += row_step;
-        rhs += ker_step;
+        ip_0_addr = dw_s16_step(ip_0_addr, (uintptr_t)row_step * sizeof(int16_t));
+        ip_1_addr = dw_s16_step(ip_1_addr, (uintptr_t)row_step * sizeof(int16_t));
+        ip_2_addr = dw_s16_step(ip_2_addr, (uintptr_t)row_step * sizeof(int16_t));
+        ip_3_addr = dw_s16_step(ip_3_addr, (uintptr_t)row_step * sizeof(int16_t));
+        rhs_addr = dw_s16_step(rhs_addr, (uintptr_t)ker_step);
     }
     acc[0] = acc_0;
     acc[1] = acc_1;
     acc[2] = acc_2;
     acc[3] = acc_3;
+    #endif
 }
 
 /* Exact s64 requant, one lane each */
@@ -469,8 +529,8 @@ static void dw_s16_mve(const int16_t *input,
         }
         const uint32x4_t offs = vld1q_u32(offs_buf);
         const int32_t in_off = mode == DW_S16_IN_VEC ? oc : (mode == DW_S16_IN_DUP ? oc / ch_mult : 0);
-        const int16_t *in_batch = input + in_off;
-        int16_t *out = output + oc;
+        uintptr_t in_batch = (uintptr_t)input + (uintptr_t)in_off * sizeof(int16_t);
+        uintptr_t out = (uintptr_t)output + (uintptr_t)oc * sizeof(int16_t);
 
         for (int32_t i_batch = 0; i_batch < input_batches; i_batch++)
         {
@@ -492,7 +552,7 @@ static void dw_s16_mve(const int16_t *input,
                     {
                         /* Two to four unclipped pixels */
                         int32x4_t acc[4] = {rq.bias, rq.bias, rq.bias, rq.bias};
-                        const int16_t *ip_0 = in_batch + (in_y + base_x) * input_ch;
+                        const int16_t *ip_0 = (const int16_t *)in_batch + (in_y + base_x) * input_ch;
                         const int16_t *ip_1 = ip_0 + px_step;
                         const int16_t *ip_2 = n > 2 ? ip_0 + 2 * px_step : ip_0;
                         const int16_t *ip_3 = n > 3 ? ip_0 + 3 * px_step : ip_0;
@@ -550,17 +610,17 @@ static void dw_s16_mve(const int16_t *input,
                                          ker_col,
                                          ker_row);
                         }
-                        vstrhq_s32(out, dw_s16_rq_apply(acc[0], &rq, act_min, act_max));
-                        vstrhq_s32(out + output_ch, dw_s16_rq_apply(acc[1], &rq, act_min, act_max));
+                        vstrhq_s32((int16_t *)out, dw_s16_rq_apply(acc[0], &rq, act_min, act_max));
+                        vstrhq_s32((int16_t *)out + output_ch, dw_s16_rq_apply(acc[1], &rq, act_min, act_max));
                         if (n > 2)
                         {
-                            vstrhq_s32(out + 2 * output_ch, dw_s16_rq_apply(acc[2], &rq, act_min, act_max));
+                            vstrhq_s32((int16_t *)out + 2 * output_ch, dw_s16_rq_apply(acc[2], &rq, act_min, act_max));
                         }
                         if (n > 3)
                         {
-                            vstrhq_s32(out + 3 * output_ch, dw_s16_rq_apply(acc[3], &rq, act_min, act_max));
+                            vstrhq_s32((int16_t *)out + 3 * output_ch, dw_s16_rq_apply(acc[3], &rq, act_min, act_max));
                         }
-                        out += n * output_ch;
+                        out += (uintptr_t)n * output_ch * sizeof(int16_t);
                         ox += n;
                         continue;
                     }
@@ -571,7 +631,7 @@ static void dw_s16_mve(const int16_t *input,
                         : ARM_NN_MIN(kernel_x, (input_x - base_x + dil_x - 1) / dil_x);
                     const int32_t n_x = ARM_NN_MAX(kx_end - kx_start, 0);
                     const int32_t in_x = ARM_NN_MIN(base_x + kx_start * dil_x, input_x - 1);
-                    const int16_t *ip = in_batch + (in_y + in_x) * input_ch;
+                    const int16_t *ip = (const int16_t *)in_batch + (in_y + in_x) * input_ch;
                     const int8_t *rhs = ker_y + ARM_NN_MIN(kx_start, kernel_x - 1) * ker_col;
                     int32x4_t acc = rq.bias;
                     if (mode_1 == DW_S16_IN_VEC)
@@ -599,13 +659,14 @@ static void dw_s16_mve(const int16_t *input,
                         acc = dw_s16_taps1(
                             acc, ip, rhs, DW_S16_IN_GATHER_P, offs, p, n_y, n_x, in_col, in_row, ker_col, ker_row);
                     }
-                    vstrhq_p_s32(
-                        out, dw_s16_out(acc, &rq, slow, bias_oc, mult_oc, shift_oc, lanes, act_min, act_max), p);
-                    out += output_ch;
+                    vstrhq_p_s32((int16_t *)out,
+                                 dw_s16_out(acc, &rq, slow, bias_oc, mult_oc, shift_oc, lanes, act_min, act_max),
+                                 p);
+                    out += (uintptr_t)output_ch * sizeof(int16_t);
                     ox++;
                 }
             }
-            in_batch += input_x * input_y * input_ch;
+            in_batch += (uintptr_t)input_x * input_y * input_ch * sizeof(int16_t);
         }
     }
 }
@@ -626,8 +687,8 @@ bool arm_nn_depthwise_conv_s16_mve(const cmsis_nn_dw_conv_params *dw_conv_params
                                    int16_t *output)
 {
     const int32_t taps = filter_dims->w * filter_dims->h;
-    /* s32 sums need fewer than 512 taps */
-    if (taps >= MAX_COL_COUNT)
+    /* Empty inputs/filters use the generic bias-only path; s32 sums need fewer than 512 taps. */
+    if (taps == 0 || taps >= MAX_COL_COUNT || input_dims->w == 0 || input_dims->h == 0)
     {
         return false;
     }

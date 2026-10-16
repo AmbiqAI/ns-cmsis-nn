@@ -3452,8 +3452,8 @@ __STATIC_FORCEINLINE int8x16_t arm_narrow_mve_from_int32x4x4_to_int8x16(int32x4_
  * @param[in]       output_dims     Output tensor dimensions, NHWC
  * @param[out]      output          Output data pointer
  *
- * @return          false, with no output written, when the filter has MAX_COL_COUNT or more taps. The caller
- *                  then runs its own path.
+ * @return          false, with no output written, when the filter has zero or MAX_COL_COUNT or more taps, or
+ *                  the input width or height is zero. The caller then runs its own path.
  */
 bool arm_nn_depthwise_conv_s16_mve(const cmsis_nn_dw_conv_params *dw_conv_params,
                                    const cmsis_nn_per_channel_quant_params *quant_params,

@@ -353,11 +353,25 @@ arm_cmsis_nn_status arm_depthwise_conv_fast_s16(const cmsis_nn_context *ctx,
 #if defined(ARM_MATH_MVEI) && !defined(ARM_MATH_AUTOVECTORIZE)
     (void)bias_dims;
     /* Shared MVE kernel needs no im2col; it forms its indices in int32_t and divides by the stride */
-    if (arm_nn_depthwise_conv_s16_index_invalid(dw_conv_params, input_dims, filter_dims, output_dims) ||
-        !arm_nn_depthwise_conv_s16_mve(
-            dw_conv_params, quant_params, input_dims, input, filter_dims, kernel, bias, output_dims, output))
+    if (arm_nn_depthwise_conv_s16_index_invalid(dw_conv_params, input_dims, filter_dims, output_dims))
     {
         return ARM_CMSIS_NN_ARG_ERROR;
+    }
+    if (!arm_nn_depthwise_conv_s16_mve(
+            dw_conv_params, quant_params, input_dims, input, filter_dims, kernel, bias, output_dims, output))
+    {
+        /* Empty inputs or filters need the generic bias-only path. */
+        return arm_depthwise_conv_s16(ctx,
+                                      dw_conv_params,
+                                      quant_params,
+                                      input_dims,
+                                      input,
+                                      filter_dims,
+                                      kernel,
+                                      bias_dims,
+                                      bias,
+                                      output_dims,
+                                      output);
     }
 #elif defined(ARM_MATH_DSP)
     (void)bias_dims;
