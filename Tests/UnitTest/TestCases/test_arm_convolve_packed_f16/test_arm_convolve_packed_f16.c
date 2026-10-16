@@ -1578,7 +1578,11 @@ void convolve_small_c_cached_weights_f16(void)
         {
             w[(k + 0) * c] = (float16_t)INFINITY;
             w[patch + (k + 2) * c] = -(float16_t)INFINITY;
+#if defined(ARM_MATH_MVE_FLOAT16) && !defined(ARM_MATH_AUTOVECTORIZE)
+            /* This direct MVE route uses maxNum/minNum activation, suppressing
+             * NaNs like the reference. The unchanged scalar route propagates NaNs. */
             w[2 * patch + k * c] = (float16_t)NAN;
+#endif
         }
         const float16_t *bp = (ci % 2) ? NULL : bias;
         for (int32_t packed = 0; packed < 2; ++packed)
