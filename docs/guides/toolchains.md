@@ -326,3 +326,47 @@ for a hard-to-debug runtime crash on a device in a customer's hands. The compile
 ID check is about package provenance and qualification. If you intentionally mix
 objects from different Arm embedded toolchains, validate the CPU/FPU, float ABI,
 and calling convention as part of your integration.
+
+## Executing ACfE archives in a GNU test harness
+
+The UnitTest prebuilt-library path can execute an ACfE-compiled archive with a
+GNU harness on Cortex-M4 or Cortex-M55. Enable its runtime binding explicitly:
+
+```sh
+cmake -S Tests/UnitTest -B build-acfe-m4 \
+  -DCMAKE_TOOLCHAIN_FILE=<ethos-u-core-platform>/cmake/toolchain/arm-none-eabi-gcc.cmake \
+  -DTARGET_CPU=cortex-m4 -DCMSIS_PATH=<CMSIS_5> \
+  -DCMSIS_NN_TEST_LIBRARY=<acfe-built-libcmsis-nn.a> \
+  -DCMSIS_NN_TEST_ARMCLANG_ROOT=<acfe-install-root> \
+  -DARM_NN_ENABLE_F32=ON -DARM_NN_ENABLE_F16=OFF
+cmake --build build-acfe-m4 --target test_arm_quantize_f32_s8
+```
+
+The feature flags must match the imported archive. The ACfE installation must
+match the compiler that produced it, and the harness ABI settings must match
+the archive, including floating-point calling convention and enum sizes. The qualified layout is ACfE 6.24: M4 uses
+`m_wm.l` and M55 uses `m_wv.l`. M4's `roundf` also needs `frnd.o`, `fnaninf.o` and
+`usenofp.o` from `fz_wm.l`. The helper extracts these objects unchanged, together
+with `_rserrno.o` from `c_wu.l`, and links a small GNU errno accessor. Missing
+archives or members stop configuration. It does not ignore unresolved symbols
+or substitute GNU implementations for Arm's hard-float math entries.
+
+The binding is for single-thread test executables. It combines Arm kernel/math
+code with GNU startup, libc and errno; it does not qualify a fully native Arm
+runtime, multithreaded use or silicon performance. M0 needs no such binding and
+is not accepted by this option. Normal source builds and GNU/ATfE prebuilt tests
+leave the option unset. A test oracle that requires bit-identical transcendental
+results must also use matching compiler/libm settings: the legacy GELU suite
+compares against GNU `erfcf` and is not a cross-libm bit-equivalence gate.
+Independent interval-based numerical tests remain necessary for that comparison.
+
+Other GNU test harnesses can reuse the same binding after creating their
+imported `cmsis-nn` target:
+
+```cmake
+include("${CMSIS_NN_ROOT}/Tests/UnitTest/cmake/armclang_runtime.cmake")
+cmsis_nn_link_armclang_test_runtime(cmsis-nn "${ACFE_ROOT}")
+```
+
+The configure-only dependency and failure controls run without an Arm licence:
+`python3 scripts/tests/test_check_armclang_test_runtime.py`.
