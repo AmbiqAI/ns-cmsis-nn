@@ -717,7 +717,8 @@ __STATIC_FORCEINLINE arm_cmsis_nn_status arm_convolve_nhwc_direct_f16_body(const
                                                                            const cmsis_nn_dims *output_dims,
                                                                            float16_t *output_data,
                                                                            const int32_t block,
-                                                                           const bool weights_packed)
+                                                                           const bool weights_packed,
+                                                                           const bool grouped)
 {
     (void)block; /* the scalar leg accumulates in float32 and never folds */
     const int32_t batch = input_dims->n;
@@ -729,14 +730,21 @@ __STATIC_FORCEINLINE arm_cmsis_nn_status arm_convolve_nhwc_direct_f16_body(const
     const int32_t output_c = output_dims->c;
     const int32_t kernel_h = filter_dims->h;
     const int32_t kernel_w = filter_dims->w;
-    const int32_t kernel_ch = filter_dims->c;
     const int32_t stride_h = conv_params->stride.h;
     const int32_t stride_w = conv_params->stride.w;
     const int32_t pad_h = conv_params->padding.h;
     const int32_t pad_w = conv_params->padding.w;
     const int32_t dil_h = conv_params->dilation.h;
     const int32_t dil_w = conv_params->dilation.w;
+    #if defined(ARM_MATH_MVE_FLOAT16) && !defined(ARM_MATH_AUTOVECTORIZE)
+    (void)grouped;
+    const int32_t kernel_ch = filter_dims->c;
     const int32_t groups = input_c / kernel_ch;
+    #else
+    /* `grouped` is constant per call site, so ungrouped scalar calls fold the group loop away. */
+    const int32_t kernel_ch = grouped ? filter_dims->c : input_c;
+    const int32_t groups = grouped ? input_c / kernel_ch : 1;
+    #endif
     const int32_t output_ch_per_group = output_c / groups;
     const int32_t patch_len = kernel_h * kernel_w * kernel_ch;
     #if defined(ARM_MATH_MVE_FLOAT16) && !defined(ARM_MATH_AUTOVECTORIZE)
@@ -837,6 +845,17 @@ __STATIC_FORCEINLINE arm_cmsis_nn_status arm_convolve_nhwc_direct_f16_body(const
                 arm_conv_f16_tap_span(in_x0, dil_w, kernel_w, input_w, &kx_first, &kx_end, &ix_first);
     #if defined(ARM_MATH_MVE_FLOAT16) && !defined(ARM_MATH_AUTOVECTORIZE)
                 const bool fold_px = fold && (int64_t)(ky_end - ky_first) * (kx_end - kx_first) * kernel_ch > block;
+    #else
+                /* Scalar leg walks input and weight pointers across the clipped taps. */
+                const size_t w_lane = weights_packed ? 8 : 1;
+                const bool any_tap = ky_first < ky_end && kx_first < kx_end;
+                const float16_t *x_first = input_b + ((size_t)iy_first * input_w + ix_first) * input_c;
+                const size_t w_first =
+                    any_tap ? ((size_t)ky_first * kernel_w + (size_t)kx_first) * kernel_ch * w_lane : 0;
+                const size_t x_kx_step = (size_t)dil_w * input_c;
+                const size_t x_ky_step = (size_t)dil_h * input_w * input_c;
+                const size_t w_kx_step = (size_t)kernel_ch * w_lane;
+                const size_t w_ky_step = (size_t)kernel_w * kernel_ch * w_lane;
     #endif
 
                 for (int32_t group = 0; group < groups; ++group)
@@ -862,8 +881,33 @@ __STATIC_FORCEINLINE arm_cmsis_nn_status arm_convolve_nhwc_direct_f16_body(const
                         const float16_t *w_oc = weights_packed
                             ? filter_data + ((size_t)(oc / 8) * patch_len) * 8 + (size_t)(oc % 8)
                             : filter_data + (size_t)oc * kernel_h * kernel_w * kernel_ch;
+                        const float16_t *x_row = x_first + in_ch_start;
+                        const float16_t *w_row = w_oc + w_first;
+                        for (int32_t ky = ky_first; ky < ky_end; ++ky, x_row += x_ky_step, w_row += w_ky_step)
+                        {
+                            const float16_t *x = x_row;
+                            const float16_t *w = w_row;
+                            for (int32_t kx = kx_first; kx < kx_end; ++kx, x += x_kx_step, w += w_kx_step)
+                            {
+                                if (weights_packed)
+                                {
+                                    for (int32_t ic = 0; ic < kernel_ch; ++ic)
+                                    {
+                                        acc32 += (float32_t)x[ic] * (float32_t)w[(size_t)ic * 8];
+                                    }
+                                }
+                                else
+                                {
+                                    for (int32_t ic = 0; ic < kernel_ch; ++ic)
+                                    {
+                                        acc32 += (float32_t)x[ic] * (float32_t)w[ic];
+                                    }
+                                }
+                            }
+                        }
     #endif
 
+    #if defined(ARM_MATH_MVE_FLOAT16) && !defined(ARM_MATH_AUTOVECTORIZE)
                         uint32_t in_y = iy_first;
                         for (int32_t ky = ky_first; ky < ky_end; ++ky, in_y += (uint32_t)dil_h)
                         {
@@ -873,7 +917,6 @@ __STATIC_FORCEINLINE arm_cmsis_nn_status arm_convolve_nhwc_direct_f16_body(const
                                 const size_t k0 = ((size_t)ky * kernel_w + (size_t)kx) * kernel_ch;
                                 const float16_t *x =
                                     input_b + ((size_t)in_y * input_w + (size_t)in_x) * input_c + in_ch_start;
-    #if defined(ARM_MATH_MVE_FLOAT16) && !defined(ARM_MATH_AUTOVECTORIZE)
                                 /* Full blocks unpredicated, one predicated tail: no vctp inside a loop. */
                                 const float16_t *w_tap = w_oc + k0;
                                 int32_t ic = 0;
@@ -907,24 +950,9 @@ __STATIC_FORCEINLINE arm_cmsis_nn_status arm_convolve_nhwc_direct_f16_body(const
                                         ic = ic_end;
                                     }
                                 }
-    #else
-                                if (weights_packed)
-                                {
-                                    for (int32_t ic = 0; ic < kernel_ch; ++ic)
-                                    {
-                                        acc32 += (float32_t)x[ic] * (float32_t)w_oc[(k0 + (size_t)ic) * 8];
-                                    }
-                                }
-                                else
-                                {
-                                    for (int32_t ic = 0; ic < kernel_ch; ++ic)
-                                    {
-                                        acc32 += (float32_t)x[ic] * (float32_t)w_oc[k0 + (size_t)ic];
-                                    }
-                                }
-    #endif
                             }
                         }
+    #endif
 
     #if defined(ARM_MATH_MVE_FLOAT16) && !defined(ARM_MATH_AUTOVECTORIZE)
                         _Float16 acc;
@@ -1024,7 +1052,8 @@ __STATIC_FORCEINLINE arm_cmsis_nn_status arm_convolve_nhwc_f16_body(const cmsis_
                                                  output_dims,
                                                  output_data,
                                                  block,
-                                                 false);
+                                                 false,
+                                                 true);
     }
 
     const int32_t patch_len = filter_dims->h * filter_dims->w * input_dims->c;
@@ -1119,7 +1148,8 @@ __STATIC_FORCEINLINE arm_cmsis_nn_status arm_convolve_nhwc_f16_body(const cmsis_
                                              output_dims,
                                              output_data,
                                              block,
-                                             conv_params->weight_format == ARM_NN_WEIGHT_FORMAT_NT_N_PACKED);
+                                             conv_params->weight_format == ARM_NN_WEIGHT_FORMAT_NT_N_PACKED,
+                                             false);
 }
 
 /* One out-of-line instantiation per block length, so the public entries below stay thin. */
@@ -1868,6 +1898,7 @@ arm_cmsis_nn_status arm_convolve_direct_nhwc_ohwi_f16(const cmsis_nn_context *ct
                                              output_dims,
                                              output_data,
                                              ARM_NN_F16_ACC_BLOCK,
+                                             false,
                                              false);
 }
 
@@ -1906,6 +1937,7 @@ arm_cmsis_nn_status arm_convolve_direct_nhwc_ohwi_f16_acc16(const cmsis_nn_conte
                                              output_dims,
                                              output_data,
                                              ARM_NN_F16_ACC_BLOCK_NONE,
+                                             false,
                                              false);
 }
 
@@ -1944,7 +1976,8 @@ arm_cmsis_nn_status arm_convolve_direct_nhwc_packed_f16(const cmsis_nn_context *
                                              output_dims,
                                              output_data,
                                              ARM_NN_F16_ACC_BLOCK,
-                                             true);
+                                             true,
+                                             false);
 }
 
 arm_cmsis_nn_status arm_convolve_direct_nhwc_packed_f16_acc16(const cmsis_nn_context *ctx,
@@ -1982,7 +2015,8 @@ arm_cmsis_nn_status arm_convolve_direct_nhwc_packed_f16_acc16(const cmsis_nn_con
                                              output_dims,
                                              output_data,
                                              ARM_NN_F16_ACC_BLOCK_NONE,
-                                             true);
+                                             true,
+                                             false);
 }
 
 /**
