@@ -1163,6 +1163,35 @@ arm_cmsis_nn_status arm_elementwise_sub_f32(const float32_t *input_1_vect,
                                             int32_t block_size);
 
 /**
+ * @brief Elementwise squared difference of contiguous FP32 vectors.
+ *
+ * Computes (input_1 - input_2) squared, rounding the subtraction to FP32 before
+ * multiplication. No activation clamp, broadcasting or scratch is used. NaNs
+ * propagate (payload unspecified); infinite differences yield positive infinity.
+ * Overflow yields positive infinity under round-to-nearest. Scalar arithmetic
+ * follows the active floating-point controls.
+ * MVE arithmetic uses round-to-nearest and flushes FP32 subnormal operands and
+ * results to signed zero regardless of FPSCR.FZ (StandardFPSCRValue). Automatic
+ * vectorization may mix these behaviors; set scalar round-to-nearest and FZ=1
+ * when consistent flushing is required. Equal finite operands produce positive zero.
+ *
+ * Buffers must be naturally aligned and hold block_size elements. Output may
+ * exactly equal either input; other partial overlaps are unsupported. Null
+ * pointers, nonpositive counts and byte counts above INT32_MAX are rejected
+ * before writing output.
+ *
+ * @param[in] input_1_vect First input vector.
+ * @param[in] input_2_vect Second input vector.
+ * @param[out] output Output vector.
+ * @param[in] block_size Number of elements (1..INT32_MAX / sizeof(float32_t)).
+ * @return ARM_CMSIS_NN_SUCCESS or ARM_CMSIS_NN_ARG_ERROR.
+ */
+arm_cmsis_nn_status arm_elementwise_squared_difference_f32(const float32_t *input_1_vect,
+                                                           const float32_t *input_2_vect,
+                                                           float32_t *output,
+                                                           int32_t block_size);
+
+/**
  * @brief Elementwise absolute value.
  *
  * @param[in]  input       Pointer to the input vector.
