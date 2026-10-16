@@ -570,6 +570,31 @@ jobs:
             --enable-f32 \
             "${f16_flag[@]}"
 
+      - name: Check reduce max/min compare integer lanes
+        if: matrix.target_cpu == 'cortex-m55'
+        env:
+          TOOLCHAIN_ROOT: ${{ steps.fetch_toolchain.outputs.toolchain_root }}
+        run: |
+          # These kernels order raw bits. An MVE float compare treats FP32
+          # subnormals as zero, and LLVM emits one for a bit test on a float
+          # load (#853).
+          set -euo pipefail
+          lib="output/atfe/cortex-m55/libns-cmsis-nn-atfe-cortex-m55-${VERSION}.a"
+          dir="${RUNNER_TEMP}/reduce-extrema"
+          mkdir -p "$dir"
+          for kernel in max_f32 min_f32 max_f16 min_f16; do
+            obj="arm_reduce_${kernel}.c.obj"
+            "${TOOLCHAIN_ROOT}/bin/llvm-ar" x --output "$dir" "$lib" "$obj"
+            "${TOOLCHAIN_ROOT}/bin/llvm-objdump" -d "$dir/$obj" > "$dir/$obj.s"
+            grep -qE '^ +[0-9a-f]+:' "$dir/$obj.s"
+            # Bare, then-/else-predicated (vcmpt, vcmpe) and multi-slot VPT (vptte) forms.
+            if grep -E '\bv(cmp[te]?|pt[te]{0,3})\.f(16|32)\b' "$dir/$obj.s"; then
+              echo "::error title=Reduce extrema float compare::$obj compares MVE lanes as floats (#853)." >&2
+              exit 1
+            fi
+            echo "$obj: integer compares only"
+          done
+
       - name: Strict smoke link
         env:
           TOOLCHAIN_ROOT: ${{ steps.fetch_toolchain.outputs.toolchain_root }}
