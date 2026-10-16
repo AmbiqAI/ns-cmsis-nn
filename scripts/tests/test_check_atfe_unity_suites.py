@@ -12,10 +12,10 @@ import tempfile
 import unittest
 from pathlib import Path
 
-SCRIPT = Path(__file__).resolve().parents[1] / "check_atfe_word_copy.py"
-spec = importlib.util.spec_from_file_location("word_copy", SCRIPT)
-word_copy = importlib.util.module_from_spec(spec)
-spec.loader.exec_module(word_copy)
+SCRIPT = Path(__file__).resolve().parents[1] / "check_atfe_unity_suites.py"
+spec = importlib.util.spec_from_file_location("unity_suites", SCRIPT)
+unity_suites = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(unity_suites)
 
 RUNNER = '''UnityBegin("TestCases/test_arm_pad_s16/Unity/unity_test_arm_pad_s16.c");
 run_test(test_pad_1, "test_pad_1", 38);
@@ -35,11 +35,11 @@ class UnityResults(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             runner = Path(directory) / "runner.c"
             runner.write_text(RUNNER)
-            expected = word_copy.runner_cases(runner)
-        self.assertTrue(word_copy.unity_pass(PASS, expected))
-        self.assertTrue(word_copy.unity_pass(PASS.replace(" Ignored\n", " Ignored \n"), expected))
-        self.assertTrue(word_copy.unity_pass("diagnostic: sweep complete\n" + PASS, expected))
-        self.assertTrue(word_copy.unity_pass(PASS.replace("\n", "\r\n") + "\x04\0", expected))
+            expected = unity_suites.runner_cases(runner)
+        self.assertTrue(unity_suites.unity_pass(PASS, expected))
+        self.assertTrue(unity_suites.unity_pass(PASS.replace(" Ignored\n", " Ignored \n"), expected))
+        self.assertTrue(unity_suites.unity_pass("diagnostic: sweep complete\n" + PASS, expected))
+        self.assertTrue(unity_suites.unity_pass(PASS.replace("\n", "\r\n") + "\x04\0", expected))
         variants = {
             "empty": "",
             "summary_only": "2 Tests 0 Failures 0 Ignored\nOK\n",
@@ -58,8 +58,8 @@ class UnityResults(unittest.TestCase):
         }
         for name, text in variants.items():
             with self.subTest(name=name):
-                self.assertFalse(word_copy.unity_pass(text, expected))
-        self.assertFalse(word_copy.unity_pass(PASS, []))
+                self.assertFalse(unity_suites.unity_pass(text, expected))
+        self.assertFalse(unity_suites.unity_pass(PASS, []))
 
     def test_main_binds_the_requested_suite(self):
         class Runtime:
@@ -77,12 +77,20 @@ class UnityResults(unittest.TestCase):
             runner.write_text(RUNNER.replace("test_arm_pad_s16", "test_arm_convolve_s8"))
             for text, exit_code in [(PASS, 1), (PASS.replace("test_arm_pad_s16", "test_arm_convolve_s8"), 0)]:
                 Runtime.output = text
-                with patch.object(word_copy, "SUITES", ("test_arm_convolve_s8",)), \
-                     patch.object(sys, "argv", ["check", "--build", directory]), \
-                     patch.object(word_copy.subprocess, "run"), \
-                     patch.object(word_copy.subprocess, "Popen", Runtime), \
+                with patch.object(unity_suites, "SUITE_SETS", {"m4-word-copy": ("test_arm_convolve_s8",)}), \
+                     patch.object(sys, "argv", ["check", "--build", directory, "--suite-set", "m4-word-copy"]), \
+                     patch.object(unity_suites.subprocess, "run"), \
+                     patch.object(unity_suites.subprocess, "Popen", Runtime), \
                      contextlib.redirect_stdout(io.StringIO()):
-                    self.assertEqual(word_copy.main(), exit_code)
+                    self.assertEqual(unity_suites.main(), exit_code)
+
+    def test_suite_sets_name_existing_unique_suites(self):
+        cases = SCRIPT.parents[1] / "Tests/UnitTest/TestCases"
+        for name, suites in unity_suites.SUITE_SETS.items():
+            with self.subTest(name=name):
+                self.assertTrue(suites)
+                self.assertEqual(len(set(suites)), len(suites))
+                self.assertEqual([s for s in suites if not (cases / s).is_dir()], [])
 
     def test_missing_or_duplicate_runner_cases_are_rejected(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -90,7 +98,7 @@ class UnityResults(unittest.TestCase):
             for text in ('UnityBegin("test.c");', RUNNER + 'run_test(test_pad_1, "test_pad_1", 38);'):
                 runner.write_text(text)
                 with self.assertRaises(ValueError):
-                    word_copy.runner_cases(runner)
+                    unity_suites.runner_cases(runner)
 
 
 if __name__ == "__main__":

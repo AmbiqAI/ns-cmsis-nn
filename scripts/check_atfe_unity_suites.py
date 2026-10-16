@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 # SPDX-FileCopyrightText: Copyright 2026 Ambiq <opensource@ambiq.com>
 # SPDX-License-Identifier: LicenseRef-Ambiq-Apollo-SDK
-"""Execute the eight M4 word-copy suites on QEMU's Cortex-M55 backend."""
+"""Execute a named set of Unity suites, built against an ATfE archive, on QEMU's Cortex-M55 backend."""
 
 import argparse
 import re
@@ -9,11 +9,23 @@ import subprocess
 import time
 from pathlib import Path
 
-SUITES = (
-    "test_arm_convolve_s8", "test_arm_convolve_1_x_n_s8", "test_arm_grouped_convolve_s8",
-    "test_arm_ds_cnn_s_s8", "test_arm_depthwise_conv_fast_s16", "test_arm_pad_s16",
-    "test_arm_transpose_conv_s8", "test_arm_nn_copy_fill_words_s8",
-)
+SUITE_SETS = {
+    # Cortex-M4 ARM_NN_WORD_COPY paths.
+    "m4-word-copy": (
+        "test_arm_convolve_s8", "test_arm_convolve_1_x_n_s8", "test_arm_grouped_convolve_s8",
+        "test_arm_ds_cnn_s_s8", "test_arm_depthwise_conv_fast_s16", "test_arm_pad_s16",
+        "test_arm_transpose_conv_s8", "test_arm_nn_copy_fill_words_s8",
+    ),
+    # Cortex-M55 kernels whose results changed under LLVM fast math (#852, #853, #854),
+    # plus the raw-bit argmax/argmin selectors.
+    "m55-float": (
+        "test_arm_reduce_max_f32", "test_arm_reduce_min_f32", "test_arm_reduce_max_f16",
+        "test_arm_reduce_min_f16", "test_arm_argmax_f32", "test_arm_argmin_f32", "test_arm_argmax_f16",
+        "test_arm_argmin_f16", "test_arm_softmax_f16", "test_arm_softmax_f16_shapes",
+        "test_arm_resize_nearest_neighbor_s8", "test_arm_resize_nearest_neighbor_s16",
+        "test_arm_resize_nearest_neighbor_f16", "test_arm_resize_nearest_neighbor_f32",
+    ),
+}
 
 
 def runner_cases(runner):
@@ -41,12 +53,14 @@ def unity_pass(text, expected):
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--build", type=Path, required=True)
+    parser.add_argument("--suite-set", choices=sorted(SUITE_SETS), required=True)
     args = parser.parse_args()
-    subprocess.run(["cmake", "--build", str(args.build), "--target", *SUITES, "--parallel", "4"], check=True)
+    suites = SUITE_SETS[args.suite_set]
+    subprocess.run(["cmake", "--build", str(args.build), "--target", *suites, "--parallel", "4"], check=True)
     logs = args.build / "qemu-logs"
     logs.mkdir(exist_ok=True)
     failed = []
-    for suite in SUITES:
+    for suite in suites:
         runner = args.build / "generated" / "TestCases" / suite / "Unity" / "TestRunner" / f"unity_{suite}_runner.c"
         expected = runner_cases(runner)
         uart = logs / f"{suite}.log"
@@ -75,7 +89,7 @@ def main():
         if not unity_pass(text, expected):
             failed.append(suite)
     if failed:
-        print("Word-copy execution failed: " + ", ".join(failed))
+        print(f"{args.suite_set} execution failed: " + ", ".join(failed))
     return int(bool(failed))
 
 
