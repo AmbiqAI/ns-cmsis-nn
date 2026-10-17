@@ -23,6 +23,11 @@ normal library builds and strict links.
   on raw bits. The kernels are ATfE-compiled, but the harness, startup and libm
   (`floorf`, `roundf`) are GNU's, and QEMU is not a physical board.
 
+The ATfE Cortex-M55 cell also compiles FP16 softmax, GRU-step and LSTM-step
+with `-Ofast -DARM_MATH_AUTOVECTORIZE`, requires nonempty instruction
+disassembly, and rejects fixed-point vector float-to-integer conversions to
+guard against recurrence of the shared LUT index miscompile (#864).
+
 For both ATfE executions, every case in the generated runner must report PASS
 with its expected source file, name and line. Exactly one complete summary with
 zero failures and zero ignored cases must follow.

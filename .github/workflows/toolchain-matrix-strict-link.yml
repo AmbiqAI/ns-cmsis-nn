@@ -612,19 +612,24 @@ jobs:
           set -euo pipefail
           dir="${RUNNER_TEMP}/softmax-f16-autovec"
           mkdir -p "$dir"
-          "${TOOLCHAIN_ROOT}/bin/clang" --target=arm-none-eabi \
-            -mcpu=cortex-m55 -mthumb -mfloat-abi=hard -Ofast \
-            -DARM_NN_ENABLE_F32=1 -DARM_NN_ENABLE_F16=1 \
-            -DARM_MATH_AUTOVECTORIZE -IInclude \
-            -c Source/SoftmaxFunctions/arm_softmax_f16.c -o "$dir/softmax.o"
-          "${TOOLCHAIN_ROOT}/bin/llvm-objdump" -d "$dir/softmax.o" > "$dir/softmax.s"
-          test -s "$dir/softmax.s"
-          grep -qE '^ *[[:xdigit:]]+:' "$dir/softmax.s"
-          if grep -E '\bvcvt[te]?\.[su]32\.f32[[:space:]]+q[0-9]+,[[:space:]]*q[0-9]+,[[:space:]]*#' "$dir/softmax.s"; then
-            echo "::error title=Unsafe softmax index conversion::Auto-vectorized FP16 softmax uses a fixed-point vector conversion (#864)." >&2
-            exit 1
-          fi
-          echo "FP16 softmax: no fixed-point vector index conversion"
+          for src in Source/SoftmaxFunctions/arm_softmax_f16.c \
+                     Source/NNSupportFunctions/arm_nn_gru_step_f16.c \
+                     Source/NNSupportFunctions/arm_nn_lstm_step_f16.c; do
+            name="$(basename "$src" .c)"
+            "${TOOLCHAIN_ROOT}/bin/clang" --target=arm-none-eabi \
+              -mcpu=cortex-m55 -mthumb -mfloat-abi=hard -Ofast \
+              -DARM_NN_ENABLE_F32=1 -DARM_NN_ENABLE_F16=1 \
+              -DARM_MATH_AUTOVECTORIZE -IInclude \
+              -c "$src" -o "$dir/$name.o"
+            "${TOOLCHAIN_ROOT}/bin/llvm-objdump" -d "$dir/$name.o" > "$dir/$name.s"
+            test -s "$dir/$name.s"
+            grep -qE '^ *[[:xdigit:]]+:' "$dir/$name.s"
+            if grep -E '\bvcvt[te]?\.[su]32\.f32[[:space:]]+q[0-9]+,[[:space:]]*q[0-9]+,[[:space:]]*#' "$dir/$name.s"; then
+              echo "::error title=Unsafe softmax index conversion::Auto-vectorized $name uses a fixed-point vector conversion (#864)." >&2
+              exit 1
+            fi
+            echo "$name: no fixed-point vector index conversion"
+          done
 
       - name: Strict smoke link
         env:
