@@ -4105,6 +4105,26 @@ __STATIC_FORCEINLINE uint32_t arm_nn_f16_bits_to_f32_bits(const uint32_t h)
 }
 #endif
 
+#if defined(ARM_NN_DEQUANTIZE_F16_MVE)
+/**
+ * @brief Widen four binary16 bit patterns, one in the low half of each lane, to binary32 bits. The vector VCVTB
+ *        gives the default NaN for every NaN, so NaN lanes are rebuilt from the input as the scalar paths give
+ *        them: sign and payload kept, quiet bit set, whatever FPSCR.DN holds.
+ *
+ * @param[in]  h  The binary16 bits, zero-extended to 32 bits per lane.
+ *
+ * @return     The binary32 bits.
+ */
+__STATIC_FORCEINLINE uint32x4_t arm_nn_vcvtbq_f32_f16_bits(const uint32x4_t h)
+{
+    const uint32x4_t converted = vreinterpretq_u32_f32(arm_nn_vcvtbq_f32_f16(vreinterpretq_f16_u32(h)));
+    /* h << 13 puts the payload in bits 22..0; the constant covers the exponent and the quiet bit */
+    const uint32x4_t nan =
+        vorrq(vorrq(vshlq_n_u32(h, 13), vdupq_n_u32(0x7FC00000u)), vandq(vshlq_n_u32(h, 16), vdupq_n_u32(0x80000000u)));
+    return vpselq(nan, converted, vcmphiq_n_u32(vandq(h, vdupq_n_u32(0x7FFFu)), 0x7C00u));
+}
+#endif
+
 /**
  * @brief The body of arm_dequantize_f16_bits_f32() without its argument checks, inline so that a caller with a
  *        small or constant size pays no call. Each element gives what the path's hardware half-to-single conversion
@@ -4126,14 +4146,14 @@ __STATIC_FORCEINLINE void arm_nn_dequantize_f16_bits_f32(const uint16_t *input, 
     float *out = output;
     for (int32_t n = block_size >> 2; n > 0; n--)
     {
-        vst1q(out, arm_nn_vcvtbq_f32_f16(vreinterpretq_f16_u32(vldrhq_u32(in))));
+        vst1q(out, vreinterpretq_f32_u32(arm_nn_vcvtbq_f32_f16_bits(vldrhq_u32(in))));
         in += 4;
         out += 4;
     }
     if ((block_size & 3) != 0)
     {
         const mve_pred16_t p = vctp32q((uint32_t)(block_size & 3));
-        vst1q_p(out, arm_nn_vcvtbq_f32_f16(vreinterpretq_f16_u32(vldrhq_z_u32(in, p))), p);
+        vst1q_p(out, vreinterpretq_f32_u32(arm_nn_vcvtbq_f32_f16_bits(vldrhq_z_u32(in, p))), p);
     }
 #elif defined(ARM_NN_DEQUANTIZE_F16_FPU)
     int32_t i = 0;

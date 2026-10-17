@@ -8162,17 +8162,17 @@ arm_dequantize_s16_f32(const int16_t *input, float *output, int32_t size, int32_
  * finite values, subnormals (normal in float32), +/-0 and +/-Inf convert exactly, whatever FPSCR.FZ and FZ16
  * hold. Needs no float16 support from the toolchain or the build (ARM_NN_ENABLE_F16 may be off), so float32 code
  * can widen stored float16 weights. The inline arm_nn_dequantize_f16_bits_f32 in arm_nnsupportfunctions.h is the
- * same conversion without the argument checks, provided its caller compiles with the library's VCVT form: the
- * ARM_NN_GAS_* verdict reaches users of an INTERFACE (module) build of the library; users of a static-library
- * build must pass it themselves, or NaN payloads can differ on the MVE path. Paths:
- *  - MVE float16, ARM_NN_ENABLE_F16 and no ARM_MATH_AUTOVECTORIZE: the vector VCVTB. Every NaN becomes the
- *    default NaN (0x7FC00000), except where the assembler needs the scalar form instead (#427, see
- *    Internal/arm_nn_vcvt_f16.h), which treats a NaN as the next path does.
- *  - Otherwise, a little-endian M-profile core with an FPU: the scalar VCVTB/VCVTT, two elements per word. A NaN
- *    keeps its sign and payload and comes back quiet; FPSCR.DN set gives the default NaN instead.
+ * same conversion without the argument checks. A NaN keeps its sign and payload and comes back quiet on every path,
+ * bit-exact with LiteRT's Float16BitsToFloat32, except where FPSCR.DN is set on the scalar FPU path. Paths:
+ *  - MVE float16, ARM_NN_ENABLE_F16 and no ARM_MATH_AUTOVECTORIZE: the vector VCVTB (or, where the assembler
+ *    needs it, the scalar form, #427, see Internal/arm_nn_vcvt_f16.h), with NaN lanes rebuilt from the input
+ *    bits, so FPSCR.DN does not apply.
+ *  - Otherwise, a little-endian M-profile core with an FPU: the scalar VCVTB/VCVTT, two elements per word;
+ *    FPSCR.DN set gives the default NaN (0x7FC00000).
  *  - Otherwise: integer widening with the scalar VCVTB's result at reset FPSCR.
  *
- * On the two hardware paths FPSCR.AHP set reads exponent 31 as a number, and a signaling NaN sets FPSCR.IOC.
+ * On the two hardware paths FPSCR.AHP set reads exponent 31 as a number (on the MVE path, Inf only: a NaN pattern is
+ * still rebuilt as a NaN), and a signaling NaN sets FPSCR.IOC.
  * arm_dequantize_f16_f32() calls this function. Input and output must not overlap.
  *
  * @param[in]   input       Pointer to the binary16 bit patterns.
@@ -8192,14 +8192,30 @@ arm_cmsis_nn_status arm_dequantize_f16_bits_f32(const uint16_t *input, float *ou
 /**
  * @brief Strided slice function for int8 data
  *
+ * Reads element i of input axis a at begin_dims[a] + i * stride_dims[a], for i from 0 to output_dims[a] - 1, and
+ * writes the elements contiguously in N, H, W, C order: output_dims->n * h * w * c elements in all. Every argument
+ * is per input axis, in input axis order [N, H, W, C], after the caller pads a lower-rank slice to 4-D.
+ *
+ * output_dims holds the number of elements to read on each input axis. That is the output tensor's shape only when
+ * no axis is removed: for an axis that TFLite's shrink_axis_mask removes, or any slice whose output rank is below
+ * the input rank, pass 1 at that axis's position, not the output tensor's shape padded to 4-D. TFLM's
+ * strided_slice::StridedSliceStartForAxis() and StridedSliceEndForAxis() give the per-axis begin and end the counts
+ * follow from. Example: input [2, 3, 4] sliced x[:, 1, :] (shrink axis 1) is input_dims {1, 2, 3, 4}, begin_dims
+ * {0, 0, 1, 0}, stride_dims {1, 1, 1, 1} and output_dims {1, 2, 1, 4}; the output tensor's padded shape
+ * {1, 1, 2, 4} would read rows 1 and 2 of batch 0 instead, and still return ARM_CMSIS_NN_SUCCESS.
+ *
+ * Every visited index must lie inside input_dims, and the output buffer must hold the elements read; neither is
+ * checked. An empty slice (a count of 0 on some axis) is rejected, so the caller skips it before the call.
+ *
  * @param[in]   input_data         Pointer to input tensor
  * @param[out]  output_data        Pointer to output tensor
- * @param[in]   input_dims         Input tensor dimensions
- * @param[in]   begin_dims         Begin dimensions for slicing
- * @param[in]   stride_dims        Stride dimensions for slicing
- * @param[in]   output_dims        Output tensor dimensions
+ * @param[in]   input_dims         Input tensor dimensions, each at least 1
+ * @param[in]   begin_dims         Index of the first element read on each input axis
+ * @param[in]   stride_dims        Step between elements read on each input axis, nonzero; negative walks backwards
+ * @param[in]   output_dims        Number of elements to read on each input axis, each at least 1 (see above)
  *
- * @return     The function returns <code>ARM_CMSIS_NN_SUCCESS</code>
+ * @return     <code>ARM_CMSIS_NN_SUCCESS</code>, or <code>ARM_CMSIS_NN_ARG_ERROR</code> when a pointer is NULL, an
+ *             input_dims or output_dims value is less than 1, or a stride_dims value is 0.
  *
  * @details
  *    1. Supported framework: TensorFlow Lite Micro
@@ -8215,14 +8231,30 @@ arm_cmsis_nn_status arm_strided_slice_s8(const int8_t *input_data,
 /**
  * @brief Strided slice function for int16 data
  *
+ * Reads element i of input axis a at begin_dims[a] + i * stride_dims[a], for i from 0 to output_dims[a] - 1, and
+ * writes the elements contiguously in N, H, W, C order: output_dims->n * h * w * c elements in all. Every argument
+ * is per input axis, in input axis order [N, H, W, C], after the caller pads a lower-rank slice to 4-D.
+ *
+ * output_dims holds the number of elements to read on each input axis. That is the output tensor's shape only when
+ * no axis is removed: for an axis that TFLite's shrink_axis_mask removes, or any slice whose output rank is below
+ * the input rank, pass 1 at that axis's position, not the output tensor's shape padded to 4-D. TFLM's
+ * strided_slice::StridedSliceStartForAxis() and StridedSliceEndForAxis() give the per-axis begin and end the counts
+ * follow from. Example: input [2, 3, 4] sliced x[:, 1, :] (shrink axis 1) is input_dims {1, 2, 3, 4}, begin_dims
+ * {0, 0, 1, 0}, stride_dims {1, 1, 1, 1} and output_dims {1, 2, 1, 4}; the output tensor's padded shape
+ * {1, 1, 2, 4} would read rows 1 and 2 of batch 0 instead, and still return ARM_CMSIS_NN_SUCCESS.
+ *
+ * Every visited index must lie inside input_dims, and the output buffer must hold the elements read; neither is
+ * checked. An empty slice (a count of 0 on some axis) is rejected, so the caller skips it before the call.
+ *
  * @param[in]   input_data         Pointer to input tensor
  * @param[out]  output_data        Pointer to output tensor
- * @param[in]   input_dims         Input tensor dimensions
- * @param[in]   begin_dims         Begin dimensions for slicing
- * @param[in]   stride_dims        Stride dimensions for slicing
- * @param[in]   output_dims        Output tensor dimensions
+ * @param[in]   input_dims         Input tensor dimensions, each at least 1
+ * @param[in]   begin_dims         Index of the first element read on each input axis
+ * @param[in]   stride_dims        Step between elements read on each input axis, nonzero; negative walks backwards
+ * @param[in]   output_dims        Number of elements to read on each input axis, each at least 1 (see above)
  *
- * @return     The function returns <code>ARM_CMSIS_NN_SUCCESS</code>
+ * @return     <code>ARM_CMSIS_NN_SUCCESS</code>, or <code>ARM_CMSIS_NN_ARG_ERROR</code> when a pointer is NULL, an
+ *             input_dims or output_dims value is less than 1, or a stride_dims value is 0.
  *
  * @details
  *    1. Supported framework: TensorFlow Lite Micro
@@ -8238,14 +8270,30 @@ arm_cmsis_nn_status arm_strided_slice_s16(const int16_t *input_data,
 /**
  * @brief Strided slice function for int32 data
  *
+ * Reads element i of input axis a at begin_dims[a] + i * stride_dims[a], for i from 0 to output_dims[a] - 1, and
+ * writes the elements contiguously in N, H, W, C order: output_dims->n * h * w * c elements in all. Every argument
+ * is per input axis, in input axis order [N, H, W, C], after the caller pads a lower-rank slice to 4-D.
+ *
+ * output_dims holds the number of elements to read on each input axis. That is the output tensor's shape only when
+ * no axis is removed: for an axis that TFLite's shrink_axis_mask removes, or any slice whose output rank is below
+ * the input rank, pass 1 at that axis's position, not the output tensor's shape padded to 4-D. TFLM's
+ * strided_slice::StridedSliceStartForAxis() and StridedSliceEndForAxis() give the per-axis begin and end the counts
+ * follow from. Example: input [2, 3, 4] sliced x[:, 1, :] (shrink axis 1) is input_dims {1, 2, 3, 4}, begin_dims
+ * {0, 0, 1, 0}, stride_dims {1, 1, 1, 1} and output_dims {1, 2, 1, 4}; the output tensor's padded shape
+ * {1, 1, 2, 4} would read rows 1 and 2 of batch 0 instead, and still return ARM_CMSIS_NN_SUCCESS.
+ *
+ * Every visited index must lie inside input_dims, and the output buffer must hold the elements read; neither is
+ * checked. An empty slice (a count of 0 on some axis) is rejected, so the caller skips it before the call.
+ *
  * @param[in]   input_data         Pointer to input tensor
  * @param[out]  output_data        Pointer to output tensor
- * @param[in]   input_dims         Input tensor dimensions
- * @param[in]   begin_dims         Begin dimensions for slicing
- * @param[in]   stride_dims        Stride dimensions for slicing
- * @param[in]   output_dims        Output tensor dimensions
+ * @param[in]   input_dims         Input tensor dimensions, each at least 1
+ * @param[in]   begin_dims         Index of the first element read on each input axis
+ * @param[in]   stride_dims        Step between elements read on each input axis, nonzero; negative walks backwards
+ * @param[in]   output_dims        Number of elements to read on each input axis, each at least 1 (see above)
  *
- * @return     The function returns <code>ARM_CMSIS_NN_SUCCESS</code>
+ * @return     <code>ARM_CMSIS_NN_SUCCESS</code>, or <code>ARM_CMSIS_NN_ARG_ERROR</code> when a pointer is NULL, an
+ *             input_dims or output_dims value is less than 1, or a stride_dims value is 0.
  *
  * @details
  *    1. Supported framework: TensorFlow Lite Micro
