@@ -225,3 +225,41 @@ void prelu_f32_edges_arm_prelu_f32(void)
         }
     }
 }
+
+/* In place (output == input): a redone lane uses the x it loaded, not the value the vector store left (#873) */
+void prelu_f32_in_place_arm_prelu_f32(void)
+{
+    static float32_t data[PRELU_F32_EDGE_N];
+    static float32_t alpha[PRELU_F32_EDGE_N];
+    for (size_t i = 0; i < PRELU_F32_EDGE_NX; ++i)
+    {
+        for (size_t j = 0; j < PRELU_F32_EDGE_NA; ++j)
+        {
+            data[i * PRELU_F32_EDGE_NA + j] = prelu_f32_from_bits(prelu_f32_edge_x[i]);
+            alpha[i * PRELU_F32_EDGE_NA + j] = prelu_f32_from_bits(prelu_f32_edge_alpha[j]);
+        }
+    }
+    const cmsis_nn_dims full = {1, 1, 1, (int32_t)PRELU_F32_EDGE_N};
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, arm_prelu_f32(&full, data, &full, alpha, &full, data));
+    for (size_t k = 0; k < PRELU_F32_EDGE_N; ++k)
+    {
+        prelu_f32_edge_expect(prelu_f32_edge_x[k / PRELU_F32_EDGE_NA],
+                              prelu_f32_edge_alpha[k % PRELU_F32_EDGE_NA],
+                              prelu_f32_to_bits(data[k]));
+    }
+    for (size_t j = 0; j < PRELU_F32_EDGE_NA; ++j)
+    {
+        const cmsis_nn_dims dims = {1, 1, 1, (int32_t)PRELU_F32_EDGE_NX};
+        const cmsis_nn_dims one = {1, 1, 1, 1};
+        const float32_t a = prelu_f32_from_bits(prelu_f32_edge_alpha[j]);
+        for (size_t i = 0; i < PRELU_F32_EDGE_NX; ++i)
+        {
+            data[i] = prelu_f32_from_bits(prelu_f32_edge_x[i]);
+        }
+        TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, arm_prelu_f32(&dims, data, &one, &a, &dims, data));
+        for (size_t i = 0; i < PRELU_F32_EDGE_NX; ++i)
+        {
+            prelu_f32_edge_expect(prelu_f32_edge_x[i], prelu_f32_edge_alpha[j], prelu_f32_to_bits(data[i]));
+        }
+    }
+}

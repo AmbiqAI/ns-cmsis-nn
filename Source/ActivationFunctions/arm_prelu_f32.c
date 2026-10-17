@@ -75,11 +75,15 @@ static void arm_prelu_vec_f32(const float32_t *input, const float32_t *alpha, fl
         const mve_pred16_t redo = arm_prelu_redo_f32(xb, ab, vneg) & p;
         if (redo)
         {
+            // From the loaded lanes: output may be input or alpha, already overwritten by the store above
+            float32_t xs[4], as[4];
+            vst1q(xs, vx);
+            vst1q(as, vreinterpretq_f32_u32(ab));
             for (int32_t j = 0; j < 4; ++j)
             {
                 if (redo & (1u << (4 * j)))
                 {
-                    output[i + j] = arm_prelu_scalar_mul_f32(input[i + j], alpha[i + j]);
+                    output[i + j] = arm_prelu_scalar_mul_f32(xs[j], as[j]);
                 }
             }
         }
@@ -113,11 +117,14 @@ arm_prelu_alpha_scalar_f32(const float32_t *input, float32_t alpha_value, float3
         const mve_pred16_t redo = arm_prelu_redo_f32(xb, ab, vneg) & p;
         if (redo)
         {
+            // From the loaded lanes: output may be input, already overwritten by the store above
+            float32_t xs[4];
+            vst1q(xs, vx);
             for (int32_t j = 0; j < 4; ++j)
             {
                 if (redo & (1u << (4 * j)))
                 {
-                    output[i + j] = arm_prelu_scalar_mul_f32(input[i + j], alpha_value);
+                    output[i + j] = arm_prelu_scalar_mul_f32(xs[j], alpha_value);
                 }
             }
         }

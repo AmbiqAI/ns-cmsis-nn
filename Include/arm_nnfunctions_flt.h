@@ -2594,7 +2594,7 @@ arm_cmsis_nn_status arm_reduce_min_f32(const float32_t *input_data,
  * `in > current ? in : current`, for every input: the reduction starts from -FLT_MAX (0xff7fffff), a NaN never
  * replaces the running value (so a window of NaNs, or of -Inf only, gives the start value), an empty
  * reduced domain gives the start value, and a zero mask folds each element into the start value rather than
- * copying it. Otherwise as @ref arm_reduce_max_f32: values are selected without floating-point arithmetic,
+ * copying it. Otherwise as @ref arm_reduce_max_f32, values are selected without floating-point arithmetic,
  * equal numeric values retain the first input in row-major order including zero signs, and scalar and MVE
  * paths agree independently of FP controls. The arguments and their checks are those of
  * @ref arm_reduce_max_f32. Refs #870.
@@ -2620,7 +2620,7 @@ arm_cmsis_nn_status arm_reduce_max_tflite_f32(const float32_t *input_data,
  * `in < current ? in : current`, for every input: the reduction starts from +FLT_MAX (0x7f7fffff), a NaN never
  * replaces the running value (so a window of NaNs, or of +Inf only, gives the start value), an empty
  * reduced domain gives the start value, and a zero mask folds each element into the start value rather than
- * copying it. Otherwise as @ref arm_reduce_min_f32: values are selected without floating-point arithmetic,
+ * copying it. Otherwise as @ref arm_reduce_min_f32, values are selected without floating-point arithmetic,
  * equal numeric values retain the first input in row-major order including zero signs, and scalar and MVE
  * paths agree independently of FP controls. The arguments and their checks are those of
  * @ref arm_reduce_min_f32. Refs #870.
@@ -5043,7 +5043,7 @@ arm_cmsis_nn_status arm_reduce_min_f16(const float16_t *input_data,
  * `in > current ? in : current`, for every input: the reduction starts from -65504 (0xfbff), a NaN never
  * replaces the running value (so a window of NaNs, or of -Inf only, gives the start value), an empty
  * reduced domain gives the start value, and a zero mask folds each element into the start value rather than
- * copying it. Otherwise as @ref arm_reduce_max_f16: values are selected without floating-point arithmetic,
+ * copying it. Otherwise as @ref arm_reduce_max_f16, values are selected without floating-point arithmetic,
  * equal numeric values retain the first input in row-major order including zero signs, and scalar and MVE
  * paths agree independently of FP controls. The arguments and their checks are those of
  * @ref arm_reduce_max_f16. Refs #870.
@@ -5069,7 +5069,7 @@ arm_cmsis_nn_status arm_reduce_max_tflite_f16(const float16_t *input_data,
  * `in < current ? in : current`, for every input: the reduction starts from +65504 (0x7bff), a NaN never
  * replaces the running value (so a window of NaNs, or of +Inf only, gives the start value), an empty
  * reduced domain gives the start value, and a zero mask folds each element into the start value rather than
- * copying it. Otherwise as @ref arm_reduce_min_f16: values are selected without floating-point arithmetic,
+ * copying it. Otherwise as @ref arm_reduce_min_f16, values are selected without floating-point arithmetic,
  * equal numeric values retain the first input in row-major order including zero signs, and scalar and MVE
  * paths agree independently of FP controls. The arguments and their checks are those of
  * @ref arm_reduce_min_f16. Refs #870.
