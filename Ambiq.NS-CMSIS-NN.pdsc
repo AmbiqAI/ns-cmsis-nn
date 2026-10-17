@@ -91,6 +91,7 @@
         <file category="header" name="Include/Internal/arm_nn_reduce_bool.h"/>
         <file category="header" name="Include/Internal/arm_nn_reduce_extrema_flt.h"/>
         <file category="header" name="Include/Internal/arm_nn_resize_bilinear.h"/>
+        <file category="header" name="Include/Internal/arm_nn_rsub_scalar.h"/>
         <file category="header" name="Include/Internal/arm_nn_s4_decode.h"/>
         <file category="header" name="Include/Internal/arm_nn_sqrt_flt.h"/>
         <file category="header" name="Include/Internal/arm_minmax_f16_common.h"/>
