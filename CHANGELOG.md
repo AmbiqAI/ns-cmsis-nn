@@ -3,6 +3,14 @@
 ## [7.45.1](https://github.com/AmbiqAI/ns-cmsis-nn/compare/v7.45.0...v7.45.1) (2026-10-17)
 
 
+### Notes for integrators
+
+* ATfE (LLVM) Cortex-M55 builds of `arm_reduce_max_f32/f16` and `arm_reduce_min_f32/f16` in earlier releases returned ±0 where a subnormal input's exact bits were required; GCC and armclang builds were unaffected. Rebuild or update ATfE Cortex-M55 libraries (#853).
+* `arm_softmax_f32` and `arm_softmax_f16` no longer return `ARM_CMSIS_NN_ARG_ERROR` for rows holding NaN, +Inf or only -Inf. The status now reflects argument validity only, and such rows have unspecified outputs while every other row is still computed. Previously an all -Inf row returned the error on MVE builds but not on scalar builds, and NaN/+Inf rows depended on the compiler (#854).
+* ATfE fast-math builds could select a different source pixel in nearest-neighbor resize at float32 rounding boundaries (#852).
+* The scalar FP16 softmax and sigmoid exponential no longer floors at 2^-14, so wide scalar FP16 softmax rows normalize correctly (#861).
+* An LLVM miscompile of the scalar FP16 softmax LUT in `ARM_MATH_AUTOVECTORIZE` builds (ATfE 19.1.5/22.1/23.1, armclang 6.24) is avoided and guarded in CI (#864). Shipped libraries use explicit MVE and were not affected.
+
 ### Bug Fixes
 
 * **ci:** bound legacy simulator runs and retain diagnostics ([14182c0](https://github.com/AmbiqAI/ns-cmsis-nn/commit/14182c0353977bf196e71acf0264fa66d0a8076a)), closes [#843](https://github.com/AmbiqAI/ns-cmsis-nn/issues/843)
