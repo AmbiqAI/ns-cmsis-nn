@@ -82,11 +82,15 @@ echo "library compiler: $compiler"
 # 1. Library archive with the cell's compiler, at the shipped optimization level.
 bash "$REPO/scripts/build_staticlib.sh" --target-cpu "$CPU" --version 0.0.0 --outdir "$OUTDIR/lib" \
   --toolchain "$TOOLCHAIN" --toolchain-root "$TOOLCHAIN_ROOT" "${features[@]}"
-lib="$(find "$OUTDIR/lib" -maxdepth 1 -name 'libns-cmsis-nn-*.a' | head -n 1)"
-[[ -f "$lib" ]] || { echo "no archive produced under $OUTDIR/lib" >&2; exit 1; }
+# build_staticlib.sh's own naming, so a reused --outdir cannot hand over another compiler's archive.
+if [[ "$TOOLCHAIN" == gcc ]]; then name="libns-cmsis-nn-$CPU-0.0.0.a"; else name="libns-cmsis-nn-$TOOLCHAIN-$CPU-0.0.0.a"; fi
+lib="$OUTDIR/lib/$name"
+[[ -f "$lib" ]] || { echo "build_staticlib.sh produced no $lib" >&2; exit 1; }
 
-# 2. Import shim the tester's CMake consumes as CMSIS_NN_ROOT.
+# 2. Import shim the tester's CMake consumes as CMSIS_NN_ROOT. The checkout's
+#    Include, Source and Tests sit beside it for anything else the tester reads there.
 mkdir -p "$OUTDIR/import"
+for dir in Include Source Tests; do ln -sfn "$REPO/$dir" "$OUTDIR/import/$dir"; done
 cat > "$OUTDIR/import/CMakeLists.txt" <<EOF
 add_library(cmsis-nn STATIC IMPORTED GLOBAL)
 set_target_properties(cmsis-nn PROPERTIES
@@ -126,7 +130,8 @@ from pathlib import Path
 tester, suite, cpu, lib, status = Path(sys.argv[1]), sys.argv[2], sys.argv[3], Path(sys.argv[4]), int(sys.argv[5])
 started, seed, compiler = int(sys.argv[6]), int(sys.argv[7]), sys.argv[8]
 generated = tester / "artifacts/generated_tests" / suite / cpu
-cases = sum(1 for p in generated.glob("*/*") if p.is_dir())
+names = {p.name for p in generated.glob("*/*") if p.is_dir()}
+cases = len(names)
 gen = json.loads((tester / "artifacts/reports/generation" / suite / cpu / "generation_summary.json").read_text())
 dropped = {k: gen["counts"].get(k, 0) for k in ("skipped_kernel_symbol", "generation_failures", "conversion_failures")
            if gen["counts"].get(k, 0)}
@@ -142,15 +147,20 @@ if not reports:
 report = json.loads(reports[-1].read_text())
 bad = {k: report.get(k, 0) for k in ("failed", "skipped", "timed_out", "errors", "not_run", "build_failed",
                                      "generation_failed", "conversion_failed") if report.get(k, 0)}
-manifest = hashlib.sha256((generated / "manifest.json").read_bytes()).hexdigest()
+# Fingerprint of the generated cases themselves; the manifest also records reuse counts.
+digest = hashlib.sha256("\n".join(f"{n}:{r.get('artifact_sha256')}" for n, r in sorted(report.get("descriptor_results", {}).items())).encode()).hexdigest()
 line = (f"{cpu} {suite}: {report['passed']}/{report['total_tests']} passed, {cases} generated "
         f"({gen['counts'].get('skipped_capability', 0)} capability skips), "
-        f"manifest {manifest[:16]}, archive {hashlib.sha256(lib.read_bytes()).hexdigest()[:16]}, "
+        f"cases {digest[:16]}, archive {hashlib.sha256(lib.read_bytes()).hexdigest()[:16]}, "
         f"run {report.get('duration', 0):.0f}s, compiler {compiler}")
 print(line)
 if os.environ.get("GITHUB_STEP_SUMMARY"):
     with open(os.environ["GITHUB_STEP_SUMMARY"], "a") as summary:
         summary.write(f"- {line}\n")
-if status or bad or report["total_tests"] != cases or report["passed"] != cases:
-    sys.exit(f"cell failed: tester exit {status}, counters {bad}, {report['passed']}/{report['total_tests']} of {cases}")
+results = {name: r.get("test_result", {}).get("status") for name, r in report.get("descriptor_results", {}).items()}
+missing, extra = sorted(names - results.keys()), sorted(results.keys() - names)
+not_passed = sorted(n for n, s in results.items() if s != "PASS")
+if status or bad or missing or extra or not_passed or report["total_tests"] != cases or report["passed"] != cases:
+    sys.exit(f"cell failed: tester exit {status}, counters {bad}, {report['passed']}/{report['total_tests']} of {cases}, "
+             f"missing {missing[:5]}, unexpected {extra[:5]}, not passed {not_passed[:5]}")
 EOF

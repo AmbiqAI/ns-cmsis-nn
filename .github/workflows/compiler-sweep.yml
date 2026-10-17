@@ -9,8 +9,8 @@ name: Weekly compiler sweep
 # Each cell builds the library with one compiler and links it into the
 # tester's own pinned GNU harness, so only the library compiler varies
 # (scripts/ci/compiler_sweep_cell.sh). Cases are regenerated per cell from
-# the same seed and tester commit; the step summary records each manifest
-# hash so cells can be compared.
+# the same seed and tester commit; the step summary records a fingerprint of
+# each cell's cases so cells can be compared.
 #
 # Arm Compiler for Embedded is not a cell yet: its license is activated once
 # per run by the strict-link armclang job, and sharing that here is separate

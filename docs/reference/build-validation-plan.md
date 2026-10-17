@@ -83,8 +83,9 @@ tester reads UnitTest data and the kernel-symbol inventory from its
   every one passed;
 - the library compiler reports the version its matrix entry names.
 
-The step summary records the case manifest hash, the capability-skip count and
-the compiler identity for each cell.
+The step summary records a fingerprint of the generated cases (names and
+artifact hashes), the capability-skip count and the compiler identity for each
+cell, so cells can be checked against each other.
 
 **How failures surface.** A red run opens or updates the rolling issue "Weekly
 compiler sweep failing on main", and the next green run closes it. The nightly
