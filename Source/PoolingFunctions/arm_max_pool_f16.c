@@ -208,17 +208,6 @@ arm_cmsis_nn_status arm_max_pool_f16(const cmsis_nn_context *ctx,
     return ARM_CMSIS_NN_SUCCESS;
 }
 
-arm_cmsis_nn_status arm_max_pool_nhwc_f16(const cmsis_nn_context *ctx,
-                                          const cmsis_nn_pool_params_f16 *pool_params,
-                                          const cmsis_nn_dims *input_dims,
-                                          const float16_t *src,
-                                          const cmsis_nn_dims *filter_dims,
-                                          const cmsis_nn_dims *output_dims,
-                                          float16_t *dst)
-{
-    return arm_max_pool_f16(ctx, pool_params, input_dims, src, filter_dims, output_dims, dst);
-}
-
 /**
  * @} end of Pooling group
  */

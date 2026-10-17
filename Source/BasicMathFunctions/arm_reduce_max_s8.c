@@ -42,11 +42,11 @@
  *
  * @return     ARM_CMSIS_NN_SUCCESS on success
  */
-arm_cmsis_nn_status arm_reduce_max_generic_s8(const int8_t *input_data,
-                                              const cmsis_nn_dims *input_dims,
-                                              const cmsis_nn_dims *axis_dims,
-                                              int8_t *output_data,
-                                              const cmsis_nn_dims *output_dims)
+static __attribute__((noinline)) arm_cmsis_nn_status arm_reduce_max_generic_s8(const int8_t *input_data,
+                                                                               const cmsis_nn_dims *input_dims,
+                                                                               const cmsis_nn_dims *axis_dims,
+                                                                               int8_t *output_data,
+                                                                               const cmsis_nn_dims *output_dims)
 {
 
     const int N = input_dims->n;
@@ -104,10 +104,10 @@ arm_cmsis_nn_status arm_reduce_max_generic_s8(const int8_t *input_data,
  *
  * @return     ARM_CMSIS_NN_SUCCESS on success
  */
-arm_cmsis_nn_status arm_reduce_max_flatten_last_dims_s8(const int8_t *input_data,
-                                                        int8_t *output_data,
-                                                        int32_t outer_size,
-                                                        int32_t inner_size)
+static __attribute__((noinline)) arm_cmsis_nn_status arm_reduce_max_flatten_last_dims_s8(const int8_t *input_data,
+                                                                                         int8_t *output_data,
+                                                                                         int32_t outer_size,
+                                                                                         int32_t inner_size)
 {
 #if defined(ARM_MATH_MVEI)
 
@@ -217,11 +217,11 @@ arm_cmsis_nn_status arm_reduce_max_flatten_last_dims_s8(const int8_t *input_data
  *
  * @return     ARM_CMSIS_NN_SUCCESS on success
  */
-arm_cmsis_nn_status arm_reduce_max_spatial_s8(const int8_t *input_data,
-                                              const cmsis_nn_dims *input_dims,
-                                              const cmsis_nn_dims *axis_dims,
-                                              int8_t *output_data,
-                                              const cmsis_nn_dims *output_dims)
+static __attribute__((noinline)) arm_cmsis_nn_status arm_reduce_max_spatial_s8(const int8_t *input_data,
+                                                                               const cmsis_nn_dims *input_dims,
+                                                                               const cmsis_nn_dims *axis_dims,
+                                                                               int8_t *output_data,
+                                                                               const cmsis_nn_dims *output_dims)
 {
 
 #if defined(ARM_MATH_MVEI)

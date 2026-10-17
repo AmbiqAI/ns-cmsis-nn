@@ -159,17 +159,6 @@ arm_cmsis_nn_status arm_avg_pool_f32(const cmsis_nn_context *ctx,
     return ARM_CMSIS_NN_SUCCESS;
 }
 
-arm_cmsis_nn_status arm_avg_pool_nhwc_f32(const cmsis_nn_context *ctx,
-                                          const cmsis_nn_pool_params_f32 *pool_params,
-                                          const cmsis_nn_dims *input_dims,
-                                          const float32_t *src,
-                                          const cmsis_nn_dims *filter_dims,
-                                          const cmsis_nn_dims *output_dims,
-                                          float32_t *dst)
-{
-    return arm_avg_pool_f32(ctx, pool_params, input_dims, src, filter_dims, output_dims, dst);
-}
-
 /**
  * @} end of Pooling group
  */

@@ -19,6 +19,7 @@
  *
  * -------------------------------------------------------------------- */
 
+#include "Internal/arm_nn_rsub_scalar.h"
 #include "arm_nnfunctions.h"
 #include "arm_nnsupportfunctions.h"
 
