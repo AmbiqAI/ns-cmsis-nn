@@ -135,9 +135,10 @@
 #
 # Coverage boundary: this checks the declared public API, not every exported
 # symbol. Include/Internal/*.h declarations are outside its scope. The
-# mean/reduce s8/s16 helpers have internal linkage; the cross-TU rsub helpers
-# are declared in Include/Internal/arm_nn_rsub_scalar.h. Source definitions
-# without a public declaration are not scanned by this guard.
+# mean/reduce s8/s16 helpers remain externally linked without header
+# declarations (tracked in #728); the cross-TU rsub helpers are declared in
+# Include/Internal/arm_nn_rsub_scalar.h. Source definitions without a public
+# declaration are not scanned by this guard.
 #
 # Data file: scripts/data/cmsis_dsp_symbols.txt is a checked-in snapshot of
 # CMSIS-DSP's public symbol surface, extracted with extract_symbols() below

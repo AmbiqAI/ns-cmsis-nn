@@ -46,15 +46,15 @@
  *
  * @return     ARM_CMSIS_NN_SUCCESS on success
  */
-static __attribute__((noinline)) arm_cmsis_nn_status arm_mean_reduce_generic_s16(const int16_t *input_data,
-                                                                                 const cmsis_nn_dims *input_dims,
-                                                                                 int32_t input_offset,
-                                                                                 const cmsis_nn_dims *axis_dims,
-                                                                                 int16_t *output_data,
-                                                                                 const cmsis_nn_dims *output_dims,
-                                                                                 int32_t out_offset,
-                                                                                 int32_t out_mult,
-                                                                                 int32_t out_shift)
+arm_cmsis_nn_status arm_mean_reduce_generic_s16(const int16_t *input_data,
+                                                const cmsis_nn_dims *input_dims,
+                                                int32_t input_offset,
+                                                const cmsis_nn_dims *axis_dims,
+                                                int16_t *output_data,
+                                                const cmsis_nn_dims *output_dims,
+                                                int32_t out_offset,
+                                                int32_t out_mult,
+                                                int32_t out_shift)
 {
     const int N = input_dims->n;
     const int H = input_dims->h;
@@ -106,14 +106,14 @@ static __attribute__((noinline)) arm_cmsis_nn_status arm_mean_reduce_generic_s16
     return ARM_CMSIS_NN_SUCCESS;
 }
 
-static __attribute__((noinline)) arm_cmsis_nn_status arm_mean_flatten_reduce_last_dims_s16(const int16_t *input_data,
-                                                                                           int32_t input_offset,
-                                                                                           int16_t *output_data,
-                                                                                           int32_t out_offset,
-                                                                                           int32_t out_mult,
-                                                                                           int32_t out_shift,
-                                                                                           int32_t outer_size,
-                                                                                           int32_t inner_size)
+arm_cmsis_nn_status arm_mean_flatten_reduce_last_dims_s16(const int16_t *input_data,
+                                                          int32_t input_offset,
+                                                          int16_t *output_data,
+                                                          int32_t out_offset,
+                                                          int32_t out_mult,
+                                                          int32_t out_shift,
+                                                          int32_t outer_size,
+                                                          int32_t inner_size)
 {
     const int32_t zp = input_offset * inner_size;
 
@@ -184,13 +184,13 @@ __STATIC_FORCEINLINE int16x8_t arm_mean_requantize_narrow_s16(int32x4_t acc0,
     return vqmovntq_s32(out, acc1);
 }
 
-static __attribute__((noinline)) arm_cmsis_nn_status arm_mean_reduce_spatial_mve_s16(const int16_t *input_data,
-                                                                                     const cmsis_nn_dims *input_dims,
-                                                                                     int32_t input_offset,
-                                                                                     int16_t *output_data,
-                                                                                     int32_t out_offset,
-                                                                                     int32_t out_mult,
-                                                                                     int32_t out_shift)
+arm_cmsis_nn_status arm_mean_reduce_spatial_mve_s16(const int16_t *input_data,
+                                                    const cmsis_nn_dims *input_dims,
+                                                    int32_t input_offset,
+                                                    int16_t *output_data,
+                                                    int32_t out_offset,
+                                                    int32_t out_mult,
+                                                    int32_t out_shift)
 {
     const int N = input_dims->n;
     const int H = input_dims->h;

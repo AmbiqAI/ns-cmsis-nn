@@ -53,15 +53,15 @@ static int32_t arm_mean_s8_out(int32_t acc, int32_t out_mult, int32_t out_shift,
  *
  * @return     ARM_CMSIS_NN_SUCCESS on success
  */
-static __attribute__((noinline)) arm_cmsis_nn_status arm_mean_reduce_generic_s8(const int8_t *input_data,
-                                                                                const cmsis_nn_dims *input_dims,
-                                                                                int32_t input_offset,
-                                                                                const cmsis_nn_dims *axis_dims,
-                                                                                int8_t *output_data,
-                                                                                const cmsis_nn_dims *output_dims,
-                                                                                int32_t out_offset,
-                                                                                int32_t out_mult,
-                                                                                int32_t out_shift)
+arm_cmsis_nn_status arm_mean_reduce_generic_s8(const int8_t *input_data,
+                                               const cmsis_nn_dims *input_dims,
+                                               int32_t input_offset,
+                                               const cmsis_nn_dims *axis_dims,
+                                               int8_t *output_data,
+                                               const cmsis_nn_dims *output_dims,
+                                               int32_t out_offset,
+                                               int32_t out_mult,
+                                               int32_t out_shift)
 {
     const int N = input_dims->n;
     const int H = input_dims->h;
@@ -109,14 +109,14 @@ static __attribute__((noinline)) arm_cmsis_nn_status arm_mean_reduce_generic_s8(
     return ARM_CMSIS_NN_SUCCESS;
 }
 
-static __attribute__((noinline)) arm_cmsis_nn_status arm_mean_flatten_reduce_last_dims_s8(const int8_t *input_data,
-                                                                                          int32_t input_offset,
-                                                                                          int8_t *output_data,
-                                                                                          int32_t out_offset,
-                                                                                          int32_t out_mult,
-                                                                                          int32_t out_shift,
-                                                                                          int32_t outer_size,
-                                                                                          int32_t inner_size)
+arm_cmsis_nn_status arm_mean_flatten_reduce_last_dims_s8(const int8_t *input_data,
+                                                         int32_t input_offset,
+                                                         int8_t *output_data,
+                                                         int32_t out_offset,
+                                                         int32_t out_mult,
+                                                         int32_t out_shift,
+                                                         int32_t outer_size,
+                                                         int32_t inner_size)
 {
     const int32_t zp = input_offset * inner_size;
 
@@ -189,13 +189,13 @@ static __attribute__((noinline)) arm_cmsis_nn_status arm_mean_flatten_reduce_las
 
 #if defined(ARM_MATH_MVEI)
 
-static __attribute__((noinline)) arm_cmsis_nn_status arm_mean_reduce_spatial_mve_s8(const int8_t *input_data,
-                                                                                    const cmsis_nn_dims *input_dims,
-                                                                                    int32_t input_offset,
-                                                                                    int8_t *output_data,
-                                                                                    int32_t out_offset,
-                                                                                    int32_t out_mult,
-                                                                                    int32_t out_shift)
+arm_cmsis_nn_status arm_mean_reduce_spatial_mve_s8(const int8_t *input_data,
+                                                   const cmsis_nn_dims *input_dims,
+                                                   int32_t input_offset,
+                                                   int8_t *output_data,
+                                                   int32_t out_offset,
+                                                   int32_t out_mult,
+                                                   int32_t out_shift)
 {
     const int32_t N = input_dims->n;
     const int32_t H = input_dims->h;
