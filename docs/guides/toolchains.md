@@ -96,18 +96,20 @@ their removal is tracked by
 `arm_dequantize_f16_f32()` and `arm_dequantize_f16_bits_f32()`
 return, for each element, what the path's half-to-single conversion instruction
 returns. With `FPSCR.AHP` clear, finite values, subnormals, ±0 and ±Inf convert
-exactly on every path, whatever `FPSCR.FZ` and `FZ16`; only NaNs differ:
+exactly on every path, whatever `FPSCR.FZ` and `FZ16`. A NaN keeps its sign and
+payload, quieted, on every path except where `FPSCR.DN` is set on the scalar FPU path:
 
 | Path | A NaN input gives |
 |---|---|
-| MVE `float16` with `ARM_NN_ENABLE_F16` and no `ARM_MATH_AUTOVECTORIZE` (vector `VCVTB`) | The default NaN, `0x7FC00000`. Where the wrappers above select the scalar form, as on the scalar path. |
+| MVE `float16` with `ARM_NN_ENABLE_F16` and no `ARM_MATH_AUTOVECTORIZE` (vector `VCVTB`, or the scalar form where the wrappers above select it) | Its sign and payload, quieted: NaN lanes are rebuilt from the input bits after the conversion, whatever `FPSCR` holds (#871). |
 | Other little-endian M-profile FPU paths (scalar `VCVTB`/`VCVTT`) | Its sign and payload, quieted. With `FPSCR.DN` set, the default NaN. |
 | Other configurations, including no FPU or big-endian builds (integer widening) | The scalar instruction's result at reset `FPSCR`: sign and payload, quieted, independently of `FPSCR`. |
 
 On both hardware paths a signaling NaN sets `FPSCR.IOC`, and with `FPSCR.AHP`
-set exponent 31 reads as a number rather than as Inf or NaN. The output must be
-4-byte aligned, like any `float` storage. A test that compares NaN bits across
-targets must expect these per-path results.
+set exponent 31 reads as a number rather than as Inf or NaN (on the MVE path,
+Inf only: a NaN pattern is still rebuilt as a NaN). The output must be 4-byte
+aligned, like any `float` storage. At reset `FPSCR`, NaN bits agree across
+targets.
 
 ### How the form is chosen
 

@@ -44,3 +44,5 @@ void test_prelu_f32_arg_error_arm_prelu_f32(void) { prelu_f32_arg_error_arm_prel
 void test_prelu_f32_edges_arm_prelu_f32(void) { prelu_f32_edges_arm_prelu_f32(); }
 
 void test_prelu_f32_in_place_arm_prelu_f32(void) { prelu_f32_in_place_arm_prelu_f32(); }
+
+void test_prelu_f32_flush_to_zero_arm_prelu_f32(void) { prelu_f32_flush_to_zero_arm_prelu_f32(); }

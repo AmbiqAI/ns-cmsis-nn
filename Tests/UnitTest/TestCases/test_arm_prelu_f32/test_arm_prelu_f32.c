@@ -7,6 +7,7 @@
  * See LICENSE (root) or LICENSES/LicenseRef-Ambiq-Apollo-SDK.txt for the full text.
  */
 
+#include "../../../../Include/Internal/arm_nn_fp_control.h"
 #include <arm_nnfunctions.h>
 #include <math.h>
 #include <stdio.h>
@@ -262,4 +263,33 @@ void prelu_f32_in_place_arm_prelu_f32(void)
             prelu_f32_edge_expect(prelu_f32_edge_x[i], prelu_f32_edge_alpha[j], prelu_f32_to_bits(data[i]));
         }
     }
+}
+
+/* With FPSCR.FZ set the scalar path's compare sees a negative subnormal as -0 and keeps x; the MVE path's redo makes
+   the same choice (#873) */
+void prelu_f32_flush_to_zero_arm_prelu_f32(void)
+{
+#if defined(ARM_NN_FP_CONTROL_AVAILABLE)
+    static const uint32_t xs[] = {0x80000008u, 0x80000001u, 0x807FFFFFu, 0xBF800000u, 0x00000008u, 0x80000000u, 0x9E000000u};
+    float32_t in[7], out[7];
+    for (size_t i = 0; i < 7; ++i)
+    {
+        in[i] = prelu_f32_from_bits(xs[i]);
+    }
+    const float32_t alpha = 0.25f;
+    const cmsis_nn_dims dims = {1, 1, 1, 7}, one = {1, 1, 1, 1};
+    const arm_nn_fp_control_t saved = arm_nn_get_fp_control();
+    arm_nn_set_fp_control(saved | (1u << 24));
+    const arm_cmsis_nn_status status = arm_prelu_f32(&dims, in, &one, &alpha, &dims, out);
+    arm_nn_set_fp_control(saved);
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, status);
+    static const uint32_t expected[] = {0x80000008u, 0x80000001u, 0x807FFFFFu, 0xBE800000u, 0x00000008u, 0x80000000u,
+                                        0x9D000000u};
+    for (size_t i = 0; i < 7; ++i)
+    {
+        TEST_ASSERT_EQUAL_HEX32(expected[i], prelu_f32_to_bits(out[i]));
+    }
+#else
+    TEST_IGNORE_MESSAGE("FP controls require Arm floating-point hardware");
+#endif
 }

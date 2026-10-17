@@ -1037,8 +1037,11 @@ arm_cmsis_nn_status arm_nn_activation_f32(const float32_t *input,
  * onto the input (TensorFlow Lite semantics): each alpha dimension must equal
  * the matching input dimension or 1.
  *
- * Subnormal inputs, alphas and products are exact on every path: the MVE path, whose arithmetic flushes them,
- * redoes such lanes on the scalar FPU (#873), so it matches the scalar path bit for bit except for NaN payloads.
+ * With FPSCR.FZ clear, subnormal inputs, alphas and products are exact: the MVE path, whose arithmetic flushes them
+ * whatever FPSCR.FZ holds, redoes such lanes on the scalar FPU (#873), so it matches the scalar path bit for bit,
+ * NaN payloads aside, under either FPSCR.FZ with round-to-nearest (MVE always rounds to nearest; the scalar path
+ * follows FPSCR.RMode). An ARM_MATH_AUTOVECTORIZE build runs the C loop instead, which the
+ * compiler may vectorize into the flushing MVE instructions.
  *
  * @param[in]  input_dims   Input tensor dimensions. Must equal output_dims.
  * @param[in]  input        Pointer to the input tensor.
@@ -3928,7 +3931,20 @@ arm_cmsis_nn_status arm_nn_activation_f16(const float16_t *input,
                                           float16_t act_param);
 
 /**
- * @copydoc arm_prelu_f32
+ * @brief Parametric ReLU for float16 data.
+ *
+ * Computes output = input >= 0 ? input : input * alpha, with alpha broadcast
+ * onto the input (TensorFlow Lite semantics): each alpha dimension must equal
+ * the matching input dimension or 1.
+ *
+ * @param[in]  input_dims   Input tensor dimensions. Must equal output_dims.
+ * @param[in]  input        Pointer to the input tensor.
+ * @param[in]  alpha_dims   Alpha tensor dimensions.
+ * @param[in]  alpha        Pointer to the alpha (slope) tensor.
+ * @param[in]  output_dims  Output tensor dimensions.
+ * @param[out] output       Pointer to the output tensor.
+ *
+ * @return `ARM_CMSIS_NN_SUCCESS` on success or `ARM_CMSIS_NN_ARG_ERROR` on invalid arguments.
  */
 arm_cmsis_nn_status arm_prelu_f16(const cmsis_nn_dims *input_dims,
                                   const float16_t *input,

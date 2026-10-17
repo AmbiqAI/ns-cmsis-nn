@@ -50,11 +50,19 @@ static inline mve_pred16_t arm_prelu_redo_f32(const uint32x4_t x, const uint32x4
     return flushed & vcmpltq_n_s32(vreinterpretq_s32_u32(x), 0) & vcmpneq_n_u32(vshlq_n_u32(x, 1), 0);
 }
 
-// The scalar FPU's product, kept out of reach of the vectorizer
-static inline float32_t arm_prelu_scalar_mul_f32(const float32_t x, const float32_t a)
+// The scalar FPU's x >= 0 ? x : x * a, compare included so FPSCR.FZ acts as on the scalar path, kept out of reach
+// of the vectorizer
+static inline float32_t arm_prelu_scalar_f32(const float32_t x, const float32_t a)
 {
     float32_t r;
-    __asm("vmul.f32 %0, %1, %2" : "=t"(r) : "t"(x), "t"(a));
+    __asm("vmul.f32 %0, %1, %2\n\t"
+          "vcmp.f32 %1, #0\n\t"
+          "vmrs APSR_nzcv, fpscr\n\t"
+          "it ge\n\t"
+          "vmovge.f32 %0, %1"
+          : "=&t"(r)
+          : "t"(x), "t"(a)
+          : "cc");
     return r;
 }
     #endif
@@ -83,7 +91,7 @@ static void arm_prelu_vec_f32(const float32_t *input, const float32_t *alpha, fl
             {
                 if (redo & (1u << (4 * j)))
                 {
-                    output[i + j] = arm_prelu_scalar_mul_f32(xs[j], as[j]);
+                    output[i + j] = arm_prelu_scalar_f32(xs[j], as[j]);
                 }
             }
         }
@@ -124,7 +132,7 @@ arm_prelu_alpha_scalar_f32(const float32_t *input, float32_t alpha_value, float3
             {
                 if (redo & (1u << (4 * j)))
                 {
-                    output[i + j] = arm_prelu_scalar_mul_f32(xs[j], alpha_value);
+                    output[i + j] = arm_prelu_scalar_f32(xs[j], alpha_value);
                 }
             }
         }
