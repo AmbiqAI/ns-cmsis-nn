@@ -127,3 +127,27 @@ jobs:
           echo "ctest registered $registered suites"
           test "$registered" -ge 140
           ctest --test-dir build-host --output-on-failure --parallel 4 --no-tests=error
+
+  # helia-aot's native contract tests compile kernels with the runner's own
+  # clang, which targets x86 and has no ACLE; CLZ expanded to an undeclared
+  # __clz there and nothing here noticed. ubuntu-22.04 carries the clang 14
+  # that first hit it, ubuntu-24.04 a current one.
+  host-clang-headers:
+    name: host-clang-headers / ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-22.04, ubuntu-24.04]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Install clang
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends clang
+
+      - name: Compile every public header with host clang
+        run: scripts/check_host_clang_headers.sh clang
