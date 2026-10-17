@@ -8,7 +8,7 @@
 #include <unity.h>
 #include <math.h>
 
-#include "Internal/arm_nn_activation_flt.h"
+#include "../../../../Include/Internal/arm_nn_activation_flt.h"
 
 #include "../TestData/softmax_f16/test_data.h"
 
