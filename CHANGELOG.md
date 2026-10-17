@@ -1,5 +1,17 @@
 # Changelog
 
+## [7.46.0](https://github.com/AmbiqAI/ns-cmsis-nn/compare/v7.45.1...v7.46.0) (2026-10-17)
+
+
+### Features
+
+* **kernels:** helia-rt parity for reduce, dequantize, PReLU and strided slice ([#875](https://github.com/AmbiqAI/ns-cmsis-nn/issues/875)) ([a51e075](https://github.com/AmbiqAI/ns-cmsis-nn/commit/a51e075b0500f7e3e33d3b79b2a6f649d4c391ed))
+
+
+### Bug Fixes
+
+* **compiler:** use the builtin CLZ for clang without ACLE ([#874](https://github.com/AmbiqAI/ns-cmsis-nn/issues/874)) ([517012f](https://github.com/AmbiqAI/ns-cmsis-nn/commit/517012f02259dfaf7f0ef996843296dd7acb8067))
+
 ## [7.45.1](https://github.com/AmbiqAI/ns-cmsis-nn/compare/v7.45.0...v7.45.1) (2026-10-17)
 
 
