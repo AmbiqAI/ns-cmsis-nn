@@ -8,6 +8,9 @@
 # of the Arm-only branches the embedded builds take: CLZ once expanded to an
 # undeclared __clz there, and nothing in CI compiled the headers with a
 # non-Arm clang. Syntax only, so no Arm toolchain or link step is needed.
+# A clang without x86 _Float16 (before clang 15) gets the F32-only
+# configuration alone: the float16 configurations stop at the header's own
+# #error there, and the skip is printed.
 #
 # Usage: scripts/check_host_clang_headers.sh [clang]   (default: clang)
 
@@ -18,11 +21,12 @@ root="$(cd "$(dirname "$0")/.." && pwd)"
 work="$(mktemp -d)"
 trap 'rm -rf "${work}"' EXIT
 
-"${clang_bin}" --version | head -n 1
+"${clang_bin}" --version | sed -n 1p
 
 # arm_nnsupportfunctions_flt.h is a fragment that arm_nnsupportfunctions.h
 # includes after defining the macros it uses, so it is compiled through that
 # header rather than on its own.
+shopt -s nullglob
 headers=()
 for path in "${root}"/Include/*.h; do
   name="$(basename "${path}")"
@@ -31,7 +35,12 @@ for path in "${root}"/Include/*.h; do
 done
 ((${#headers[@]} > 0)) || { echo "no headers found under ${root}/Include" >&2; exit 1; }
 
-configs=("F32=1 F16=1" "F32=0 F16=1" "F32=1 F16=0")
+configs=("F32=1 F16=0")
+if "${clang_bin}" --target=x86_64-linux-gnu -dM -E -x c /dev/null | grep -q '__FLT16_MAX__'; then
+  configs+=("F32=1 F16=1" "F32=0 F16=1")
+else
+  echo "SKIP float16 configurations: this clang has no _Float16 for x86_64"
+fi
 failures=0
 for cfg in "${configs[@]}"; do
   defines=()
