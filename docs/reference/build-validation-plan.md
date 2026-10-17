@@ -56,3 +56,50 @@ are updated. The live package version, tags and release assets are unaffected.
 These checks extend build and harness coverage. Compile-only evidence remains
 separate from execution, and model execution remains separate from physical
 board qualification.
+
+## Weekly compiler sweep
+
+`.github/workflows/compiler-sweep.yml` runs every Sunday and on manual dispatch.
+It does not gate pull requests or releases (#340).
+
+**What it runs.** Each of its twelve cells builds the library with one compiler
+at the shipped `-Ofast` and shipped feature set (F32, plus F16 on Cortex-M55),
+then runs the complete helia-core-tester suite for one CPU against that archive
+(`scripts/ci/compiler_sweep_cell.sh`). The cells are:
+- pinned ATfE (`ci/toolchains/atfe.json`) on Cortex-M55 and Cortex-M4, float
+  and int suites;
+- a newer ATfE (`ci/toolchains/atfe-latest.json`, the newest release when last
+  bumped; move it forward when Arm publishes a newer one) on the same four;
+- GCC 13.2.Rel1 and 15.3.Rel1 on Cortex-M55, float and int.
+
+**How a cell works.** Cases are generated against the checkout, because the
+tester reads UnitTest data and the kernel-symbol inventory from its
+`--cmsis-nn-root`. Only the build and run then point at the imported archive.
+The archive's assembler verdict (`ARM_NN_GAS_*`, #427), which
+`build_staticlib.sh` now prints, is passed to the harness as a static-archive
+user must; without it the GCC 13.2 cells expect the wrong VCVT form's NaN
+behaviour.
+
+**How a cell passes.** A cell fails unless:
+- generation used the expected seed and dropped no case for a missing kernel
+  symbol or a generation failure;
+- the tester's report from this run covers exactly the generated cases, and
+  every one passed;
+- the library compiler reports the version its matrix entry names.
+
+The step summary records a fingerprint of the generated cases (names and
+artifact hashes), the capability-skip count and the compiler identity for each
+cell, so cells can be checked against each other.
+
+**How failures surface.** A red run opens or updates the rolling issue "Weekly
+compiler sweep failing on main", and the next green run closes it. The nightly
+uses the same reporter, `scripts/ci/rolling_status_issue.sh`.
+
+**Boundary.** Every cell links its archive into the tester's pinned GNU harness,
+startup code and libm, so only the library compiler varies. This is Corstone-300
+FVP execution, not silicon qualification.
+
+**Arm Compiler for Embedded.** It is not yet a CI cell, because its license is
+activated once per run by the strict-link `armclang` job. Run it locally with
+`scripts/ci/compiler_sweep_cell.sh --toolchain armclang --toolchain-root <ACfE root>`,
+which links the native runtime through the #857 helper.
