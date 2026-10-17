@@ -682,21 +682,34 @@ __STATIC_INLINE int32_t arm_nn_softmax_floor_to_int_f16(float16_t x)
 }
 
 /**
- * @brief Compute `2^n` as a float16 by building the exponent field directly.
+ * @brief Compute the power-of-two scale for the scalar float16 exp approximation.
  *
- * @param[in] n Integer exponent. Clamped to the normal float16 exponent range `[-14, 15]`.
+ * Keep the scale in float32 until the approximation is rounded to float16. Rounding
+ * the scale first would lose subnormal results when the fractional factor lifts a
+ * value above the float16 underflow threshold. The upper clamp is unchanged.
+ *
+ * @param[in] n Integer exponent. Clamped to `[-126, 15]`.
+ * @return `2^n` as a float32 intermediate.
+ */
+__STATIC_INLINE float32_t arm_nn_softmax_exp2i_wide_f16(int32_t n)
+{
+    union
+    {
+        uint32_t u;
+        float32_t f;
+    } scale;
+    n = ARM_NN_CLAMP(n, 15, -126);
+    scale.u = (uint32_t)(n + 127) << 23;
+    return scale.f;
+}
+
+/**
+ * @brief Compute `2^n` rounded to float16.
+ *
+ * @param[in] n Integer exponent. Clamped above at 15; small results round to subnormal or zero.
  * @return `2^n` as a float16.
  */
-__STATIC_INLINE float16_t arm_nn_softmax_exp2i_f16(int32_t n)
-{
-    const int32_t float16_min_normal_exponent = -14;
-    const int32_t float16_max_finite_exponent = 15;
-    const int32_t float16_exponent_bias = 15;
-    const int32_t float16_mantissa_bits = 10;
-
-    n = ARM_NN_CLAMP(n, float16_max_finite_exponent, float16_min_normal_exponent);
-    return arm_nn_softmax_fp16_from_bits((uint16_t)((n + float16_exponent_bias) << float16_mantissa_bits));
-}
+__STATIC_INLINE float16_t arm_nn_softmax_exp2i_f16(int32_t n) { return (float16_t)arm_nn_softmax_exp2i_wide_f16(n); }
 
 /**
  * @brief Taylor/Estrin exp approximation for float16 softmax helpers.
@@ -731,13 +744,13 @@ __STATIC_INLINE float16_t arm_nn_softmax_exp_taylor_f16(float16_t x)
     const float32_t t3 = (1.0f / 720.0f);
 
     const float32_t poly = t0 + t1 * r2 + t2 * r4 + t3 * r6;
-    return (float16_t)(poly * (float32_t)arm_nn_softmax_exp2i_f16(n));
+    return (float16_t)(poly * arm_nn_softmax_exp2i_wide_f16(n));
 }
 
 /**
  * @brief LUT-based exp approximation for float16 softmax helpers.
  *
- * Splits `x * log2(e)` into an integer part handled by arm_nn_softmax_exp2i_f16() and a fractional part
+ * Splits `x * log2(e)` into an integer part handled by arm_nn_softmax_exp2i_wide_f16() and a fractional part
  * interpolated linearly from `arm_nn_exp2_lut_f16`, using float32 intermediates.
  *
  * @param[in] x Exponent argument. Clamped to `[-80, 80]` before evaluation.
@@ -772,7 +785,7 @@ __STATIC_INLINE float16_t arm_nn_softmax_exp_lut_f16(float16_t x)
     const float32_t frac = idx_f - (float32_t)idx;
     const float32_t y0 = (float32_t)arm_nn_softmax_fp16_from_bits(arm_nn_exp2_lut_f16[idx]);
     const float32_t y1 = (float32_t)arm_nn_softmax_fp16_from_bits(arm_nn_exp2_lut_f16[idx + 1]);
-    return (float16_t)((y0 + (y1 - y0) * frac) * (float32_t)arm_nn_softmax_exp2i_f16(n));
+    return (float16_t)((y0 + (y1 - y0) * frac) * arm_nn_softmax_exp2i_wide_f16(n));
 }
 
 /**
