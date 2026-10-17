@@ -26,6 +26,7 @@ SUITE_SETS = {
         "test_arm_resize_nearest_neighbor_f16", "test_arm_resize_nearest_neighbor_f32",
         "test_arm_reduce_max_tflite_f32", "test_arm_reduce_min_tflite_f32", "test_arm_reduce_max_tflite_f16",
         "test_arm_reduce_min_tflite_f16", "test_arm_prelu_f32", "test_arm_dequantize_f16_bits_f32",
+        "test_arm_elementwise_squared_difference_f32",
     ),
 }
 

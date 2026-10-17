@@ -28,9 +28,10 @@ static void expect_bits(uint32_t expected, float32_t actual)
     else
         TEST_ASSERT_EQUAL_HEX32(expected, bits_of(actual));
 }
-/* MVE FP32 arithmetic uses StandardFPSCRValue (FZ=1). Autovectorized
- * builds set scalar FZ as well, so mixed scalar/vector tails have one oracle. */
-#if defined(__ARM_FEATURE_MVE) && (__ARM_FEATURE_MVE & 2)
+/* Column 2 is exact, column 3 flushes operands and results. The MVE path redoes flushed squares on the scalar FPU,
+ * so it gives column 2 at FZ=0 like the scalar path (#877). Autovectorized MVE FP32 arithmetic uses
+ * StandardFPSCRValue (FZ=1), so those builds set scalar FZ as well and mixed scalar/vector tails have one oracle. */
+#if defined(__ARM_FEATURE_MVE) && (__ARM_FEATURE_MVE & 2) && defined(ARM_MATH_AUTOVECTORIZE)
 #define EXPECTED_COLUMN 3
 #else
 #define EXPECTED_COLUMN 2
@@ -38,7 +39,7 @@ static void expect_bits(uint32_t expected, float32_t actual)
 
 enum { N = sizeof(squared_difference_cases) / sizeof(squared_difference_cases[0]) };
 
-void squared_difference_f32_values(void)
+static void squared_difference_f32_check_column(int column)
 {
     const int lengths[] = {1, 2, 3, 4, 5, 7, 8, 9, 15, 16, 17, 31, 32, 33, N};
     float32_t output[N + 2];
@@ -59,13 +60,28 @@ void squared_difference_f32_values(void)
             output[i] = 123.0f;
         TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, arm_elementwise_squared_difference_f32(a, b, output + 1, n));
         for (int i = 0; i < n; ++i)
-            expect_bits(squared_difference_cases[i][EXPECTED_COLUMN], output[i + 1]);
+            expect_bits(squared_difference_cases[i][column], output[i + 1]);
         expect_bits(bits_of(123.0f), output[0]);
         for (int i = n + 1; i < N + 2; ++i)
             expect_bits(bits_of(123.0f), output[i]);
         free(a);
         free(b);
     }
+}
+
+void squared_difference_f32_values(void) { squared_difference_f32_check_column(EXPECTED_COLUMN); }
+
+/* With FPSCR.FZ set the scalar path flushes operands and results; the MVE path's redo flushes the same way (#877) */
+void squared_difference_f32_flush_to_zero(void)
+{
+#if defined(ARM_NN_FP_CONTROL_AVAILABLE)
+    const arm_nn_fp_control_t saved = arm_nn_get_fp_control();
+    arm_nn_set_fp_control(saved | (1u << 24));
+    squared_difference_f32_check_column(3);
+    arm_nn_set_fp_control(saved);
+#else
+    TEST_IGNORE_MESSAGE("FP controls require Arm floating-point hardware");
+#endif
 }
 
 void squared_difference_f32_alias(void)
