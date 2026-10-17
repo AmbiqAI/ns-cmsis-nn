@@ -771,7 +771,13 @@ __STATIC_INLINE float16_t arm_nn_softmax_exp_lut_f16(float16_t x)
     const int32_t n = arm_nn_softmax_floor_to_int_f16((float16_t)t);
     const float32_t f = t - (float32_t)n;
     const float32_t idx_f = f * exp2_lut_segments;
-    int32_t idx = (int32_t)idx_f;
+    float32_t idx_input = idx_f;
+    #if defined(__clang__) && defined(__ARM_FEATURE_MVE) && (__ARM_FEATURE_MVE & 2)
+    /* Prevent Clang's incorrect MVE fixed-point conversion fold
+     * (llvm-project#226591), without disabling auto-vectorization. */
+    idx_input = ARM_NN_MIN(idx_input, (float32_t)exp2_lut_max_index);
+    #endif
+    int32_t idx = (int32_t)idx_input;
 
     if (idx < 0)
     {
