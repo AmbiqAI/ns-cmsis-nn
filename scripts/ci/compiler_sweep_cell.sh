@@ -88,15 +88,20 @@ else
   echo 'target_link_libraries(cmsis-nn INTERFACE m)' >> "$OUTDIR/import/CMakeLists.txt"
 fi
 
-# 3. Full tester pipeline against the archive.
+# 3. Generate against this checkout. The tester reads UnitTest data and kernel
+#    symbols from --cmsis-nn-root, so pointing generation at the shim drops cases.
+if [[ "$SKIP_GENERATION" != 1 ]]; then
+  (cd "$TESTER" && uv run helia_core_tester generate --seed "$SEED" --cpu "$CPU" --suite "$SUITE" \
+    --float-precision "$precision")
+fi
+
+# 4. Build and run the generated cases against the archive.
 started="$(date +%s)"
-skip=()
-[[ "$SKIP_GENERATION" == 1 ]] && skip+=(--skip-generation)
-(cd "$TESTER" && uv run helia_core_tester full "${skip[@]}" --seed "$SEED" --cpu "$CPU" --suite "$SUITE" \
+(cd "$TESTER" && uv run helia_core_tester full --skip-generation --cpu "$CPU" --suite "$SUITE" \
   --float-precision "$precision" --cmsis-nn-root "$OUTDIR/import" --run-jobs "$RUN_JOBS" \
   --no-fail-fast --report-formats json) || status=$?
 
-# 4. Exact coverage: every generated case reported, every one passed.
+# 5. Exact coverage: generation dropped nothing, every generated case reported, every one passed.
 python3 - "$TESTER" "$SUITE" "$CPU" "$lib" "${status:-0}" "$started" <<'EOF'
 import hashlib, json, os, sys
 from pathlib import Path
@@ -105,6 +110,12 @@ tester, suite, cpu, lib, status = Path(sys.argv[1]), sys.argv[2], sys.argv[3], P
 started = int(sys.argv[6])
 generated = tester / "artifacts/generated_tests" / suite / cpu
 cases = sum(1 for p in generated.glob("*/*") if p.is_dir())
+gen = json.loads((tester / "artifacts/reports/generation" / suite / cpu / "generation_summary.json").read_text())
+dropped = {k: gen["counts"].get(k, 0) for k in ("skipped_kernel_symbol", "generation_failures", "conversion_failures")
+           if gen["counts"].get(k, 0)}
+if gen.get("status") != "success" or dropped or gen["counts"].get("cases_total") != cases:
+    sys.exit(f"generation incomplete: status {gen.get('status')}, {dropped}, "
+             f"{gen['counts'].get('cases_total')} recorded vs {cases} generated")
 reports = sorted((p for p in (tester / "artifacts/reports/tests" / suite / cpu).glob("test_report_*.json")
                   if os.path.getmtime(p) >= started), key=os.path.getmtime)
 if not reports:
