@@ -1037,6 +1037,12 @@ arm_cmsis_nn_status arm_nn_activation_f32(const float32_t *input,
  * onto the input (TensorFlow Lite semantics): each alpha dimension must equal
  * the matching input dimension or 1.
  *
+ * With FPSCR.FZ clear, subnormal inputs, alphas and products are exact: the MVE path, whose arithmetic flushes them
+ * whatever FPSCR.FZ holds, redoes such lanes on the scalar FPU (#873), so it matches the scalar path bit for bit,
+ * NaN payloads aside, under either FPSCR.FZ with round-to-nearest (MVE always rounds to nearest; the scalar path
+ * follows FPSCR.RMode). An ARM_MATH_AUTOVECTORIZE build runs the C loop instead, which the
+ * compiler may vectorize into the flushing MVE instructions.
+ *
  * @param[in]  input_dims   Input tensor dimensions. Must equal output_dims.
  * @param[in]  input        Pointer to the input tensor.
  * @param[in]  alpha_dims   Alpha tensor dimensions.
@@ -1330,13 +1336,30 @@ arm_cmsis_nn_status arm_elementwise_mul_f32(const float32_t *input_1_vect,
 /**
  * @ingroup StridedSlice
  * @brief Strided slice for float32 data (pure copy, TensorFlow Lite compatible).
+ *
+ * Reads element i of input axis a at begin_dims[a] + i * stride_dims[a], for i from 0 to output_dims[a] - 1, and
+ * writes the elements contiguously in N, H, W, C order: output_dims->n * h * w * c elements in all. Every argument
+ * is per input axis, in input axis order [N, H, W, C], after the caller pads a lower-rank slice to 4-D.
+ *
+ * output_dims holds the number of elements to read on each input axis. That is the output tensor's shape only when
+ * no axis is removed: for an axis that TFLite's shrink_axis_mask removes, or any slice whose output rank is below
+ * the input rank, pass 1 at that axis's position, not the output tensor's shape padded to 4-D. TFLM's
+ * strided_slice::StridedSliceStartForAxis() and StridedSliceEndForAxis() give the per-axis begin and end the counts
+ * follow from. Example: input [2, 3, 4] sliced x[:, 1, :] (shrink axis 1) is input_dims {1, 2, 3, 4}, begin_dims
+ * {0, 0, 1, 0}, stride_dims {1, 1, 1, 1} and output_dims {1, 2, 1, 4}; the output tensor's padded shape
+ * {1, 1, 2, 4} would read rows 1 and 2 of batch 0 instead, and still return ARM_CMSIS_NN_SUCCESS.
+ *
+ * Every visited index must lie inside input_dims, and the output buffer must hold the elements read; neither is
+ * checked. An empty slice (a count of 0 on some axis) is rejected, so the caller skips it before the call.
+ *
  * @param[in]  input_data   Pointer to input tensor.
  * @param[out] output_data  Pointer to output tensor.
- * @param[in]  input_dims   Input tensor dimensions.
- * @param[in]  begin_dims   Begin dimensions for slicing.
- * @param[in]  stride_dims  Stride dimensions for slicing.
- * @param[in]  output_dims  Output tensor dimensions.
- * @return     ARM_CMSIS_NN_SUCCESS on success.
+ * @param[in]  input_dims   Input tensor dimensions, each at least 1.
+ * @param[in]  begin_dims   Index of the first element read on each input axis.
+ * @param[in]  stride_dims  Step between elements read on each input axis, nonzero; negative walks backwards.
+ * @param[in]  output_dims  Number of elements to read on each input axis, each at least 1 (see above).
+ * @return     ARM_CMSIS_NN_SUCCESS, or ARM_CMSIS_NN_ARG_ERROR when a pointer is NULL, an input_dims or output_dims
+ *             value is less than 1, or a stride_dims value is 0.
  */
 arm_cmsis_nn_status arm_strided_slice_f32(const float32_t *input_data,
                                           float32_t *output_data,
@@ -2565,6 +2588,58 @@ arm_cmsis_nn_status arm_reduce_min_f32(const float32_t *input_data,
                                        const cmsis_nn_dims *axis_dims,
                                        float32_t *output_data,
                                        const cmsis_nn_dims *output_dims);
+
+/**
+ * @ingroup Reduction
+ * @brief Reduces a f32 NHWC tensor to its maximum along a binary axis mask, with TFLite REDUCE_MAX results.
+ *
+ * Bit-exact with TFLM's reference_ops::ReduceGeneric with init = numeric_limits<float>::lowest() and the reducer
+ * `in > current ? in : current`, for every input: the reduction starts from -FLT_MAX (0xff7fffff), a NaN never
+ * replaces the running value (so a window of NaNs, or of -Inf only, gives the start value), an empty
+ * reduced domain gives the start value, and a zero mask folds each element into the start value rather than
+ * copying it. Otherwise as @ref arm_reduce_max_f32, values are selected without floating-point arithmetic,
+ * equal numeric values retain the first input in row-major order including zero signs, and scalar and MVE
+ * paths agree independently of FP controls. The arguments and their checks are those of
+ * @ref arm_reduce_max_f32. Refs #870.
+ *
+ * @param[in] input_data Input tensor.
+ * @param[in] input_dims Four NHWC extents.
+ * @param[in] axis_dims Four binary reduction flags.
+ * @param[out] output_data Output tensor.
+ * @param[in] output_dims NHWC output shape with reduced axes retained as 1.
+ * @return ARM_CMSIS_NN_SUCCESS or ARM_CMSIS_NN_ARG_ERROR before any output write.
+ */
+arm_cmsis_nn_status arm_reduce_max_tflite_f32(const float32_t *input_data,
+                                              const cmsis_nn_dims *input_dims,
+                                              const cmsis_nn_dims *axis_dims,
+                                              float32_t *output_data,
+                                              const cmsis_nn_dims *output_dims);
+
+/**
+ * @ingroup Reduction
+ * @brief Reduces a f32 NHWC tensor to its minimum along a binary axis mask, with TFLite REDUCE_MIN results.
+ *
+ * Bit-exact with TFLM's reference_ops::ReduceGeneric with init = numeric_limits<float>::max() and the reducer
+ * `in < current ? in : current`, for every input: the reduction starts from +FLT_MAX (0x7f7fffff), a NaN never
+ * replaces the running value (so a window of NaNs, or of +Inf only, gives the start value), an empty
+ * reduced domain gives the start value, and a zero mask folds each element into the start value rather than
+ * copying it. Otherwise as @ref arm_reduce_min_f32, values are selected without floating-point arithmetic,
+ * equal numeric values retain the first input in row-major order including zero signs, and scalar and MVE
+ * paths agree independently of FP controls. The arguments and their checks are those of
+ * @ref arm_reduce_min_f32. Refs #870.
+ *
+ * @param[in] input_data Input tensor.
+ * @param[in] input_dims Four NHWC extents.
+ * @param[in] axis_dims Four binary reduction flags.
+ * @param[out] output_data Output tensor.
+ * @param[in] output_dims NHWC output shape with reduced axes retained as 1.
+ * @return ARM_CMSIS_NN_SUCCESS or ARM_CMSIS_NN_ARG_ERROR before any output write.
+ */
+arm_cmsis_nn_status arm_reduce_min_tflite_f32(const float32_t *input_data,
+                                              const cmsis_nn_dims *input_dims,
+                                              const cmsis_nn_dims *axis_dims,
+                                              float32_t *output_data,
+                                              const cmsis_nn_dims *output_dims);
 
 /**
  * @ingroup Reduction
@@ -3856,7 +3931,20 @@ arm_cmsis_nn_status arm_nn_activation_f16(const float16_t *input,
                                           float16_t act_param);
 
 /**
- * @copydoc arm_prelu_f32
+ * @brief Parametric ReLU for float16 data.
+ *
+ * Computes output = input >= 0 ? input : input * alpha, with alpha broadcast
+ * onto the input (TensorFlow Lite semantics): each alpha dimension must equal
+ * the matching input dimension or 1.
+ *
+ * @param[in]  input_dims   Input tensor dimensions. Must equal output_dims.
+ * @param[in]  input        Pointer to the input tensor.
+ * @param[in]  alpha_dims   Alpha tensor dimensions.
+ * @param[in]  alpha        Pointer to the alpha (slope) tensor.
+ * @param[in]  output_dims  Output tensor dimensions.
+ * @param[out] output       Pointer to the output tensor.
+ *
+ * @return `ARM_CMSIS_NN_SUCCESS` on success or `ARM_CMSIS_NN_ARG_ERROR` on invalid arguments.
  */
 arm_cmsis_nn_status arm_prelu_f16(const cmsis_nn_dims *input_dims,
                                   const float16_t *input,
@@ -4031,7 +4119,7 @@ arm_cmsis_nn_status arm_nn_fill_f16(float16_t value, float16_t *output, int32_t 
  * Gives what the hardware half-to-single conversion gives for each element: with FPSCR.AHP clear, finite
  * values, subnormals (normal in float32), +/-0 and +/-Inf convert exactly. No accumulation, no rounding.
  * Implemented by arm_dequantize_f16_bits_f32(), whose documentation gives the NaN and FPSCR behavior of each path
- * (on the MVE vector path every NaN becomes the default NaN). Input and output must not overlap. Serves the
+ * (a NaN keeps its sign and payload). Input and output must not overlap. Serves the
  * f16-weights DEQUANTIZE op (`kws_float_fp16_weights`).
  *
  * @param[in]  input       Pointer to the float16 input vector.
@@ -4962,6 +5050,58 @@ arm_cmsis_nn_status arm_reduce_min_f16(const float16_t *input_data,
                                        const cmsis_nn_dims *axis_dims,
                                        float16_t *output_data,
                                        const cmsis_nn_dims *output_dims);
+
+/**
+ * @ingroup Reduction
+ * @brief Reduces a f16 NHWC tensor to its maximum along a binary axis mask, with TFLite REDUCE_MAX results.
+ *
+ * Bit-exact with TFLM's reference_ops::ReduceGeneric with init = the lowest finite half and the reducer
+ * `in > current ? in : current`, for every input: the reduction starts from -65504 (0xfbff), a NaN never
+ * replaces the running value (so a window of NaNs, or of -Inf only, gives the start value), an empty
+ * reduced domain gives the start value, and a zero mask folds each element into the start value rather than
+ * copying it. Otherwise as @ref arm_reduce_max_f16, values are selected without floating-point arithmetic,
+ * equal numeric values retain the first input in row-major order including zero signs, and scalar and MVE
+ * paths agree independently of FP controls. The arguments and their checks are those of
+ * @ref arm_reduce_max_f16. Refs #870.
+ *
+ * @param[in] input_data Input tensor.
+ * @param[in] input_dims Four NHWC extents.
+ * @param[in] axis_dims Four binary reduction flags.
+ * @param[out] output_data Output tensor.
+ * @param[in] output_dims NHWC output shape with reduced axes retained as 1.
+ * @return ARM_CMSIS_NN_SUCCESS or ARM_CMSIS_NN_ARG_ERROR before any output write.
+ */
+arm_cmsis_nn_status arm_reduce_max_tflite_f16(const float16_t *input_data,
+                                              const cmsis_nn_dims *input_dims,
+                                              const cmsis_nn_dims *axis_dims,
+                                              float16_t *output_data,
+                                              const cmsis_nn_dims *output_dims);
+
+/**
+ * @ingroup Reduction
+ * @brief Reduces a f16 NHWC tensor to its minimum along a binary axis mask, with TFLite REDUCE_MIN results.
+ *
+ * Bit-exact with TFLM's reference_ops::ReduceGeneric with init = the largest finite half and the reducer
+ * `in < current ? in : current`, for every input: the reduction starts from +65504 (0x7bff), a NaN never
+ * replaces the running value (so a window of NaNs, or of +Inf only, gives the start value), an empty
+ * reduced domain gives the start value, and a zero mask folds each element into the start value rather than
+ * copying it. Otherwise as @ref arm_reduce_min_f16, values are selected without floating-point arithmetic,
+ * equal numeric values retain the first input in row-major order including zero signs, and scalar and MVE
+ * paths agree independently of FP controls. The arguments and their checks are those of
+ * @ref arm_reduce_min_f16. Refs #870.
+ *
+ * @param[in] input_data Input tensor.
+ * @param[in] input_dims Four NHWC extents.
+ * @param[in] axis_dims Four binary reduction flags.
+ * @param[out] output_data Output tensor.
+ * @param[in] output_dims NHWC output shape with reduced axes retained as 1.
+ * @return ARM_CMSIS_NN_SUCCESS or ARM_CMSIS_NN_ARG_ERROR before any output write.
+ */
+arm_cmsis_nn_status arm_reduce_min_tflite_f16(const float16_t *input_data,
+                                              const cmsis_nn_dims *input_dims,
+                                              const cmsis_nn_dims *axis_dims,
+                                              float16_t *output_data,
+                                              const cmsis_nn_dims *output_dims);
 
 /**
  * @ingroup Reduction

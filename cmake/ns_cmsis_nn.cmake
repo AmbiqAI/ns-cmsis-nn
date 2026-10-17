@@ -151,6 +151,8 @@ function(_ns_cmsis_nn_group_def group out_subdir out_patterns out_extras)
                          "arm_nn_mean_f32.c"
                          "arm_reduce_max_f32.c"
                          "arm_reduce_min_f32.c"
+                         "arm_reduce_max_tflite_f32.c"
+                         "arm_reduce_min_tflite_f32.c"
                          "arm_reduce_sum_f32.c"
                          "arm_nn_sqrt_f32.c"
                          "arm_rsqrt_f32.c")
@@ -176,6 +178,8 @@ function(_ns_cmsis_nn_group_def group out_subdir out_patterns out_extras)
                          "arm_nn_mean_f16.c"
                          "arm_reduce_max_f16.c"
                          "arm_reduce_min_f16.c"
+                         "arm_reduce_max_tflite_f16.c"
+                         "arm_reduce_min_tflite_f16.c"
                          "arm_reduce_sum_f16.c"
                          "arm_nn_sqrt_f16.c"
                          "arm_rsqrt_f16.c")

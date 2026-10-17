@@ -40,3 +40,9 @@ void test_prelu_f32_alpha_broadcast_w_arm_prelu_f32(void) { prelu_f32_alpha_broa
 void test_prelu_f32_alpha_broadcast_c_arm_prelu_f32(void) { prelu_f32_alpha_broadcast_c_arm_prelu_f32(); }
 
 void test_prelu_f32_arg_error_arm_prelu_f32(void) { prelu_f32_arg_error_arm_prelu_f32(); }
+
+void test_prelu_f32_edges_arm_prelu_f32(void) { prelu_f32_edges_arm_prelu_f32(); }
+
+void test_prelu_f32_in_place_arm_prelu_f32(void) { prelu_f32_in_place_arm_prelu_f32(); }
+
+void test_prelu_f32_flush_to_zero_arm_prelu_f32(void) { prelu_f32_flush_to_zero_arm_prelu_f32(); }

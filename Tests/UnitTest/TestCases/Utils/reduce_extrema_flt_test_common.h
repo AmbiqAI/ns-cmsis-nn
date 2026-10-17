@@ -34,6 +34,19 @@
     #define RE_NAN UINT32_C(0x7fc00000)
     #include "reduce_extrema_f32_data.h"
 #endif
+#ifndef RE_TFLITE
+    #define RE_TFLITE 0
+#endif
+/* The start value: -/+Inf, or for the TFLite entries the most negative/positive finite value (#870) */
+#if RE_TFLITE && RE_MAX
+    #define RE_IDENTITY ((RE_INF - 1) | RE_SIGN)
+#elif RE_TFLITE
+    #define RE_IDENTITY (RE_INF - 1)
+#elif RE_MAX
+    #define RE_IDENTITY (RE_INF | RE_SIGN)
+#else
+    #define RE_IDENTITY RE_INF
+#endif
 #define RE_CAPACITY 1024
 
 static RE_TYPE re_input[RE_CAPACITY];
@@ -69,6 +82,24 @@ static double re_finite_value(uint32_t bits)
     return result;
 }
 
+#if RE_TFLITE
+/* TFLM ReduceGeneric's reducer, `in > current ? in : current` (or <), on exact values: a NaN compares false */
+static uint32_t re_reference_pair(uint32_t current, uint32_t in)
+{
+    if ((in & ~RE_SIGN) > RE_INF)
+    {
+        return current;
+    }
+    const double cv =
+        (current & ~RE_SIGN) == RE_INF ? ((current & RE_SIGN) ? -(double)INFINITY : (double)INFINITY) : re_finite_value(current);
+    const double iv = (in & ~RE_SIGN) == RE_INF ? ((in & RE_SIGN) ? -(double)INFINITY : (double)INFINITY) : re_finite_value(in);
+    #if RE_MAX
+    return iv > cv ? in : current;
+    #else
+    return iv < cv ? in : current;
+    #endif
+}
+#else
 static uint32_t re_reference_pair(uint32_t first, uint32_t next)
 {
     const uint32_t a = first & ~RE_SIGN;
@@ -105,6 +136,7 @@ static uint32_t re_reference_pair(uint32_t first, uint32_t next)
     }
     return first;
 }
+#endif
 
 static cmsis_nn_dims re_dims(const int32_t x[4])
 {
@@ -126,11 +158,7 @@ static void re_shape(const int32_t in[4], int mask, int32_t axes[4], int32_t out
 static void re_reference(const int32_t in[4], int mask, const int32_t out[4])
 {
     unsigned char seen[RE_CAPACITY] = {0};
-#if RE_MAX
-    const RE_BITS identity = RE_INF | RE_SIGN;
-#else
-    const RE_BITS identity = RE_INF;
-#endif
+    const RE_BITS identity = RE_IDENTITY;
     for (int i = 0; i < re_count(out); ++i)
     {
         re_expected[i] = identity;
@@ -151,6 +179,12 @@ static void re_reference(const int32_t in[4], int mask, const int32_t out[4])
                         dest = dest * out[d] + ((mask & (1 << d)) ? 0 : coords[d]);
                     }
                     const uint32_t bits = re_read(&re_input[source]);
+#if RE_TFLITE
+                    /* Every element folds into the start value, with no axis reduced too */
+                    (void)seen;
+                    re_expected[dest] = (RE_BITS)re_reference_pair(re_expected[dest], bits);
+                    continue;
+#endif
                     if (!seen[dest])
                     {
                         re_expected[dest] = (RE_BITS)bits;
@@ -358,11 +392,7 @@ static void re_empty(void)
         const cmsis_nn_dims id = re_dims(in), no_axes = {0, 0, 0, 0}, all_axes = {1, 1, 1, 1}, one = {1, 1, 1, 1};
         TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, RE_KERNEL(NULL, &id, &no_axes, NULL, &id));
         memset(re_output, 0xa5, sizeof(re_output));
-#if RE_MAX
-        re_expected[0] = RE_INF | RE_SIGN;
-#else
-        re_expected[0] = RE_INF;
-#endif
+        re_expected[0] = RE_IDENTITY;
         TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, RE_KERNEL(NULL, &id, &all_axes, re_output + 8, &one));
         re_check_result(1);
     }
@@ -522,6 +552,84 @@ static void re_exhaust_half(void)
         }
         re_run(shape, 0);
         re_run(shape, 8);
+    }
+}
+#endif
+
+#if RE_TFLITE
+/* The TFLM results of #870's table, spelled out rather than taken from the reference above */
+static void re_run_expect(const int32_t in[4], int mask, const RE_BITS *values, RE_BITS expected)
+{
+    for (int i = 0; i < re_count(in); ++i)
+    {
+        memcpy(re_input + i, values + i, sizeof(RE_BITS));
+    }
+    re_run(in, mask);
+    TEST_ASSERT_EQUAL_HEX32(expected, re_read(re_output + 8));
+}
+
+static void re_tflite_table(void)
+{
+    #if RE_HALF
+    const RE_BITS one = 0x3c00, three = 0x4200;
+    #else
+    const RE_BITS one = 0x3f800000, three = 0x40400000;
+    #endif
+    const RE_BITS quiet = RE_NAN, payload = RE_NAN | 0x123 / (RE_HALF ? 16 : 1), signaling = RE_SIGN | RE_INF | 1;
+    const RE_BITS start = RE_IDENTITY;
+    #if RE_MAX
+    const RE_BITS mixed_expected = three, own_inf = RE_INF | RE_SIGN;
+    #else
+    const RE_BITS mixed_expected = one, own_inf = RE_INF;
+    #endif
+    /* Lengths 3 and 19 cover a single partial vector and a full vector plus a tail */
+    for (int32_t n = 3; n <= 19; n += 16)
+    {
+        const int32_t row[4] = {1, 1, 1, n};
+        const int32_t column[4] = {1, n, 1, 3};
+        RE_BITS values[64];
+        for (int32_t i = 0; i < n; ++i)
+        {
+            values[i] = (i % 3 == 0) ? one : (i % 3 == 1) ? quiet : three;
+        }
+        re_run_expect(row, 8, values, mixed_expected);
+        for (int32_t i = 0; i < n; ++i)
+        {
+            values[i] = (i & 1) ? signaling : payload;
+        }
+        re_run_expect(row, 8, values, start);
+        for (int32_t i = 0; i < n; ++i)
+        {
+            values[i] = own_inf;
+        }
+        re_run_expect(row, 8, values, start);
+        /* Retained inner axis: the strided vector path */
+        for (int32_t i = 0; i < 3 * n; ++i)
+        {
+            values[i % 64] = (i % 3 == 1) ? quiet : own_inf;
+        }
+        if (3 * n <= 64)
+        {
+            re_run_expect(column, 2, values, start);
+            TEST_ASSERT_EQUAL_HEX32(start, re_read(re_output + 9));
+            TEST_ASSERT_EQUAL_HEX32(start, re_read(re_output + 10));
+        }
+    }
+    /* Empty axis list: each element folds into the start value */
+    const int32_t single[4] = {1, 1, 1, 1};
+    re_run_expect(single, 0, &payload, start);
+    re_run_expect(single, 0, &own_inf, start);
+    re_run_expect(single, 0, &one, one);
+    /* Empty reduced domain: input [2, 0, 3], axis 1 */
+    const int32_t in[4] = {1, 2, 0, 3};
+    int32_t axes[4], out[4];
+    re_shape(in, 4, axes, out);
+    const cmsis_nn_dims id = re_dims(in), ax = re_dims(axes), od = re_dims(out);
+    memset(re_output, 0xa5, sizeof(re_output));
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, RE_KERNEL(NULL, &id, &ax, re_output + 8, &od));
+    for (int i = 0; i < re_count(out); ++i)
+    {
+        TEST_ASSERT_EQUAL_HEX32(start, re_read(re_output + 8 + i));
     }
 }
 #endif

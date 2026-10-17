@@ -589,6 +589,7 @@ jobs:
           dir="${RUNNER_TEMP}/raw-bit-selectors"
           mkdir -p "$dir"
           for kernel in reduce_max_f32 reduce_min_f32 reduce_max_f16 reduce_min_f16 \
+                        reduce_max_tflite_f32 reduce_min_tflite_f32 reduce_max_tflite_f16 reduce_min_tflite_f16 \
                         argmax_f32 argmin_f32 argmax_f16 argmin_f16; do
             obj="arm_${kernel}.c.obj"
             "${TOOLCHAIN_ROOT}/bin/llvm-ar" x --output "$dir" "$lib" "$obj"
