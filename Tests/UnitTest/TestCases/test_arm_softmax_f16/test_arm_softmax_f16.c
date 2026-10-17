@@ -81,3 +81,43 @@ void softmax_f16_wide_large_gap(void)
         TEST_ASSERT_EQUAL_FLOAT(0.0f, (float32_t)output[i]);
     }
 }
+
+void softmax_f16_lut_lane_boundaries(void)
+{
+    const int32_t widths[] = {3, 4, 5, 7, 8, 9, 33};
+    float16_t input[66];
+    float16_t output[68];
+    for (unsigned w = 0; w < sizeof(widths) / sizeof(widths[0]); ++w)
+    {
+        const int32_t cols = widths[w];
+        /* Different LUT fractions across vector groups and scalar tails. The
+         * second row also checks the small nonzero probabilities at exp(-10). */
+        for (int32_t c = 0; c < cols; ++c)
+        {
+            input[c] = (float16_t)(-0.125f * (float32_t)((c * 7) % 23));
+            input[cols + c] = (float16_t)-10.0f;
+        }
+        input[cols] = (float16_t)0.0f;
+        output[0] = (float16_t)123.0f;
+        output[2 * cols + 1] = (float16_t)123.0f;
+        TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, arm_softmax_f16(input, 2, cols, output + 1));
+        TEST_ASSERT_EQUAL_FLOAT(123.0f, (float32_t)output[0]);
+        TEST_ASSERT_EQUAL_FLOAT(123.0f, (float32_t)output[2 * cols + 1]);
+        for (int32_t r = 0; r < 2; ++r)
+        {
+            double sum = 0.0;
+            for (int32_t c = 0; c < cols; ++c)
+            {
+                sum += exp((double)input[r * cols + c]);
+            }
+            for (int32_t c = 0; c < cols; ++c)
+            {
+                const double expected = exp((double)input[r * cols + c]) / sum;
+                /* Allow half-precision exponential and normalization rounding. */
+                TEST_ASSERT_FLOAT_WITHIN((float32_t)(expected * 0.002 + 0x1p-24),
+                                         (float32_t)expected,
+                                         (float32_t)output[1 + r * cols + c]);
+            }
+        }
+    }
+}

@@ -32,3 +32,5 @@ void test_softmax_f16_scalar_exp_lower_range(void) { softmax_f16_scalar_exp_lowe
 void test_softmax_f16_large_gap(void) { softmax_f16_large_gap(); }
 
 void test_softmax_f16_wide_large_gap(void) { softmax_f16_wide_large_gap(); }
+
+void test_softmax_f16_lut_lane_boundaries(void) { softmax_f16_lut_lane_boundaries(); }
