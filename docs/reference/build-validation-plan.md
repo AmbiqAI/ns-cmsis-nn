@@ -75,6 +75,10 @@ then runs the complete helia-core-tester suite for one CPU against that archive
 **How a cell works.** Cases are generated against the checkout, because the
 tester reads UnitTest data and the kernel-symbol inventory from its
 `--cmsis-nn-root`. Only the build and run then point at the imported archive.
+The archive's assembler verdict (`ARM_NN_GAS_*`, #427), which
+`build_staticlib.sh` now prints, is passed to the harness as a static-archive
+user must; without it the GCC 13.2 cells expect the wrong VCVT form's NaN
+behaviour.
 
 **How a cell passes.** A cell fails unless:
 - generation used the expected seed and dropped no case for a missing kernel

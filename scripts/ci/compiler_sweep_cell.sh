@@ -65,9 +65,11 @@ if [[ "$CPU" == cortex-m55 ]]; then features+=(--enable-f16); f16=1; fi
 precision=both
 [[ "$CPU" == cortex-m55 ]] || precision=f32
 
-# The compiler that will build the library, and proof of its identity.
+# The compiler that will build the library, and proof of its identity. build_staticlib.sh
+# builds gcc with whatever arm-none-eabi-gcc is first on PATH.
+[[ "$TOOLCHAIN" != gcc || -z "$TOOLCHAIN_ROOT" ]] || export PATH="$TOOLCHAIN_ROOT/bin:$PATH"
 case "$TOOLCHAIN" in
-  gcc) cc="${TOOLCHAIN_ROOT:+$TOOLCHAIN_ROOT/bin/}arm-none-eabi-gcc" ;;
+  gcc) cc=arm-none-eabi-gcc ;;
   atfe) cc="$TOOLCHAIN_ROOT/bin/clang" ;;
   armclang) cc="$TOOLCHAIN_ROOT/bin/armclang" ;;
 esac
@@ -81,7 +83,11 @@ echo "library compiler: $compiler"
 
 # 1. Library archive with the cell's compiler, at the shipped optimization level.
 bash "$REPO/scripts/build_staticlib.sh" --target-cpu "$CPU" --version 0.0.0 --outdir "$OUTDIR/lib" \
-  --toolchain "$TOOLCHAIN" --toolchain-root "$TOOLCHAIN_ROOT" "${features[@]}"
+  --toolchain "$TOOLCHAIN" --toolchain-root "$TOOLCHAIN_ROOT" "${features[@]}" | tee "$OUTDIR/build_staticlib.log"
+# The archive's assembler verdict (#427): a static-archive user must pass it, or the
+# harness expects the other VCVT form's NaN behaviour.
+gas_defines="$(sed -n 's/^>>> assembler verdict: //p' "$OUTDIR/build_staticlib.log" | tr ' ' '\n' | sed -n 's/^-D//p' | tr '\n' ' ')"
+echo "assembler verdict: ${gas_defines:-none}"
 # build_staticlib.sh's own naming, so a reused --outdir cannot hand over another compiler's archive.
 if [[ "$TOOLCHAIN" == gcc ]]; then name="libns-cmsis-nn-$CPU-0.0.0.a"; else name="libns-cmsis-nn-$TOOLCHAIN-$CPU-0.0.0.a"; fi
 lib="$OUTDIR/lib/$name"
@@ -96,7 +102,7 @@ add_library(cmsis-nn STATIC IMPORTED GLOBAL)
 set_target_properties(cmsis-nn PROPERTIES
   IMPORTED_LOCATION "$lib"
   INTERFACE_INCLUDE_DIRECTORIES "$REPO/Include")
-target_compile_definitions(cmsis-nn INTERFACE ARM_NN_ENABLE_F32=$f32 ARM_NN_ENABLE_F16=$f16)
+target_compile_definitions(cmsis-nn INTERFACE ARM_NN_ENABLE_F32=$f32 ARM_NN_ENABLE_F16=$f16 $gas_defines)
 EOF
 # The armclang helper appends its own libm after the native objects; adding m
 # here as well makes CMake repeat that whole sequence and duplicate the objects.

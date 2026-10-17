@@ -32,7 +32,6 @@ on:
       - scripts/fetch_toolchain.sh
       - ci/toolchains/atfe.json
       - ci/toolchains/atfe-latest.json
-      - Tests/helia-core-tester
 
 concurrency:
   group: compiler-sweep-${{ github.ref }}

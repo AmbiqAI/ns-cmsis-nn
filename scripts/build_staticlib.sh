@@ -159,6 +159,12 @@ cmake --build "${build_dir}" --target cmsis-nn --parallel
 src_lib="${build_dir}/libcmsis-nn.a"
 [[ -f "${src_lib}" ]] || { echo "expected archive not produced: ${src_lib}" >&2; exit 4; }
 
+# The assembler verdict (#427) is a PRIVATE definition of this build; users of the
+# static archive must pass it themselves (arm_nnfunctions.h), so report it.
+gas_verdict="$(grep -rhoE -- '-DARM_NN_GAS_[A-Z0-9_]+=1' "${build_dir}" --include=build.ninja --include=flags.make \
+  2>/dev/null | sort -u | tr '\n' ' ' || true)"
+echo ">>> assembler verdict: ${gas_verdict:-none}"
+
 if [[ "${TOOLCHAIN}" == "gcc" ]]; then
   final_name="libns-cmsis-nn-${TARGET_CPU}-${VERSION}.a"
 else
