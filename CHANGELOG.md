@@ -1,5 +1,34 @@
 # Changelog
 
+## [7.45.1](https://github.com/AmbiqAI/ns-cmsis-nn/compare/v7.45.0...v7.45.1) (2026-10-17)
+
+
+### Bug Fixes
+
+* **ci:** bound legacy simulator runs and retain diagnostics ([14182c0](https://github.com/AmbiqAI/ns-cmsis-nn/commit/14182c0353977bf196e71acf0264fa66d0a8076a)), closes [#843](https://github.com/AmbiqAI/ns-cmsis-nn/issues/843)
+* **conv:** preserve wide DSP 1x1 column counts ([93f9710](https://github.com/AmbiqAI/ns-cmsis-nn/commit/93f971045b9d861978298db5bd7d252448b57959)), closes [#771](https://github.com/AmbiqAI/ns-cmsis-nn/issues/771)
+* **depthwise:** bound MVE s16 cursor arithmetic ([3358b59](https://github.com/AmbiqAI/ns-cmsis-nn/commit/3358b59b8335ed82f63de2c7286a13bec3ae221c)), closes [#772](https://github.com/AmbiqAI/ns-cmsis-nn/issues/772)
+* **reduce:** keep float reduce max/min subnormals under LLVM ([#858](https://github.com/AmbiqAI/ns-cmsis-nn/issues/858)) ([4fd2704](https://github.com/AmbiqAI/ns-cmsis-nn/commit/4fd27044f602516eae5636f3a510e1c16a845f0e)), closes [#853](https://github.com/AmbiqAI/ns-cmsis-nn/issues/853)
+* **resize:** preserve float32 nearest-neighbor rounding ([#856](https://github.com/AmbiqAI/ns-cmsis-nn/issues/856)) ([4fe23e9](https://github.com/AmbiqAI/ns-cmsis-nn/commit/4fe23e9f443d31d85a73d09500458f76ff51e1a0)), closes [#852](https://github.com/AmbiqAI/ns-cmsis-nn/issues/852)
+* **softmax:** avoid Clang MVE FP16 LUT miscompile ([0dc07ec](https://github.com/AmbiqAI/ns-cmsis-nn/commit/0dc07ecd020cd95e33547104d5f30e5e986f2a8d)), closes [#864](https://github.com/AmbiqAI/ns-cmsis-nn/issues/864)
+* **softmax:** make float softmax status independent of input values ([#859](https://github.com/AmbiqAI/ns-cmsis-nn/issues/859)) ([777c133](https://github.com/AmbiqAI/ns-cmsis-nn/commit/777c1330461804290cbfe1cee1927779750555f9)), closes [#854](https://github.com/AmbiqAI/ns-cmsis-nn/issues/854)
+* **softmax:** preserve scalar f16 exponential underflow ([0e559e6](https://github.com/AmbiqAI/ns-cmsis-nn/commit/0e559e6acd6a9364482551eeb3ecd0beb00a08a7)), closes [#861](https://github.com/AmbiqAI/ns-cmsis-nn/issues/861)
+* **test:** initialize UART in accumulator wrap suite ([55fffd1](https://github.com/AmbiqAI/ns-cmsis-nn/commit/55fffd133e87370207038507d6dd5d29113b90a9)), closes [#843](https://github.com/AmbiqAI/ns-cmsis-nn/issues/843) [#813](https://github.com/AmbiqAI/ns-cmsis-nn/issues/813)
+* **test:** link ACfE runtime dependencies in GNU harnesses ([#857](https://github.com/AmbiqAI/ns-cmsis-nn/issues/857)) ([a4b88a1](https://github.com/AmbiqAI/ns-cmsis-nn/commit/a4b88a1e48f92170f18a8f8f2ddf5b3cb32171d2)), closes [#340](https://github.com/AmbiqAI/ns-cmsis-nn/issues/340)
+
+
+### Performance
+
+* **conv:** batch four outputs per requantise in s16 group conv ([5e9381c](https://github.com/AmbiqAI/ns-cmsis-nn/commit/5e9381c7013312d2af9f5fdbf2cab4eda3f13a0c))
+* **conv:** cache small-channel FP16 weights ([#851](https://github.com/AmbiqAI/ns-cmsis-nn/issues/851)) ([7cc4bb0](https://github.com/AmbiqAI/ns-cmsis-nn/commit/7cc4bb04783c06a0b44471d0985ae7aa58248b59)), closes [#480](https://github.com/AmbiqAI/ns-cmsis-nn/issues/480)
+* **conv:** route bounded four-channel f32 shapes through MVE tiles ([ab25ae2](https://github.com/AmbiqAI/ns-cmsis-nn/commit/ab25ae2aafbc11bea1190a8da6510a50dfc91bd4)), closes [#480](https://github.com/AmbiqAI/ns-cmsis-nn/issues/480)
+* **depthwise:** streamline MVE tap traversal ([#860](https://github.com/AmbiqAI/ns-cmsis-nn/issues/860)) ([ff323d8](https://github.com/AmbiqAI/ns-cmsis-nn/commit/ff323d84813be5ef0dac899de85311a94f422c56)), closes [#855](https://github.com/AmbiqAI/ns-cmsis-nn/issues/855)
+
+
+### Refactoring
+
+* **core:** share reverse-subtraction helper declarations ([#869](https://github.com/AmbiqAI/ns-cmsis-nn/issues/869)) ([6d03777](https://github.com/AmbiqAI/ns-cmsis-nn/commit/6d037777bd5cd447875c6c7147d451541d2d2449)), closes [#728](https://github.com/AmbiqAI/ns-cmsis-nn/issues/728)
+
 ## [7.45.0](https://github.com/AmbiqAI/ns-cmsis-nn/compare/v7.44.2...v7.45.0) (2026-10-16)
 
 
