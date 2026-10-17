@@ -25,8 +25,14 @@ on:
   pull_request:
     paths:
       - .github/workflows/compiler-sweep.yml
+      - .github/workflows/resolve-ci-image.yml
       - scripts/ci/compiler_sweep_cell.sh
+      - scripts/ci/rolling_status_issue.sh
+      - scripts/build_staticlib.sh
+      - scripts/fetch_toolchain.sh
+      - ci/toolchains/atfe.json
       - ci/toolchains/atfe-latest.json
+      - Tests/helia-core-tester
 
 concurrency:
   group: compiler-sweep-${{ github.ref }}
@@ -119,11 +125,14 @@ jobs:
       - name: Run sweep cell
         env:
           TOOLCHAIN_ROOT: ${{ steps.fetch_toolchain.outputs.toolchain_root }}
+          # Fails the cell unless the library compiler reports this version.
+          EXPECT_VERSION: ${{ matrix.toolchain == 'gcc' && matrix.gcc_release || steps.fetch_toolchain.outputs.toolchain_version }}
         run: |
           echo "### ${{ matrix.compiler }} / ${{ matrix.cpu }} / ${{ matrix.suite }}" >> "$GITHUB_STEP_SUMMARY"
           bash scripts/ci/compiler_sweep_cell.sh \
             --toolchain "${{ matrix.toolchain }}" \
             --toolchain-root "${TOOLCHAIN_ROOT:-}" \
+            --expect-version "$EXPECT_VERSION" \
             --cpu "${{ matrix.cpu }}" \
             --suite "${{ matrix.suite }}" \
             --outdir "${RUNNER_TEMP}/cell"

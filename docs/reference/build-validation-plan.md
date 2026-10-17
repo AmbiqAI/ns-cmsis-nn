@@ -32,37 +32,6 @@ For both ATfE executions, every case in the generated runner must report PASS
 with its expected source file, name and line. Exactly one complete summary with
 zero failures and zero ignored cases must follow.
 
-## Weekly compiler sweep
-
-`.github/workflows/compiler-sweep.yml` runs every Sunday and on manual dispatch.
-It does not gate pull requests or releases (#340).
-
-**What it runs.** Each of its twelve cells builds the library with one compiler
-at the shipped `-Ofast`, then generates, builds and runs the complete
-helia-core-tester suite for one CPU against that archive
-(`scripts/ci/compiler_sweep_cell.sh`). The cells are:
-- pinned ATfE (`ci/toolchains/atfe.json`) on Cortex-M55 and Cortex-M4, float
-  and int suites;
-- the newest ATfE (`ci/toolchains/atfe-latest.json`) on the same four;
-- GCC 13.2.Rel1 and 15.3.Rel1 on Cortex-M55, float and int.
-
-**How a cell passes.** A cell passes only if the tester's report covers exactly
-the generated cases and every one passed. The step summary records each case
-manifest hash, so cells can be checked against each other.
-
-**How failures surface.** A red run opens or updates the rolling issue "Weekly
-compiler sweep failing on main", and the next green run closes it. The nightly
-uses the same reporter, `scripts/ci/rolling_status_issue.sh`.
-
-**Boundary.** Every cell links its archive into the tester's pinned GNU harness,
-startup code and libm, so only the library compiler varies. This is Corstone-300
-FVP execution, not silicon qualification.
-
-**Arm Compiler for Embedded.** It is not yet a CI cell, because its license is
-activated once per run by the strict-link `armclang` job. Run it locally with the
-same script: build the archive with `--toolchain armclang`, and link the native
-runtime through the #857 helper.
-
 The harness accepts an existing archive through `CMSIS_NN_TEST_LIBRARY` for
 this cross-toolchain check. Ordinary builds compile the library from source.
 The archive and harness must use compatible architecture and floating-point
@@ -87,3 +56,45 @@ are updated. The live package version, tags and release assets are unaffected.
 These checks extend build and harness coverage. Compile-only evidence remains
 separate from execution, and model execution remains separate from physical
 board qualification.
+
+## Weekly compiler sweep
+
+`.github/workflows/compiler-sweep.yml` runs every Sunday and on manual dispatch.
+It does not gate pull requests or releases (#340).
+
+**What it runs.** Each of its twelve cells builds the library with one compiler
+at the shipped `-Ofast` and shipped feature set (F32, plus F16 on Cortex-M55),
+then runs the complete helia-core-tester suite for one CPU against that archive
+(`scripts/ci/compiler_sweep_cell.sh`). The cells are:
+- pinned ATfE (`ci/toolchains/atfe.json`) on Cortex-M55 and Cortex-M4, float
+  and int suites;
+- a newer ATfE (`ci/toolchains/atfe-latest.json`, the newest release when last
+  bumped; move it forward when Arm publishes a newer one) on the same four;
+- GCC 13.2.Rel1 and 15.3.Rel1 on Cortex-M55, float and int.
+
+**How a cell works.** Cases are generated against the checkout, because the
+tester reads UnitTest data and the kernel-symbol inventory from its
+`--cmsis-nn-root`. Only the build and run then point at the imported archive.
+
+**How a cell passes.** A cell fails unless:
+- generation used the expected seed and dropped no case for a missing kernel
+  symbol or a generation failure;
+- the tester's report from this run covers exactly the generated cases, and
+  every one passed;
+- the library compiler reports the version its matrix entry names.
+
+The step summary records the case manifest hash, the capability-skip count and
+the compiler identity for each cell.
+
+**How failures surface.** A red run opens or updates the rolling issue "Weekly
+compiler sweep failing on main", and the next green run closes it. The nightly
+uses the same reporter, `scripts/ci/rolling_status_issue.sh`.
+
+**Boundary.** Every cell links its archive into the tester's pinned GNU harness,
+startup code and libm, so only the library compiler varies. This is Corstone-300
+FVP execution, not silicon qualification.
+
+**Arm Compiler for Embedded.** It is not yet a CI cell, because its license is
+activated once per run by the strict-link `armclang` job. Run it locally with
+`scripts/ci/compiler_sweep_cell.sh --toolchain armclang --toolchain-root <ACfE root>`,
+which links the native runtime through the #857 helper.

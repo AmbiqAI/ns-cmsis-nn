@@ -173,6 +173,11 @@ jobs:
       - name: Run toolchain manifest sync check
         run: python3 scripts/check_toolchain_manifest_sync.py
 
+      # The rolling status-issue reporter only runs on main (nightly, weekly
+      # compiler sweep), so its decisions are checked here with a stub gh.
+      - name: Run rolling status issue decisions
+        run: python3 scripts/tests/test_rolling_status_issue.py
+
   release_asset_manifest:
     # Same failure shape as toolchain_manifest_sync above, on the release
     # asset contract. The required-asset list was transcribed by hand into

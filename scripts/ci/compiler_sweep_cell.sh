@@ -8,15 +8,19 @@
 #
 #   compiler_sweep_cell.sh --toolchain gcc|atfe|armclang --cpu cortex-m55|cortex-m4 \
 #                          --suite float|int --outdir <dir> \
-#                          [--toolchain-root <dir>] [--seed 500] [--run-jobs N] [--skip-generation]
+#                          [--toolchain-root <dir>] [--expect-version <text>] \
+#                          [--seed 500] [--run-jobs N] [--skip-generation]
 #
 # The tester always links its own pinned GNU harness, so every cell imports a
-# prebuilt archive: only the library compiler varies between cells. gcc with
-# no --toolchain-root builds with the arm-none-eabi-gcc on PATH. armclang links
-# its native math runtime through Tests/UnitTest/cmake/armclang_runtime.cmake (#857).
+# prebuilt archive built with the shipped feature set (F32, plus F16 on
+# Cortex-M55): only the library compiler varies between cells. gcc with no
+# --toolchain-root builds with the arm-none-eabi-gcc on PATH; --expect-version
+# fails the cell unless the compiler's --version output contains that text.
+# armclang links its native math runtime through
+# Tests/UnitTest/cmake/armclang_runtime.cmake (#857).
 #
-# Passes only if the tester's report covers exactly the generated cases and
-# every one of them passed.
+# Passes only if generation used --seed and dropped nothing, and the tester's
+# report covers exactly the generated cases with every one passed.
 
 set -euo pipefail
 
@@ -28,10 +32,12 @@ OUTDIR=""
 SEED=500
 RUN_JOBS=0
 SKIP_GENERATION=0
+EXPECT_VERSION=""
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --toolchain) TOOLCHAIN="${2:?}"; shift 2 ;;
     --toolchain-root) TOOLCHAIN_ROOT="${2-}"; shift 2 ;;
+    --expect-version) EXPECT_VERSION="${2-}"; shift 2 ;;
     --cpu) CPU="${2:?}"; shift 2 ;;
     --suite) SUITE="${2:?}"; shift 2 ;;
     --outdir) OUTDIR="${2:?}"; shift 2 ;;
@@ -52,15 +58,26 @@ TESTER="$REPO/Tests/helia-core-tester"
 mkdir -p "$OUTDIR"
 OUTDIR="$(cd "$OUTDIR" && pwd)"
 
-features=()
+# Shipped feature set, as release.yml builds it, whichever suite runs.
+features=(--enable-f32)
+f32=1; f16=0
+if [[ "$CPU" == cortex-m55 ]]; then features+=(--enable-f16); f16=1; fi
 precision=both
-if [[ "$SUITE" == float ]]; then
-  features+=(--enable-f32)
-  if [[ "$CPU" == cortex-m55 ]]; then features+=(--enable-f16); else precision=f32; fi
+[[ "$CPU" == cortex-m55 ]] || precision=f32
+
+# The compiler that will build the library, and proof of its identity.
+case "$TOOLCHAIN" in
+  gcc) cc="${TOOLCHAIN_ROOT:+$TOOLCHAIN_ROOT/bin/}arm-none-eabi-gcc" ;;
+  atfe) cc="$TOOLCHAIN_ROOT/bin/clang" ;;
+  armclang) cc="$TOOLCHAIN_ROOT/bin/armclang" ;;
+esac
+compiler="$("$cc" --version 2>&1 | grep -m1 -iE 'version|toolchain|gcc' || true)"
+[[ -n "$compiler" ]] || { echo "cannot identify library compiler $cc" >&2; exit 1; }
+if [[ -n "$EXPECT_VERSION" ]] && ! grep -qiF -- "$EXPECT_VERSION" <<< "$compiler"; then
+  echo "library compiler is '$compiler', expected '$EXPECT_VERSION'" >&2
+  exit 1
 fi
-f32=0; f16=0
-[[ " ${features[*]-} " == *" --enable-f32 "* ]] && f32=1
-[[ " ${features[*]-} " == *" --enable-f16 "* ]] && f16=1
+echo "library compiler: $compiler"
 
 # 1. Library archive with the cell's compiler, at the shipped optimization level.
 bash "$REPO/scripts/build_staticlib.sh" --target-cpu "$CPU" --version 0.0.0 --outdir "$OUTDIR/lib" \
@@ -92,28 +109,30 @@ fi
 #    symbols from --cmsis-nn-root, so pointing generation at the shim drops cases.
 if [[ "$SKIP_GENERATION" != 1 ]]; then
   (cd "$TESTER" && uv run helia_core_tester generate --seed "$SEED" --cpu "$CPU" --suite "$SUITE" \
-    --float-precision "$precision")
+    --float-precision "$precision" --verbosity 1)
 fi
 
 # 4. Build and run the generated cases against the archive.
 started="$(date +%s)"
 (cd "$TESTER" && uv run helia_core_tester full --skip-generation --cpu "$CPU" --suite "$SUITE" \
   --float-precision "$precision" --cmsis-nn-root "$OUTDIR/import" --run-jobs "$RUN_JOBS" \
-  --no-fail-fast --report-formats json) || status=$?
+  --no-fail-fast --report-formats json --verbosity 1) || status=$?
 
 # 5. Exact coverage: generation dropped nothing, every generated case reported, every one passed.
-python3 - "$TESTER" "$SUITE" "$CPU" "$lib" "${status:-0}" "$started" <<'EOF'
+python3 - "$TESTER" "$SUITE" "$CPU" "$lib" "${status:-0}" "$started" "$SEED" "$compiler" <<'EOF'
 import hashlib, json, os, sys
 from pathlib import Path
 
 tester, suite, cpu, lib, status = Path(sys.argv[1]), sys.argv[2], sys.argv[3], Path(sys.argv[4]), int(sys.argv[5])
-started = int(sys.argv[6])
+started, seed, compiler = int(sys.argv[6]), int(sys.argv[7]), sys.argv[8]
 generated = tester / "artifacts/generated_tests" / suite / cpu
 cases = sum(1 for p in generated.glob("*/*") if p.is_dir())
 gen = json.loads((tester / "artifacts/reports/generation" / suite / cpu / "generation_summary.json").read_text())
 dropped = {k: gen["counts"].get(k, 0) for k in ("skipped_kernel_symbol", "generation_failures", "conversion_failures")
            if gen["counts"].get(k, 0)}
-if gen.get("status") != "success" or dropped or gen["counts"].get("cases_total") != cases:
+if gen.get("filters", {}).get("seed") != seed:
+    sys.exit(f"generated cases use seed {gen.get('filters', {}).get('seed')}, expected {seed}")
+if gen.get("status") != "success" or dropped or not cases or gen["counts"].get("cases_total") != cases:
     sys.exit(f"generation incomplete: status {gen.get('status')}, {dropped}, "
              f"{gen['counts'].get('cases_total')} recorded vs {cases} generated")
 reports = sorted((p for p in (tester / "artifacts/reports/tests" / suite / cpu).glob("test_report_*.json")
@@ -124,9 +143,10 @@ report = json.loads(reports[-1].read_text())
 bad = {k: report.get(k, 0) for k in ("failed", "skipped", "timed_out", "errors", "not_run", "build_failed",
                                      "generation_failed", "conversion_failed") if report.get(k, 0)}
 manifest = hashlib.sha256((generated / "manifest.json").read_bytes()).hexdigest()
-line = (f"{cpu} {suite}: {report['passed']}/{report['total_tests']} passed, {cases} generated, "
+line = (f"{cpu} {suite}: {report['passed']}/{report['total_tests']} passed, {cases} generated "
+        f"({gen['counts'].get('skipped_capability', 0)} capability skips), "
         f"manifest {manifest[:16]}, archive {hashlib.sha256(lib.read_bytes()).hexdigest()[:16]}, "
-        f"run {report.get('duration', 0):.0f}s")
+        f"run {report.get('duration', 0):.0f}s, compiler {compiler}")
 print(line)
 if os.environ.get("GITHUB_STEP_SUMMARY"):
     with open(os.environ["GITHUB_STEP_SUMMARY"], "a") as summary:
