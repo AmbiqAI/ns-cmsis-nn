@@ -79,6 +79,12 @@ PAIRS = (
 # manifest added later cannot sit unexamined: an unlisted file is a failure,
 # not a silent skip.
 UNPAIRED = {
+    "atfe-latest.json": (
+        "the newest ATfE release, executed only by the weekly compiler sweep "
+        "(.github/workflows/compiler-sweep.yml) to catch LLVM codegen drift "
+        "before it reaches the pinned atfe.json. Nothing ships with it, so it "
+        "must not be pinned to the container (AmbiqAI/ns-cmsis-nn#340)"
+    ),
     "arm-gnu-floor.json": (
         "the oldest Arm GNU release the library is gated on, which is "
         "deliberately older than the container's arm-gnu -- holding the two "
