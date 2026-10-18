@@ -43,6 +43,10 @@
 /** arm_dequantize_f16_bits_f32 keeps a NaN's sign and payload on the MVE vector path too (#871). */
 #define ARM_NN_HAS_DEQUANTIZE_F16_NAN_PAYLOAD 1
 
+/** The default float16 depthwise entries accumulate every tap in float32 on MVE builds too; the _acc16 entries are the
+ *  float16-lane fast path (#830). */
+#define ARM_NN_HAS_DEPTHWISE_F16_ACC32 1
+
 #include "arm_nn_math_types.h"
 #include "arm_nn_types.h"
 
