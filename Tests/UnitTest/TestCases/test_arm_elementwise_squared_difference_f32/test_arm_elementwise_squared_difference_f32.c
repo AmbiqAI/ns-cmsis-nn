@@ -69,22 +69,7 @@ static void squared_difference_f32_check_column(int column)
     }
 }
 
-void squared_difference_f32_values(void) { squared_difference_f32_check_column(EXPECTED_COLUMN); }
-
-/* With FPSCR.FZ set the scalar path flushes operands and results; the MVE path's redo flushes the same way (#877) */
-void squared_difference_f32_flush_to_zero(void)
-{
-#if defined(ARM_NN_FP_CONTROL_AVAILABLE)
-    const arm_nn_fp_control_t saved = arm_nn_get_fp_control();
-    arm_nn_set_fp_control(saved | (1u << 24));
-    squared_difference_f32_check_column(3);
-    arm_nn_set_fp_control(saved);
-#else
-    TEST_IGNORE_MESSAGE("FP controls require Arm floating-point hardware");
-#endif
-}
-
-void squared_difference_f32_alias(void)
+static void squared_difference_f32_check_alias(int column)
 {
     float32_t a[N], b[N];
     for (int which = 0; which < 2; ++which)
@@ -97,8 +82,31 @@ void squared_difference_f32_alias(void)
         float32_t *out = which ? a : b;
         TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, arm_elementwise_squared_difference_f32(a, b, out, N));
         for (int i = 0; i < N; ++i)
-            expect_bits(squared_difference_cases[i][EXPECTED_COLUMN], out[i]);
+            expect_bits(squared_difference_cases[i][column], out[i]);
     }
+}
+
+void squared_difference_f32_values(void) { squared_difference_f32_check_column(EXPECTED_COLUMN); }
+
+/* With FPSCR.FZ set the scalar path flushes operands and results as MVE does, so the MVE path skips its redo, in
+ * place too (#877) */
+void squared_difference_f32_flush_to_zero(void)
+{
+#if defined(ARM_NN_FP_CONTROL_AVAILABLE)
+    const arm_nn_fp_control_t saved = arm_nn_get_fp_control();
+    arm_nn_set_fp_control(saved | (1u << 24));
+    squared_difference_f32_check_column(3);
+    squared_difference_f32_check_alias(3);
+    arm_nn_set_fp_control(saved);
+#else
+    TEST_IGNORE_MESSAGE("FP controls require Arm floating-point hardware");
+#endif
+}
+
+void squared_difference_f32_alias(void)
+{
+    float32_t a[N];
+    squared_difference_f32_check_alias(EXPECTED_COLUMN);
     for (int i = 0; i < N; ++i)
         a[i] = (float32_t)(i - 250);
     TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, arm_elementwise_squared_difference_f32(a, a, a, N));

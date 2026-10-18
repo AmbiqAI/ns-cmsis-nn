@@ -1181,14 +1181,17 @@ arm_cmsis_nn_status arm_elementwise_sub_f32(const float32_t *input_1_vect,
  * multiplication. No activation clamp, broadcasting or scratch is used. NaNs
  * propagate (payload unspecified); infinite differences yield positive infinity.
  * Overflow yields positive infinity under round-to-nearest. Scalar arithmetic
- * follows the active floating-point controls. The MVE path gives the scalar
- * path's result at round-to-nearest with FPSCR.FZ set or clear, subnormal
- * squares included: MVE arithmetic flushes FP32 subnormal operands and results
- * regardless of FPSCR.FZ (StandardFPSCRValue), so lanes whose square it flushed
- * are redone on the scalar FPU. Automatic vectorization (ARM_MATH_AUTOVECTORIZE)
- * has no redo and may mix flushed vector lanes with scalar tails; set scalar
- * round-to-nearest and FZ=1 when consistent results are required there. Equal
- * finite operands produce positive zero.
+ * follows the active floating-point controls. MVE arithmetic uses
+ * round-to-nearest and flushes FP32 subnormal operands and results regardless
+ * of FPSCR (StandardFPSCRValue); with FPSCR.FZ clear, the MVE path redoes the
+ * lanes whose square it flushed on the scalar FPU. At round-to-nearest the MVE
+ * path therefore gives the scalar path's result with FZ set or clear,
+ * subnormal squares included; under another rounding mode only redone lanes
+ * follow it. With FZ clear, an in-place call checks every block and is slower
+ * than one with a separate output. Automatic vectorization
+ * (ARM_MATH_AUTOVECTORIZE) has no redo and may mix flushed vector lanes with
+ * scalar tails; set scalar round-to-nearest and FZ=1 when consistent results
+ * are required there. Equal finite operands produce positive zero.
  *
  * Buffers must be naturally aligned and hold block_size elements. Output may
  * exactly equal either input; other partial overlaps are unsupported. Null
