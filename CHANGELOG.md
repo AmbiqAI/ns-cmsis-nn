@@ -3,6 +3,11 @@
 ## [7.47.0](https://github.com/AmbiqAI/ns-cmsis-nn/compare/v7.46.0...v7.47.0) (2026-10-18)
 
 
+### Notes for integrators
+
+The default FP16 depthwise entries now accumulate in float32 on MVE and run more instructions than in 7.46.0; for speed, call the `_acc16` entries, which keep the 7.46.0 float16-lane results for windows of at most 32 taps (target latency is not yet measured).
+
+
 ### Features
 
 * **conv:** accumulate the default FP16 depthwise entries in float32 on MVE ([#881](https://github.com/AmbiqAI/ns-cmsis-nn/issues/881)) ([05f0384](https://github.com/AmbiqAI/ns-cmsis-nn/commit/05f03844586b12de37d9c43d0b26554f0f44e806))
