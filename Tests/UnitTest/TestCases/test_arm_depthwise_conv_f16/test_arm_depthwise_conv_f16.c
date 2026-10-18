@@ -1040,3 +1040,192 @@ void depthwise_conv_short_window_precision_f16(void)
         free(buf);
     }
 }
+
+/* Tap order on every leg (#830): with taps 2^24 and -2^24 in the first kernel row and 1 in the second, the float32
+ * sum in (ky, kx) order is exactly 1; a sum that takes the second row's tap before the first row's second tap rounds
+ * 2^24 + 1 back to 2^24 and gives 0. The router and the 2x5 entry must give 1, as the direct entry does. */
+void depthwise_conv_tap_order_f16(void)
+{
+    const cmsis_nn_dims in = {1, 2, 5, 1}, flt = {1, 2, 5, 1}, out = {1, 1, 1, 1}, bias_dims = {1, 1, 1, 1};
+    const float16_t x[10] = {4096.0f, -4096.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f};
+    const float16_t w[10] = {4096.0f, 4096.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f};
+    const cmsis_nn_context ctx = {NULL, 0};
+    const dw_entry_f16 entries[] = {
+        arm_depthwise_nhwc_conv_f16, arm_depthwise_conv_2x5_nhwc_f16, arm_depthwise_conv_direct_nhwc_f16};
+    cmsis_nn_dw_conv_params_f16 dp;
+    dw_f16_params(&dp, 1, 1, 1, 0, 0, 1, 1);
+    dp.activation.min = (float16_t)-65504.0f;
+    dp.activation.max = (float16_t)65504.0f;
+    TEST_ASSERT_TRUE(arm_nn_dw_f16_is_2x5(&dp, &in, &flt, &out));
+    for (unsigned e = 0; e < sizeof(entries) / sizeof(entries[0]); e++)
+    {
+        float16_t y = (float16_t)-1.0f;
+        TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, entries[e](&ctx, &dp, &in, x, &flt, w, &bias_dims, NULL, &out, &y));
+        TEST_ASSERT_EQUAL_FLOAT(1.0f, (float32_t)y);
+    }
+}
+
+#if defined(ARM_MATH_MVE_FLOAT16) && !defined(ARM_MATH_AUTOVECTORIZE)
+static uint32_t dw_rng = 0x8301u;
+static uint32_t dw_rand(void)
+{
+    dw_rng ^= dw_rng << 13;
+    dw_rng ^= dw_rng >> 17;
+    dw_rng ^= dw_rng << 5;
+    return dw_rng;
+}
+
+/* A finite half with a random sign, exponent in [-6, 2] and mantissa, so products and partial sums round */
+static float16_t dw_rand_half(void)
+{
+    const uint32_t r = dw_rand();
+    const uint16_t bits = (uint16_t)((((r >> 8) & 1u) << 15) | ((uint16_t)((int)(r % 9u) - 6 + 15) << 10) |
+                                     ((r >> 12) & 0x3FFu));
+    float16_t h;
+    memcpy(&h, &bits, sizeof(h));
+    return h;
+}
+
+/* Bits of the float32 sum from the bias in (ky, kx) order, one rounding, then the clamp; `volatile` keeps -Ofast
+ * from reordering it, and the clamp selects bit patterns, not halves (no scalar _Float16 select, see AGENTS.md) */
+static uint16_t dw_sequential_f16(const cmsis_nn_dw_conv_params_f16 *dp,
+                                   const cmsis_nn_dims *in,
+                                   const float16_t *x,
+                                   const cmsis_nn_dims *flt,
+                                   const float16_t *w,
+                                   const float16_t *bias,
+                                   int32_t oy,
+                                   int32_t ox,
+                                   int32_t oc)
+{
+    const int32_t out_c = in->c * dp->ch_mult;
+    const int32_t ic = oc / dp->ch_mult;
+    volatile float32_t acc = bias ? (float32_t)bias[oc] : 0.0f;
+    for (int32_t ky = 0; ky < flt->h; ky++)
+    {
+        const int32_t iy = oy * dp->stride.h - dp->padding.h + ky * dp->dilation.h;
+        if (iy < 0 || iy >= in->h)
+        {
+            continue;
+        }
+        for (int32_t kx = 0; kx < flt->w; kx++)
+        {
+            const int32_t ix = ox * dp->stride.w - dp->padding.w + kx * dp->dilation.w;
+            if (ix < 0 || ix >= in->w)
+            {
+                continue;
+            }
+            acc = acc + (float32_t)x[(iy * in->w + ix) * in->c + ic] * (float32_t)w[(ky * flt->w + kx) * out_c + oc];
+        }
+    }
+    const float16_t y = (float16_t)acc;
+    const float32_t yf = (float32_t)y;
+    uint16_t bits;
+    memcpy(&bits, &y, sizeof(bits));
+    if (yf < (float32_t)dp->activation.min)
+    {
+        memcpy(&bits, &dp->activation.min, sizeof(bits));
+    }
+    if (yf > (float32_t)dp->activation.max)
+    {
+        memcpy(&bits, &dp->activation.max, sizeof(bits));
+    }
+    return bits;
+}
+#endif
+
+/* MVE vector routes on rounding data (#830): the direct and one-input-channel kernels fuse each exact product into
+ * float32 lanes in tap order from the bias, so every output must equal the sequential float32 sum bit for bit. Three
+ * data sets per layer: random halves, then two whose float32 partials lose a unit to 2^24 unless the order is right
+ * -- a unit bias before taps of +2^24 and -2^24 (a bias added last gives 1, not 0), and taps of +2^24 and -2^24 in
+ * the first kernel row before a unit tap in the second (columns before rows give 0, not 1). Exact data cannot tell
+ * these orders apart. */
+void depthwise_conv_vector_routes_sequential_f16(void)
+{
+#if defined(ARM_MATH_MVE_FLOAT16) && !defined(ARM_MATH_AUTOVECTORIZE)
+    /* {in h, in w, in c, kh, kw, ch_mult, stride, pad, dilation} */
+    static const int32_t layers[][9] = {
+        {6, 9, 21, 3, 3, 1, 1, 1, 1},
+        {7, 7, 13, 5, 5, 1, 1, 2, 1},
+        {6, 8, 5, 3, 3, 1, 2, 1, 1},
+        {7, 9, 16, 3, 3, 1, 1, 2, 2},
+        {1, 9, 6, 1, 3, 1, 1, 0, 1},
+        {6, 7, 1, 3, 3, 13, 1, 1, 1},
+        {5, 6, 1, 2, 5, 9, 1, 0, 1},
+    };
+    for (uint32_t l = 0; l < sizeof(layers) / sizeof(layers[0]); l++)
+    {
+        const int32_t ih = layers[l][0], iw = layers[l][1], ic = layers[l][2], kh = layers[l][3], kw = layers[l][4];
+        const int32_t cm = layers[l][5], s = layers[l][6], p = layers[l][7], d = layers[l][8], oc = ic * cm;
+        cmsis_nn_dw_conv_params_f16 dp;
+        dw_f16_params(&dp, cm, s, s, p, p, d, d);
+        const cmsis_nn_dims in = {1, ih, iw, ic}, flt = {1, kh, kw, oc}, bias_dims = {1, 1, 1, oc};
+        const cmsis_nn_dims out = {1, dw_out_size(ih, kh, s, 2 * p, d), dw_out_size(iw, kw, s, 2 * p, d), oc};
+        const int32_t n_out = out.h * out.w * oc;
+        float16_t *x = malloc((size_t)(ih * iw * ic) * sizeof(float16_t));
+        float16_t *w = malloc((size_t)(kh * kw * oc) * sizeof(float16_t));
+        float16_t *bias = malloc((size_t)oc * sizeof(float16_t));
+        float16_t *y = malloc((size_t)n_out * sizeof(float16_t));
+        const int32_t buf_size = arm_depthwise_conv_wrapper_f16_get_buffer_size(&dp, &in, &flt, &out);
+        void *buf = buf_size > 0 ? malloc((size_t)buf_size) : NULL;
+        const cmsis_nn_context ctx = {buf, buf_size};
+        TEST_ASSERT_TRUE(x && w && bias && y && (buf_size == 0 || buf));
+        for (int32_t set = 0; set < 3; set++)
+        {
+            for (int32_t i = 0; i < ih * iw * ic; i++)
+            {
+                x[i] = set ? (float16_t)4096.0f : dw_rand_half();
+            }
+            for (int32_t i = 0; i < kh * kw * oc; i++)
+            {
+                const int32_t tap = i / oc;
+                float16_t v = (float16_t)0.0f;
+                if (set == 0)
+                {
+                    v = dw_rand_half();
+                }
+                else if (tap == 0)
+                {
+                    v = (float16_t)4096.0f;
+                }
+                else if (tap == 1 && kw > 1)
+                {
+                    v = (float16_t)-4096.0f;
+                }
+                else if (set == 2 && tap == kw && kh > 1)
+                {
+                    v = (float16_t)(1.0f / 4096.0f);
+                }
+                w[i] = v;
+            }
+            for (int32_t i = 0; i < oc; i++)
+            {
+                bias[i] = set == 0 ? dw_rand_half() : (float16_t)(set == 1 ? 1.0f : 0.0f);
+            }
+            TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
+                              arm_depthwise_conv_wrapper_f16(&ctx, &dp, &in, x, &flt, w, &bias_dims, bias, &out, y));
+            for (int32_t oy = 0; oy < out.h; oy++)
+            {
+                for (int32_t ox = 0; ox < out.w; ox++)
+                {
+                    for (int32_t c = 0; c < oc; c++)
+                    {
+                        uint16_t got;
+                        memcpy(&got, &y[(oy * out.w + ox) * oc + c], sizeof(got));
+                        TEST_ASSERT_EQUAL_HEX16_MESSAGE(dw_sequential_f16(&dp, &in, x, &flt, w, bias, oy, ox, c),
+                                                        got,
+                                                        "default entry is not the sequential float32 sum");
+                    }
+                }
+            }
+        }
+        free(buf);
+        free(y);
+        free(bias);
+        free(w);
+        free(x);
+    }
+#else
+    TEST_IGNORE_MESSAGE("MVE float16 vector routes only");
+#endif
+}

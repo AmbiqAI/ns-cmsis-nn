@@ -184,7 +184,9 @@ arm_cmsis_nn_status arm_depthwise_conv_wrapper_f32(const cmsis_nn_context *ctx,
  *       `filter_dims->h * filter_dims->w * sizeof(float16_t)` bytes. The query reserves that for every such layer;
  *       one an exact-shape specialization takes first runs without it, so the size is an
  *       upper bound there. Every other layer -- the `ch_mult == 1` direct kernel and the generic kernel -- runs
- *       without scratch and the query returns 0 (AmbiqAI/ns-cmsis-nn#448, #625).
+ *       without scratch and the query returns 0 (AmbiqAI/ns-cmsis-nn#448, #625). For `_f16` the convolution route
+ *       serves the `_acc16` entries; the default entries' one-input-channel kernel reads none of this ctx but takes
+ *       the route only when ctx holds it, and otherwise runs the generic kernel (#830).
  *
  * @return Required buffer size in bytes, or 0 when no scratch buffer is needed.
  */
@@ -2815,17 +2817,19 @@ arm_cmsis_nn_status arm_gather_nd_f32(const float32_t *params_data,
  * @note Accumulation and NaN, per leg (AmbiqAI/ns-cmsis-nn#448, #830). Every leg accumulates every in-range tap in
  *       float32, starting from the bias, in tap order (ky, then kx), and rounds the sum to float16 once, before the
  *       clamp. A product of two halves is exact in float32, so an output differs from the exactly rounded sum only by
- *       the float32 rounding of its partial sums; where those are exact it is that sum rounded to float16. On MVE
- *       float builds (ARM_MATH_MVE_FLOAT16 without ARM_MATH_AUTOVECTORIZE) the `ch_mult == 1` direct kernel and the
- *       one-input-channel kernel widen half lanes exactly (VCVTB / VCVTT, which follow FPSCR.FZ16 for float16
- *       subnormals; no float32 partial of halves is subnormal) and fuse each product into float32 lanes; the
- *       `ch_mult > 1` generic kernel accumulates scalar float32. Those three routes read no scratch, and the
- *       float16-lane routes (the 1D-k3 and 2x5 kernels and the to-convolution route) serve only the `_acc16` entry
- *       there. Under -ffast-math (the library's -Ofast) a compiler may reorder a scalar float32 sum, which can change
- *       a result only where a partial sum is inexact. NaN: on MVE builds the direct and one-input-channel kernels
- *       clamp it to the activation minimum (`vmaxnm` / `vminnm`) and the generic kernel to the maximum
- *       (`arm_nn_clamp_f16h`); on the scalar legs the direct kernel propagates it (`arm_nn_clamp_scalar_f16`) and
- *       the generic kernel clamps it to the maximum. Unifying these under the #334 promise is a separate issue.
+ *       the float32 rounding of its partial sums; where those are exact it is that sum rounded to float16. The routes
+ *       are the `ch_mult == 1` direct kernel, on MVE float builds (ARM_MATH_MVE_FLOAT16 without
+ *       ARM_MATH_AUTOVECTORIZE) the one-input-channel kernel when ctx holds what that route requires, and the generic
+ *       kernel; none reads scratch. The exact-shape kernels (1D-k3, 2x5) and the to-convolution route serve only the
+ *       `_acc16` entry. On MVE float builds these routes widen halves to float32 exactly whatever FPSCR.FZ16 holds, so
+ *       with FZ16 set a float16 subnormal input still counts where the `_acc16` entry's float16 arithmetic flushes it;
+ *       the float16 clamp still flushes a subnormal result under FZ16. No float32 partial of halves is subnormal.
+ *       Under -ffast-math (the library's -Ofast) a compiler may reorder a scalar float32 sum, which can change a
+ *       result only where a partial sum is inexact. NaN: on MVE builds the direct and one-input-channel kernels clamp
+ *       it to the activation minimum (`vmaxnm` / `vminnm`) and the generic kernel to the maximum
+ *       (`arm_nn_clamp_f16h`), so a 2x5 layer with ch_mult > 1, which took the 2x5 kernel before #830, now clamps it
+ *       to the maximum; on the scalar legs the direct kernel propagates it (`arm_nn_clamp_scalar_f16`) and the
+ *       generic kernel clamps it to the maximum. Unifying these under the #334 promise is a separate issue.
  */
 arm_cmsis_nn_status arm_depthwise_nhwc_conv_f16(const cmsis_nn_context *ctx,
                                                 const cmsis_nn_dw_conv_params_f16 *dw_conv_params,
@@ -2844,8 +2848,11 @@ arm_cmsis_nn_status arm_depthwise_nhwc_conv_f16(const cmsis_nn_context *ctx,
  * @note Float16-lane entry, the fast path (AmbiqAI/ns-cmsis-nn#586, #830): on MVE float builds every route
  *       accumulates in float16 lanes from the bias with no fold, as arm_depthwise_nhwc_conv_f16 did before #586,
  *       for callers that trade accuracy for speed. On windows of at most 32 taps that is also what the default entry
- *       gave before #830. Same arguments, scratch buffer (and sizer), return codes and scalar leg as
- *       arm_depthwise_nhwc_conv_f16.
+ *       gave before #830. Under -ffast-math (the library's -Ofast) a compiler may vectorize a kernel row of the
+ *       generic kernel and reorder its float16 sum at any window size (AmbiqAI/ns-cmsis-nn#693). Its scalar legs
+ *       accumulate in float32 as the default entry's do, but take the exact-shape kernels too, whose 2x5 loop orders
+ *       taps column by column and clamps before rounding. Same arguments, scratch buffer (and sizer) and return codes
+ *       as arm_depthwise_nhwc_conv_f16.
  */
 arm_cmsis_nn_status arm_depthwise_nhwc_conv_f16_acc16(const cmsis_nn_context *ctx,
                                                       const cmsis_nn_dw_conv_params_f16 *dw_conv_params,
@@ -3015,8 +3022,8 @@ arm_cmsis_nn_status arm_depthwise_conv_direct_nhwc_f16_acc16(const cmsis_nn_cont
  * @note The one-input-channel route, on MVE float builds (ARM_MATH_MVE_FLOAT16 without ARM_MATH_AUTOVECTORIZE;
  *       <code>ARM_CMSIS_NN_NO_IMPL_ERROR</code> elsewhere). Gate: arm_nn_dw_f16_is_cin1. ctx must hold at least
  *       arm_nn_dw_f16_cin1_min_ctx_size bytes (the packed filter and one patch row), 2-byte aligned;
- * <code>ARM_CMSIS_NN_ARG_ERROR</code> otherwise (the router falls back to the generic route instead). This entry
- *       reads none of it: its float32 kernel needs no scratch, and the router takes it whatever ctx holds (#830).
+ * <code>ARM_CMSIS_NN_ARG_ERROR</code> otherwise (the router falls back to the generic route instead). This
+ *       entry's float32 kernel reads none of that ctx; the `_acc16` entry packs the filter into it (#830).
  */
 arm_cmsis_nn_status arm_depthwise_conv_cin1_nhwc_f16(const cmsis_nn_context *ctx,
                                                      const cmsis_nn_dw_conv_params_f16 *dw_conv_params,
@@ -3052,17 +3059,19 @@ arm_cmsis_nn_status arm_depthwise_conv_cin1_nhwc_f16_acc16(const cmsis_nn_contex
  * @note Accumulation and NaN, per leg (AmbiqAI/ns-cmsis-nn#448, #830). Every leg accumulates every in-range tap in
  *       float32, starting from the bias, in tap order (ky, then kx), and rounds the sum to float16 once, before the
  *       clamp. A product of two halves is exact in float32, so an output differs from the exactly rounded sum only by
- *       the float32 rounding of its partial sums; where those are exact it is that sum rounded to float16. On MVE
- *       float builds (ARM_MATH_MVE_FLOAT16 without ARM_MATH_AUTOVECTORIZE) the `ch_mult == 1` direct kernel and the
- *       one-input-channel kernel widen half lanes exactly (VCVTB / VCVTT, which follow FPSCR.FZ16 for float16
- *       subnormals; no float32 partial of halves is subnormal) and fuse each product into float32 lanes; the
- *       `ch_mult > 1` generic kernel accumulates scalar float32. Those three routes read no scratch, and the
- *       float16-lane routes (the 1D-k3 and 2x5 kernels and the to-convolution route) serve only the `_acc16` entry
- *       there. Under -ffast-math (the library's -Ofast) a compiler may reorder a scalar float32 sum, which can change
- *       a result only where a partial sum is inexact. NaN: on MVE builds the direct and one-input-channel kernels
- *       clamp it to the activation minimum (`vmaxnm` / `vminnm`) and the generic kernel to the maximum
- *       (`arm_nn_clamp_f16h`); on the scalar legs the direct kernel propagates it (`arm_nn_clamp_scalar_f16`) and
- *       the generic kernel clamps it to the maximum. Unifying these under the #334 promise is a separate issue.
+ *       the float32 rounding of its partial sums; where those are exact it is that sum rounded to float16. The routes
+ *       are the `ch_mult == 1` direct kernel, on MVE float builds (ARM_MATH_MVE_FLOAT16 without
+ *       ARM_MATH_AUTOVECTORIZE) the one-input-channel kernel when ctx holds what that route requires, and the generic
+ *       kernel; none reads scratch. The exact-shape kernels (1D-k3, 2x5) and the to-convolution route serve only the
+ *       `_acc16` entry. On MVE float builds these routes widen halves to float32 exactly whatever FPSCR.FZ16 holds, so
+ *       with FZ16 set a float16 subnormal input still counts where the `_acc16` entry's float16 arithmetic flushes it;
+ *       the float16 clamp still flushes a subnormal result under FZ16. No float32 partial of halves is subnormal.
+ *       Under -ffast-math (the library's -Ofast) a compiler may reorder a scalar float32 sum, which can change a
+ *       result only where a partial sum is inexact. NaN: on MVE builds the direct and one-input-channel kernels clamp
+ *       it to the activation minimum (`vmaxnm` / `vminnm`) and the generic kernel to the maximum
+ *       (`arm_nn_clamp_f16h`), so a 2x5 layer with ch_mult > 1, which took the 2x5 kernel before #830, now clamps it
+ *       to the maximum; on the scalar legs the direct kernel propagates it (`arm_nn_clamp_scalar_f16`) and the
+ *       generic kernel clamps it to the maximum. Unifying these under the #334 promise is a separate issue.
  */
 arm_cmsis_nn_status arm_depthwise_conv_f16(const cmsis_nn_context *ctx,
                                            const cmsis_nn_dw_conv_params_f16 *dw_conv_params,
@@ -3082,8 +3091,11 @@ arm_cmsis_nn_status arm_depthwise_conv_f16(const cmsis_nn_context *ctx,
  * @note Float16-lane entry, the fast path (AmbiqAI/ns-cmsis-nn#586, #830): on MVE float builds every route
  *       accumulates in float16 lanes from the bias with no fold, as arm_depthwise_conv_f16 did before #586,
  *       for callers that trade accuracy for speed. On windows of at most 32 taps that is also what the default entry
- *       gave before #830. Same arguments, scratch buffer (and sizer), return codes and scalar leg as
- *       arm_depthwise_conv_f16.
+ *       gave before #830. Under -ffast-math (the library's -Ofast) a compiler may vectorize a kernel row of the
+ *       generic kernel and reorder its float16 sum at any window size (AmbiqAI/ns-cmsis-nn#693). Its scalar legs
+ *       accumulate in float32 as the default entry's do, but take the exact-shape kernels too, whose 2x5 loop orders
+ *       taps column by column and clamps before rounding. Same arguments, scratch buffer (and sizer) and return codes
+ *       as arm_depthwise_conv_f16.
  */
 arm_cmsis_nn_status arm_depthwise_conv_f16_acc16(const cmsis_nn_context *ctx,
                                                  const cmsis_nn_dw_conv_params_f16 *dw_conv_params,
@@ -3103,17 +3115,19 @@ arm_cmsis_nn_status arm_depthwise_conv_f16_acc16(const cmsis_nn_context *ctx,
  * @note Accumulation and NaN, per leg (AmbiqAI/ns-cmsis-nn#448, #830). Every leg accumulates every in-range tap in
  *       float32, starting from the bias, in tap order (ky, then kx), and rounds the sum to float16 once, before the
  *       clamp. A product of two halves is exact in float32, so an output differs from the exactly rounded sum only by
- *       the float32 rounding of its partial sums; where those are exact it is that sum rounded to float16. On MVE
- *       float builds (ARM_MATH_MVE_FLOAT16 without ARM_MATH_AUTOVECTORIZE) the `ch_mult == 1` direct kernel and the
- *       one-input-channel kernel widen half lanes exactly (VCVTB / VCVTT, which follow FPSCR.FZ16 for float16
- *       subnormals; no float32 partial of halves is subnormal) and fuse each product into float32 lanes; the
- *       `ch_mult > 1` generic kernel accumulates scalar float32. Those three routes read no scratch, and the
- *       float16-lane routes (the 1D-k3 and 2x5 kernels and the to-convolution route) serve only the `_acc16` entry
- *       there. Under -ffast-math (the library's -Ofast) a compiler may reorder a scalar float32 sum, which can change
- *       a result only where a partial sum is inexact. NaN: on MVE builds the direct and one-input-channel kernels
- *       clamp it to the activation minimum (`vmaxnm` / `vminnm`) and the generic kernel to the maximum
- *       (`arm_nn_clamp_f16h`); on the scalar legs the direct kernel propagates it (`arm_nn_clamp_scalar_f16`) and
- *       the generic kernel clamps it to the maximum. Unifying these under the #334 promise is a separate issue.
+ *       the float32 rounding of its partial sums; where those are exact it is that sum rounded to float16. The routes
+ *       are the `ch_mult == 1` direct kernel, on MVE float builds (ARM_MATH_MVE_FLOAT16 without
+ *       ARM_MATH_AUTOVECTORIZE) the one-input-channel kernel when ctx holds what that route requires, and the generic
+ *       kernel; none reads scratch. The exact-shape kernels (1D-k3, 2x5) and the to-convolution route serve only the
+ *       `_acc16` entry. On MVE float builds these routes widen halves to float32 exactly whatever FPSCR.FZ16 holds, so
+ *       with FZ16 set a float16 subnormal input still counts where the `_acc16` entry's float16 arithmetic flushes it;
+ *       the float16 clamp still flushes a subnormal result under FZ16. No float32 partial of halves is subnormal.
+ *       Under -ffast-math (the library's -Ofast) a compiler may reorder a scalar float32 sum, which can change a
+ *       result only where a partial sum is inexact. NaN: on MVE builds the direct and one-input-channel kernels clamp
+ *       it to the activation minimum (`vmaxnm` / `vminnm`) and the generic kernel to the maximum
+ *       (`arm_nn_clamp_f16h`), so a 2x5 layer with ch_mult > 1, which took the 2x5 kernel before #830, now clamps it
+ *       to the maximum; on the scalar legs the direct kernel propagates it (`arm_nn_clamp_scalar_f16`) and the
+ *       generic kernel clamps it to the maximum. Unifying these under the #334 promise is a separate issue.
  */
 arm_cmsis_nn_status arm_depthwise_conv_wrapper_f16(const cmsis_nn_context *ctx,
                                                    const cmsis_nn_dw_conv_params_f16 *dw_conv_params,
@@ -3132,8 +3146,11 @@ arm_cmsis_nn_status arm_depthwise_conv_wrapper_f16(const cmsis_nn_context *ctx,
  * @note Float16-lane entry, the fast path (AmbiqAI/ns-cmsis-nn#586, #830): on MVE float builds every route
  *       accumulates in float16 lanes from the bias with no fold, as arm_depthwise_conv_wrapper_f16 did before #586,
  *       for callers that trade accuracy for speed. On windows of at most 32 taps that is also what the default entry
- *       gave before #830. Same arguments, scratch buffer (and sizer), return codes and scalar leg as
- *       arm_depthwise_conv_wrapper_f16.
+ *       gave before #830. Under -ffast-math (the library's -Ofast) a compiler may vectorize a kernel row of the
+ *       generic kernel and reorder its float16 sum at any window size (AmbiqAI/ns-cmsis-nn#693). Its scalar legs
+ *       accumulate in float32 as the default entry's do, but take the exact-shape kernels too, whose 2x5 loop orders
+ *       taps column by column and clamps before rounding. Same arguments, scratch buffer (and sizer) and return codes
+ *       as arm_depthwise_conv_wrapper_f16.
  */
 arm_cmsis_nn_status arm_depthwise_conv_wrapper_f16_acc16(const cmsis_nn_context *ctx,
                                                          const cmsis_nn_dw_conv_params_f16 *dw_conv_params,

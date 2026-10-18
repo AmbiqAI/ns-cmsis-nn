@@ -50,8 +50,9 @@
 /*
  * Direct ch_mult == 1 NHWC depthwise kernel (#448). Lanes are channels: every tap is one contiguous vector
  * load of the input pixel and one of the [kh][kw][C] filter, accumulated in registers from the bias in
- * (ky, kx) order, one FMA per tap -- the tap order of the routes this replaced. The MVE leg accumulates in
- * float16 lanes (#446); the scalar leg in float32 with one rounding at the store (#449). Padding is the tap
+ * (ky, kx) order, one FMA per tap -- the tap order of the routes this replaced. On the MVE leg the default
+ * entry accumulates in float32 lanes (#830) and the _acc16 entry in float16 lanes (#446); the scalar leg in float32
+ * with one rounding at the store (#449). Padding is the tap
  * window (no scratch, nothing read out of range); stride and dilation are generic. The channel tail is
  * one straight-line predicated vector; the tap loops carry no vctp.
  */
@@ -1462,10 +1463,22 @@ arm_depthwise_conv_nhwc_dispatch_f16(const cmsis_nn_context *ctx,
 }
 
     #if defined(ARM_MATH_MVE_FLOAT16) && !defined(ARM_MATH_AUTOVECTORIZE)
-/* The default entry's routes on MVE builds (#830): the exact-shape specializations and the to-convolution route
- * accumulate in float16, so they serve the _acc16 entry only; the direct, one-input-channel and generic routes here
- * accumulate every tap in float32. */
-static arm_cmsis_nn_status arm_depthwise_conv_nhwc_dispatch_acc32_f16(const cmsis_nn_dw_conv_params_f16 *dw_conv_params,
+/* The ctx the one-input-channel route requires: the packed filter and one patch row, float16-aligned */
+__STATIC_FORCEINLINE bool arm_depthwise_conv_cin1_ctx_ok_f16(const cmsis_nn_context *ctx,
+                                                             const cmsis_nn_dims *filter_dims,
+                                                             const cmsis_nn_dims *output_dims)
+{
+    return ctx && ctx->buf && ((uintptr_t)ctx->buf & (sizeof(float16_t) - 1U)) == 0U &&
+        (int64_t)ctx->size >= arm_nn_dw_f16_cin1_min_ctx_size(filter_dims, output_dims);
+}
+    #endif
+
+/* The default entry's routes on every leg (#830), each accumulating every in-range tap in float32 from the bias in tap
+ * order. The exact-shape kernels, whose scalar 2x5 loop orders taps column by column, and the MVE to-convolution
+ * route, which accumulates in float16, serve the _acc16 entry only. As on that entry, the one-input-channel route
+ * runs only with the ctx it requires; otherwise the generic route does. */
+static arm_cmsis_nn_status arm_depthwise_conv_nhwc_dispatch_acc32_f16(const cmsis_nn_context *ctx,
+                                                                      const cmsis_nn_dw_conv_params_f16 *dw_conv_params,
                                                                       const cmsis_nn_dims *input_dims,
                                                                       const float16_t *input,
                                                                       const cmsis_nn_dims *filter_dims,
@@ -1500,7 +1513,9 @@ static arm_cmsis_nn_status arm_depthwise_conv_nhwc_dispatch_acc32_f16(const cmsi
                                                    false);
         return ARM_CMSIS_NN_SUCCESS;
     }
-    if (kernel_layout == ARM_NN_DW_KERNEL_KC && arm_nn_dw_f16_is_cin1(input_dims, output_dims))
+    #if defined(ARM_MATH_MVE_FLOAT16) && !defined(ARM_MATH_AUTOVECTORIZE)
+    if (kernel_layout == ARM_NN_DW_KERNEL_KC && arm_nn_dw_f16_is_cin1(input_dims, output_dims) &&
+        arm_depthwise_conv_cin1_ctx_ok_f16(ctx, filter_dims, output_dims))
     {
         arm_depthwise_conv_cin1_acc32_f16(
             dw_conv_params, input_dims, input, filter_dims, kernel, bias, output_dims, output);
@@ -1528,9 +1543,36 @@ static arm_cmsis_nn_status arm_depthwise_conv_nhwc_dispatch_acc32_f16(const cmsi
                                          dw_conv_params->dilation.w,
                                          dw_conv_params->dilation.h,
                                          kernel_layout);
+    #else
+    /* Scalar legs: the generic kernel accumulates in float32 from the bias in tap order */
+    (void)ctx;
+    arm_depthwise_conv_f16_generic(input,
+                                   input_dims->n,
+                                   input_dims->w,
+                                   input_dims->h,
+                                   input_dims->c,
+                                   kernel,
+                                   dw_conv_params->ch_mult,
+                                   filter_dims->w,
+                                   filter_dims->h,
+                                   dw_conv_params->padding.w,
+                                   dw_conv_params->padding.h,
+                                   dw_conv_params->stride.w,
+                                   dw_conv_params->stride.h,
+                                   bias,
+                                   output,
+                                   output_dims->w,
+                                   output_dims->h,
+                                   dw_conv_params->activation.min,
+                                   dw_conv_params->activation.max,
+                                   dw_conv_params->dilation.w,
+                                   dw_conv_params->dilation.h,
+                                   dw_conv_params,
+                                   kernel_layout,
+                                   false);
+    #endif
     return ARM_CMSIS_NN_SUCCESS;
 }
-    #endif
 
 /* Shared body; `acc16` is a constant at every call site (see the two instantiations below). */
 __STATIC_FORCEINLINE arm_cmsis_nn_status
@@ -1588,8 +1630,6 @@ arm_depthwise_nhwc_conv_f16_acc32(const cmsis_nn_context *ctx,
                                   const cmsis_nn_dims *output_dims,
                                   float16_t *output)
 {
-    #if defined(ARM_MATH_MVE_FLOAT16) && !defined(ARM_MATH_AUTOVECTORIZE)
-    (void)ctx;
     (void)bias_dims;
     arm_nn_dw_kernel_layout_f16 kernel_layout;
     const arm_cmsis_nn_status status = arm_depthwise_conv_f16_validate(dw_conv_params,
@@ -1606,11 +1646,7 @@ arm_depthwise_nhwc_conv_f16_acc32(const cmsis_nn_context *ctx,
         return status;
     }
     return arm_depthwise_conv_nhwc_dispatch_acc32_f16(
-        dw_conv_params, input_dims, input, filter_dims, kernel, bias, output_dims, output, kernel_layout);
-    #else
-    return arm_depthwise_nhwc_conv_f16_body(
-        ctx, dw_conv_params, input_dims, input, filter_dims, kernel, bias_dims, bias, output_dims, output, false);
-    #endif
+        ctx, dw_conv_params, input_dims, input, filter_dims, kernel, bias, output_dims, output, kernel_layout);
 }
 
 static __attribute__((noinline)) arm_cmsis_nn_status
@@ -1759,25 +1795,10 @@ arm_cmsis_nn_status arm_depthwise_conv_1d_k3_nhwc_f16(const cmsis_nn_context *ct
     {
         return ARM_CMSIS_NN_NO_IMPL_ERROR;
     }
-    #if defined(ARM_MATH_MVE_FLOAT16) && !defined(ARM_MATH_AUTOVECTORIZE)
-    /* The specialization accumulates in float16 (the _acc16 entry); this entry gives the router's float32 result (#830)
-     */
+    /* The exact-shape kernel serves the _acc16 entry; this one gives the router's float32 result (#830) */
     (void)kernel_layout;
     return arm_depthwise_nhwc_conv_f16_acc32(
         ctx, dw_conv_params, input_dims, input, filter_dims, kernel, bias_dims, bias, output_dims, output);
-    #else
-    return arm_dw_spec_k3_1d_nhwc_f16_call(ctx,
-                                           dw_conv_params,
-                                           input_dims,
-                                           input,
-                                           filter_dims,
-                                           kernel,
-                                           bias_dims,
-                                           bias,
-                                           output_dims,
-                                           output,
-                                           kernel_layout);
-    #endif
 }
 
 arm_cmsis_nn_status arm_depthwise_conv_1d_k3_nhwc_f16_acc16(const cmsis_nn_context *ctx,
@@ -1849,25 +1870,10 @@ arm_cmsis_nn_status arm_depthwise_conv_2x5_nhwc_f16(const cmsis_nn_context *ctx,
     {
         return ARM_CMSIS_NN_NO_IMPL_ERROR;
     }
-    #if defined(ARM_MATH_MVE_FLOAT16) && !defined(ARM_MATH_AUTOVECTORIZE)
-    /* The specialization accumulates in float16 (the _acc16 entry); this entry gives the router's float32 result (#830)
-     */
+    /* The exact-shape kernel serves the _acc16 entry; this one gives the router's float32 result (#830) */
     (void)kernel_layout;
     return arm_depthwise_nhwc_conv_f16_acc32(
         ctx, dw_conv_params, input_dims, input, filter_dims, kernel, bias_dims, bias, output_dims, output);
-    #else
-    return arm_dw_spec_2x5_nhwc_f16_call(ctx,
-                                         dw_conv_params,
-                                         input_dims,
-                                         input,
-                                         filter_dims,
-                                         kernel,
-                                         bias_dims,
-                                         bias,
-                                         output_dims,
-                                         output,
-                                         kernel_layout);
-    #endif
 }
 
 arm_cmsis_nn_status arm_depthwise_conv_2x5_nhwc_f16_acc16(const cmsis_nn_context *ctx,
@@ -2052,8 +2058,7 @@ arm_cmsis_nn_status arm_depthwise_conv_cin1_nhwc_f16(const cmsis_nn_context *ctx
     #if defined(ARM_MATH_MVE_FLOAT16) && !defined(ARM_MATH_AUTOVECTORIZE)
     /* The float32 route reads no scratch; the entry keeps the ctx conditions of its _acc16 twin (#830) */
     (void)bias_dims;
-    if (!ctx || !ctx->buf || ((uintptr_t)ctx->buf & (sizeof(float16_t) - 1U)) != 0U ||
-        (int64_t)ctx->size < arm_nn_dw_f16_cin1_min_ctx_size(filter_dims, output_dims))
+    if (!arm_depthwise_conv_cin1_ctx_ok_f16(ctx, filter_dims, output_dims))
     {
         return ARM_CMSIS_NN_ARG_ERROR;
     }
