@@ -56,3 +56,4 @@ void test_depthwise_conv_direct_entries_f16(void) { depthwise_conv_direct_entrie
 void test_depthwise_conv_route_predicates_f16(void) { depthwise_conv_route_predicates_f16(); }
 
 void test_depthwise_conv_cin1_exact_scratch_f16(void) { depthwise_conv_cin1_exact_scratch_f16(); }
+void test_depthwise_conv_short_window_precision_f16(void) { depthwise_conv_short_window_precision_f16(); }
