@@ -34,6 +34,8 @@ static void arm_squared_difference_exact_f32(const float32_t *input_1_vect,
         const float32x4_t difference = vsubq(a, b);
         const float32x4_t square = vmulq(difference, difference);
         vstrwq_p(&output[i], square, p);
+        // Integer lane tests; the difference and the product are already flushed, so a compiler that turns them into
+        // float compares (ATfE does) agrees
         const mve_pred16_t redo = vcmpeqq_n_u32(vreinterpretq_u32_f32(square), 0) &
             vcmpneq_n_u32(vshlq_n_u32(vreinterpretq_u32_f32(difference), 1), 0) & p;
         if (redo)

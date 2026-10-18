@@ -114,6 +114,41 @@ void squared_difference_f32_alias(void)
         expect_bits(0, a[i]);
 }
 
+/* One risky lane among zero differences, so it alone decides whether the MVE path's check reruns: 0x1FFFFFFF is the
+ * largest difference whose square MVE flushes and 2^-63 the smallest with a normal square (#877) */
+void squared_difference_f32_threshold(void)
+{
+    const uint32_t cases[][3] = {
+        /* difference, exact square, flushed square */
+        {0x1fffffffu, 0x007fffffu, 0x00000000u},
+        {0x9fffffffu, 0x007fffffu, 0x00000000u},
+        {0x20000000u, 0x00800000u, 0x00800000u},
+        {0x00800000u, 0x00000000u, 0x00000000u},
+    };
+    const int lengths[] = {1, 6, 9};
+    float32_t a[9], b[9], out[9];
+    for (unsigned c = 0; c < sizeof(cases) / sizeof(cases[0]); ++c)
+    {
+        for (unsigned k = 0; k < sizeof(lengths) / sizeof(lengths[0]); ++k)
+        {
+            const int n = lengths[k];
+            for (int lane = 0; lane < n; ++lane)
+            {
+                for (int i = 0; i < n; ++i)
+                {
+                    a[i] = (float32_t)(i + 1);
+                    b[i] = a[i];
+                }
+                a[lane] = from_bits(cases[c][0]);
+                b[lane] = 0.0f;
+                TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, arm_elementwise_squared_difference_f32(a, b, out, n));
+                for (int i = 0; i < n; ++i)
+                    expect_bits(i == lane ? cases[c][EXPECTED_COLUMN - 1] : 0u, out[i]);
+            }
+        }
+    }
+}
+
 void squared_difference_f32_arg_error(void)
 {
     const float32_t a = 1.0f;
