@@ -9,7 +9,9 @@ rng = np.random.default_rng(840)
 special = np.array([0, 0x80000000, 1, 0x007FFFFF, 0x00800000, 0x1A000000,
                     0x3F800000, 0x3F800001, 0x33800000, 0xBF800000,
                     0x5F800000, 0x7F7FFFFF, 0xFF7FFFFF, 0x7F800000,
-                    0xFF800000, 0x7FC12345], dtype=np.uint32)
+                    0xFF800000, 0x7FC12345,
+                    # normal operands whose square is subnormal: 2^-67, 1e-20f and 1e-19f (#877)
+                    0x1E000000, 0x1E3CE508, 0x1FEC1E4A], dtype=np.uint32)
 a = np.concatenate([np.repeat(special, len(special)), rng.integers(0, 2**32, 257, dtype=np.uint32)])
 b = np.concatenate([np.tile(special, len(special)), rng.integers(0, 2**32, 257, dtype=np.uint32)])
 with np.errstate(all="ignore"):
