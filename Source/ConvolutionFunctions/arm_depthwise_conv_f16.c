@@ -1795,9 +1795,11 @@ arm_cmsis_nn_status arm_depthwise_conv_1d_k3_nhwc_f16(const cmsis_nn_context *ct
     {
         return ARM_CMSIS_NN_NO_IMPL_ERROR;
     }
-    /* The exact-shape kernel serves the _acc16 entry; this one gives the router's float32 result (#830) */
+    /* The exact-shape kernel serves the _acc16 entry; this one gives the router's float32 result (#830). The gate
+     * holds ch_mult == 1, so that is the direct route: calling it, not the router, keeps the router's other routes
+     * out of a 1D-k3-only image. */
     (void)kernel_layout;
-    return arm_depthwise_nhwc_conv_f16_acc32(
+    return arm_depthwise_conv_direct_nhwc_f16(
         ctx, dw_conv_params, input_dims, input, filter_dims, kernel, bias_dims, bias, output_dims, output);
 }
 
