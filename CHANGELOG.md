@@ -1,5 +1,22 @@
 # Changelog
 
+## [7.47.0](https://github.com/AmbiqAI/ns-cmsis-nn/compare/v7.46.0...v7.47.0) (2026-10-18)
+
+
+### Notes for integrators
+
+The default FP16 depthwise entries now accumulate in float32 on MVE and run more instructions than in 7.46.0; for speed, call the `_acc16` entries, which keep the 7.46.0 float16-lane results for windows of at most 32 taps (target latency is not yet measured).
+
+
+### Features
+
+* **conv:** accumulate the default FP16 depthwise entries in float32 on MVE ([#881](https://github.com/AmbiqAI/ns-cmsis-nn/issues/881)) ([05f0384](https://github.com/AmbiqAI/ns-cmsis-nn/commit/05f03844586b12de37d9c43d0b26554f0f44e806))
+
+
+### Bug Fixes
+
+* **basicmath:** keep subnormal squares on the MVE path of arm_elementwise_squared_difference_f32 ([#878](https://github.com/AmbiqAI/ns-cmsis-nn/issues/878)) ([2bef3ae](https://github.com/AmbiqAI/ns-cmsis-nn/commit/2bef3ae931dae757b16fc5372e484d7e3e601a24)), closes [#877](https://github.com/AmbiqAI/ns-cmsis-nn/issues/877)
+
 ## [7.46.0](https://github.com/AmbiqAI/ns-cmsis-nn/compare/v7.45.1...v7.46.0) (2026-10-17)
 
 
