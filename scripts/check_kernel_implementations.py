@@ -16,7 +16,7 @@ records with exactly these keys (a key marked ? may be left out):
     id            unique, [a-z][a-z0-9_]*
     op            fully_connected | depthwise_conv | avg_pool | max_pool
     quantization  per_tensor | per_channel | none
-    dtypes        {operand pointer: int8 | int16 | int32 | int64 | float16 | float32}
+    dtypes        {operand pointer: int8 | int16 | int32 | int64 | float16 | float32}, matching its C pointee type
     layout        {operand pointer: NHWC | NC | OI | 1HWO}
     entry         the function to call: an exported symbol returning arm_cmsis_nn_status
     operands?     the exported function whose parameters are the operator's operands; defaults to the entry. Every
@@ -104,6 +104,14 @@ GUARD_TOKENS = {
     'ARM_NN_ENABLE_F16': 'f16_api',
 }
 FLOAT_API = {'float32': 'f32_api', 'float16': 'f16_api'}
+DTYPE_CTYPES = {
+    'int8': {'int8_t'},
+    'int16': {'int16_t'},
+    'int32': {'int32_t'},
+    'int64': {'int64_t'},
+    'float16': {'float16_t', '_Float16'},
+    'float32': {'float32_t', 'float'},
+}
 VARIES_WITH = frozenset({'toolchain'})
 OPS = frozenset({'fully_connected', 'depthwise_conv', 'avg_pool', 'max_pool'})
 QUANTIZATIONS = frozenset({'per_tensor', 'per_channel', 'none'})
@@ -501,6 +509,9 @@ class RecordChecker:
                     self.add(f'{operand} ({param["type"]}) is not a data operand', where)
                 if not _member(value, vocabulary):
                     self.add(f'{operand}: {value!r} is not one of {sorted(vocabulary)}', where)
+                elif field == 'dtypes' and param is not None and is_pointer(param['type']) \
+                        and _value_type(pointee(param['type'])) not in DTYPE_CTYPES[value]:
+                    self.add(f'{operand} is {param["type"]}, which does not hold {value}', where)
             self.record[field] = {k: v for k, v in mapping.items() if _member(k, self.operands)}
         for dtype, api in FLOAT_API.items():
             if dtype in self.record['dtypes'].values() and api not in requires:
