@@ -25,7 +25,12 @@
         { "type": "generic", "path": "astro-site/src/content/docs/getting-started/zephyr.mdx" },
         { "type": "generic", "path": "Documentation/build.md" },
         { "type": "generic", "path": "cmake/ns-cmsis-nn-prebuilt.cmake" },
-        { "type": "generic", "path": "zephyr/Kconfig" }
+        { "type": "generic", "path": "zephyr/Kconfig" },
+        {
+          "type": "json",
+          "path": "Tests/KernelContracts/kernel_implementations.json",
+          "jsonpath": "$.library_version"
+        }
       ],
       "changelog-sections": [
         { "type": "feat",     "section": "Features" },

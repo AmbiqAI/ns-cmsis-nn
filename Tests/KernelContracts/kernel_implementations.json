@@ -1,0 +1,1137 @@
+{
+  "schema": "ns-cmsis-nn/kernel-implementations/1",
+  "library_version": "7.47.0",
+  "signature_schema": "ns-cmsis-nn/kernel-contracts/1",
+  "signature_sha256": "c4a4d4221c16699079f8c376563861e6ff74a63a81ef87cc2ca8a260748f91b0",
+  "planner_abi": null,
+  "implementations": [
+    {
+      "id": "avg_pool_s8",
+      "family": "pooling_s8",
+      "op": "avg_pool",
+      "quantization": "none",
+      "dtypes": {
+        "input_data": "int8",
+        "output_data": "int8"
+      },
+      "layout": {
+        "input_data": "NHWC",
+        "output_data": "NHWC"
+      },
+      "entry": "arm_avgpool_s8",
+      "operands": "arm_avgpool_s8",
+      "routed_by": "direct",
+      "requires": [],
+      "varies_with": [],
+      "eligibility": null,
+      "buffers": [
+        {
+          "name": "accumulators",
+          "param": "ctx",
+          "size_query": {
+            "symbol": "arm_avgpool_s8_get_buffer_size",
+            "args": {
+              "dim_dst_width": "output_dims.w",
+              "ch_src": "input_dims.c"
+            }
+          },
+          "units": "bytes",
+          "align": 4,
+          "lifetime": "call",
+          "optional": true,
+          "format": null,
+          "note": "Non-zero only on builds with ARM_MATH_DSP and without ARM_MATH_MVEI. ctx itself must be non-NULL on builds without ARM_MATH_MVEI."
+        }
+      ],
+      "prepare": [],
+      "declines": [],
+      "since": "4.0.0",
+      "numerics": {
+        "reference": "hct_ref:avg_pool_s8",
+        "claim": "bit_exact",
+        "holds_with": []
+      },
+      "note": null
+    },
+    {
+      "id": "depthwise_conv_3x3_s8",
+      "family": "depthwise_conv_s8",
+      "op": "depthwise_conv",
+      "quantization": "per_channel",
+      "dtypes": {
+        "input_data": "int8",
+        "filter_data": "int8",
+        "bias_data": "int32",
+        "output_data": "int8"
+      },
+      "layout": {
+        "input_data": "NHWC",
+        "filter_data": "1HWO",
+        "output_data": "NHWC"
+      },
+      "entry": "arm_depthwise_conv_3x3_s8",
+      "operands": "arm_depthwise_conv_3x3_s8",
+      "routed_by": {
+        "wrapper": "arm_depthwise_conv_wrapper_s8",
+        "route": "dw_wrapper_s8:conv_3x3",
+        "requires": [
+          "!mvei"
+        ],
+        "when": "ch_mult == 1, N == 1, arm_nn_dw_conv_opt_dilation_supported(), a 3x3 filter, padding.w <= 1, padding.h <= 1 and dilation 1 in both dimensions"
+      },
+      "requires": [],
+      "varies_with": [],
+      "eligibility": null,
+      "buffers": [
+        {
+          "name": "ctx",
+          "param": "ctx",
+          "size_query": null,
+          "units": "bytes",
+          "align": 1,
+          "lifetime": "call",
+          "optional": true,
+          "format": null,
+          "note": "No scratch; ctx->buf may be NULL."
+        }
+      ],
+      "prepare": [],
+      "declines": [],
+      "since": "7.2.0",
+      "numerics": {
+        "reference": "hct_ref:depthwise_conv_s8",
+        "claim": "bit_exact",
+        "holds_with": [
+          "!single_rounding"
+        ]
+      },
+      "note": null
+    },
+    {
+      "id": "depthwise_conv_s8",
+      "family": "depthwise_conv_s8",
+      "op": "depthwise_conv",
+      "quantization": "per_channel",
+      "dtypes": {
+        "input_data": "int8",
+        "filter_data": "int8",
+        "bias_data": "int32",
+        "output_data": "int8"
+      },
+      "layout": {
+        "input_data": "NHWC",
+        "filter_data": "1HWO",
+        "output_data": "NHWC"
+      },
+      "entry": "arm_depthwise_conv_s8",
+      "operands": "arm_depthwise_conv_s8",
+      "routed_by": {
+        "wrapper": "arm_depthwise_conv_wrapper_s8",
+        "route": "dw_wrapper_s8:generic",
+        "requires": [],
+        "when": "no earlier route takes the layer: ch_mult != 1, N != 1, or a dilation that arm_nn_dw_conv_opt_dilation_supported() rejects, and on ARM_MATH_MVEI builds not the to_conv shape"
+      },
+      "requires": [],
+      "varies_with": [
+        "toolchain"
+      ],
+      "eligibility": null,
+      "buffers": [
+        {
+          "name": "ctx",
+          "param": "ctx",
+          "size_query": null,
+          "units": "bytes",
+          "align": 1,
+          "lifetime": "call",
+          "optional": true,
+          "format": null,
+          "note": "No scratch; ctx->buf may be NULL."
+        }
+      ],
+      "prepare": [],
+      "declines": [],
+      "since": "7.2.0",
+      "numerics": {
+        "reference": "hct_ref:depthwise_conv_s8",
+        "claim": "bit_exact",
+        "holds_with": [
+          "!single_rounding"
+        ]
+      },
+      "note": null
+    },
+    {
+      "id": "depthwise_conv_s8_opt",
+      "family": "depthwise_conv_s8",
+      "op": "depthwise_conv",
+      "quantization": "per_channel",
+      "dtypes": {
+        "input_data": "int8",
+        "filter_data": "int8",
+        "bias_data": "int32",
+        "output_data": "int8"
+      },
+      "layout": {
+        "input_data": "NHWC",
+        "filter_data": "1HWO",
+        "output_data": "NHWC"
+      },
+      "entry": "arm_depthwise_conv_s8_opt",
+      "operands": "arm_depthwise_conv_s8_opt",
+      "routed_by": {
+        "wrapper": "arm_depthwise_conv_wrapper_s8",
+        "route": "dw_wrapper_s8:opt",
+        "requires": [],
+        "when": "ch_mult == 1, N == 1 and arm_nn_dw_conv_opt_dilation_supported(), and on builds without ARM_MATH_MVEI not the conv_3x3 shape"
+      },
+      "requires": [],
+      "varies_with": [],
+      "eligibility": null,
+      "buffers": [
+        {
+          "name": "scratch",
+          "param": "ctx",
+          "size_query": {
+            "symbol": "arm_depthwise_conv_s8_opt_get_buffer_size",
+            "args": {
+              "input_dims": "input_dims",
+              "filter_dims": "filter_dims"
+            }
+          },
+          "units": "bytes",
+          "align": 2,
+          "lifetime": "call",
+          "optional": true,
+          "format": null,
+          "note": "ctx->size is optional: 0 opts out of the size check, and also keeps the layer off the planar path."
+        },
+        {
+          "name": "weight_sums",
+          "param": "weight_sum_ctx",
+          "size_query": {
+            "symbol": "arm_convolve_s8_get_weights_sum_size",
+            "args": {
+              "output_dims": "output_dims"
+            }
+          },
+          "units": "bytes",
+          "align": 4,
+          "lifetime": "prepared",
+          "optional": true,
+          "format": null,
+          "note": "Read only on builds with ARM_MATH_DSP and ARM_MATH_MVEI; the sums carry the bias."
+        }
+      ],
+      "prepare": [
+        {
+          "symbol": "arm_depthwise_convolve_weight_sum",
+          "args": {
+            "vector_sum_buf": "buffer:weight_sums",
+            "scratch_buf": null,
+            "rhs": "filter_data",
+            "dw_conv_params": "dw_conv_params",
+            "input_dims": "input_dims",
+            "filter_dims": "filter_dims",
+            "output_dims": "output_dims",
+            "lhs_offset": "dw_conv_params.input_offset",
+            "bias_data": "bias_data"
+          },
+          "consumes": [
+            "filter_data",
+            "dw_conv_params",
+            "dw_conv_params.input_offset",
+            "bias_data"
+          ],
+          "fills": "weight_sums",
+          "note": null
+        }
+      ],
+      "declines": [],
+      "since": "7.24.0",
+      "numerics": {
+        "reference": "hct_ref:depthwise_conv_s8",
+        "claim": "bit_exact",
+        "holds_with": [
+          "!single_rounding"
+        ]
+      },
+      "note": null
+    },
+    {
+      "id": "depthwise_conv_s8_opt_3x3",
+      "family": "depthwise_conv_s8",
+      "op": "depthwise_conv",
+      "quantization": "per_channel",
+      "dtypes": {
+        "input_data": "int8",
+        "filter_data": "int8",
+        "bias_data": "int32",
+        "output_data": "int8"
+      },
+      "layout": {
+        "input_data": "NHWC",
+        "filter_data": "1HWO",
+        "output_data": "NHWC"
+      },
+      "entry": "arm_depthwise_conv_s8_opt_3x3",
+      "operands": "arm_depthwise_conv_s8_opt_3x3",
+      "routed_by": "direct",
+      "requires": [
+        "mvei",
+        "!autovectorize"
+      ],
+      "varies_with": [],
+      "eligibility": {
+        "when": "filter 3x3, dilation 1, N 1, C_IN == C_OUT with 16 <= C <= 2048, stride 1 or 2 and padding 0 or 1 in each dimension, input W >= 3 and H >= 1, output H >= 3 and W x H >= 16, every dimension at most 4096, each tensor at most INT32_MAX elements, and (output W - 1) x stride.w - padding.w + 1 < input W. Layers outside it, or a NO_IMPL return, run arm_depthwise_conv_s8_opt(). C 64 with stride.h 1 has the faster _c64_s1 entry.",
+        "predicate": null,
+        "predicate_static": null,
+        "args": null
+      },
+      "buffers": [
+        {
+          "name": "scratch",
+          "param": "ctx",
+          "size_query": {
+            "symbol": "arm_depthwise_conv_s8_opt_3x3_get_buffer_size",
+            "args": {
+              "input_dims": "input_dims"
+            }
+          },
+          "units": "bytes",
+          "align": 1,
+          "lifetime": "call",
+          "optional": false,
+          "format": null,
+          "note": "ctx->size must be at least the size query; the sizer is plain C and answers alike on every build."
+        },
+        {
+          "name": "weight_sums",
+          "param": "weight_sum_ctx",
+          "size_query": {
+            "symbol": "arm_convolve_s8_get_weights_sum_size",
+            "args": {
+              "output_dims": "output_dims"
+            }
+          },
+          "units": "bytes",
+          "align": 4,
+          "lifetime": "prepared",
+          "optional": false,
+          "format": null,
+          "note": "The sums carry the bias; bias_dims and bias_data are unused."
+        }
+      ],
+      "prepare": [
+        {
+          "symbol": "arm_depthwise_convolve_weight_sum",
+          "args": {
+            "vector_sum_buf": "buffer:weight_sums",
+            "scratch_buf": null,
+            "rhs": "filter_data",
+            "dw_conv_params": "dw_conv_params",
+            "input_dims": "input_dims",
+            "filter_dims": "filter_dims",
+            "output_dims": "output_dims",
+            "lhs_offset": "dw_conv_params.input_offset",
+            "bias_data": "bias_data"
+          },
+          "consumes": [
+            "filter_data",
+            "dw_conv_params",
+            "dw_conv_params.input_offset",
+            "bias_data"
+          ],
+          "fills": "weight_sums",
+          "note": null
+        }
+      ],
+      "declines": [
+        {
+          "cause": "build",
+          "when": "ARM_MATH_MVEI is not defined or ARM_MATH_AUTOVECTORIZE is defined"
+        },
+        {
+          "cause": "layer",
+          "when": "the layer is outside the eligibility gate"
+        },
+        {
+          "cause": "buffer",
+          "when": "ctx, weight_sum_ctx or either buf is NULL, or ctx->size is below the size query"
+        }
+      ],
+      "since": "7.37.0",
+      "numerics": {
+        "reference": "hct_ref:depthwise_conv_s8",
+        "claim": "bit_exact",
+        "holds_with": [
+          "!single_rounding"
+        ]
+      },
+      "note": null
+    },
+    {
+      "id": "depthwise_conv_s8_opt_3x3_c64_s1",
+      "family": "depthwise_conv_s8",
+      "op": "depthwise_conv",
+      "quantization": "per_channel",
+      "dtypes": {
+        "input_data": "int8",
+        "filter_data": "int8",
+        "bias_data": "int32",
+        "output_data": "int8"
+      },
+      "layout": {
+        "input_data": "NHWC",
+        "filter_data": "1HWO",
+        "output_data": "NHWC"
+      },
+      "entry": "arm_depthwise_conv_s8_opt_3x3_c64_s1",
+      "operands": "arm_depthwise_conv_s8_opt_3x3_c64_s1",
+      "routed_by": "direct",
+      "requires": [
+        "mvei",
+        "!autovectorize"
+      ],
+      "varies_with": [],
+      "eligibility": {
+        "when": "the arm_depthwise_conv_s8_opt_3x3() gate with C_IN == 64 and stride.h == 1",
+        "predicate": null,
+        "predicate_static": null,
+        "args": null
+      },
+      "buffers": [
+        {
+          "name": "scratch",
+          "param": "ctx",
+          "size_query": {
+            "symbol": "arm_depthwise_conv_s8_opt_3x3_get_buffer_size",
+            "args": {
+              "input_dims": "input_dims"
+            }
+          },
+          "units": "bytes",
+          "align": 1,
+          "lifetime": "call",
+          "optional": false,
+          "format": null,
+          "note": "ctx->size must be at least the size query."
+        },
+        {
+          "name": "weight_sums",
+          "param": "weight_sum_ctx",
+          "size_query": {
+            "symbol": "arm_convolve_s8_get_weights_sum_size",
+            "args": {
+              "output_dims": "output_dims"
+            }
+          },
+          "units": "bytes",
+          "align": 4,
+          "lifetime": "prepared",
+          "optional": false,
+          "format": null,
+          "note": "The sums carry the bias; bias_dims and bias_data are unused."
+        }
+      ],
+      "prepare": [
+        {
+          "symbol": "arm_depthwise_convolve_weight_sum",
+          "args": {
+            "vector_sum_buf": "buffer:weight_sums",
+            "scratch_buf": null,
+            "rhs": "filter_data",
+            "dw_conv_params": "dw_conv_params",
+            "input_dims": "input_dims",
+            "filter_dims": "filter_dims",
+            "output_dims": "output_dims",
+            "lhs_offset": "dw_conv_params.input_offset",
+            "bias_data": "bias_data"
+          },
+          "consumes": [
+            "filter_data",
+            "dw_conv_params",
+            "dw_conv_params.input_offset",
+            "bias_data"
+          ],
+          "fills": "weight_sums",
+          "note": null
+        }
+      ],
+      "declines": [
+        {
+          "cause": "build",
+          "when": "ARM_MATH_MVEI is not defined or ARM_MATH_AUTOVECTORIZE is defined"
+        },
+        {
+          "cause": "layer",
+          "when": "C_IN != 64, stride.h != 1, or the layer is outside the arm_depthwise_conv_s8_opt_3x3() gate"
+        },
+        {
+          "cause": "buffer",
+          "when": "ctx, weight_sum_ctx or either buf is NULL, or ctx->size is below the size query"
+        }
+      ],
+      "since": "7.37.0",
+      "numerics": {
+        "reference": "hct_ref:depthwise_conv_s8",
+        "claim": "bit_exact",
+        "holds_with": [
+          "!single_rounding"
+        ]
+      },
+      "note": null
+    },
+    {
+      "id": "depthwise_conv_s8_opt_channelwise",
+      "family": "depthwise_conv_s8",
+      "op": "depthwise_conv",
+      "quantization": "per_channel",
+      "dtypes": {
+        "input_data": "int8",
+        "filter_data": "int8",
+        "bias_data": "int32",
+        "output_data": "int8"
+      },
+      "layout": {
+        "input_data": "NHWC",
+        "filter_data": "1HWO",
+        "output_data": "NHWC"
+      },
+      "entry": "arm_depthwise_conv_s8_opt_channelwise",
+      "operands": "arm_depthwise_conv_s8_opt_channelwise",
+      "routed_by": {
+        "wrapper": "arm_depthwise_conv_s8_opt",
+        "route": "dw_opt_s8:channelwise",
+        "requires": [],
+        "when": "every layer the planar route does not take"
+      },
+      "requires": [],
+      "varies_with": [],
+      "eligibility": null,
+      "buffers": [
+        {
+          "name": "scratch",
+          "param": "ctx",
+          "size_query": {
+            "symbol": "arm_depthwise_conv_s8_opt_get_buffer_size",
+            "args": {
+              "input_dims": "input_dims",
+              "filter_dims": "filter_dims"
+            }
+          },
+          "units": "bytes",
+          "align": 2,
+          "lifetime": "call",
+          "optional": true,
+          "format": null,
+          "note": "ctx->size is optional; 0 opts out of the size check."
+        },
+        {
+          "name": "weight_sums",
+          "param": "weight_sum_ctx",
+          "size_query": {
+            "symbol": "arm_convolve_s8_get_weights_sum_size",
+            "args": {
+              "output_dims": "output_dims"
+            }
+          },
+          "units": "bytes",
+          "align": 4,
+          "lifetime": "prepared",
+          "optional": true,
+          "format": null,
+          "note": "Read only on builds with ARM_MATH_DSP and ARM_MATH_MVEI; the sums carry the bias."
+        }
+      ],
+      "prepare": [
+        {
+          "symbol": "arm_depthwise_convolve_weight_sum",
+          "args": {
+            "vector_sum_buf": "buffer:weight_sums",
+            "scratch_buf": null,
+            "rhs": "filter_data",
+            "dw_conv_params": "dw_conv_params",
+            "input_dims": "input_dims",
+            "filter_dims": "filter_dims",
+            "output_dims": "output_dims",
+            "lhs_offset": "dw_conv_params.input_offset",
+            "bias_data": "bias_data"
+          },
+          "consumes": [
+            "filter_data",
+            "dw_conv_params",
+            "dw_conv_params.input_offset",
+            "bias_data"
+          ],
+          "fills": "weight_sums",
+          "note": null
+        }
+      ],
+      "declines": [],
+      "since": "7.37.0",
+      "numerics": {
+        "reference": "hct_ref:depthwise_conv_s8",
+        "claim": "bit_exact",
+        "holds_with": [
+          "!single_rounding"
+        ]
+      },
+      "note": null
+    },
+    {
+      "id": "depthwise_conv_s8_opt_planar",
+      "family": "depthwise_conv_s8",
+      "op": "depthwise_conv",
+      "quantization": "per_channel",
+      "dtypes": {
+        "input_data": "int8",
+        "filter_data": "int8",
+        "bias_data": "int32",
+        "output_data": "int8"
+      },
+      "layout": {
+        "input_data": "NHWC",
+        "filter_data": "1HWO",
+        "output_data": "NHWC"
+      },
+      "entry": "arm_depthwise_conv_s8_opt_planar",
+      "operands": "arm_depthwise_conv_s8_opt_planar",
+      "routed_by": {
+        "wrapper": "arm_depthwise_conv_s8_opt",
+        "route": "dw_opt_s8:planar",
+        "requires": [
+          "dsp",
+          "mvei"
+        ],
+        "when": "arm_depthwise_conv_s8_opt_planar_supported(), non-NULL ctx, weight_sum_ctx and both buf, and a non-zero ctx->size that holds the plane; otherwise arm_depthwise_conv_s8_opt() runs channelwise"
+      },
+      "requires": [
+        "dsp",
+        "mvei"
+      ],
+      "varies_with": [],
+      "eligibility": {
+        "when": "batch 1, C_IN == C_OUT, positive channel, filter and output dimensions, stride 1, ch_mult 1, dilation.h 1, 1 <= dilation.w <= 128 / C, at most 32 channels, the widths the path is faster for, and a plane that fits the scratch. The width thresholds may be retuned.",
+        "predicate": "arm_depthwise_conv_s8_opt_planar_supported",
+        "predicate_static": false,
+        "args": {
+          "dw_conv_params": "dw_conv_params",
+          "input_dims": "input_dims",
+          "filter_dims": "filter_dims",
+          "output_dims": "output_dims"
+        }
+      },
+      "buffers": [
+        {
+          "name": "scratch",
+          "param": "ctx",
+          "size_query": {
+            "symbol": "arm_depthwise_conv_s8_opt_get_buffer_size",
+            "args": {
+              "input_dims": "input_dims",
+              "filter_dims": "filter_dims"
+            }
+          },
+          "units": "bytes",
+          "align": 1,
+          "lifetime": "call",
+          "optional": false,
+          "format": null,
+          "note": "ctx->size must be set: the path declines when ctx->size cannot hold its plane, including ctx->size 0."
+        },
+        {
+          "name": "weight_sums",
+          "param": "weight_sum_ctx",
+          "size_query": {
+            "symbol": "arm_convolve_s8_get_weights_sum_size",
+            "args": {
+              "output_dims": "output_dims"
+            }
+          },
+          "units": "bytes",
+          "align": 4,
+          "lifetime": "prepared",
+          "optional": false,
+          "format": null,
+          "note": "The sums carry the bias; bias_dims and bias_data are unused."
+        }
+      ],
+      "prepare": [
+        {
+          "symbol": "arm_depthwise_convolve_weight_sum",
+          "args": {
+            "vector_sum_buf": "buffer:weight_sums",
+            "scratch_buf": null,
+            "rhs": "filter_data",
+            "dw_conv_params": "dw_conv_params",
+            "input_dims": "input_dims",
+            "filter_dims": "filter_dims",
+            "output_dims": "output_dims",
+            "lhs_offset": "dw_conv_params.input_offset",
+            "bias_data": "bias_data"
+          },
+          "consumes": [
+            "filter_data",
+            "dw_conv_params",
+            "dw_conv_params.input_offset",
+            "bias_data"
+          ],
+          "fills": "weight_sums",
+          "note": null
+        }
+      ],
+      "declines": [
+        {
+          "cause": "build",
+          "when": "ARM_MATH_DSP or ARM_MATH_MVEI is not defined, once the argument checks pass: C_IN != C_OUT, dilation.h != 1, dilation.w < 1, or a NULL ctx->buf with a non-zero size query return ARM_CMSIS_NN_ARG_ERROR on every build"
+        },
+        {
+          "cause": "layer",
+          "when": "arm_depthwise_conv_s8_opt_planar_supported() rejects the layer for a reason other than those argument checks"
+        },
+        {
+          "cause": "buffer",
+          "when": "ctx->size cannot hold the plane, or weight_sum_ctx->buf is NULL"
+        }
+      ],
+      "since": "7.37.0",
+      "numerics": {
+        "reference": "hct_ref:depthwise_conv_s8",
+        "claim": "bit_exact",
+        "holds_with": [
+          "!single_rounding"
+        ]
+      },
+      "note": null
+    },
+    {
+      "id": "depthwise_conv_s8_to_conv",
+      "family": "depthwise_conv_s8",
+      "op": "depthwise_conv",
+      "quantization": "per_channel",
+      "dtypes": {
+        "input_data": "int8",
+        "filter_data": "int8",
+        "bias_data": "int32",
+        "output_data": "int8"
+      },
+      "layout": {
+        "input_data": "NHWC",
+        "filter_data": "1HWO",
+        "output_data": "NHWC"
+      },
+      "entry": "arm_depthwise_conv_wrapper_s8",
+      "operands": "arm_depthwise_conv_wrapper_s8",
+      "routed_by": {
+        "wrapper": "arm_depthwise_conv_wrapper_s8",
+        "route": "dw_wrapper_s8:to_conv",
+        "requires": [
+          "mvei"
+        ],
+        "when": "input C == 1 and output C > CONVERT_DW_CONV_WITH_ONE_INPUT_CH_AND_OUTPUT_CH_ABOVE_THRESHOLD (8 on armclang, 1 otherwise). The wrapper transposes the filter into ctx->buf and calls arm_convolve_wrapper_s8()."
+      },
+      "requires": [
+        "mvei"
+      ],
+      "varies_with": [
+        "toolchain"
+      ],
+      "eligibility": null,
+      "buffers": [
+        {
+          "name": "scratch",
+          "param": "ctx",
+          "size_query": {
+            "symbol": "arm_depthwise_conv_wrapper_s8_get_buffer_size",
+            "args": {
+              "dw_conv_params": "dw_conv_params",
+              "input_dims": "input_dims",
+              "filter_dims": "filter_dims",
+              "output_dims": "output_dims"
+            }
+          },
+          "units": "bytes",
+          "align": 2,
+          "lifetime": "call",
+          "optional": false,
+          "format": null,
+          "note": "The convolution scratch followed by the transposed filter."
+        },
+        {
+          "name": "weight_sums",
+          "param": "weight_sum_ctx",
+          "size_query": {
+            "symbol": "arm_convolve_s8_get_weights_sum_size",
+            "args": {
+              "output_dims": "output_dims"
+            }
+          },
+          "units": "bytes",
+          "align": 4,
+          "lifetime": "prepared",
+          "optional": false,
+          "format": null,
+          "note": "With C_IN == 1 the depthwise sums equal the convolution sums of the transposed filter, which the selected convolution kernel reads."
+        }
+      ],
+      "prepare": [
+        {
+          "symbol": "arm_depthwise_convolve_weight_sum",
+          "args": {
+            "vector_sum_buf": "buffer:weight_sums",
+            "scratch_buf": null,
+            "rhs": "filter_data",
+            "dw_conv_params": "dw_conv_params",
+            "input_dims": "input_dims",
+            "filter_dims": "filter_dims",
+            "output_dims": "output_dims",
+            "lhs_offset": "dw_conv_params.input_offset",
+            "bias_data": "bias_data"
+          },
+          "consumes": [
+            "filter_data",
+            "dw_conv_params",
+            "dw_conv_params.input_offset",
+            "bias_data"
+          ],
+          "fills": "weight_sums",
+          "note": null
+        }
+      ],
+      "declines": [],
+      "since": "7.24.0",
+      "numerics": {
+        "reference": "hct_ref:depthwise_conv_s8",
+        "claim": "bit_exact",
+        "holds_with": [
+          "!single_rounding"
+        ]
+      },
+      "note": null
+    },
+    {
+      "id": "fully_connected_per_channel_packed_s8",
+      "family": "fully_connected_s8",
+      "op": "fully_connected",
+      "quantization": "per_channel",
+      "dtypes": {
+        "input_data": "int8",
+        "filter_data": "int8",
+        "bias_data": "int32",
+        "output_data": "int8"
+      },
+      "layout": {
+        "input_data": "NHWC",
+        "filter_data": "OI",
+        "output_data": "NC"
+      },
+      "entry": "arm_fully_connected_per_channel_packed_s8",
+      "operands": "arm_fully_connected_per_channel_s8",
+      "routed_by": "direct",
+      "requires": [
+        "mvei",
+        "!autovectorize",
+        "!single_rounding"
+      ],
+      "varies_with": [],
+      "eligibility": {
+        "when": "filter offset 0, positive depths, a stream of at most INT32_MAX bytes and every output channel right-shift-only. Layers outside it run arm_fully_connected_per_channel_s8().",
+        "predicate": "arm_nn_fc_packed_s8_supported",
+        "predicate_static": true,
+        "args": {
+          "fc_params": "fc_params",
+          "quant_params": "quant_params",
+          "filter_dims": "filter_dims"
+        }
+      },
+      "buffers": [
+        {
+          "name": "kernel_sums",
+          "param": null,
+          "size_query": {
+            "symbol": "arm_fully_connected_s8_get_buffer_size",
+            "args": {
+              "filter_dims": "filter_dims"
+            }
+          },
+          "units": "bytes",
+          "align": 4,
+          "lifetime": "prepare",
+          "optional": false,
+          "format": null,
+          "note": "Only an input of the pack step. Under the builds this implementation requires the sizer returns filter_dims->c * sizeof(int32_t)."
+        },
+        {
+          "name": "packed_weights",
+          "param": "packed_data",
+          "size_query": {
+            "symbol": "arm_fully_connected_per_channel_packed_s8_get_packed_size",
+            "args": {
+              "filter_dims": "filter_dims"
+            }
+          },
+          "units": "bytes",
+          "align": 4,
+          "lifetime": "prepared",
+          "optional": false,
+          "format": "fc_per_channel_packed_s8/1",
+          "note": "Replaces filter_data, bias_data and quant_params at call time. The stream is read once per batch, front to back. The sizer returns 0, not -1, for a shape it cannot size."
+        }
+      ],
+      "prepare": [
+        {
+          "symbol": "arm_vector_sum_s8",
+          "args": {
+            "vector_sum_buf": "buffer:kernel_sums",
+            "vector_cols": "filter_dims.n",
+            "vector_rows": "output_dims.c",
+            "vector_data": "filter_data",
+            "lhs_offset": "fc_params.input_offset",
+            "rhs_offset": "fc_params.filter_offset",
+            "bias_data": "bias_data"
+          },
+          "consumes": [
+            "filter_data",
+            "fc_params.input_offset",
+            "fc_params.filter_offset",
+            "bias_data"
+          ],
+          "fills": "kernel_sums",
+          "note": null
+        },
+        {
+          "symbol": "arm_fully_connected_per_channel_packed_s8_pack",
+          "args": {
+            "filter_dims": "filter_dims",
+            "filter_data": "filter_data",
+            "kernel_sum": "buffer:kernel_sums",
+            "quant_params": "quant_params",
+            "packed_data": "buffer:packed_weights"
+          },
+          "consumes": [
+            "filter_data",
+            "quant_params"
+          ],
+          "fills": "packed_weights",
+          "note": null
+        }
+      ],
+      "declines": [
+        {
+          "cause": "build",
+          "when": "ARM_MATH_MVEI is not defined, or ARM_MATH_AUTOVECTORIZE or CMSIS_NN_USE_SINGLE_ROUNDING is defined"
+        },
+        {
+          "cause": "layer",
+          "when": "fc_params->filter_offset != 0"
+        }
+      ],
+      "since": "7.39.3",
+      "numerics": {
+        "reference": "hct_ref:fully_connected_s8",
+        "claim": "bit_exact",
+        "holds_with": []
+      },
+      "note": null
+    },
+    {
+      "id": "fully_connected_per_channel_s8",
+      "family": "fully_connected_s8",
+      "op": "fully_connected",
+      "quantization": "per_channel",
+      "dtypes": {
+        "input_data": "int8",
+        "filter_data": "int8",
+        "bias_data": "int32",
+        "output_data": "int8"
+      },
+      "layout": {
+        "input_data": "NHWC",
+        "filter_data": "OI",
+        "output_data": "NC"
+      },
+      "entry": "arm_fully_connected_per_channel_s8",
+      "operands": "arm_fully_connected_per_channel_s8",
+      "routed_by": {
+        "wrapper": "arm_fully_connected_wrapper_s8",
+        "route": "fc_wrapper_s8:per_channel",
+        "requires": [],
+        "when": "quant_params->is_per_channel != 0"
+      },
+      "requires": [],
+      "varies_with": [],
+      "eligibility": null,
+      "buffers": [
+        {
+          "name": "kernel_sums",
+          "param": "ctx",
+          "size_query": {
+            "symbol": "arm_fully_connected_s8_get_buffer_size",
+            "args": {
+              "filter_dims": "filter_dims"
+            }
+          },
+          "units": "bytes",
+          "align": 4,
+          "lifetime": "prepared",
+          "optional": true,
+          "format": null,
+          "note": "There is no per-channel sizer: arm_fully_connected_s8_get_buffer_size() returns the size this entry needs. Read only on ARM_MATH_MVEI builds. Never clear it between calls."
+        }
+      ],
+      "prepare": [
+        {
+          "symbol": "arm_vector_sum_s8",
+          "args": {
+            "vector_sum_buf": "buffer:kernel_sums",
+            "vector_cols": "filter_dims.n",
+            "vector_rows": "output_dims.c",
+            "vector_data": "filter_data",
+            "lhs_offset": "fc_params.input_offset",
+            "rhs_offset": "fc_params.filter_offset",
+            "bias_data": "bias_data"
+          },
+          "consumes": [
+            "filter_data",
+            "fc_params.input_offset",
+            "fc_params.filter_offset",
+            "bias_data"
+          ],
+          "fills": "kernel_sums",
+          "note": null
+        }
+      ],
+      "declines": [],
+      "since": "7.0.0",
+      "numerics": {
+        "reference": "hct_ref:fully_connected_s8",
+        "claim": "bit_exact",
+        "holds_with": [
+          "!single_rounding"
+        ]
+      },
+      "note": null
+    },
+    {
+      "id": "fully_connected_s8",
+      "family": "fully_connected_s8",
+      "op": "fully_connected",
+      "quantization": "per_tensor",
+      "dtypes": {
+        "input_data": "int8",
+        "filter_data": "int8",
+        "bias_data": "int32",
+        "output_data": "int8"
+      },
+      "layout": {
+        "input_data": "NHWC",
+        "filter_data": "OI",
+        "output_data": "NC"
+      },
+      "entry": "arm_fully_connected_s8",
+      "operands": "arm_fully_connected_s8",
+      "routed_by": {
+        "wrapper": "arm_fully_connected_wrapper_s8",
+        "route": "fc_wrapper_s8:per_tensor",
+        "requires": [],
+        "when": "quant_params->is_per_channel == 0"
+      },
+      "requires": [],
+      "varies_with": [],
+      "eligibility": null,
+      "buffers": [
+        {
+          "name": "kernel_sums",
+          "param": "ctx",
+          "size_query": {
+            "symbol": "arm_fully_connected_s8_get_buffer_size",
+            "args": {
+              "filter_dims": "filter_dims"
+            }
+          },
+          "units": "bytes",
+          "align": 4,
+          "lifetime": "prepared",
+          "optional": true,
+          "format": null,
+          "note": "Read only on ARM_MATH_MVEI builds, where the sums carry the bias and bias_data is ignored. The sizer returns 0 elsewhere. Never clear it between calls."
+        }
+      ],
+      "prepare": [
+        {
+          "symbol": "arm_vector_sum_s8",
+          "args": {
+            "vector_sum_buf": "buffer:kernel_sums",
+            "vector_cols": "filter_dims.n",
+            "vector_rows": "output_dims.c",
+            "vector_data": "filter_data",
+            "lhs_offset": "fc_params.input_offset",
+            "rhs_offset": "fc_params.filter_offset",
+            "bias_data": "bias_data"
+          },
+          "consumes": [
+            "filter_data",
+            "fc_params.input_offset",
+            "fc_params.filter_offset",
+            "bias_data"
+          ],
+          "fills": "kernel_sums",
+          "note": null
+        }
+      ],
+      "declines": [],
+      "since": "7.0.0",
+      "numerics": {
+        "reference": "hct_ref:fully_connected_s8",
+        "claim": "bit_exact",
+        "holds_with": [
+          "!single_rounding"
+        ]
+      },
+      "note": null
+    },
+    {
+      "id": "max_pool_s8",
+      "family": "pooling_s8",
+      "op": "max_pool",
+      "quantization": "none",
+      "dtypes": {
+        "input_data": "int8",
+        "output_data": "int8"
+      },
+      "layout": {
+        "input_data": "NHWC",
+        "output_data": "NHWC"
+      },
+      "entry": "arm_max_pool_s8",
+      "operands": "arm_max_pool_s8",
+      "routed_by": "direct",
+      "requires": [],
+      "varies_with": [],
+      "eligibility": null,
+      "buffers": [
+        {
+          "name": "ctx",
+          "param": "ctx",
+          "size_query": null,
+          "units": "bytes",
+          "align": 1,
+          "lifetime": "call",
+          "optional": true,
+          "format": null,
+          "note": "No scratch; ctx->buf may be NULL."
+        }
+      ],
+      "prepare": [],
+      "declines": [],
+      "since": "4.0.0",
+      "numerics": {
+        "reference": "hct_ref:max_pool_s8",
+        "claim": "bit_exact",
+        "holds_with": []
+      },
+      "note": null
+    }
+  ]
+}
