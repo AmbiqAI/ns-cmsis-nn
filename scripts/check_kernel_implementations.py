@@ -61,7 +61,7 @@ ARM_NN_ENABLE_F32/F16 guard needs the matching f32_api/f16_api, and the reverse.
 
 The JSON envelope binds the manifest to its inputs: library_version (Include/arm_nn_types.h), signature_schema and
 signature_sha256 (the bytes of kernel_contracts.json) and planner_abi (ARM_NN_PLAN_ABI_VERSION in
-Include/arm_nn_plan.h, null until the planner exists). The canonical form is JSON.stringify(document, null, 2) plus a
+Planner/include/arm_nn_plan.h, null without a planner). The canonical form is JSON.stringify(document, null, 2) plus a
 newline, so release-please's json updater can bump library_version without un-canonicalizing the file.
 
 Fail-closed: any unresolved reference, unknown key or token, or type mismatch aborts the export with every problem
@@ -82,15 +82,31 @@ from check_doxygen_params import parse_header, public_headers  # noqa: E402
 from check_kernel_contract import NOISE_GUARD_RE, validate_document  # noqa: E402
 
 REPO = Path(__file__).resolve().parents[1]
-SCHEMA = 'ns-cmsis-nn/kernel-implementations/1'
+sys.path.insert(0, str(REPO / 'python'))
+from ns_cmsis_nn_contracts.vocabulary import (  # noqa: E402
+    SCHEMA,
+    BASE_FEATURES,
+    FEATURES,
+    VARIES_WITH,
+    OPS,
+    QUANTIZATIONS,
+    DTYPES,
+    LAYOUTS,
+    LIFETIMES,
+    DECLINE_CAUSES,
+    CLAIMS,
+    ID_RE,
+    ROUTE_RE,
+    FORMAT_RE,
+    REFERENCE_RE,
+    VERSION_RE,
+)
 SOURCES = Path('Tests/KernelContracts/implementations')
 SIGNATURES = Path('Tests/KernelContracts/kernel_contracts.json')
 OUTPUT = Path('Tests/KernelContracts/kernel_implementations.json')
 TYPES_H = Path('Include/arm_nn_types.h')
-PLAN_H = Path('Include/arm_nn_plan.h')
+PLAN_H = Path('Planner/include/arm_nn_plan.h')
 
-BASE_FEATURES = ('mvei', 'dsp', 'mvef', 'mve_f16', 'f32_api', 'f16_api', 'autovectorize', 'single_rounding')
-FEATURES = frozenset(BASE_FEATURES[:6]) | {'!' + feature for feature in BASE_FEATURES}
 GUARD_TOKENS = {
     'defined(ARM_MATH_MVEI)': 'mvei',
     '!defined(ARM_MATH_MVEI)': '!mvei',
@@ -104,14 +120,6 @@ GUARD_TOKENS = {
     'ARM_NN_ENABLE_F16': 'f16_api',
 }
 FLOAT_API = {'float32': 'f32_api', 'float16': 'f16_api'}
-VARIES_WITH = frozenset({'toolchain'})
-OPS = frozenset({'fully_connected', 'depthwise_conv', 'avg_pool', 'max_pool'})
-QUANTIZATIONS = frozenset({'per_tensor', 'per_channel', 'none'})
-DTYPES = frozenset({'int8', 'int16', 'int32', 'int64', 'float16', 'float32'})
-LAYOUTS = frozenset({'NHWC', 'NC', 'OI', '1HWO'})
-LIFETIMES = frozenset({'call', 'prepared', 'prepare'})
-DECLINE_CAUSES = frozenset({'build', 'layer', 'buffer'})
-CLAIMS = frozenset({'bit_exact', 'bounded'})
 STATUS = 'arm_cmsis_nn_status'
 CONTEXT = 'cmsis_nn_context *'
 DIMS = 'cmsis_nn_dims *'
@@ -130,11 +138,6 @@ ELIGIBILITY_KEYS = frozenset({'when', 'predicate', 'args'})
 DECLINE_KEYS = frozenset({'cause', 'when'})
 NUMERICS_KEYS = frozenset({'reference', 'claim', 'holds_with'})
 
-ID_RE = re.compile(r'^[a-z][a-z0-9_]*$')
-ROUTE_RE = re.compile(r'^([a-z0-9_]+):([a-z0-9_]+)$')
-FORMAT_RE = re.compile(r'^[a-z][a-z0-9_]*/[1-9][0-9]*$')
-REFERENCE_RE = re.compile(r'^hct_ref:[a-z][a-z0-9_]*$')
-VERSION_RE = re.compile(r'^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$')
 FIELD_PATH_RE = re.compile(r'^[A-Za-z_]\w*(\.[A-Za-z_]\w*)+$')
 NAME_RE = re.compile(r'^[A-Za-z_]\w*$')
 

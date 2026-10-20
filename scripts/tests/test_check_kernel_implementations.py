@@ -39,7 +39,7 @@ class RealTree(unittest.TestCase):
         self.assertEqual(document['schema'], SCHEMA)
         self.assertEqual(document['signature_schema'], 'ns-cmsis-nn/kernel-contracts/1')
         self.assertEqual(document['signature_sha256'], hashlib.sha256((ROOT / SIGNATURES).read_bytes()).hexdigest())
-        self.assertIsNone(document['planner_abi'])
+        self.assertEqual(document['planner_abi'], 1)
         version = '.'.join(__import__('re').findall(
             r'NS_CMSIS_NN_VERSION_(?:MAJOR|MINOR|PATCH)\s*\((\d+)\)', (ROOT / 'Include/arm_nn_types.h').read_text()))
         self.assertEqual(document['library_version'], version)
@@ -84,6 +84,7 @@ class CopiedTree(unittest.TestCase):
         self.root = Path(self.tmp.name)
         shutil.copytree(ROOT / 'Include', self.root / 'Include')
         shutil.copytree(ROOT / 'Tests/KernelContracts', self.root / 'Tests/KernelContracts')
+        shutil.copytree(ROOT / 'Planner/include', self.root / 'Planner/include')
 
     def tearDown(self):
         self.tmp.cleanup()
@@ -392,9 +393,10 @@ class CopiedTree(unittest.TestCase):
 
     # Envelope inputs and freshness.
     def test_planner_abi_is_read_from_the_planner_header(self):
-        (self.root / 'Include/arm_nn_plan.h').write_text('#define ARM_NN_PLAN_ABI_VERSION (3)\n')
+        (self.root / 'Planner/include').mkdir(parents=True, exist_ok=True)
+        (self.root / 'Planner/include/arm_nn_plan.h').write_text('#define ARM_NN_PLAN_ABI_VERSION (3)\n')
         self.assertEqual(build_document(self.root)['planner_abi'], 3)
-        (self.root / 'Include/arm_nn_plan.h').write_text('/* no version yet */\n')
+        (self.root / 'Planner/include/arm_nn_plan.h').write_text('/* no version yet */\n')
         self.assertRejected('defines no ARM_NN_PLAN_ABI_VERSION')
 
     def test_corrupt_signature_export(self):
