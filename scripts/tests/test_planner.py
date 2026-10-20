@@ -67,7 +67,8 @@ class Target(ctypes.Structure):
 
 
 class Plan(ctypes.Structure):
-    _fields_ = [("kernel", ctypes.c_char_p), ("route", ctypes.c_int32), ("ctx_role", ctypes.c_int32),
+    _fields_ = [("kernel", ctypes.c_char_p), ("route_id", ctypes.c_char_p), ("route", ctypes.c_int32),
+                ("ctx_role", ctypes.c_int32),
                 ("ctx_bytes", ctypes.c_int32), ("prepared_bytes", ctypes.c_int32)]
 
 
@@ -209,6 +210,8 @@ def test_depthwise_routes_and_scratch_match_the_library(libs, layer, gcc_routes,
             assert status == OK
             want = armclang_mve if (toolchain == ARMCLANG and isa == MVE) else gcc_routes[isa]
             assert plan.route == want, (toolchain, isa)
+            assert plan.route_id == {TO_CONV: b"dw_wrapper_s8:to_conv", DW3X3: b"dw_wrapper_s8:conv_3x3",
+                                     OPT: b"dw_wrapper_s8:opt", DW: b"dw_wrapper_s8:generic"}[want]
             size = sizers[isa](ctypes.byref(params), ctypes.byref(i), ctypes.byref(f), ctypes.byref(o))
             assert plan.ctx_bytes == size
             assert plan.ctx_role == (CTX_SCRATCH if size > 0 else CTX_NONE)
@@ -237,6 +240,7 @@ def test_fully_connected_routes_and_kernel_sums(libs, per_channel, isa):
     assert status == OK
     assert plan.kernel == (b"arm_fully_connected_per_channel_s8" if per_channel else b"arm_fully_connected_s8")
     assert plan.route == (0 if per_channel else 1)
+    assert plan.route_id == (b"fc_wrapper_s8:per_channel" if per_channel else b"fc_wrapper_s8:per_tensor")
     if isa == MVE:
         assert (plan.ctx_role, plan.ctx_bytes) == (CTX_KERNEL_SUMS, 5 * 4)
     else:
@@ -274,6 +278,7 @@ def test_packed_fully_connected_plans_its_stream(libs):
     status, plan = plan_packed(lib, target(MVE), FcParams(0, 0, 0, Activation(-128, 127)), quant, f)
     assert status == OK
     assert plan.kernel == b"arm_fully_connected_per_channel_packed_s8" and plan.route == -1
+    assert plan.route_id is None
     assert (plan.ctx_role, plan.ctx_bytes) == (CTX_NONE, 0)
     assert plan.prepared_bytes == lib.arm_fully_connected_per_channel_packed_s8_get_packed_size(ctypes.byref(f))
     # ceil(9 / 4) blocks of 4 rows of 23 rounded up to 32, plus 48 bytes each.

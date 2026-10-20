@@ -78,6 +78,8 @@ typedef enum
 typedef struct
 {
     const char *kernel;     /**< name of the kernel the call reaches (static string, not owned by the caller) */
+    const char *route_id;   /**< the route's id in Tests/KernelContracts/kernel_implementations.json, or NULL for a
+                                 direct entry (static string) */
     int32_t route;          /**< the wrapper's route (Include/Internal/arm_nn_dispatch.h), or -1 for a direct entry */
     int32_t ctx_role;       /**< arm_nn_plan_ctx_role */
     int32_t ctx_bytes;      /**< bytes ctx->buf must hold; 0 with ARM_NN_PLAN_CTX_NONE */

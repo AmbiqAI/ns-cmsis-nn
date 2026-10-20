@@ -81,6 +81,7 @@ check_window(const cmsis_nn_tile *stride, const cmsis_nn_tile *padding, const cm
 /* A scratch-size query's answer: a negative one is the sizers' out-of-range sentinel. */
 static arm_nn_plan_status write_plan(arm_nn_plan_result *plan,
                                      const char *kernel,
+                                     const char *route_id,
                                      int32_t route,
                                      int32_t ctx_bytes,
                                      int32_t ctx_role_when_used,
@@ -91,6 +92,7 @@ static arm_nn_plan_status write_plan(arm_nn_plan_result *plan,
         return ARM_NN_PLAN_E_RANGE;
     }
     plan->kernel = kernel;
+    plan->route_id = route_id;
     plan->route = route;
     plan->ctx_role = ctx_bytes > 0 ? ctx_role_when_used : ARM_NN_PLAN_CTX_NONE;
     plan->ctx_bytes = ctx_bytes;
@@ -149,11 +151,17 @@ arm_nn_plan_status arm_nn_plan_depthwise_conv_wrapper_s8(const arm_nn_plan_targe
         [ARM_NN_DW_CONV_S8_ROUTE_OPT] = "arm_depthwise_conv_s8_opt",
         [ARM_NN_DW_CONV_S8_ROUTE_GENERIC] = "arm_depthwise_conv_s8",
     };
+    static const char *const route_ids[] = {
+        [ARM_NN_DW_CONV_S8_ROUTE_TO_CONV] = "dw_wrapper_s8:to_conv",
+        [ARM_NN_DW_CONV_S8_ROUTE_3X3] = "dw_wrapper_s8:conv_3x3",
+        [ARM_NN_DW_CONV_S8_ROUTE_OPT] = "dw_wrapper_s8:opt",
+        [ARM_NN_DW_CONV_S8_ROUTE_GENERIC] = "dw_wrapper_s8:generic",
+    };
     if (route < 0 || route > ARM_NN_DW_CONV_S8_ROUTE_GENERIC)
     {
         return ARM_NN_PLAN_E_UNSUPPORTED;
     }
-    return write_plan(plan, kernels[route], route, ctx_bytes, ARM_NN_PLAN_CTX_SCRATCH, 0);
+    return write_plan(plan, kernels[route], route_ids[route], route, ctx_bytes, ARM_NN_PLAN_CTX_SCRATCH, 0);
 }
 
 arm_nn_plan_status arm_nn_plan_fully_connected_wrapper_s8(const arm_nn_plan_target *target,
@@ -192,13 +200,14 @@ arm_nn_plan_status arm_nn_plan_fully_connected_wrapper_s8(const arm_nn_plan_targ
     const int32_t ctx_bytes = target->isa == ARM_NN_PLAN_ISA_MVE
         ? arm_fully_connected_s8_get_buffer_size_mve(filter_dims)
         : arm_fully_connected_s8_get_buffer_size_dsp(filter_dims);
-    return write_plan(plan,
-                      route == ARM_NN_FC_S8_ROUTE_PER_CHANNEL ? "arm_fully_connected_per_channel_s8"
-                                                              : "arm_fully_connected_s8",
-                      route,
-                      ctx_bytes,
-                      ARM_NN_PLAN_CTX_KERNEL_SUMS,
-                      0);
+    return write_plan(
+        plan,
+        route == ARM_NN_FC_S8_ROUTE_PER_CHANNEL ? "arm_fully_connected_per_channel_s8" : "arm_fully_connected_s8",
+        route == ARM_NN_FC_S8_ROUTE_PER_CHANNEL ? "fc_wrapper_s8:per_channel" : "fc_wrapper_s8:per_tensor",
+        route,
+        ctx_bytes,
+        ARM_NN_PLAN_CTX_KERNEL_SUMS,
+        0);
 }
 
 arm_nn_plan_status
@@ -230,6 +239,7 @@ arm_nn_plan_fully_connected_per_channel_packed_s8(const arm_nn_plan_target *targ
     }
     return write_plan(plan,
                       "arm_fully_connected_per_channel_packed_s8",
+                      NULL,
                       -1,
                       0,
                       ARM_NN_PLAN_CTX_NONE,
@@ -262,7 +272,7 @@ arm_nn_plan_status arm_nn_plan_pool_s8(const arm_nn_plan_target *target,
     }
     if (max)
     {
-        return write_plan(plan, "arm_max_pool_s8", -1, 0, ARM_NN_PLAN_CTX_NONE, 0);
+        return write_plan(plan, "arm_max_pool_s8", NULL, -1, 0, ARM_NN_PLAN_CTX_NONE, 0);
     }
 
     int32_t ctx_bytes;
@@ -278,5 +288,5 @@ arm_nn_plan_status arm_nn_plan_pool_s8(const arm_nn_plan_target *target,
         ctx_bytes = arm_avgpool_s8_get_buffer_size(output_dims->w, input_dims->c);
         break;
     }
-    return write_plan(plan, "arm_avgpool_s8", -1, ctx_bytes, ARM_NN_PLAN_CTX_SCRATCH, 0);
+    return write_plan(plan, "arm_avgpool_s8", NULL, -1, ctx_bytes, ARM_NN_PLAN_CTX_SCRATCH, 0);
 }
