@@ -260,7 +260,7 @@ __STATIC_FORCEINLINE _Float16 arm_nn_abs_f16h(_Float16 x)
 // Threshold for number of output channels that decide whether to convert a depthwise conv to a
 // regular conv operation when number of input channels is one.
 // Only applicable for processors with MVE extension.
-#if defined(__ARMCC_VERSION) && (__ARMCC_VERSION >= 6010050)
+#if ARM_NN_TOOLCHAIN_ARMCLANG
     #define CONVERT_DW_CONV_WITH_ONE_INPUT_CH_AND_OUTPUT_CH_ABOVE_THRESHOLD (8)
 #else
     #define CONVERT_DW_CONV_WITH_ONE_INPUT_CH_AND_OUTPUT_CH_ABOVE_THRESHOLD (1)
