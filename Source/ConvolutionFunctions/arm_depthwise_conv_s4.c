@@ -41,32 +41,39 @@
  * @{
  */
 
-static void depthwise_conv_s4_generic(const int8_t *input,
-                                      const int32_t input_batches,
-                                      const int32_t input_x,
-                                      const int32_t input_y,
-                                      const int32_t input_ch,
-                                      const int8_t *kernel,
-                                      const int32_t output_ch,
-                                      const int32_t ch_mult,
-                                      const int32_t kernel_x,
-                                      const int32_t kernel_y,
-                                      const int32_t pad_x,
-                                      const int32_t pad_y,
-                                      const int32_t stride_x,
-                                      const int32_t stride_y,
-                                      const int32_t *bias,
-                                      int8_t *output,
-                                      const int32_t *output_shift,
-                                      const int32_t *output_mult,
-                                      const int32_t output_x,
-                                      const int32_t output_y,
-                                      const int32_t output_offset,
-                                      const int32_t input_offset,
-                                      const int32_t output_activation_min,
-                                      const int32_t output_activation_max,
-                                      const int32_t dilation_x,
-                                      const int32_t dilation_y)
+/* Measured on the Corstone-300 FVP: GCC keeps the generic kernel's loops tight only when the entry check stays out of
+   its function (out of line, not cloned); other compilers do best choosing for themselves. */
+#if defined(__GNUC__) && !defined(__clang__)
+    #define ARM_DEPTHWISE_CONV_S4_GENERIC_ATTR __attribute__((noinline, noipa))
+#else
+    #define ARM_DEPTHWISE_CONV_S4_GENERIC_ATTR
+#endif
+static ARM_DEPTHWISE_CONV_S4_GENERIC_ATTR void depthwise_conv_s4_generic(const int8_t *input,
+                                                                         const int32_t input_batches,
+                                                                         const int32_t input_x,
+                                                                         const int32_t input_y,
+                                                                         const int32_t input_ch,
+                                                                         const int8_t *kernel,
+                                                                         const int32_t output_ch,
+                                                                         const int32_t ch_mult,
+                                                                         const int32_t kernel_x,
+                                                                         const int32_t kernel_y,
+                                                                         const int32_t pad_x,
+                                                                         const int32_t pad_y,
+                                                                         const int32_t stride_x,
+                                                                         const int32_t stride_y,
+                                                                         const int32_t *bias,
+                                                                         int8_t *output,
+                                                                         const int32_t *output_shift,
+                                                                         const int32_t *output_mult,
+                                                                         const int32_t output_x,
+                                                                         const int32_t output_y,
+                                                                         const int32_t output_offset,
+                                                                         const int32_t input_offset,
+                                                                         const int32_t output_activation_min,
+                                                                         const int32_t output_activation_max,
+                                                                         const int32_t dilation_x,
+                                                                         const int32_t dilation_y)
 
 {
     int i_out = 0;
@@ -481,6 +488,11 @@ arm_cmsis_nn_status arm_depthwise_conv_s4(const cmsis_nn_context *ctx,
     (void)bias_dims;
     (void)ctx;
 
+    /* The kernel keeps the first tap index in int16_t (AmbiqAI/ns-cmsis-nn#786) */
+    if (arm_nn_depthwise_s16_tap_index_invalid(dw_conv_params, output_dims))
+    {
+        return ARM_CMSIS_NN_ARG_ERROR;
+    }
     const int32_t dilation_x = dw_conv_params->dilation.w;
     const int32_t dilation_y = dw_conv_params->dilation.h;
     depthwise_conv_s4_generic(input,

@@ -428,6 +428,8 @@ static arm_cmsis_nn_status arm_convolve_s16_dsp(const cmsis_nn_context *ctx,
                 const int64_t *bias_s64 = (const int64_t *)bias_data_ptr->data;
                 const int32_t *bias_s32 = (const int32_t *)bias_data_ptr->data;
                 const bool is_int32_bias = bias_data_ptr->is_int32_bias;
+                /* As in arm_nn_mat_mult_kernel_s16(), an int64 bias takes the columns past MAX_COL_COUNT in int64 */
+                const int32_t cols_fast = is_int32_bias ? rhs_cols : ARM_NN_MIN(rhs_cols, MAX_COL_COUNT);
                 const int8_t *ker_a = filter_data_ptr;
 
                 for (int32_t i = 0; i < output_ch_per_group; i++)
@@ -436,7 +438,7 @@ static arm_cmsis_nn_status arm_convolve_s16_dsp(const cmsis_nn_context *ctx,
                     const int16_t *ip_as_col = buffer_a;
 
     #if defined(ARM_MATH_DSP)
-                    int32_t col_count = rhs_cols >> 2;
+                    int32_t col_count = cols_fast >> 2;
 
                     while (col_count)
                     {
@@ -452,9 +454,9 @@ static arm_cmsis_nn_status arm_convolve_s16_dsp(const cmsis_nn_context *ctx,
 
                         col_count--;
                     }
-                    col_count = rhs_cols & 0x3;
+                    col_count = cols_fast & 0x3;
     #else
-                    uint16_t col_count = rhs_cols;
+                    int32_t col_count = cols_fast;
     #endif
 
                     while (col_count)
@@ -477,6 +479,11 @@ static arm_cmsis_nn_status arm_convolve_s16_dsp(const cmsis_nn_context *ctx,
                     else
                     {
                         int64_t acc_64 = sum;
+
+                        for (int32_t i_col = cols_fast; i_col < rhs_cols; i_col++)
+                        {
+                            acc_64 += *ker_a++ * *ip_as_col++;
+                        }
 
                         if (bias_s64)
                         {

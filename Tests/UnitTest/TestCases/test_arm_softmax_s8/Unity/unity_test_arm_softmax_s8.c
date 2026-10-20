@@ -49,3 +49,7 @@ void test_softmax_arm_softmax_s8(void) { softmax_arm_softmax_s8(); }
 void test_softmax1_arm_softmax_s8(void) { softmax_invalid_diff_min_arm_softmax_s8(); }
 
 void test_softmax_long_equal_rows_arm_softmax_s8(void) { softmax_long_equal_rows_arm_softmax_s8(); }
+
+void test_divide_by_power_of_two_arm_softmax_s8(void) { divide_by_power_of_two_arm_softmax_s8(); }
+
+void test_softmax_shift31_arm_softmax_s8(void) { softmax_shift31_arm_softmax_s8(); }

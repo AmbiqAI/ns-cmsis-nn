@@ -58,7 +58,31 @@ __STATIC_INLINE bool arm_convolve_nhwc_f32_args_ok(const cmsis_nn_conv_params_f3
                                                    const cmsis_nn_dims *output_dims,
                                                    const float32_t *output_data)
 {
-    return conv_params && input_dims && filter_dims && output_dims && input_data && filter_data && output_data;
+    return conv_params && input_dims && filter_dims && output_dims && input_data && filter_data && output_data &&
+        arm_nn_conv_flt_dims_ok(&conv_params->stride,
+                                &conv_params->padding,
+                                &conv_params->dilation,
+                                input_dims,
+                                filter_dims,
+                                output_dims,
+                                sizeof(float32_t),
+                                4,
+                                conv_params->weight_format == ARM_NN_WEIGHT_FORMAT_NT_N_PACKED);
+}
+
+__STATIC_INLINE bool arm_conv_nhwc_use_small_c_f32(const cmsis_nn_conv_params_f32 *conv_params,
+                                                   const cmsis_nn_dims *input_dims,
+                                                   const cmsis_nn_dims *filter_dims,
+                                                   const cmsis_nn_dims *output_dims)
+{
+    return (arm_nn_conv_f32_is_small_c(input_dims, output_dims) ||
+            arm_nn_conv_f32_is_small_c_3x3(input_dims, filter_dims, output_dims)) &&
+        arm_nn_conv_f32_small_c_coords_ok(&conv_params->stride,
+                                          &conv_params->padding,
+                                          &conv_params->dilation,
+                                          input_dims,
+                                          filter_dims,
+                                          output_dims);
 }
 
 __STATIC_INLINE bool
@@ -80,9 +104,12 @@ arm_conv_nhwc_use_patch_gemm_f32(const cmsis_nn_context *ctx, int32_t patch_len,
 }
 
 __STATIC_INLINE bool arm_conv_nhwc_use_1x1_f32(const cmsis_nn_conv_params_f32 *conv_params,
-                                               const cmsis_nn_dims *filter_dims)
+                                               const cmsis_nn_dims *filter_dims,
+                                               const cmsis_nn_dims *input_dims,
+                                               const cmsis_nn_dims *output_dims)
 {
-    return conv_params && filter_dims && arm_nn_conv_flt_is_1x1(&conv_params->padding, filter_dims);
+    return conv_params && filter_dims && arm_nn_conv_flt_is_1x1(&conv_params->padding, filter_dims) &&
+        arm_nn_conv_flt_1x1_window_ok(&conv_params->stride, input_dims, output_dims);
 }
 
 __STATIC_FORCEINLINE arm_cmsis_nn_status arm_convolve_patch_mat_mul_f32(const float32_t *lhs,
@@ -128,7 +155,7 @@ __STATIC_INLINE bool arm_conv_nhwc_use_1xn_f32(const cmsis_nn_context *ctx,
                                                const cmsis_nn_dims *filter_dims,
                                                const cmsis_nn_dims *output_dims)
 {
-    if (!ctx || !ctx->buf || ctx->size <= 0 || !conv_params || !input_dims || !filter_dims || !output_dims)
+    if (!ctx || !ctx->buf || ctx->size <= 0 || !input_dims || !filter_dims || !output_dims)
     {
         return false;
     }
@@ -195,14 +222,10 @@ typedef struct
     uint32x4_t out_offsets; /* lane * output_c */
 } arm_conv_small_c_f32;
 
-/* Direct kernel for fewer input channels than one vector: lanes are output x positions, weights are scalars,
+/* Direct kernel for small input-channel counts: lanes are output x positions, weights are scalars,
  * OC_GROUP output channels accumulate at once. Interior lane groups
  * (every tap in range) load unpredicated -- contiguous for input_c == 1 with stride 1/2/4, gathered otherwise --
  * and store unpredicated; edge and tail groups compare in_x against input_w once per tap column. */
-__STATIC_INLINE bool arm_conv_nhwc_use_small_c_f32(const cmsis_nn_dims *input_dims, const cmsis_nn_dims *output_dims)
-{
-    return arm_nn_conv_f32_is_small_c(input_dims, output_dims);
-}
 
 /* n_oc (1..OC_GROUP) output channels from oc0 for one group of LANES output x positions whose first tap
  * column is in_x0. IC1 and MODE are compile-time constants at every call site. A partial group aliases the
@@ -839,10 +862,14 @@ arm_cmsis_nn_status arm_convolve_nhwc_f32(const cmsis_nn_context *ctx,
     {
         return ARM_CMSIS_NN_ARG_ERROR;
     }
+    if (arm_nn_conv_flt_empty(output_dims))
+    {
+        return ARM_CMSIS_NN_SUCCESS;
+    }
 
     const int32_t patch_len = filter_dims->h * filter_dims->w * input_dims->c;
 
-    if (arm_conv_nhwc_use_1x1_f32(conv_params, filter_dims))
+    if (arm_conv_nhwc_use_1x1_f32(conv_params, filter_dims, input_dims, output_dims))
     {
         return arm_convolve_1x1_nhwc_f32(ctx,
                                          conv_params,
@@ -891,7 +918,7 @@ arm_cmsis_nn_status arm_convolve_nhwc_f32(const cmsis_nn_context *ctx,
     #endif
 
     #if defined(ARM_MATH_MVEF) && !defined(ARM_MATH_AUTOVECTORIZE)
-    if (arm_conv_nhwc_use_small_c_f32(input_dims, output_dims))
+    if (arm_conv_nhwc_use_small_c_f32(conv_params, input_dims, filter_dims, output_dims))
     {
         return arm_conv_small_c_dispatch_f32(
             conv_params, input_dims, input_data, filter_dims, filter_data, bias_data, output_dims, output_data);
@@ -994,6 +1021,10 @@ arm_cmsis_nn_status arm_convolve_1d_k5_nhwc_ohwi_f32(const cmsis_nn_context *ctx
     {
         return ARM_CMSIS_NN_ARG_ERROR;
     }
+    if (arm_nn_conv_flt_empty(output_dims))
+    {
+        return ARM_CMSIS_NN_SUCCESS;
+    }
     if (conv_params->weight_format != ARM_NN_WEIGHT_FORMAT_STANDARD ||
         !arm_nn_conv_flt_is_1d_k(&conv_params->stride,
                                  &conv_params->padding,
@@ -1027,6 +1058,10 @@ arm_cmsis_nn_status arm_convolve_1d_k5_nhwc_packed_f32(const cmsis_nn_context *c
             conv_params, input_dims, input_data, filter_dims, filter_data, output_dims, output_data))
     {
         return ARM_CMSIS_NN_ARG_ERROR;
+    }
+    if (arm_nn_conv_flt_empty(output_dims))
+    {
+        return ARM_CMSIS_NN_SUCCESS;
     }
     if (conv_params->weight_format != ARM_NN_WEIGHT_FORMAT_NT_N_PACKED ||
         !arm_nn_conv_flt_is_1d_k(&conv_params->stride,
@@ -1062,6 +1097,10 @@ arm_cmsis_nn_status arm_convolve_1d_k3_nhwc_ohwi_f32(const cmsis_nn_context *ctx
     {
         return ARM_CMSIS_NN_ARG_ERROR;
     }
+    if (arm_nn_conv_flt_empty(output_dims))
+    {
+        return ARM_CMSIS_NN_SUCCESS;
+    }
     if (conv_params->weight_format != ARM_NN_WEIGHT_FORMAT_STANDARD ||
         !arm_nn_conv_flt_is_1d_k(&conv_params->stride,
                                  &conv_params->padding,
@@ -1095,6 +1134,10 @@ arm_cmsis_nn_status arm_convolve_1d_k3_nhwc_packed_f32(const cmsis_nn_context *c
             conv_params, input_dims, input_data, filter_dims, filter_data, output_dims, output_data))
     {
         return ARM_CMSIS_NN_ARG_ERROR;
+    }
+    if (arm_nn_conv_flt_empty(output_dims))
+    {
+        return ARM_CMSIS_NN_SUCCESS;
     }
     if (conv_params->weight_format != ARM_NN_WEIGHT_FORMAT_NT_N_PACKED ||
         !arm_nn_conv_flt_is_1d_k(&conv_params->stride,
@@ -1130,7 +1173,11 @@ arm_cmsis_nn_status arm_convolve_small_c_nhwc_f32(const cmsis_nn_context *ctx,
     {
         return ARM_CMSIS_NN_ARG_ERROR;
     }
-    if (!arm_nn_conv_f32_is_small_c(input_dims, output_dims))
+    if (arm_nn_conv_flt_empty(output_dims))
+    {
+        return ARM_CMSIS_NN_SUCCESS;
+    }
+    if (!arm_conv_nhwc_use_small_c_f32(conv_params, input_dims, filter_dims, output_dims))
     {
         return ARM_CMSIS_NN_NO_IMPL_ERROR;
     }
@@ -1160,6 +1207,10 @@ arm_cmsis_nn_status arm_convolve_patch_gemm_nhwc_ohwi_f32(const cmsis_nn_context
     {
         return ARM_CMSIS_NN_ARG_ERROR;
     }
+    if (arm_nn_conv_flt_empty(output_dims))
+    {
+        return ARM_CMSIS_NN_SUCCESS;
+    }
     if (conv_params->weight_format != ARM_NN_WEIGHT_FORMAT_STANDARD)
     {
         return ARM_CMSIS_NN_NO_IMPL_ERROR;
@@ -1188,6 +1239,10 @@ arm_cmsis_nn_status arm_convolve_patch_gemm_nhwc_packed_f32(const cmsis_nn_conte
             conv_params, input_dims, input_data, filter_dims, filter_data, output_dims, output_data))
     {
         return ARM_CMSIS_NN_ARG_ERROR;
+    }
+    if (arm_nn_conv_flt_empty(output_dims))
+    {
+        return ARM_CMSIS_NN_SUCCESS;
     }
     if (conv_params->weight_format != ARM_NN_WEIGHT_FORMAT_NT_N_PACKED)
     {
@@ -1219,6 +1274,10 @@ arm_cmsis_nn_status arm_convolve_direct_nhwc_ohwi_f32(const cmsis_nn_context *ct
     {
         return ARM_CMSIS_NN_ARG_ERROR;
     }
+    if (arm_nn_conv_flt_empty(output_dims))
+    {
+        return ARM_CMSIS_NN_SUCCESS;
+    }
     if (conv_params->weight_format != ARM_NN_WEIGHT_FORMAT_STANDARD)
     {
         return ARM_CMSIS_NN_NO_IMPL_ERROR;
@@ -1244,6 +1303,10 @@ arm_cmsis_nn_status arm_convolve_direct_nhwc_packed_f32(const cmsis_nn_context *
             conv_params, input_dims, input_data, filter_dims, filter_data, output_dims, output_data))
     {
         return ARM_CMSIS_NN_ARG_ERROR;
+    }
+    if (arm_nn_conv_flt_empty(output_dims))
+    {
+        return ARM_CMSIS_NN_SUCCESS;
     }
     if (conv_params->weight_format != ARM_NN_WEIGHT_FORMAT_NT_N_PACKED)
     {

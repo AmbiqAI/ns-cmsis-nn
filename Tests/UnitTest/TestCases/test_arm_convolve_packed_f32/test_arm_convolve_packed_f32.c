@@ -158,9 +158,9 @@ static void conv_f32_params(cmsis_nn_conv_params_f32 *cp, int32_t pad_h, int32_t
     cp->weight_format = packed ? ARM_NN_WEIGHT_FORMAT_NT_N_PACKED : ARM_NN_WEIGHT_FORMAT_STANDARD;
 }
 
-// 3x3, in_c = 4, out_c = 8 on a 4x4 input (in_c = 4 is one full vector, so the direct small-C kernel does not
-// claim it on MVE): with scratch this takes the patch-GEMM path, without it the generic fallback. Both must honour
-// NT_N_PACKED; the fallback used to read packed weights as OHWI.
+// 3x3, in_c = 4, out_c = 8 on a 4x4 input: MVE uses the direct small-C kernel.
+// Other builds use patch-GEMM with scratch or the generic fallback without it.
+// Every route must honour NT_N_PACKED; the fallback used to read packed weights as OHWI.
 void convolve_packed_3x3_f32(void)
 {
     const cmsis_nn_dims in = {1, 4, 4, 4};
@@ -863,7 +863,8 @@ static int32_t conv_route_f32(const cmsis_nn_context *ctx,
                              const cmsis_nn_dims *out)
 {
     const int32_t row = flt->h * flt->w * in->c * (int32_t)sizeof(float32_t);
-    if (arm_nn_conv_flt_is_1x1(&cp->padding, flt))
+    if (arm_nn_conv_flt_is_1x1(&cp->padding, flt) &&
+        arm_nn_conv_flt_1x1_window_ok(&cp->stride, in, out))
     {
         return ROUTE_1X1_F32;
     }
@@ -888,7 +889,8 @@ static int32_t conv_route_f32(const cmsis_nn_context *ctx,
         return ROUTE_K3_F32;
     }
 #if defined(ARM_MATH_MVEF) && !defined(ARM_MATH_AUTOVECTORIZE)
-    if (arm_nn_conv_f32_is_small_c(in, out))
+    if ((arm_nn_conv_f32_is_small_c(in, out) || arm_nn_conv_f32_is_small_c_3x3(in, flt, out)) &&
+        arm_nn_conv_f32_small_c_coords_ok(&cp->stride, &cp->padding, &cp->dilation, in, flt, out))
     {
         return ROUTE_SMALL_C_F32;
     }
@@ -1054,8 +1056,17 @@ void convolve_direct_entries_f32(void)
 #else
     conv_direct_entries_case_f32(1, 6, 6, 3, 3, 3, 8, 1, ROUTE_PATCH_F32);
 #endif
+#if defined(ARM_MATH_MVEF) && !defined(ARM_MATH_AUTOVECTORIZE)
+    conv_direct_entries_case_f32(2, 6, 6, 4, 3, 3, 9, 1, ROUTE_PATCH_F32);
+    conv_direct_entries_case_f32(1, 5, 5, 4, 3, 3, 4, 1, ROUTE_SMALL_C_F32);
+#else
     conv_direct_entries_case_f32(2, 6, 6, 4, 3, 3, 9, 1, ROUTE_PATCH_F32);
     conv_direct_entries_case_f32(1, 5, 5, 4, 3, 3, 4, 1, ROUTE_DIRECT_F32);
+#endif
+    conv_direct_entries_case_f32(1, 5, 5, 4, 3, 3, 17, 1, ROUTE_PATCH_F32);
+    conv_direct_entries_case_f32(1, 1, 1, 4, 3, 3, 8, 1, ROUTE_DIRECT_F32);
+    conv_direct_entries_case_f32(1, 3, 3, 4, 3, 3, 8, 1, ROUTE_PATCH_F32);
+    conv_direct_entries_case_f32(1, 7, 7, 4, 5, 5, 8, 2, ROUTE_PATCH_F32);
 }
 
 /* The float32 small-C predicate against a fixed answer: 1 to 3 input channels and a non-empty output */
@@ -1072,4 +1083,261 @@ void convolve_route_predicates_f32(void)
     TEST_ASSERT_FALSE(arm_nn_conv_f32_is_small_c(&in0, &out));
     TEST_ASSERT_FALSE(arm_nn_conv_f32_is_small_c(&in, &out_c0));
     TEST_ASSERT_FALSE(arm_nn_conv_f32_is_small_c(&in, &out_w0));
+    const cmsis_nn_dims filter3 = {8, 3, 3, 4}, filter5 = {8, 5, 5, 4};
+    const cmsis_nn_dims out9 = {1, 6, 6, 9}, out_w3 = {1, 6, 3, 8}, out_w4 = {1, 6, 4, 8};
+    TEST_ASSERT_TRUE(arm_nn_conv_f32_is_small_c_3x3(&in4, &filter3, &out));
+    TEST_ASSERT_TRUE(arm_nn_conv_f32_is_small_c_3x3(&in4, &filter3, &out_w4));
+    TEST_ASSERT_FALSE(arm_nn_conv_f32_is_small_c_3x3(&in4, &filter3, &out_w3));
+    TEST_ASSERT_FALSE(arm_nn_conv_f32_is_small_c_3x3(&in4, &filter3, &out9));
+    TEST_ASSERT_FALSE(arm_nn_conv_f32_is_small_c_3x3(&in4, &filter5, &out));
+    TEST_ASSERT_FALSE(arm_nn_conv_f32_is_small_c_3x3(&in0, &filter3, &out));
+    TEST_ASSERT_FALSE(arm_nn_conv_f32_is_small_c_3x3(&in4, &filter3, &out_c0));
+    TEST_ASSERT_FALSE(arm_nn_conv_f32_is_small_c_3x3(&in4, &filter3, &out_w0));
+
+}
+
+/* The four-channel region keeps the scalar reference's tap order and skips padded nonfinite taps. */
+void convolve_four_channel_f32(void)
+{
+    const int32_t channels[] = {1, 3, 4, 5, 7, 8};
+    const cmsis_nn_dims in = {2, 5, 11, 4};
+    float32_t x[2 * 5 * 11 * 4], weights[8 * 3 * 3 * 4], bias[8];
+#if defined(ARM_MATH_MVEF) && !defined(ARM_MATH_AUTOVECTORIZE)
+    float32_t ref[2 * 5 * 11 * 8], got[2 * 5 * 11 * 8];
+#endif
+    for (unsigned ci = 0; ci < sizeof(channels) / sizeof(channels[0]); ++ci)
+    {
+        const int32_t oc = channels[ci];
+        const cmsis_nn_dims filter = {oc, 3, 3, 4};
+        for (int32_t scenario = 0; scenario < 3; ++scenario)
+        {
+            cmsis_nn_dims out = {2, scenario == 1 ? 3 : 5, scenario == 1 ? 6 : 11, oc};
+            for (int32_t i = 0; i < 2 * 5 * 11 * 4; ++i)
+                x[i] = scenario == 2 ? 1.0f : (float32_t)(i % 17 - 8) / 8.0f;
+            for (int32_t i = 0; i < oc * 36; ++i)
+                weights[i] = (float32_t)(i % 13 - 6) / 8.0f;
+            for (int32_t i = 0; i < oc; ++i)
+                bias[i] = (float32_t)(i - 3) / 8.0f;
+            if (scenario == 2)
+                weights[12] = INFINITY; /* output channel 0, middle row, left column */
+            float32_t *packed = pack_rhs_nt_n_from_nt_t_f32(weights, oc, 36);
+            TEST_ASSERT_NOT_NULL(packed);
+            for (int32_t format = 0; format < 2; ++format)
+            {
+                cmsis_nn_conv_params_f32 cp;
+                conv_f32_params(&cp, scenario == 1 ? 2 : 1, scenario == 1 ? 2 : 1, format);
+                cp.stride.h = cp.stride.w = scenario == 1 ? 2 : 1;
+                cp.dilation.h = cp.dilation.w = scenario == 1 ? 2 : 1;
+                const float32_t *w = format ? packed : weights;
+                const float32_t *b = scenario == 2 ? NULL : bias;
+                conv_f32_check(&cp, &in, x, &filter, w, weights, b, &out, 0);
+                /* Scalar patch-GEMM multiplies padded zeros by nonfinite weights. */
+                if (scenario != 2)
+                    conv_f32_check(&cp, &in, x, &filter, w, weights, b, &out, 1);
+#if defined(ARM_MATH_MVEF) && !defined(ARM_MATH_AUTOVECTORIZE)
+                conv_f32_reference(&cp, &in, x, &filter, weights, b, &out, ref);
+                TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
+                                  arm_convolve_small_c_nhwc_f32(NULL, &cp, &in, x, &filter, w, NULL, b, &out, got));
+                for (int32_t i = 0; i < out.n * out.h * out.w * oc; ++i)
+                    TEST_ASSERT_FLOAT_WITHIN(1.0e-4f, ref[i], got[i]);
+#endif
+            }
+            free(packed);
+        }
+    }
+}
+/* Every public route rejects malformed metadata before touching tensors, including empty requests. */
+void convolve_argument_domains_f32(void)
+{
+    float32_t x[5] = {1, 2, 3, 4, 5}, w[24] = {1, 1, 1}, y[5], scratch[8];
+    cmsis_nn_context ctx = {scratch, sizeof(scratch)};
+    const cmsis_nn_dims bd = {0};
+    for (int32_t scenario = 0; scenario < 22; ++scenario)
+    {
+        cmsis_nn_dims in = {1, 1, 5, 1}, flt = {1, 1, 3, 1}, out = {1, 1, 3, 1};
+        cmsis_nn_conv_params_f32 cp = {0};
+        cp.stride.h = cp.stride.w = cp.dilation.h = cp.dilation.w = 1;
+        cp.activation.min = -1000;
+        cp.activation.max = 1000;
+        int32_t expected = ARM_CMSIS_NN_ARG_ERROR;
+        switch (scenario)
+        {
+        case 0:
+            out.w = -1;
+            break;
+        case 1:
+            in.h = -1;
+            break;
+        case 2:
+            in.n = out.n = -1;
+            break;
+        case 3:
+            out.n = 2;
+            break;
+        case 4:
+            flt.c = 2;
+            break;
+        case 5:
+            flt.n = 2;
+            break;
+        case 6:
+            cp.stride.w = 0;
+            break;
+        case 7:
+            cp.dilation.h = -1;
+            break;
+        case 8:
+            cp.padding.w = -1;
+            break;
+        case 9:
+            in.c = flt.c = 0;
+            break;
+        case 10:
+            flt.h = 0;
+            break;
+        case 11:
+            flt.h = flt.w = 65536;
+            break;
+        case 12:
+            in.h = in.w = 65536;
+            break;
+        case 13:
+            cp.stride.w = INT32_MAX;
+            break;
+        case 14:
+            cp.dilation.w = INT32_MAX;
+            break;
+        case 15:
+            in.w = 0;
+            break;
+        case 16:
+            out.w = 0;
+            cp.padding.w = -1;
+            break;
+        case 17:
+            out.h = 0;
+            flt.c = 2;
+            break;
+        case 18:
+            out.w = 0;
+            expected = ARM_CMSIS_NN_SUCCESS;
+            break;
+        case 19:
+            in.n = out.n = 0;
+            expected = ARM_CMSIS_NN_SUCCESS;
+            break;
+        case 20:
+            in.w = out.w = 0;
+            expected = ARM_CMSIS_NN_SUCCESS;
+            break;
+        case 21:
+            out.h = 0;
+            flt.h = flt.w = INT32_MAX;
+            expected = ARM_CMSIS_NN_SUCCESS;
+            break;
+        default:
+            TEST_FAIL_MESSAGE("Unexpected convolution argument scenario");
+            break;
+        }
+        for (int32_t packed = 0; packed < 2; ++packed)
+        {
+            cp.weight_format = packed ? ARM_NN_WEIGHT_FORMAT_NT_N_PACKED : ARM_NN_WEIGHT_FORMAT_STANDARD;
+            for (int32_t acc = 0; acc < 1; ++acc)
+            {
+                for (int32_t route = -1; route < ROUTE_COUNT_F32; ++route)
+                {
+                    for (int32_t i = 0; i < 5; ++i)
+                        y[i] = 77;
+                    conv_entry_f32 entry = route < 0 ? conv_routers_f32[acc] : conv_entries_f32[route][acc][packed];
+                    char message[80];
+                    snprintf(message,
+                             sizeof(message),
+                             "scenario %ld route %ld acc %ld packed %ld",
+                             (long)scenario,
+                             (long)route,
+                             (long)acc,
+                             (long)packed);
+                    TEST_ASSERT_EQUAL_INT_MESSAGE(
+                        expected, entry(&ctx, &cp, &in, x, &flt, w, &bd, NULL, &out, y), message);
+                    for (int32_t i = 0; i < 5; ++i)
+                        TEST_ASSERT_EQUAL_FLOAT(77, (float32_t)y[i]);
+                }
+            }
+        }
+    }
+}
+
+/* Explicit clipped windows remain valid even when unchecked specializations cannot take them. */
+void convolve_clipped_windows_f32(void)
+{
+    float32_t x[15], w[24], y[16];
+    float32_t reference[16];
+    const cmsis_nn_dims bd = {0};
+    cmsis_nn_context ctx = {0};
+    for (int32_t i = 0; i < 15; ++i)
+        x[i] = (float32_t)(i + 1);
+    for (int32_t i = 0; i < 24; ++i)
+        w[i] = 1;
+    for (int32_t scenario = 0; scenario < 5; ++scenario)
+    {
+        cmsis_nn_dims in = {1, 1, 5, 1}, flt = {1, 1, 3, 1}, out = {1, 1, 5, 1};
+        cmsis_nn_conv_params_f32 cp = {0};
+        cp.stride.h = cp.stride.w = cp.dilation.h = cp.dilation.w = 1;
+        cp.activation.min = -1000;
+        cp.activation.max = 1000;
+        if (scenario == 1)
+            out.w = 2;
+        if (scenario == 2)
+            flt.w = 1;
+        if (scenario == 2)
+            out.w = 7;
+        if (scenario == 3)
+        {
+            in.h = 3;
+            flt.h = 2;
+            out.h = 2;
+            out.w = 4;
+            cp.stride.h = cp.stride.w = 2;
+            cp.dilation.h = 2;
+            cp.padding.h = 1;
+            cp.padding.w = 2;
+        }
+        if (scenario == 4)
+        {
+            out.w = 9;
+            cp.stride.w = 8192;
+        }
+        for (int32_t packed = 0; packed < 2; ++packed)
+        {
+            cp.weight_format = packed ? ARM_NN_WEIGHT_FORMAT_NT_N_PACKED : ARM_NN_WEIGHT_FORMAT_STANDARD;
+            float32_t packed_w[48] = {0};
+            const int32_t taps = flt.h * flt.w;
+            for (int32_t k = 0; k < taps; ++k)
+                packed_w[k * 4] = w[k];
+            const float32_t *wt = packed ? packed_w : w;
+            conv_f32_reference(&cp, &in, x, &flt, w, NULL, &out, reference);
+            for (int32_t acc = 0; acc < 1; ++acc)
+            {
+                for (int32_t i = 0; i < 16; ++i)
+                    y[i] = 77;
+                TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
+                                  conv_routers_f32[acc](&ctx, &cp, &in, x, &flt, wt, &bd, NULL, &out, y));
+                for (int32_t i = 0; i < out.h * out.w; ++i)
+                    TEST_ASSERT_EQUAL_FLOAT(reference[i], (float32_t)y[i]);
+                TEST_ASSERT_EQUAL_FLOAT(77, (float32_t)y[out.h * out.w]);
+                if (scenario == 0)
+                {
+                    TEST_ASSERT_EQUAL(
+                        ARM_CMSIS_NN_NO_IMPL_ERROR,
+                        conv_entries_f32[ROUTE_K3_F32][acc][packed](&ctx, &cp, &in, x, &flt, wt, &bd, NULL, &out, y));
+                }
+                if (scenario == 2)
+                {
+                    TEST_ASSERT_EQUAL(
+                        ARM_CMSIS_NN_ARG_ERROR,
+                        conv_entries_f32[ROUTE_1X1_F32][acc][packed](&ctx, &cp, &in, x, &flt, wt, &bd, NULL, &out, y));
+                }
+            }
+        }
+    }
 }

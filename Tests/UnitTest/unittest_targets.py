@@ -25,6 +25,7 @@ import glob
 import time
 import queue
 import shutil
+import shlex
 import serial
 import argparse
 import threading
@@ -58,9 +59,11 @@ def parse_args():
                         action='store_true',
                         help="Just download Unity and generate test runners if needed")
 
-    required_arguments = parser.add_argument_group('required named arguments')
+    parser.add_argument('--output-dir', type=str, help='Generate Unity and runners under this directory.')
 
     args = parser.parse_args()
+    if args.output_dir and not args.download_and_generate:
+        parser.error("--output-dir requires --download-and-generate-test-runners")
     return args
 
 
@@ -97,7 +100,7 @@ def run_command(command, error_msg=None, die=True):
     # https://os.mbed.com/questions/59636/STM-Nucleo-No-space-left-on-device-when-/
 
     # print(command)
-    command_list = command.split(' ')
+    command_list = shlex.split(command) if isinstance(command, str) else command
     process = subprocess.run(command_list)
     if die and process.returncode != 0:
         error_handler(process.returncode, error_msg)
@@ -327,9 +330,13 @@ def test_targets(args):
             print("No targets detected!")
             return 3
 
+    global UNITY_PATH
+    if args.output_dir:
+        UNITY_PATH = path.join(path.abspath(args.output_dir), "Unity") + "/"
+        os.makedirs(args.output_dir, exist_ok=True)
     download_unity()
 
-    if not parse_tests(targets, main_tests, args.specific_test):
+    if not parse_tests(targets, main_tests, args.specific_test, args.output_dir):
         print("No tests found?!")
         return 4
 
@@ -350,7 +357,7 @@ def download_unity(force=False):
     unity_src = unity_dir + "src/"
     process = subprocess.run(['mktemp'], stdout=subprocess.PIPE, stderr=subprocess.PIPE, universal_newlines=True)
     download_dir = process.stdout.strip()
-    run_command("rm -f {}".format(download_dir))
+    run_command(["rm", "-f", download_dir])
     download_dir += '/'
 
     # Check if already downloaded
@@ -387,7 +394,7 @@ def download_unity(force=False):
         error_handler(174, e)
     if not filename_base:
         error_handler(175)
-    run_command("tar xzf " + downloaded_file + " -C " + unity_dir + " --strip-components=1")
+    run_command(["tar", "xzf", downloaded_file, "-C", unity_dir, "--strip-components=1"])
     os.chdir(current_dir)
 
     # Cleanup
@@ -405,7 +412,12 @@ def parse_generated_test_runner(test_runner):
 
     with open(test_runner, "r") as f:
         lines = f.readlines()
+    uses_exit = any(line.strip() == 'return UNITY_END();' for line in lines)
+    has_stdlib = any(re.match(r'\s*#\s*include\s*[<"]stdlib\.h[>"]', line) for line in lines)
     with open(test_runner, "w") as f:
+        # The exit call introduced below must not depend on the test wrapper's includes.
+        if uses_exit and not has_stdlib:
+            f.write("#include <stdlib.h>\n")
         for line in lines:
             sline = line.strip('\n')
             if sline.strip() == 'return UNITY_END();':
@@ -419,7 +431,7 @@ def parse_generated_test_runner(test_runner):
                     f.write(line)
 
 
-def parse_tests(targets, main_tests, specific_test=None):
+def parse_tests(targets, main_tests, specific_test=None, output_dir=None):
     """
     Generate test runners, extract and return path to unit test(s).
     Also parse generated test runners to avoid warning: redundant redeclaration.
@@ -448,15 +460,16 @@ def parse_tests(targets, main_tests, specific_test=None):
             ut_test_file_runner = path.splitext(ut_test_file)[0] + '_runner' + path.splitext(ut_test_file)[1]
             test_code = testpath + ut_test_file
             test_runner_path = testpath + 'TestRunner/'
-            if not os.path.exists(test_runner_path):
-                os.mkdir(test_runner_path)
+            if output_dir:
+                test_runner_path = path.join(path.abspath(output_dir), test_runner_path)
+            os.makedirs(test_runner_path, exist_ok=True)
             test_runner = test_runner_path + ut_test_file_runner
             for old_files in glob.glob(test_runner_path + '/*'):
                 if not old_files.endswith('readme.txt'):
                     os.remove(old_files)
 
             # Generate test runners
-            run_command('ruby ' + UNITY_PATH + 'auto/generate_test_runner.rb ' + test_code + ' ' + test_runner)
+            run_command(["ruby", UNITY_PATH + "auto/generate_test_runner.rb", test_code, test_runner])
             test_found = parse_test(test_runner, targets)
             if not test_found:
                 return False

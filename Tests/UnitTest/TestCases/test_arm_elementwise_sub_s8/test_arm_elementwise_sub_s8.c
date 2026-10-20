@@ -16,6 +16,7 @@
  * limitations under the License.
  */
 
+#include "../../../../Include/Internal/arm_nn_rsub_scalar.h"
 #include "arm_nnfunctions.h"
 #include "unity.h"
 
@@ -101,24 +102,6 @@ typedef arm_cmsis_nn_status (*bsi_kernel_t)(const int8_t *input_1_vect,
                                             const int32_t out_activation_max,
                                             const int32_t block_size);
 
-/* arm_rsub_scalar_s8 is a library-internal entry point with no public header declaration; it is
- * declared here the same way arm_sub_s8.c declares it. */
-arm_cmsis_nn_status arm_rsub_scalar_s8(const int8_t *input_1_vect,
-                                       const int8_t *input_2_vect,
-                                       const int32_t input_1_offset,
-                                       const int32_t input_1_mult,
-                                       const int32_t input_1_shift,
-                                       const int32_t input_2_offset,
-                                       const int32_t input_2_mult,
-                                       const int32_t input_2_shift,
-                                       const int32_t left_shift,
-                                       int8_t *output,
-                                       const int32_t out_offset,
-                                       const int32_t out_mult,
-                                       const int32_t out_shift,
-                                       const int32_t out_activation_min,
-                                       const int32_t out_activation_max,
-                                       const int32_t block_size);
 
 /* Which operand a primitive takes as a single broadcast element rather than a run. */
 typedef enum

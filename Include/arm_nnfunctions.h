@@ -22,8 +22,8 @@
  * Title:        arm_nnfunctions.h
  * Description:  Public header file for CMSIS NN Library
  *
- * $Date:        27 March 2026
- * $Revision:    V.19.1.0
+ * $Date:        8 October 2026
+ * $Revision:    V.19.2.0
  *
  * Target :  Arm(R) M-Profile Architecture
  * -------------------------------------------------------------------- */
@@ -36,6 +36,16 @@
 
 #ifndef ARM_NNFUNCTIONS_H
 #define ARM_NNFUNCTIONS_H
+
+/** Exact-rational INT8 bilinear resize direct entries are available. */
+#define ARM_NN_HAS_RESIZE_BILINEAR_S8 1
+
+/** arm_dequantize_f16_bits_f32 keeps a NaN's sign and payload on the MVE vector path too (#871). */
+#define ARM_NN_HAS_DEQUANTIZE_F16_NAN_PAYLOAD 1
+
+/** The default float16 depthwise entries accumulate every tap in float32 on MVE builds too; the _acc16 entries are the
+ *  float16-lane fast path (#830). */
+#define ARM_NN_HAS_DEPTHWISE_F16_ACC32 1
 
 #include "arm_nn_math_types.h"
 #include "arm_nn_types.h"
@@ -449,7 +459,11 @@ int32_t arm_convolve_wrapper_s16_get_buffer_size_mve(const cmsis_nn_conv_params 
  * @param[in]      output_dims    Output tensor dimensions. Format: [N, H, W, C_OUT]
  * @param[out]     output_data    Output data pointer. Data type: int8
 
- * @return     The function returns <code>ARM_CMSIS_NN_SUCCESS</code>
+ * @return     The function returns one of the following
+ *                <code>ARM_CMSIS_NN_ARG_ERROR</code> - ctx->buf is NULL, or a dimension, padding, stride or
+ *                                                      dilation that arm_convolve_s8() rejects. The filter C is not
+ *                                                      read; it is taken to be C_IN.
+ *                <code>ARM_CMSIS_NN_SUCCESS</code> - Successful operation
  *
  * @details
  *    1. Supported framework: TensorFlow Lite micro
@@ -556,9 +570,13 @@ arm_cmsis_nn_status arm_convolve_even_s4(const cmsis_nn_context *ctx,
  *
  * @return     The function returns <code>ARM_CMSIS_NN_SUCCESS</code> if successful or
  *                                  <code>ARM_CMSIS_NN_ARG_ERROR</code> if incorrect arguments (among them a C_IN or
- *                                  CK that is not positive, a negative C_OUT, a C_IN or C_OUT above 65,535, a C_IN
- *                                  that is not a multiple of CK, a C_OUT that is not a multiple of the group count,
- *                                  or a grouped layer with an upscale factor of 2) or
+ *                                  CK that is not positive, a negative C_OUT, a C_IN that is not a multiple of CK, a
+ *                                  C_OUT that is not a multiple of the group count, a grouped layer with an upscale
+ *                                  factor of 2, or a value the kernel cannot hold: a C_IN, C_OUT, W, H, padding or
+ *                                  stride outside [0, 65,535], a patch KW * KH * CK above INT32_MAX / 4, a filter
+ *                                  C_OUT * KW * KH * CK or an input or output H * W or H * W * C above INT32_MAX, an
+ *                                  output W or H times the stride above INT32_MAX / 2, or a (KW - 1) or (KH - 1)
+ *                                  times the dilation outside +-INT32_MAX / 2) or
  *                                  <code>ARM_CMSIS_NN_NO_IMPL_ERROR</code>
  *
  * @details
@@ -655,11 +673,9 @@ arm_cmsis_nn_status arm_convolve_1x1_s8_short_k(const cmsis_nn_context *ctx,
  * @param[out]     output_data    Output data pointer. Data type: int8
  *
  * @return     The function returns one of the following
- *                <code>ARM_CMSIS_NN_ARG_ERROR</code> - an argument error that arm_convolve_s8() reports: ctx->buf is
- *                                                      NULL, C_IN or CK is not positive, C_OUT is negative, C_IN
- *                                                      or C_OUT exceeds 65,535, C_IN is not a multiple of CK or
- *                                                      C_OUT of the group count C_IN / CK, or
- *                                                      weight_sum_ctx->buf is NULL on builds with
+ *                <code>ARM_CMSIS_NN_ARG_ERROR</code> - an argument error that arm_convolve_s8() reports (ctx->buf is
+ *                                                      NULL, or a dimension, padding, stride or dilation it
+ *                                                      rejects), or weight_sum_ctx->buf is NULL on builds with
  *                                                      ARM_MATH_MVEI. These are checked before the gate.
  *                <code>ARM_CMSIS_NN_NO_IMPL_ERROR</code> - the layer is outside the gate below, or the build lacks
  *                                                          ARM_MATH_MVEI or defines ARM_MATH_AUTOVECTORIZE; nothing
@@ -922,6 +938,13 @@ arm_cmsis_nn_status arm_transpose_conv_wrapper_s8(const cmsis_nn_context *ctx,
  *    2. Additional memory is required for optimization. Refer to argument 'ctx' for details; 'output_ctx' is unused.
  *    3. Dilation is not supported: transpose_conv_params->dilation must be 1 in both dimensions,
  *       otherwise <code>ARM_CMSIS_NN_ARG_ERROR</code> is returned.
+ *    4. Spatial and channel dimensions and strides must be positive. Batch count and padding must be nonnegative,
+ *       with consistent batch/channel dimensions. Input channels must not exceed INT32_MAX - 15, so the MVE
+ *       channel-rounding expression is representable. Tensor and scratch sizes and row arithmetic must fit int32_t.
+ *       Requested output width plus padding must not exceed (input width - 1) * stride width +
+ *       max(filter width, stride width). Output height must not exceed max(0, input height * stride height -
+ *       padding height) + max(0, filter height - stride height). Unsupported geometry returns
+ *       <code>ARM_CMSIS_NN_ARG_ERROR</code> before tensor or scratch access; cropped outputs remain supported.
  *
  */
 arm_cmsis_nn_status arm_transpose_conv_s8(const cmsis_nn_context *ctx,
@@ -989,6 +1012,108 @@ int32_t arm_transpose_conv_s8_get_buffer_size_mve(const cmsis_nn_transpose_conv_
                                                   const cmsis_nn_dims *out_dims);
 
 /**
+ * @brief Basic s16 transpose convolution function (A16W8)
+ * @param[in, out] ctx                   Function context. This function does not access ctx->buf, and
+ *                                       arm_transpose_conv_s16_get_buffer_size() returns 0 for every valid shape.
+ *                                       Callers should still size ctx from that function, since a later
+ *                                       implementation may need scratch.
+ * @param[in, out] output_ctx            Not accessed by this function and has no size requirement. The parameter
+ *                                       keeps the signature of arm_transpose_conv_s8().
+ * @param[in]      transpose_conv_params Convolution parameters (e.g. strides, pads,...).
+ *                                       transpose_conv_params->input_offset  : Not used (input zero point is 0)
+ *                                       transpose_conv_params->output_offset : Not used (output zero point is 0)
+ *                                       transpose_conv_params->padding_offsets : Not used
+ * @param[in]      quant_params          Per-channel quantization info.
+ *                                       It contains the multiplier and shift values to be applied to each out channel.
+ * @param[in]      input_dims            Input (activation) tensor dimensions. Format: [N, H, W, C_IN]
+ * @param[in]      input_data            Input (activation) data pointer. Data type: int16
+ * @param[in]      filter_dims           Filter tensor dimensions. Format: [C_OUT, HK, WK, C_IN] where HK and WK are the
+ *                                       spatial filter dimensions (TFLite TRANSPOSE_CONV OHWI layout)
+ * @param[in]      filter_data           Filter data pointer. Data type: int8
+ * @param[in]      bias_dims             Bias tensor dimensions. Format: [C_OUT]
+ * @param[in]      bias_data             Optional bias data pointer. Data type: int64. May be NULL.
+ * @param[in]      output_dims           Output tensor dimensions. Format: [N, H, W, C_OUT]
+ * @param[out]     output_data           Output data pointer. Data type: int16
+ *
+ * @return     The function returns either
+ *                  <code>ARM_CMSIS_NN_ARG_ERROR</code> if a stride is not positive or a dilation is not 1, or
+ *                  <code>ARM_CMSIS_NN_SUCCESS</code> on successful completion.
+ *
+ * @details
+ *    1. Supported framework: TensorFlow Lite micro, int16x8 TRANSPOSE_CONV. The result is bit-exact with
+ *       reference_integer_ops::TransposeConv using an int64 bias and an int64 scratch, for inputs that meet the
+ *       preconditions TFLite asserts in MultiplyByQuantizedMultiplier(int64_t, int32_t, int), in both its
+ *       single- and double-rounding builds. For every output channel and output element:
+ *       - quant_params->multiplier[c] >= 0
+ *       - quant_params->shift[c] in [-31, 7]
+ *       - acc + bias in [-2^47, 2^47)
+ *       - the requantized result, before the activation clamp, fits int32
+ *       This function does not check them at run time. Outside them:
+ *       - A negative multiplier or a shift in [8, 14] uses the same int64 arithmetic as TFLite, so the results
+ *         still match while the next two conditions hold.
+ *       - |acc + bias| < 2^48 keeps acc * reduced_multiplier within int64. Beyond that, the product overflows
+ *         int64, which is undefined behaviour here and in TFLite.
+ *       - A shift >= 15 makes the shift count zero or negative, which is undefined behaviour here and in TFLite.
+ *       - A result outside int32 differs: TFLite truncates it to int32 before the clamp, while this function
+ *         clamps the int64 result to [activation.min, activation.max].
+ *    2. Integer widths: input int16, weights int8, bias int64, accumulator int64. Each int16 x int8 product is
+ *       formed in int32 and added to the int64 accumulator; the bias is added once after the last product.
+ *    3. Requantization matches TFLite MultiplyByQuantizedMultiplier(int64_t, int32_t, int): the multiplier is
+ *       reduced to 16 bits, (multiplier + 2^15) >> 16 saturated at 0x7FFF, then
+ *       result = (acc * reduced + 2^(14 - shift)) >> (15 - shift), computed in int64 and clamped to
+ *       [activation.min, activation.max]. Zero points are 0 on input and output.
+ *    4. Scratch: none. ctx and output_ctx are not accessed.
+ *    5. Output position (y, x) of out channel o sums every input (iy, ix) and tap (ky, kx) with
+ *       iy * stride.h - padding.h + ky == y and ix * stride.w - padding.w + kx == x.
+ *    6. Dilation is not supported: transpose_conv_params->dilation must be 1 in both dimensions.
+ *    7. This is a plain C kernel with the same code on every core. It keeps the int64 accumulation of the
+ *       reference; narrowing it to int32 for a given model is left to an optimized implementation.
+ *
+ */
+arm_cmsis_nn_status arm_transpose_conv_s16(const cmsis_nn_context *ctx,
+                                           const cmsis_nn_context *output_ctx,
+                                           const cmsis_nn_transpose_conv_params *transpose_conv_params,
+                                           const cmsis_nn_per_channel_quant_params *quant_params,
+                                           const cmsis_nn_dims *input_dims,
+                                           const int16_t *input_data,
+                                           const cmsis_nn_dims *filter_dims,
+                                           const int8_t *filter_data,
+                                           const cmsis_nn_dims *bias_dims,
+                                           const int64_t *bias_data,
+                                           const cmsis_nn_dims *output_dims,
+                                           int16_t *output_data);
+
+/**
+ * @brief Get the required buffer size for ctx in s16 transpose conv function
+ *
+ * @param[in]       transposed_conv_params  Transposed convolution parameters
+ * @param[in]       input_dims              Input (activation) tensor dimensions. Format: [N, H, W, C_IN]
+ * @param[in]       filter_dims             Filter tensor dimensions. Format: [C_OUT, HK, WK, C_IN] where HK and WK
+ *                                          are the spatial filter dimensions
+ * @param[in]       out_dims                Output tensor dimensions. Format: [N, H, W, C_OUT]
+ * @return          The function returns the required buffer size in bytes, which is 0 for this implementation,
+ *                  or -1 if any dimension is negative or either stride is not positive
+ *
+ */
+int32_t arm_transpose_conv_s16_get_buffer_size(const cmsis_nn_transpose_conv_params *transposed_conv_params,
+                                               const cmsis_nn_dims *input_dims,
+                                               const cmsis_nn_dims *filter_dims,
+                                               const cmsis_nn_dims *out_dims);
+
+/**
+ * @brief Get size of additional buffer required by arm_transpose_conv_s16() for Arm(R) Helium Architecture case.
+ * @copydetails arm_transpose_conv_s16_get_buffer_size
+ *
+ * @note       Intended for compilation on Host. If compiling for an Arm target, use
+ *             arm_transpose_conv_s16_get_buffer_size().
+ *
+ */
+int32_t arm_transpose_conv_s16_get_buffer_size_mve(const cmsis_nn_transpose_conv_params *transposed_conv_params,
+                                                   const cmsis_nn_dims *input_dims,
+                                                   const cmsis_nn_dims *filter_dims,
+                                                   const cmsis_nn_dims *out_dims);
+
+/**
  * @brief Basic s16 convolution function
  * @param[in, out] ctx            Function context that contains the additional buffer if required by the function.
  *                                arm_convolve_s16_get_buffer_size will return the buffer_size if required.
@@ -1054,7 +1179,9 @@ arm_cmsis_nn_status arm_convolve_s16(const cmsis_nn_context *ctx,
  * @param[out]     output_data    Output data pointer. Data type: int16
  *
  * @return     The function returns <code>ARM_CMSIS_NN_SUCCESS</code> if successful or
- *                                  <code>ARM_CMSIS_NN_ARG_ERROR</code> if incorrect arguments or
+ *                                  <code>ARM_CMSIS_NN_ARG_ERROR</code> if incorrect arguments (among them a C_IN
+ *                                  that is not positive, a negative C_OUT, a filter C other than C_IN, a filter
+ *                                  other than 1x1, or an output H or W other than the input's) or
  *                                  <code>ARM_CMSIS_NN_NO_IMPL_ERROR</code>
  *
  * @details
@@ -1258,8 +1385,13 @@ arm_cmsis_nn_status arm_convolve_1x1_s4(const cmsis_nn_context *ctx,
  * @param[out]     output_data   Output data pointer. Data type: int8
  *
  * @return     The function returns either
- *                  <code>ARM_CMSIS_NN_ARG_ERROR</code> if argument constraints fail. or,
- *                  <code>ARM_CMSIS_NN_SUCCESS</code> on successful completion.
+ *                  <code>ARM_CMSIS_NN_ARG_ERROR</code> if argument constraints fail (among them a negative N, H, W
+ *                  or C_OUT, a C_IN below 1, an output H or W other than the input's, or a pixel count
+ *                  N * H * W above INT32_MAX), or
+ *                  <code>ARM_CMSIS_NN_SUCCESS</code> on successful completion. When the input N, H or W, or C_OUT, is
+ *                  0 and no other argument is in error, the output is empty and it returns
+ *                  <code>ARM_CMSIS_NN_SUCCESS</code> at once, writing nothing.
+ *                  On MVE a NULL weight_sum_ctx->buf is still an error.
  *
  * @details
  *   - Supported framework : TensorFlow Lite Micro
@@ -1341,7 +1473,9 @@ int32_t arm_convolve_1x1_s8_fast_get_buffer_size(const cmsis_nn_dims *input_dims
  * @param[out]     output_data   Output data pointer. Data type: int8
  *
  * @return     The function returns either
- *                  <code>ARM_CMSIS_NN_ARG_ERROR</code> if argument constraints fail. or,
+ *                  <code>ARM_CMSIS_NN_ARG_ERROR</code> if argument constraints fail, among them a padding other
+ *                  than 0, a stride below 1, a negative output W or H, a C_IN below 1, or an output W or H whose
+ *                  last pixel, (W - 1) * stride, lies at or past the input's W or H, or,
  *                  <code>ARM_CMSIS_NN_SUCCESS</code> on successful completion.
  * @details
  *   - Supported framework : TensorFlow Lite Micro
@@ -1582,7 +1716,8 @@ arm_cmsis_nn_status arm_depthwise_convolve_weight_sum(int32_t *vector_sum_buf,
  * @param[in]     output_dims     Output tensor dimensions. Format: [N, 1, 1, C_OUT]
  * @param[out]    output_data     Pointer to output data. Data type: int8
  *
- * @return        <code>ARM_CMSIS_NN_ARG_ERROR</code> on bad args, or
+ * @return        <code>ARM_CMSIS_NN_ARG_ERROR</code> on an argument error that arm_convolve_s8() reports, a grouped
+ *                layer, an output other than 1x1, an undersized ctx->size or a NULL weight_sum_ctx->buf, or
  *                <code>ARM_CMSIS_NN_SUCCESS</code> on success.
  *
  * @details
@@ -1591,9 +1726,8 @@ arm_cmsis_nn_status arm_depthwise_convolve_weight_sum(int32_t *vector_sum_buf,
  *   - Constraints:
  *      -# @p output_dims->h and @p output_dims->w must equal 1
  *      -# @p output_dims->c is expected to be a multiple of 4 for best performance
- *      -# The depth rule of arm_convolve_s8() and one group: @p input_dims->c must equal @p filter_dims->c, else
- *         <code>ARM_CMSIS_NN_ARG_ERROR</code>;
- *         arm_convolve_s8() takes grouped layers
+ *      -# The argument check of arm_convolve_s8() and one group: @p input_dims->c must equal @p filter_dims->c,
+ *         else <code>ARM_CMSIS_NN_ARG_ERROR</code>; arm_convolve_s8() takes grouped layers
  */
 arm_cmsis_nn_status arm_convolve_1x1_out_s8(const cmsis_nn_context *ctx,
                                             const cmsis_nn_context *weight_sum_ctx,
@@ -1790,7 +1924,9 @@ int32_t arm_convolve_1_x_n_s4_get_buffer_size(const cmsis_nn_conv_params *conv_p
  *                (ARM_MATH_DSP and ARM_MATH_MVEI both defined), or if ctx->size is non-zero and below
  *                arm_depthwise_conv_s8_opt_get_buffer_size() for a layer its channel path runs, or if that sizer
  *                returns -1 (a negative dimension or a byte count it cannot represent), or on the MVE
- *                arm_convolve_wrapper_s8() diversion route if weight_sum_ctx->buf is NULL.
+ *                arm_convolve_wrapper_s8() diversion route if weight_sum_ctx->buf is NULL, or for any other
+ *                argument error of the function it picks, among them those of arm_depthwise_conv_s8()'s generic
+ *                kernel.
  *
  * @details
  *    - Supported framework: TensorFlow Lite
@@ -1827,7 +1963,7 @@ arm_cmsis_nn_status arm_depthwise_conv_wrapper_s8(const cmsis_nn_context *ctx,
  *                                 always matches the wrapper's own routing.
  *                                 The caller is expected to clear the buffer ,if applicable, for security reasons.
  * @param[in]      dw_conv_params  Depthwise convolution parameters (e.g. strides, dilations, pads,...)
- *                                 dw_conv_params->dilation is not used.
+ *                                 dw_conv_params->dilation is honoured.
  *                                 Range of dw_conv_params->input_offset : [-127, 128]
  *                                 Range of dw_conv_params->output_offset : [-128, 127]
  * @param[in]      quant_params    Per-channel quantization info.
@@ -1844,7 +1980,8 @@ arm_cmsis_nn_status arm_depthwise_conv_wrapper_s8(const cmsis_nn_context *ctx,
  * @param[in]      output_dims     Output tensor dimensions. Format: [1, H, W, C_OUT]
  * @param[out]     output_data     Output data pointer. Data type: int8
  * @return     The function returns
- *                <code>ARM_CMSIS_NN_SUCCESS</code>   -  Successful completion.
+ *                <code>ARM_CMSIS_NN_SUCCESS</code>   -  Successful completion, or
+ *                <code>ARM_CMSIS_NN_ARG_ERROR</code> -  an argument error of the function it picks.
  *
  * @details
  *    - Supported framework: TensorFlow Lite
@@ -1989,7 +2126,7 @@ int32_t arm_depthwise_conv_wrapper_s4_get_buffer_size_mve(const cmsis_nn_dw_conv
                                                           const cmsis_nn_dims *output_dims);
 
 /**
- * @brief Basic s8 depthwise convolution function that doesn't have any constraints on the input dimensions.
+ * @brief Basic s8 depthwise convolution function subject to the route-specific limits under @return.
  *
  * @param[in]      ctx             Function context. This kernel uses no additional buffer, so ctx->buf may be NULL and
  *                                 there is deliberately no arm_depthwise_conv_s8_get_buffer_size(). If you reached this
@@ -2012,7 +2149,12 @@ int32_t arm_depthwise_conv_wrapper_s4_get_buffer_size_mve(const cmsis_nn_dw_conv
  * @param[in]      bias_data       Bias data pointer. Data type: int32
  * @param[in]      output_dims     Output tensor dimensions. Format: [N, H, W, C_OUT]
  * @param[out]     output_data     Output data pointer. Data type: int8
- * @return     The function returns <code>ARM_CMSIS_NN_SUCCESS</code>
+ * @return     The function returns <code>ARM_CMSIS_NN_SUCCESS</code>, or <code>ARM_CMSIS_NN_ARG_ERROR</code> with
+ *             nothing written when the generic kernel would run (a channel multiplier that is not a multiple of 4,
+ *             more than one batch, or a dilation other than 1) and a dimension, ch_mult, padding, stride or
+ *             dilation is outside [0, 65,535], a padding or stride is above 32,767, or (output W or H - 1) *
+ *             stride - padding is above 32,767: that kernel takes those values as uint16_t and keeps the first tap
+ *             index of an output as int16_t.
  *
  * @details
  *    - Supported framework: TensorFlow Lite
@@ -2030,7 +2172,7 @@ arm_cmsis_nn_status arm_depthwise_conv_s8(const cmsis_nn_context *ctx,
                                           int8_t *output_data);
 
 /**
- * @brief Basic s4 depthwise convolution function that doesn't have any constraints on the input dimensions.
+ * @brief Basic s4 depthwise convolution function subject to the limits under @return.
  *
  * @param[in]      ctx             Function context. This kernel uses no additional buffer, so ctx->buf may be NULL and
  *                                 there is deliberately no arm_depthwise_conv_s4_get_buffer_size(). If you reached this
@@ -2038,7 +2180,7 @@ arm_cmsis_nn_status arm_depthwise_conv_s8(const cmsis_nn_context *ctx,
  *                                 arm_depthwise_conv_wrapper_s4_get_buffer_size() instead, because another route
  *                                 through that wrapper does require a buffer.
  * @param[in]      dw_conv_params  Depthwise convolution parameters (e.g. strides, dilations, pads,...)
- *                                 dw_conv_params->dilation is not used.
+ *                                 dw_conv_params->dilation is honoured.
  *                                 Range of dw_conv_params->input_offset : [-127, 128]
  *                                 Range of dw_conv_params->output_offset : [-128, 127]
  * @param[in]      quant_params    Per-channel quantization info.
@@ -2054,7 +2196,9 @@ arm_cmsis_nn_status arm_depthwise_conv_s8(const cmsis_nn_context *ctx,
  * @param[in]      bias            Bias data pointer. Data type: int32
  * @param[in]      output_dims     Output tensor dimensions. Format: [N, H, W, C_OUT]
  * @param[in, out] output          Output data pointer. Data type: int8
- * @return     The function returns <code>ARM_CMSIS_NN_SUCCESS</code>
+ * @return     The function returns <code>ARM_CMSIS_NN_SUCCESS</code>, or <code>ARM_CMSIS_NN_ARG_ERROR</code> with
+ *             nothing written when a padding or stride is outside [0, 32,767] or (output W or H - 1) * stride -
+ *             padding is above 32,767: the kernel keeps the first tap index of an output as int16_t.
  *
  * @details
  *    - Supported framework: TensorFlow Lite
@@ -2072,7 +2216,7 @@ arm_cmsis_nn_status arm_depthwise_conv_s4(const cmsis_nn_context *ctx,
                                           int8_t *output);
 
 /**
- * @brief Basic s16 depthwise convolution function that doesn't have any constraints on the input dimensions.
+ * @brief Basic s16 depthwise convolution function for any layer whose dimensions fit the limits under @return.
  *
  * @param[in]      ctx             Function context. This kernel uses no additional buffer, so ctx->buf may be NULL and
  *                                 there is deliberately no arm_depthwise_conv_s16_get_buffer_size(). If you reached
@@ -2086,15 +2230,25 @@ arm_cmsis_nn_status arm_depthwise_conv_s4(const cmsis_nn_context *ctx,
  *                                 It contains the multiplier and shift values to be applied to each
  *                                 output channel
  * @param[in]      input_dims      Input (activation) tensor dimensions. Format: [N, H, W, C_IN]
- *                                 Batch argument N is not used.
- * @param[in]      input_data      Input (activation) data pointer. Data type: int8
+ *                                 N, W, H and C are each at most 65,535 where the generic kernel runs.
+ * @param[in]      input_data      Input (activation) data pointer. Data type: int16
  * @param[in]      filter_dims     Filter tensor dimensions. Format: [1, H, W, C_OUT]
  * @param[in]      filter_data     Filter data pointer. Data type: int8
  * @param[in]      bias_dims       Bias tensor dimensions. Format: [C_OUT]
  * @param[in]      bias_data       Bias data pointer. Data type: int64
  * @param[in]      output_dims     Output tensor dimensions. Format: [N, H, W, C_OUT]
  * @param[out]     output_data     Output data pointer. Data type: int16
- * @return     The function returns <code>ARM_CMSIS_NN_SUCCESS</code>
+ * @return     The function returns <code>ARM_CMSIS_NN_SUCCESS</code>, or <code>ARM_CMSIS_NN_ARG_ERROR</code> with
+ *             nothing written when a dimension, ch_mult, padding, stride or dilation is outside [0, INT32_MAX / 4],
+ *             a stride or dilation is 0, an input or output plane H * W or the input, filter or output (C * ch_mult
+ *             channels) holds more than INT32_MAX elements, a KW or KH times the dilation or an output W or H times
+ *             the stride or C * ch_mult is above INT32_MAX / 2, or KW * KH, KW * C * ch_mult, stride W * C,
+ *             max(KW, 1) * dilation W * C or max(KH, 1) * dilation H * W * max(C, 1) is above INT32_MAX. Where the
+ *             generic kernel runs (builds without the MVE kernel, empty input/filter width or height, and
+ *             filters of 512 or more taps), it is also an
+ *             argument error when a dimension, ch_mult, padding, stride or dilation is above 65,535, since that
+ *             kernel takes them as uint16_t, or a padding or stride is above 32,767 or (output W or H - 1) * stride
+ *             - padding is above 32,767, since it keeps the first tap index of an output as int16_t.
  *
  * @details
  *    - Supported framework: TensorFlow Lite
@@ -2134,17 +2288,19 @@ arm_cmsis_nn_status arm_depthwise_conv_s16(const cmsis_nn_context *ctx,
  * @param[in]      quant_params    Per-channel quantization info.
  *                                 It contains the multiplier and shift values to be applied to each
  *                                 output channel
- * @param[in]      input_dims      Input (activation) tensor dimensions. Format: [H, W, C_IN]
- *                                 Batch argument N is not used and assumed to be 1.
+ * @param[in]      input_dims      Input (activation) tensor dimensions. Format: [N, H, W, C_IN]
+ *                                 N, W, H and C are each at most 65,535 where the generic kernel of
+ *                                 arm_depthwise_conv_s16() runs.
  * @param[in]      input_data      Input (activation) data pointer. Data type: int16
  * @param[in]      filter_dims     Filter tensor dimensions. Format: [1, H, W, C_OUT]
  * @param[in]      filter_data     Filter data pointer. Data type: int8
  * @param[in]      bias_dims       Bias tensor dimensions. Format: [C_OUT]
  * @param[in]      bias_data       Bias data pointer. Data type: int64
- * @param[in]      output_dims     Output tensor dimensions. Format: [1, H, W, C_OUT]
+ * @param[in]      output_dims     Output tensor dimensions. Format: [N, H, W, C_OUT]
  * @param[out]     output_data     Output data pointer. Data type: int16
  * @return     The function returns
- *                <code>ARM_CMSIS_NN_SUCCESS</code>   -  Successful completion.
+ *                <code>ARM_CMSIS_NN_SUCCESS</code>   -  Successful completion, or
+ *                <code>ARM_CMSIS_NN_ARG_ERROR</code> -  an argument error of the function it picks.
  *
  * @details
  *    - Supported framework: TensorFlow Lite
@@ -2242,7 +2398,8 @@ int32_t arm_depthwise_conv_wrapper_s16_get_buffer_size_mve(const cmsis_nn_dw_con
  *                                 It contains the multiplier and shift values to be applied to each
  *                                 output channel
  * @param[in]      input_dims      Input (activation) tensor dimensions. Format: [N, H, W, C_IN]
- *                                 Batch argument N is not used.
+ *                                 N, W, H and C are each at most 65,535 on builds without DSP, and C on DSP
+ *                                 builds without the MVE kernel.
  * @param[in]      input_data      Input (activation) data pointer. Data type: int16
  * @param[in]      filter_dims     Filter tensor dimensions. Format: [1, H, W, C_OUT]
  * @param[in]      filter_data     Filter data pointer. Data type: int8
@@ -2255,9 +2412,17 @@ int32_t arm_depthwise_conv_wrapper_s16_get_buffer_size_mve(const cmsis_nn_dw_con
  *                <code>ARM_CMSIS_NN_ARG_ERROR</code> - ctx-buff == NULL and
  *                                                      arm_depthwise_conv_fast_s16_get_buffer_size() != 0 or
  *                                                      input channel != output channel or
+ *                                                      dw_conv_params->ch_mult != 1 or
  *                                                      filter_dims->w * filter_dims->h >= MAX_COL_COUNT (512) or
  *                                                      dw_conv_params->dilation.h != 1 or
- *                                                      dw_conv_params->dilation.w < 1
+ *                                                      dw_conv_params->dilation.w < 1 or the bounds of
+ *                                                      arm_depthwise_conv_s16() other than those of its generic
+ *                                                      kernel or, on the DSP path (DSP builds without the MVE
+ *                                                      kernel), more than 65,535 channels, a padding or stride
+ *                                                      above 32,767 or (output W or H - 1) * stride - padding
+ *                                                      above 32,767; builds without DSP, and MVE calls with
+ *                                                      empty input/filter width or height, run
+ *                                                      arm_depthwise_conv_s16() and return its errors
  *
  *                <code>ARM_CMSIS_NN_SUCCESS</code> - Successful operation
  *
@@ -2389,6 +2554,8 @@ arm_cmsis_nn_status arm_depthwise_conv_3x3_s8(const cmsis_nn_context *ctx,
  *
  * @return     The function returns one of the following
  *                <code>ARM_CMSIS_NN_ARG_ERROR</code> - input channel != output channel or ch_mult != 1, or
+ *                                                      on builds without DSP, an argument error of
+ *                                                      arm_depthwise_conv_s8(), which they run, or
  *                                                      dw_conv_params->dilation.h != 1 or
  *                                                      dw_conv_params->dilation.w < 1, or
  *                                                      ctx->buf is NULL when a scratch buffer is required, or
@@ -2398,7 +2565,9 @@ arm_cmsis_nn_status arm_depthwise_conv_3x3_s8(const cmsis_nn_context *ctx,
  *                                                      that sizer returns -1 (a negative dimension or a byte
  *                                                      count it cannot represent) on the channel path, or
  *                                                      weight_sum_ctx->buf is NULL on builds where it is read
- *                                                      (ARM_MATH_DSP and ARM_MATH_MVEI both defined)
+ *                                                      (ARM_MATH_DSP and ARM_MATH_MVEI both defined), or, on
+ *                                                      builds with DSP and without MVE, more than 65,535 channels
+ *                                                      or filter taps (W * H)
  *                <code>ARM_CMSIS_NN_SUCCESS</code> - Successful operation
  *
  * @note       ctx->size is optional: a caller that leaves it at zero opts out of the size check, as TFLM does. On
@@ -2540,6 +2709,9 @@ arm_cmsis_nn_status arm_depthwise_conv_s8_opt_channelwise(const cmsis_nn_context
                                                           const cmsis_nn_dims *output_dims,
                                                           int8_t *output_data);
 
+/** Both s8 3x3 direct entries decline without writing output when ARM_MATH_AUTOVECTORIZE is defined. */
+#define ARM_NN_DEPTHWISE_CONV_S8_OPT_3X3_AUTOVECTORIZE_DECLINES 1
+
 /**
  * @brief s8 3x3 depthwise convolution that reads the input in place, without the im2col copy of
  *        arm_depthwise_conv_s8_opt(), for layers in its gate. It computes three output rows per weight load.
@@ -2560,14 +2732,15 @@ arm_cmsis_nn_status arm_depthwise_conv_s8_opt_channelwise(const cmsis_nn_context
  *
  * @return     The function returns one of the following
  *                <code>ARM_CMSIS_NN_NO_IMPL_ERROR</code> - the layer or a buffer is outside the gate below, or the
- *                                                          build lacks ARM_MATH_MVEI; nothing is written
+ *                                                          build lacks ARM_MATH_MVEI or defines ARM_MATH_AUTOVECTORIZE;
+ *                                                          nothing is written
  *                <code>ARM_CMSIS_NN_SUCCESS</code> - Successful operation
  *
  * @details
  *    - The output is identical to arm_depthwise_conv_s8_opt() and arm_depthwise_conv_s8(). The bias is read through
  *      the weight sums, which arm_depthwise_convolve_weight_sum() fills as for arm_depthwise_conv_s8_opt();
  *      bias_dims and bias_data are unused.
- *    - Gate: filter 3x3, dilation 1, N 1, C_IN equal to C_OUT with 16 <= C <= 2048 and C % 4 == 0, stride 1 or 2 and
+ *    - Gate: filter 3x3, dilation 1, N 1, C_IN equal to C_OUT with 16 <= C <= 2048, stride 1 or 2 and
  *      padding 0 or 1 in each dimension, input W >= 3 and H >= 1, output H >= 3 and W x H >= 16, every dimension at
  *      most 4096 and each tensor at most INT32_MAX elements, and the centre of the last output column's window inside
  *      the input: (output W - 1) x stride.w - padding.w + 1 < input W. Input rows above or below the input count as
@@ -2618,7 +2791,8 @@ arm_cmsis_nn_status arm_depthwise_conv_s8_opt_3x3(const cmsis_nn_context *ctx,
  *                <code>ARM_CMSIS_NN_NO_IMPL_ERROR</code> - C_IN is not 64, dw_conv_params->stride.h is not 1, the
  *                                                          layer or a buffer is outside the gate of
  *                                                          arm_depthwise_conv_s8_opt_3x3(), or the build lacks
- *                                                          ARM_MATH_MVEI; nothing is written
+ *                                                          ARM_MATH_MVEI or defines ARM_MATH_AUTOVECTORIZE;
+ *                                                          nothing is written
  *                <code>ARM_CMSIS_NN_SUCCESS</code> - Successful operation
  *
  * @details
@@ -2662,7 +2836,8 @@ int32_t arm_depthwise_conv_s8_opt_3x3_get_buffer_size(const cmsis_nn_dims *input
  *
  * @param[in, out] ctx             Function context that contains the additional buffer required by the function.
  *                                 arm_depthwise_conv_s4_opt_get_buffer_size() will return the buffer_size. A NULL
- *                                 ctx->buf is diagnosed with <code>ARM_CMSIS_NN_ARG_ERROR</code>.
+ *                                 ctx->buf, or a non-zero ctx->size below that size, is diagnosed with
+ *                                 <code>ARM_CMSIS_NN_ARG_ERROR</code>; a ctx->size of zero opts out of the size check.
  *                                 The caller is expected to clear the buffer, if applicable, for security reasons.
  * @param[in]      dw_conv_params  Depthwise convolution parameters (e.g. strides, dilations, pads,...)
  *                                 dw_conv_params->dilation is not used.
@@ -2684,7 +2859,11 @@ int32_t arm_depthwise_conv_s8_opt_3x3_get_buffer_size(const cmsis_nn_dims *input
  *
  * @return     The function returns one of the following
  *                <code>ARM_CMSIS_NN_ARG_ERROR</code> - input channel != output channel or
- *                                                      ch_mult != 1
+ *                                                      on builds without MVE, more than 65,535 channels or
+ *                                                      filter taps (W * H) or
+ *                                                      arm_depthwise_conv_s4_opt_get_buffer_size() returns -1
+ *                                                      (a negative channel count, filter width or filter height,
+ *                                                      or a size it cannot hold) or the ctx check above fails
  *                <code>ARM_CMSIS_NN_SUCCESS</code> - Successful operation
  *
  * @note       MVE channel tail loads and stores are predicated, so channel-indexed arrays are not accessed beyond
@@ -4705,6 +4884,223 @@ arm_cmsis_nn_status arm_maximum_s16(const cmsis_nn_context *ctx,
  */
 
 /**
+ * @brief Boolean AND with NHWC singleton broadcasting (scalar through rank four).
+ * @param[in] input_1 First Boolean tensor.
+ * @param[in] input_1_dims First shape, left-padded with ones to NHWC.
+ * @param[in] input_2 Second Boolean tensor.
+ * @param[in] input_2_dims Second shape, left-padded with ones to NHWC.
+ * @param[out] output Boolean result, sized by output_dims.
+ * @param[in] output_dims Exact broadcast output shape.
+ * @return ARM_CMSIS_NN_SUCCESS, or ARM_CMSIS_NN_ARG_ERROR without writes for null
+ *         arguments, nonpositive/incompatible dimensions or output count exceeding INT32_MAX.
+ * @details No quantization or scratch. Inputs must contain valid C bool objects
+ *          (one-byte 0/1 on Arm); this is logical, not integer bitwise, AND.
+ *          Output must not overlap either input. Buffer capacity and valid object
+ *          representations are the caller's responsibility. Generic, DSP and MVE supported.
+ */
+arm_cmsis_nn_status arm_logical_and_bool(const bool *input_1,
+                                         const cmsis_nn_dims *input_1_dims,
+                                         const bool *input_2,
+                                         const cmsis_nn_dims *input_2_dims,
+                                         bool *output,
+                                         const cmsis_nn_dims *output_dims);
+
+/**
+ * @brief Boolean OR with the same shape, buffer and validation contract as arm_logical_and_bool.
+ * @param[in] input_1 First Boolean tensor.
+ * @param[in] input_1_dims First shape, left-padded with ones to NHWC.
+ * @param[in] input_2 Second Boolean tensor.
+ * @param[in] input_2_dims Second shape, left-padded with ones to NHWC.
+ * @param[out] output Boolean result, sized by output_dims.
+ * @param[in] output_dims Exact broadcast output shape.
+ * @return ARM_CMSIS_NN_SUCCESS, or ARM_CMSIS_NN_ARG_ERROR without writes for invalid arguments.
+ */
+arm_cmsis_nn_status arm_logical_or_bool(const bool *input_1,
+                                        const cmsis_nn_dims *input_1_dims,
+                                        const bool *input_2,
+                                        const cmsis_nn_dims *input_2_dims,
+                                        bool *output,
+                                        const cmsis_nn_dims *output_dims);
+
+/**
+ * @brief Boolean NOT over a contiguous tensor of any rank.
+ * @param[in] input Valid C bool objects (one-byte 0/1 on Arm).
+ * @param[out] output Nonoverlapping Boolean result with capacity for count elements.
+ * @param[in] count Positive number of elements.
+ * @return ARM_CMSIS_NN_SUCCESS, or ARM_CMSIS_NN_ARG_ERROR without writes for null
+ *         arguments or nonpositive count. Buffer capacity and object validity are caller-owned.
+ * @details No quantization or scratch. Generic, DSP and MVE supported.
+ */
+arm_cmsis_nn_status arm_logical_not_bool(const bool *input, bool *output, int32_t count);
+
+/**
+ * @brief Exact signed INT32 equality with NHWC singleton broadcasting.
+ *
+ * Compares full-width signed values without quantization or subtraction. All
+ * dimensions must be positive, input extents equal or one, and output dimensions
+ * must be their broadcast shape. Output count must be <= INT32_MAX / sizeof(int32_t).
+ * Logical lower ranks use leading singleton dimensions. NULL arguments and invalid
+ * geometry return ARG_ERROR before writes. Buffers must be adequately sized,
+ * naturally aligned and nonoverlapping; output contains one-byte bool values.
+ * No scratch or float support is required.
+ *
+ * @param[in] input_1 First operand.
+ * @param[in] input_1_dims First operand shape.
+ * @param[in] input_2 Second operand.
+ * @param[in] input_2_dims Second operand shape.
+ * @param[out] output Boolean results.
+ * @param[in] output_dims Broadcast result shape.
+ * @return ARM_CMSIS_NN_SUCCESS or ARM_CMSIS_NN_ARG_ERROR.
+ */
+arm_cmsis_nn_status arm_equal_s32(const int32_t *input_1,
+                                  const cmsis_nn_dims *input_1_dims,
+                                  const int32_t *input_2,
+                                  const cmsis_nn_dims *input_2_dims,
+                                  bool *output,
+                                  const cmsis_nn_dims *output_dims);
+
+/**
+ * @brief Exact signed INT32 not equal comparison.
+ * @copydetails arm_equal_s32
+ */
+arm_cmsis_nn_status arm_not_equal_s32(const int32_t *input_1,
+                                      const cmsis_nn_dims *input_1_dims,
+                                      const int32_t *input_2,
+                                      const cmsis_nn_dims *input_2_dims,
+                                      bool *output,
+                                      const cmsis_nn_dims *output_dims);
+
+/**
+ * @brief Exact signed INT32 greater comparison.
+ * @copydetails arm_equal_s32
+ */
+arm_cmsis_nn_status arm_greater_s32(const int32_t *input_1,
+                                    const cmsis_nn_dims *input_1_dims,
+                                    const int32_t *input_2,
+                                    const cmsis_nn_dims *input_2_dims,
+                                    bool *output,
+                                    const cmsis_nn_dims *output_dims);
+
+/**
+ * @brief Exact signed INT32 greater equal comparison.
+ * @copydetails arm_equal_s32
+ */
+arm_cmsis_nn_status arm_greater_equal_s32(const int32_t *input_1,
+                                          const cmsis_nn_dims *input_1_dims,
+                                          const int32_t *input_2,
+                                          const cmsis_nn_dims *input_2_dims,
+                                          bool *output,
+                                          const cmsis_nn_dims *output_dims);
+
+/**
+ * @brief Exact signed INT32 less comparison.
+ * @copydetails arm_equal_s32
+ */
+arm_cmsis_nn_status arm_less_s32(const int32_t *input_1,
+                                 const cmsis_nn_dims *input_1_dims,
+                                 const int32_t *input_2,
+                                 const cmsis_nn_dims *input_2_dims,
+                                 bool *output,
+                                 const cmsis_nn_dims *output_dims);
+
+/**
+ * @brief Exact signed INT32 less equal comparison.
+ * @copydetails arm_equal_s32
+ */
+arm_cmsis_nn_status arm_less_equal_s32(const int32_t *input_1,
+                                       const cmsis_nn_dims *input_1_dims,
+                                       const int32_t *input_2,
+                                       const cmsis_nn_dims *input_2_dims,
+                                       bool *output,
+                                       const cmsis_nn_dims *output_dims);
+
+/**
+ * @brief Boolean equality with the same shape and buffer contract as arm_logical_and_bool.
+ * @param[in] input_1 First Boolean tensor.
+ * @param[in] input_1_dims First positive shape, left-padded with ones to NHWC.
+ * @param[in] input_2 Second Boolean tensor.
+ * @param[in] input_2_dims Second positive shape, left-padded with ones to NHWC.
+ * @param[out] output Nonoverlapping Boolean result, sized by output_dims.
+ * @param[in] output_dims Exact broadcast output shape.
+ * @return ARM_CMSIS_NN_SUCCESS, or ARM_CMSIS_NN_ARG_ERROR without writes for null
+ *         arguments, nonpositive/incompatible dimensions or output count exceeding INT32_MAX.
+ * @details Inputs must be valid one-byte C bool objects (0/1 on Arm). Caller owns
+ *          capacity and nonoverlap. Generic, DSP and MVE supported; no scratch or quantization.
+ */
+arm_cmsis_nn_status arm_equal_bool(const bool *input_1,
+                                   const cmsis_nn_dims *input_1_dims,
+                                   const bool *input_2,
+                                   const cmsis_nn_dims *input_2_dims,
+                                   bool *output,
+                                   const cmsis_nn_dims *output_dims);
+
+/**
+ * @brief Boolean inequality (Boolean XOR) with the same shape and buffer contract as arm_logical_and_bool.
+ * @param[in] input_1 First Boolean tensor.
+ * @param[in] input_1_dims First positive shape, left-padded with ones to NHWC.
+ * @param[in] input_2 Second Boolean tensor.
+ * @param[in] input_2_dims Second positive shape, left-padded with ones to NHWC.
+ * @param[out] output Nonoverlapping Boolean result, sized by output_dims.
+ * @param[in] output_dims Exact broadcast output shape.
+ * @return ARM_CMSIS_NN_SUCCESS, or ARM_CMSIS_NN_ARG_ERROR without writes for null
+ *         arguments, nonpositive/incompatible dimensions or output count exceeding INT32_MAX.
+ * @details Inputs must be valid one-byte C bool objects (0/1 on Arm). Caller owns
+ *          capacity and nonoverlap. Generic, DSP and MVE supported; no scratch or quantization.
+ */
+arm_cmsis_nn_status arm_not_equal_bool(const bool *input_1,
+                                       const cmsis_nn_dims *input_1_dims,
+                                       const bool *input_2,
+                                       const cmsis_nn_dims *input_2_dims,
+                                       bool *output,
+                                       const cmsis_nn_dims *output_dims);
+
+/**
+ * @brief Boolean ANY reduction over selected NHWC axes.
+ * @param[in] input Valid one-byte C bool objects (0/1 on Arm).
+ * @param[in] input_dims Nonnegative input shape, left-padded with ones to NHWC.
+ * @param[in] axis_dims Binary axis mask: 1 reduces the axis, 0 preserves it.
+ * @param[out] output Nonoverlapping Boolean result with capacity for output_dims.
+ * @param[in] output_dims Input dimensions with each reduced axis replaced by one.
+ * @return ARM_CMSIS_NN_SUCCESS, or ARM_CMSIS_NN_ARG_ERROR without writes for null
+ *         arguments, invalid shapes/masks or nonempty input/output counts above INT32_MAX.
+ * @details Empty reductions produce false; empty outputs write nothing. All pointers
+ *          must be nonnull even for empty tensors. A zero mask copies input to output.
+ *          The caller normalizes axis lists (including negative/duplicate axes) to the
+ *          mask. Reduced dimensions stay one in output_dims for both keep_dims modes;
+ *          removing those dimensions changes metadata only, not flat output order.
+ *          Caller owns buffer capacity, valid bool objects and nonoverlap, including
+ *          dimension structures. No scratch or quantization; generic, DSP and MVE supported.
+ */
+arm_cmsis_nn_status arm_reduce_any_bool(const bool *input,
+                                        const cmsis_nn_dims *input_dims,
+                                        const cmsis_nn_dims *axis_dims,
+                                        bool *output,
+                                        const cmsis_nn_dims *output_dims);
+
+/**
+ * @brief Boolean ALL reduction over selected NHWC axes.
+ * @param[in] input Valid one-byte C bool objects (0/1 on Arm).
+ * @param[in] input_dims Nonnegative input shape, left-padded with ones to NHWC.
+ * @param[in] axis_dims Binary axis mask: 1 reduces the axis, 0 preserves it.
+ * @param[out] output Nonoverlapping Boolean result with capacity for output_dims.
+ * @param[in] output_dims Input dimensions with each reduced axis replaced by one.
+ * @return ARM_CMSIS_NN_SUCCESS, or ARM_CMSIS_NN_ARG_ERROR without writes for null
+ *         arguments, invalid shapes/masks or nonempty input/output counts above INT32_MAX.
+ * @details Empty reductions produce true; empty outputs write nothing. All pointers
+ *          must be nonnull even for empty tensors. A zero mask copies input to output.
+ *          The caller normalizes axis lists (including negative/duplicate axes) to the
+ *          mask. Reduced dimensions stay one in output_dims for both keep_dims modes;
+ *          removing those dimensions changes metadata only, not flat output order.
+ *          Caller owns buffer capacity, valid bool objects and nonoverlap, including
+ *          dimension structures. No scratch or quantization; generic, DSP and MVE supported.
+ */
+arm_cmsis_nn_status arm_reduce_all_bool(const bool *input,
+                                        const cmsis_nn_dims *input_dims,
+                                        const cmsis_nn_dims *axis_dims,
+                                        bool *output,
+                                        const cmsis_nn_dims *output_dims);
+
+/**
  * @brief s8 elementwise comparison with support for broadcasting.
  *
  * @param[in]   ctx                   Unused; may be NULL.
@@ -6101,10 +6497,10 @@ void arm_softmax_s8_s16(const int8_t *input,
 /**
  * @brief S16 softmax function
  * @param[in]  input           Pointer to the input tensor
- * @param[in]  num_rows        Number of rows in the input tensor
- * @param[in]  row_size        Number of elements in each input row
+ * @param[in]  num_rows        Nonnegative number of rows in the input tensor
+ * @param[in]  row_size        Nonnegative number of elements in each input row
  * @param[in]  mult            Input quantization multiplier
- * @param[in]  shift           Input quantization shift within the range [0, 31]
+ * @param[in]  shift           Input quantization shift within the range [-31, 31]
  * @param[in]  softmax_params  Softmax s16 layer parameters with two pointers to LUTs speficied below.
  *                             For indexing the high 9 bits are used and 7 remaining for interpolation.
  *                             That means 512 entries for the 9-bit indexing and 1 extra for interpolation, i.e. 513
@@ -6115,6 +6511,11 @@ void arm_softmax_s8_s16(const int8_t *input,
  * @return                        The function returns
  *                                    <code>ARM_CMSIS_NN_ARG_ERROR</code> Argument error check failed
  *                                    <code>ARM_CMSIS_NN_SUCCESS</code> - Successful operation
+ *
+ * @note Negative dimensions and missing LUT pointers return an argument error. With valid LUT pointers, a zero
+ *       extent succeeds without accessing the input or output. Quantization parameters remain the caller's
+ *       responsibility: shifts below 31 retain arm_nn_requantize's intermediate representability requirements.
+ *       At shift 31, the exact wide product is saturated to the exp LUT's input domain before recentering.
  *
  * @note Supported framework: TensorFlow Lite micro (bit-accurate)
  *
@@ -6165,6 +6566,49 @@ void arm_softmax_u8(const uint8_t *input,
  *
  */
 void arm_reshape_s8(const int8_t *input, int8_t *output, const uint32_t total_size);
+
+/**
+ * @brief Exact rational bilinear resize of an NHWC s8 tensor, without scratch storage.
+ *
+ * @param[in]  resize_params Coordinate options: align_corners and half_pixel_centers are mutually exclusive.
+ * @param[in]  input_dims    Positive input dimensions [N, H, W, C], total elements <= INT32_MAX.
+ * @param[in]  input_data    Input tensor data.
+ * @param[in]  output_dims   Positive output dimensions [N, H, W, C], total elements <= INT32_MAX.
+ * @param[out] output_data   Output tensor data; must not overlap input_data.
+ *
+ * @return ARM_CMSIS_NN_ARG_ERROR for null arguments, invalid dimensions/options, or unequal N/C;
+ *         ARM_CMSIS_NN_SUCCESS otherwise.
+ * @note Input and output must have identical quantization. Coordinates are clamped to the input edges.
+ *       Interpolation is exact rational arithmetic, rounded once with half ties away from zero.
+ *       This can differ from LiteRT's Q10 coordinate approximation for non-dyadic ratios, and from
+ *       its SINGLE_ROUNDING treatment of negative ties. Buffer capacity/overlap and quantization
+ *       are the caller's responsibility. This entry does not reference specialized kernels.
+ */
+arm_cmsis_nn_status arm_resize_bilinear_s8(const cmsis_nn_resize_params *resize_params,
+                                           const cmsis_nn_dims *input_dims,
+                                           const int8_t *input_data,
+                                           const cmsis_nn_dims *output_dims,
+                                           int8_t *output_data);
+
+/**
+ * @brief Direct power-of-two half-pixel bilinear upsampling of an NHWC s8 tensor.
+ * @param[in]  resize_params Requires half_pixel_centers true and align_corners false.
+ * @param[in]  input_dims    Positive input dimensions [N, H, W, C], total elements <= INT32_MAX.
+ * @param[in]  input_data    Input tensor data.
+ * @param[in]  output_dims   Positive output dimensions with equal N/C and power-of-two H/W upsample ratios.
+ * @param[out] output_data   Non-overlapping output tensor with the same quantization as input_data.
+ * @return ARM_CMSIS_NN_ARG_ERROR for invalid arguments, ratios, or ratio product > 2^21;
+ *         ARM_CMSIS_NN_SUCCESS otherwise.
+ * @note Each spatial ratio may be one; their product must be <= 2^21 to bound INT32 intermediates.
+ *       Uses the exact coordinate, rounding and caller buffer contract of arm_resize_bilinear_s8.
+ *       No scratch or general-kernel fallback. MVE uses predicated channels or, for C <= 2,
+ *       adjacent output elements. Scalar builds implement the same arithmetic contract.
+ */
+arm_cmsis_nn_status arm_resize_bilinear_s8_pow2(const cmsis_nn_resize_params *resize_params,
+                                                const cmsis_nn_dims *input_dims,
+                                                const int8_t *input_data,
+                                                const cmsis_nn_dims *output_dims,
+                                                int8_t *output_data);
 
 /**
  * @brief Nearest neighbor resize function for s8 data
@@ -7676,11 +8120,21 @@ arm_cmsis_nn_status arm_requantize_s16_s16(const int16_t *input,
  * @brief Dequantize an int8_t array back to floating-point format.
  * @param[in]   input       Pointer to the input int8_t array.
  * @param[out]  output      Pointer to the output float array.
- * @param[in]   size        Number of elements in the arrays.
- * @param[in]   zero_point  Zero point (offset) that was used during quantization.
- * @param[in]   scale       Scale factor that was used during quantization.
+ * @param[in]   size        Nonnegative number of elements. Zero performs no tensor accesses.
+ * @param[in]   zero_point  Zero point of the input data, in [-128, 127].
+ * @param[in]   scale       Scale factor that was used during quantization. Not validated.
  *
- * @return     The function returns <code>ARM_CMSIS_NN_SUCCESS</CODE>
+ * @note Negative size or an out-of-range zero point is rejected before tensor accesses.
+ *       For positive size, input and output must
+ *       provide the stated number of elements in valid, nonoverlapping storage; output must be float-aligned.
+ *       Each output is computed as (input[i] - zero_point) * scale, with the integer difference converted to float.
+ *       MVE floating-point assembly is used with ARM_MATH_MVEF and without ARM_MATH_AUTOVECTORIZE; otherwise
+ *       the C loop is used. Subnormal or NaN scales and nondefault floating-point rounding/control settings
+ *       can give different results across these paths. NaN payload preservation and bitwise path equivalence
+ *       are not guaranteed; scalar results also depend on the compiler's floating-point options.
+ *
+ * @return     ARM_CMSIS_NN_SUCCESS, or ARM_CMSIS_NN_ARG_ERROR, with nothing written, when @p size is negative or
+ *             @p zero_point lies outside the int8_t range.
  */
 arm_cmsis_nn_status
 arm_dequantize_s8_f32(const int8_t *input, float *output, int32_t size, int32_t zero_point, float scale);
@@ -7689,11 +8143,21 @@ arm_dequantize_s8_f32(const int8_t *input, float *output, int32_t size, int32_t 
  * @brief Dequantize an int16_t array back to floating-point format.
  * @param[in]   input       Pointer to the input int16_t array.
  * @param[out]  output      Pointer to the output float array.
- * @param[in]   size        Number of elements in the arrays.
- * @param[in]   zero_point  Zero point (offset) that was used during quantization.
- * @param[in]   scale       Scale factor that was used during quantization.
+ * @param[in]   size        Nonnegative number of elements. Zero performs no tensor accesses.
+ * @param[in]   zero_point  Zero point of the input data, in [-32768, 32767].
+ * @param[in]   scale       Scale factor that was used during quantization. Not validated.
  *
- * @return     The function returns <code>ARM_CMSIS_NN_SUCCESS</CODE>
+ * @note Negative size or an out-of-range zero point is rejected before tensor accesses.
+ *       For positive size, input and output must
+ *       provide the stated number of elements in valid, nonoverlapping storage; output must be float-aligned.
+ *       Each output is computed as (input[i] - zero_point) * scale, with the integer difference converted to float.
+ *       MVE floating-point assembly is used with ARM_MATH_MVEF and without ARM_MATH_AUTOVECTORIZE; otherwise
+ *       the C loop is used. Subnormal or NaN scales and nondefault floating-point rounding/control settings
+ *       can give different results across these paths. NaN payload preservation and bitwise path equivalence
+ *       are not guaranteed; scalar results also depend on the compiler's floating-point options.
+ *
+ * @return     ARM_CMSIS_NN_SUCCESS, or ARM_CMSIS_NN_ARG_ERROR, with nothing written, when @p size is negative or
+ *             @p zero_point lies outside the int16_t range.
  */
 arm_cmsis_nn_status
 arm_dequantize_s16_f32(const int16_t *input, float *output, int32_t size, int32_t zero_point, float scale);
@@ -7705,17 +8169,17 @@ arm_dequantize_s16_f32(const int16_t *input, float *output, int32_t size, int32_
  * finite values, subnormals (normal in float32), +/-0 and +/-Inf convert exactly, whatever FPSCR.FZ and FZ16
  * hold. Needs no float16 support from the toolchain or the build (ARM_NN_ENABLE_F16 may be off), so float32 code
  * can widen stored float16 weights. The inline arm_nn_dequantize_f16_bits_f32 in arm_nnsupportfunctions.h is the
- * same conversion without the argument checks, provided its caller compiles with the library's VCVT form: the
- * ARM_NN_GAS_* verdict reaches users of an INTERFACE (module) build of the library; users of a static-library
- * build must pass it themselves, or NaN payloads can differ on the MVE path. Paths:
- *  - MVE float16, ARM_NN_ENABLE_F16 and no ARM_MATH_AUTOVECTORIZE: the vector VCVTB. Every NaN becomes the
- *    default NaN (0x7FC00000), except where the assembler needs the scalar form instead (#427, see
- *    Internal/arm_nn_vcvt_f16.h), which treats a NaN as the next path does.
- *  - Otherwise, a little-endian M-profile core with an FPU: the scalar VCVTB/VCVTT, two elements per word. A NaN
- *    keeps its sign and payload and comes back quiet; FPSCR.DN set gives the default NaN instead.
+ * same conversion without the argument checks. A NaN keeps its sign and payload and comes back quiet on every path,
+ * bit-exact with LiteRT's Float16BitsToFloat32, except where FPSCR.DN is set on the scalar FPU path. Paths:
+ *  - MVE float16, ARM_NN_ENABLE_F16 and no ARM_MATH_AUTOVECTORIZE: the vector VCVTB (or, where the assembler
+ *    needs it, the scalar form, #427, see Internal/arm_nn_vcvt_f16.h), with NaN lanes rebuilt from the input
+ *    bits, so FPSCR.DN does not apply.
+ *  - Otherwise, a little-endian M-profile core with an FPU: the scalar VCVTB/VCVTT, two elements per word;
+ *    FPSCR.DN set gives the default NaN (0x7FC00000).
  *  - Otherwise: integer widening with the scalar VCVTB's result at reset FPSCR.
  *
- * On the two hardware paths FPSCR.AHP set reads exponent 31 as a number, and a signaling NaN sets FPSCR.IOC.
+ * On the two hardware paths FPSCR.AHP set reads exponent 31 as a number (on the MVE path, Inf only: a NaN pattern is
+ * still rebuilt as a NaN), and a signaling NaN sets FPSCR.IOC.
  * arm_dequantize_f16_f32() calls this function. Input and output must not overlap.
  *
  * @param[in]   input       Pointer to the binary16 bit patterns.
@@ -7735,14 +8199,30 @@ arm_cmsis_nn_status arm_dequantize_f16_bits_f32(const uint16_t *input, float *ou
 /**
  * @brief Strided slice function for int8 data
  *
+ * Reads element i of input axis a at begin_dims[a] + i * stride_dims[a], for i from 0 to output_dims[a] - 1, and
+ * writes the elements contiguously in N, H, W, C order: output_dims->n * h * w * c elements in all. Every argument
+ * is per input axis, in input axis order [N, H, W, C], after the caller pads a lower-rank slice to 4-D.
+ *
+ * output_dims holds the number of elements to read on each input axis. That is the output tensor's shape only when
+ * no axis is removed: for an axis that TFLite's shrink_axis_mask removes, or any slice whose output rank is below
+ * the input rank, pass 1 at that axis's position, not the output tensor's shape padded to 4-D. TFLM's
+ * strided_slice::StridedSliceStartForAxis() and StridedSliceEndForAxis() give the per-axis begin and end the counts
+ * follow from. Example: input [2, 3, 4] sliced x[:, 1, :] (shrink axis 1) is input_dims {1, 2, 3, 4}, begin_dims
+ * {0, 0, 1, 0}, stride_dims {1, 1, 1, 1} and output_dims {1, 2, 1, 4}; the output tensor's padded shape
+ * {1, 1, 2, 4} would read rows 1 and 2 of batch 0 instead, and still return ARM_CMSIS_NN_SUCCESS.
+ *
+ * Every visited index must lie inside input_dims, and the output buffer must hold the elements read; neither is
+ * checked. An empty slice (a count of 0 on some axis) is rejected, so the caller skips it before the call.
+ *
  * @param[in]   input_data         Pointer to input tensor
  * @param[out]  output_data        Pointer to output tensor
- * @param[in]   input_dims         Input tensor dimensions
- * @param[in]   begin_dims         Begin dimensions for slicing
- * @param[in]   stride_dims        Stride dimensions for slicing
- * @param[in]   output_dims        Output tensor dimensions
+ * @param[in]   input_dims         Input tensor dimensions, each at least 1
+ * @param[in]   begin_dims         Index of the first element read on each input axis
+ * @param[in]   stride_dims        Step between elements read on each input axis, nonzero; negative walks backwards
+ * @param[in]   output_dims        Number of elements to read on each input axis, each at least 1 (see above)
  *
- * @return     The function returns <code>ARM_CMSIS_NN_SUCCESS</code>
+ * @return     <code>ARM_CMSIS_NN_SUCCESS</code>, or <code>ARM_CMSIS_NN_ARG_ERROR</code> when a pointer is NULL, an
+ *             input_dims or output_dims value is less than 1, or a stride_dims value is 0.
  *
  * @details
  *    1. Supported framework: TensorFlow Lite Micro
@@ -7758,14 +8238,30 @@ arm_cmsis_nn_status arm_strided_slice_s8(const int8_t *input_data,
 /**
  * @brief Strided slice function for int16 data
  *
+ * Reads element i of input axis a at begin_dims[a] + i * stride_dims[a], for i from 0 to output_dims[a] - 1, and
+ * writes the elements contiguously in N, H, W, C order: output_dims->n * h * w * c elements in all. Every argument
+ * is per input axis, in input axis order [N, H, W, C], after the caller pads a lower-rank slice to 4-D.
+ *
+ * output_dims holds the number of elements to read on each input axis. That is the output tensor's shape only when
+ * no axis is removed: for an axis that TFLite's shrink_axis_mask removes, or any slice whose output rank is below
+ * the input rank, pass 1 at that axis's position, not the output tensor's shape padded to 4-D. TFLM's
+ * strided_slice::StridedSliceStartForAxis() and StridedSliceEndForAxis() give the per-axis begin and end the counts
+ * follow from. Example: input [2, 3, 4] sliced x[:, 1, :] (shrink axis 1) is input_dims {1, 2, 3, 4}, begin_dims
+ * {0, 0, 1, 0}, stride_dims {1, 1, 1, 1} and output_dims {1, 2, 1, 4}; the output tensor's padded shape
+ * {1, 1, 2, 4} would read rows 1 and 2 of batch 0 instead, and still return ARM_CMSIS_NN_SUCCESS.
+ *
+ * Every visited index must lie inside input_dims, and the output buffer must hold the elements read; neither is
+ * checked. An empty slice (a count of 0 on some axis) is rejected, so the caller skips it before the call.
+ *
  * @param[in]   input_data         Pointer to input tensor
  * @param[out]  output_data        Pointer to output tensor
- * @param[in]   input_dims         Input tensor dimensions
- * @param[in]   begin_dims         Begin dimensions for slicing
- * @param[in]   stride_dims        Stride dimensions for slicing
- * @param[in]   output_dims        Output tensor dimensions
+ * @param[in]   input_dims         Input tensor dimensions, each at least 1
+ * @param[in]   begin_dims         Index of the first element read on each input axis
+ * @param[in]   stride_dims        Step between elements read on each input axis, nonzero; negative walks backwards
+ * @param[in]   output_dims        Number of elements to read on each input axis, each at least 1 (see above)
  *
- * @return     The function returns <code>ARM_CMSIS_NN_SUCCESS</code>
+ * @return     <code>ARM_CMSIS_NN_SUCCESS</code>, or <code>ARM_CMSIS_NN_ARG_ERROR</code> when a pointer is NULL, an
+ *             input_dims or output_dims value is less than 1, or a stride_dims value is 0.
  *
  * @details
  *    1. Supported framework: TensorFlow Lite Micro
@@ -7781,14 +8277,30 @@ arm_cmsis_nn_status arm_strided_slice_s16(const int16_t *input_data,
 /**
  * @brief Strided slice function for int32 data
  *
+ * Reads element i of input axis a at begin_dims[a] + i * stride_dims[a], for i from 0 to output_dims[a] - 1, and
+ * writes the elements contiguously in N, H, W, C order: output_dims->n * h * w * c elements in all. Every argument
+ * is per input axis, in input axis order [N, H, W, C], after the caller pads a lower-rank slice to 4-D.
+ *
+ * output_dims holds the number of elements to read on each input axis. That is the output tensor's shape only when
+ * no axis is removed: for an axis that TFLite's shrink_axis_mask removes, or any slice whose output rank is below
+ * the input rank, pass 1 at that axis's position, not the output tensor's shape padded to 4-D. TFLM's
+ * strided_slice::StridedSliceStartForAxis() and StridedSliceEndForAxis() give the per-axis begin and end the counts
+ * follow from. Example: input [2, 3, 4] sliced x[:, 1, :] (shrink axis 1) is input_dims {1, 2, 3, 4}, begin_dims
+ * {0, 0, 1, 0}, stride_dims {1, 1, 1, 1} and output_dims {1, 2, 1, 4}; the output tensor's padded shape
+ * {1, 1, 2, 4} would read rows 1 and 2 of batch 0 instead, and still return ARM_CMSIS_NN_SUCCESS.
+ *
+ * Every visited index must lie inside input_dims, and the output buffer must hold the elements read; neither is
+ * checked. An empty slice (a count of 0 on some axis) is rejected, so the caller skips it before the call.
+ *
  * @param[in]   input_data         Pointer to input tensor
  * @param[out]  output_data        Pointer to output tensor
- * @param[in]   input_dims         Input tensor dimensions
- * @param[in]   begin_dims         Begin dimensions for slicing
- * @param[in]   stride_dims        Stride dimensions for slicing
- * @param[in]   output_dims        Output tensor dimensions
+ * @param[in]   input_dims         Input tensor dimensions, each at least 1
+ * @param[in]   begin_dims         Index of the first element read on each input axis
+ * @param[in]   stride_dims        Step between elements read on each input axis, nonzero; negative walks backwards
+ * @param[in]   output_dims        Number of elements to read on each input axis, each at least 1 (see above)
  *
- * @return     The function returns <code>ARM_CMSIS_NN_SUCCESS</code>
+ * @return     <code>ARM_CMSIS_NN_SUCCESS</code>, or <code>ARM_CMSIS_NN_ARG_ERROR</code> when a pointer is NULL, an
+ *             input_dims or output_dims value is less than 1, or a stride_dims value is 0.
  *
  * @details
  *    1. Supported framework: TensorFlow Lite Micro
@@ -8072,6 +8584,30 @@ arm_where_s8(const int8_t *condition, const cmsis_nn_where_params *params, int64
  */
 arm_cmsis_nn_status
 arm_where_s16(const int16_t *condition, const cmsis_nn_where_params *params, int64_t *output, int32_t *num_true);
+
+/**
+ * @brief SELECT_V2 with broadcast or strided INT32 values and a BOOL condition.
+ *
+ * Rank is 1..8; represent a scalar as shape [1]. Output extents must be positive.
+ * Strides are nonnegative element offsets, with zero broadcasting that dimension.
+ * Output bytes and the maximum reachable input byte spans must fit INT32_MAX.
+ * NULL pointers, invalid rank/extents/strides or overflow return ARG_ERROR before
+ * output writes. The caller supplies valid bool representations, naturally aligned
+ * and adequately sized buffers, and output disjoint from inputs/metadata.
+ * Values are copied exactly; no quantization, scratch or float support is required.
+ *
+ * @param[in] condition Boolean condition buffer.
+ * @param[in] x Values selected by true.
+ * @param[in] y Values selected by false.
+ * @param[in] params Rank, output shape and input element strides.
+ * @param[out] output Contiguous INT32 result buffer.
+ * @return ARM_CMSIS_NN_SUCCESS or ARM_CMSIS_NN_ARG_ERROR.
+ */
+arm_cmsis_nn_status arm_select_v2_s32(const bool *condition,
+                                      const int32_t *x,
+                                      const int32_t *y,
+                                      const cmsis_nn_select_v2_params *params,
+                                      int32_t *output);
 
 /**
  * @brief SELECT_V2 with broadcast for int8 tensors.

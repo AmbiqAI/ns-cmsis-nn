@@ -22,8 +22,8 @@
  * Title:        arm_nnsupportfunctions.h
  * Description:  Public header file of support functions for CMSIS NN Library
  *
- * $Date:        15 June 2026
- * $Revision:    V.22.11.0
+ * $Date:        8 October 2026
+ * $Revision:    V.22.12.0
  *
  * Target :  Arm(R) M-Profile Architecture
  * -------------------------------------------------------------------- */
@@ -45,7 +45,7 @@ extern "C" {
 #define USE_FAST_DW_CONV_S16_FUNCTION(dw_conv_params, filter_dims, input_dims, output_dims)                            \
     (dw_conv_params->ch_mult == 1 &&                                                                                   \
      arm_nn_dw_conv_opt_dilation_supported(dw_conv_params, input_dims, filter_dims, output_dims) &&                    \
-     filter_dims->w * filter_dims->h < 512)
+     (int64_t)filter_dims->w * filter_dims->h < 512)
 
 #define LEFT_SHIFT(_shift) (_shift > 0 ? _shift : 0)
 #define RIGHT_SHIFT(_shift) (_shift > 0 ? 0 : -_shift)
@@ -341,6 +341,32 @@ __STATIC_FORCEINLINE int64_t arm_nn_size_add(const int64_t acc, const int64_t ad
     return (sum > INT32_MAX) ? -1 : sum;
 }
 
+/**
+ * @brief Rolling scratch bytes shared by the s8 transpose entry and its buffer-size queries.
+ * @param[in] params       Transpose convolution parameters.
+ * @param[in] input_dims   Input dimensions.
+ * @param[in] filter_dims  Filter dimensions.
+ * @param[in] output_dims  Output dimensions.
+ * @return Required bytes, or -1 if the rolling geometry or size is out of range.
+ */
+__STATIC_FORCEINLINE int32_t arm_nn_transpose_conv_s8_rolling_buffer_size(const cmsis_nn_transpose_conv_params *params,
+                                                                          const cmsis_nn_dims *input_dims,
+                                                                          const cmsis_nn_dims *filter_dims,
+                                                                          const cmsis_nn_dims *output_dims)
+{
+    if (input_dims->w < 0 || output_dims->c < 0 || filter_dims->w < 0 || filter_dims->h < 0 || params->stride.w <= 0 ||
+        params->stride.h <= 0)
+    {
+        return -1;
+    }
+
+    const int64_t row_span =
+        ((int64_t)input_dims->w - 1) * params->stride.w + ARM_NN_MAX(filter_dims->w, params->stride.w);
+    const int64_t row_elements = arm_nn_size_mul(row_span, output_dims->c);
+    const int64_t buffer_elements = arm_nn_size_mul(row_elements, ARM_NN_MAX(filter_dims->h, params->stride.h));
+    return (int32_t)arm_nn_size_mul(buffer_elements, sizeof(int32_t));
+}
+
 #if ARM_NN_FLOAT_API_ENABLED
     #include "arm_nnsupportfunctions_flt.h"
 #endif
@@ -395,6 +421,11 @@ __STATIC_FORCEINLINE int32_t GetNearestNeighbor(const int input_value,
                                                 const bool align_corners,
                                                 const bool half_pixel_centers)
 {
+#if defined(__clang__)
+    /* Index selection needs the rounded float32 scale before multiplication.
+     * Reassociating the division into this product can select a different pixel. */
+    #pragma clang fp contract(off) reassociate(off)
+#endif
     const float scaled = ((float)input_value + offset) * scale;
     int32_t output_value = align_corners ? (int32_t)roundf(scaled) : (int32_t)floorf(scaled);
 
@@ -1687,22 +1718,128 @@ __STATIC_FORCEINLINE int32_t arm_nn_convolve_groups_invalid(const cmsis_nn_dims 
 }
 
 /**
- * @brief The group check of arm_convolve_s8() and its direct entries: arm_nn_convolve_groups_invalid(), and C_IN
- *        and C_OUT fit 16 bits (arm_convolve_s8() keeps the depths as uint16_t; the filter C, a divisor of C_IN,
- *        then does too).
+ * @brief The argument check of arm_convolve_s8() and its direct entries. arm_nn_convolve_groups_invalid() must return
+ *        0, and every value the kernels keep or form in a narrower type must fit it (AmbiqAI/ns-cmsis-nn#707):
+ *        - C_IN, C_OUT, the input, filter and output W and H, padding and stride are kept as uint16_t. A value is in
+ *          [0, UINT16_MAX] exactly when no bit above bit 15 is set, so they are checked with one OR; the filter C, a
+ *          divisor of C_IN, then fits too.
+ *        - The patch KW * KH * C is at most INT32_MAX / 4, since scratch offsets are formed from it in int32_t, and
+ *          the filter, C_OUT patches, and the input and output, H * W and H * W * C each, at most INT32_MAX.
+ *        - A tap index, stride * output index - padding + dilation * kernel index, is formed in int32_t: output W
+ *          times stride W is at most INT32_MAX / 2 and (KW - 1) times dilation W lies within +-INT32_MAX / 2, and the
+ *          same for H. Dilation is kept as int32_t, so on a 1x1 kernel any value is accepted.
  *
+ * @param[in]      conv_params     Convolution parameters
  * @param[in]      input_dims      Input tensor dimensions. Format: [N, H, W, C_IN]
  * @param[in]      filter_dims     Filter tensor dimensions. Format: [C_OUT, HK, WK, CK]
  * @param[in]      output_dims     Output tensor dimensions. Format: [N, H, W, C_OUT]
  *
- * @return         1 when arm_convolve_s8() reports the dims as an argument error, 0 otherwise.
+ * @return         1 when arm_convolve_s8() reports the arguments as an error, 0 otherwise.
  */
-__STATIC_FORCEINLINE int32_t arm_nn_convolve_s8_groups_invalid(const cmsis_nn_dims *input_dims,
-                                                               const cmsis_nn_dims *filter_dims,
-                                                               const cmsis_nn_dims *output_dims)
+int32_t arm_nn_convolve_s8_args_invalid(const cmsis_nn_conv_params *conv_params,
+                                        const cmsis_nn_dims *input_dims,
+                                        const cmsis_nn_dims *filter_dims,
+                                        const cmsis_nn_dims *output_dims);
+
+/**
+ * @brief Whether the generic kernels of arm_depthwise_conv_s16(), arm_depthwise_conv_s8() and
+ *        arm_depthwise_conv_s4() and the DSP path of arm_depthwise_conv_fast_s16() could wrap the first tap index of
+ *        an output, stride * output index - padding, which they keep as int16_t (the s16 MVE kernel keeps it as
+ *        int32_t): it stays in [-INT16_MAX, INT16_MAX] when padding and stride are in [0, INT16_MAX] and
+ *        (output size - 1) * stride - padding is at most INT16_MAX, in W and in H. See AmbiqAI/ns-cmsis-nn#727 and
+ *        #786.
+ *
+ * @param[in]      dw_conv_params  Depthwise convolution parameters
+ * @param[in]      output_dims     Output tensor dimensions. Format: [N, H, W, C_OUT]
+ *
+ * @return         1 when the index could wrap, 0 otherwise.
+ */
+__STATIC_FORCEINLINE int32_t arm_nn_depthwise_s16_tap_index_invalid(const cmsis_nn_dw_conv_params *dw_conv_params,
+                                                                    const cmsis_nn_dims *output_dims)
 {
-    return input_dims->c > UINT16_MAX || output_dims->c > UINT16_MAX ||
-        arm_nn_convolve_groups_invalid(input_dims, filter_dims, output_dims);
+    return (uint32_t)(dw_conv_params->padding.w | dw_conv_params->padding.h | dw_conv_params->stride.w |
+                      dw_conv_params->stride.h) > INT16_MAX ||
+        ((int64_t)output_dims->w - 1) * dw_conv_params->stride.w - dw_conv_params->padding.w > INT16_MAX ||
+        ((int64_t)output_dims->h - 1) * dw_conv_params->stride.h - dw_conv_params->padding.h > INT16_MAX;
+}
+
+/**
+ * @brief Whether the int32_t index arithmetic of the s16 depthwise kernels could overflow for a layer: the MVE kernel
+ *        shared by arm_depthwise_conv_s16() and arm_depthwise_conv_fast_s16(), and the DSP kernel of the latter.
+ *        Every dimension, ch_mult, padding, stride and dilation must be in [0, INT32_MAX / 4], so a sum of four of
+ *        them fits int32_t; stride and dilation at least 1; the input and output planes H * W and the input,
+ *        filter and output (C * ch_mult channels) at most INT32_MAX elements; a kernel size times its dilation and
+ *        an output size times its stride at most INT32_MAX / 2; C * ch_mult at most INT32_MAX / 2; and the MVE
+ *        kernel's other steps at most INT32_MAX: filter W * H, filter W * C * ch_mult, stride W * C, and
+ *        max(KW, 1) * dilation W * C and max(KH, 1) * dilation H * W * max(C, 1) for its tap rows. The kernels
+ *        form these in int32_t and divide by the stride and dilation. See AmbiqAI/ns-cmsis-nn#707 and #787.
+ *
+ * @param[in]      dw_conv_params  Depthwise convolution parameters
+ * @param[in]      input_dims      Input tensor dimensions. Format: [N, H, W, C_IN]
+ * @param[in]      filter_dims     Filter tensor dimensions. Format: [1, H, W, C_OUT]
+ * @param[in]      output_dims     Output tensor dimensions. Format: [N, H, W, C_OUT]
+ *
+ * @return         1 when an index could overflow, 0 otherwise.
+ */
+__STATIC_FORCEINLINE int32_t arm_nn_depthwise_conv_s16_index_invalid(const cmsis_nn_dw_conv_params *dw_conv_params,
+                                                                     const cmsis_nn_dims *input_dims,
+                                                                     const cmsis_nn_dims *filter_dims,
+                                                                     const cmsis_nn_dims *output_dims)
+{
+    /* INT32_MAX / 4 is 2^29 - 1, so a value is in range exactly when no bit above bit 28 is set (a negative value
+       sets bit 31): one OR checks them all. Each product below is formed in 64 bits from values under 2^29, and a
+       product of three is formed only once its first two factors are known to be at most INT32_MAX. */
+    const uint32_t all =
+        (uint32_t)(input_dims->n | input_dims->w | input_dims->h | input_dims->c | dw_conv_params->ch_mult |
+                   filter_dims->w | filter_dims->h | dw_conv_params->padding.w | dw_conv_params->padding.h |
+                   dw_conv_params->stride.w | dw_conv_params->stride.h | output_dims->w | output_dims->h |
+                   dw_conv_params->dilation.w | dw_conv_params->dilation.h);
+    if (all > INT32_MAX / 4)
+    {
+        return 1;
+    }
+    const uint64_t in_plane = (uint64_t)input_dims->w * (uint64_t)input_dims->h;
+    const uint64_t out_plane = (uint64_t)output_dims->w * (uint64_t)output_dims->h;
+    const uint64_t out_ch = (uint64_t)input_dims->c * (uint64_t)dw_conv_params->ch_mult;
+    const uint64_t taps = (uint64_t)filter_dims->w * (uint64_t)filter_dims->h;
+    const uint64_t reach_w = (uint64_t)ARM_NN_MAX(filter_dims->w, 1) * (uint64_t)dw_conv_params->dilation.w;
+    const uint64_t reach_h = (uint64_t)ARM_NN_MAX(filter_dims->h, 1) * (uint64_t)dw_conv_params->dilation.h;
+    const uint64_t in_row = (uint64_t)input_dims->w * (uint64_t)ARM_NN_MAX(input_dims->c, 1);
+    return dw_conv_params->stride.w < 1 || dw_conv_params->stride.h < 1 || dw_conv_params->dilation.w < 1 ||
+        dw_conv_params->dilation.h < 1 || in_plane > INT32_MAX || in_plane * (uint64_t)input_dims->c > INT32_MAX ||
+        out_plane > INT32_MAX || out_ch > INT32_MAX / 2 || out_plane * out_ch > INT32_MAX || taps > INT32_MAX ||
+        taps * out_ch > INT32_MAX || (uint64_t)filter_dims->w * (uint64_t)dw_conv_params->dilation.w > INT32_MAX / 2 ||
+        (uint64_t)filter_dims->h * (uint64_t)dw_conv_params->dilation.h > INT32_MAX / 2 ||
+        (uint64_t)output_dims->w * (uint64_t)dw_conv_params->stride.w > INT32_MAX / 2 ||
+        (uint64_t)output_dims->h * (uint64_t)dw_conv_params->stride.h > INT32_MAX / 2 ||
+        (uint64_t)filter_dims->w * out_ch > INT32_MAX ||
+        (uint64_t)dw_conv_params->stride.w * (uint64_t)input_dims->c > INT32_MAX ||
+        reach_w * (uint64_t)input_dims->c > INT32_MAX || in_row > INT32_MAX || reach_h * in_row > INT32_MAX;
+}
+
+/**
+ * @brief Whether the generic kernel of arm_depthwise_conv_s16() cannot take a layer that
+ *        arm_nn_depthwise_conv_s16_index_invalid() accepts, or the generic kernel of arm_depthwise_conv_s8() cannot
+ *        take a layer: they take every dimension, ch_mult, padding, stride and dilation as uint16_t, so each must be
+ *        in [0, UINT16_MAX]. See AmbiqAI/ns-cmsis-nn#707 and #786.
+ *
+ * @param[in]      dw_conv_params  Depthwise convolution parameters
+ * @param[in]      input_dims      Input tensor dimensions. Format: [N, H, W, C_IN]
+ * @param[in]      filter_dims     Filter tensor dimensions. Format: [1, H, W, C_OUT]
+ * @param[in]      output_dims     Output tensor dimensions. Format: [N, H, W, C_OUT]
+ *
+ * @return         1 when a value is outside [0, UINT16_MAX], 0 otherwise.
+ */
+__STATIC_FORCEINLINE int32_t arm_nn_depthwise_conv_s16_args_invalid(const cmsis_nn_dw_conv_params *dw_conv_params,
+                                                                    const cmsis_nn_dims *input_dims,
+                                                                    const cmsis_nn_dims *filter_dims,
+                                                                    const cmsis_nn_dims *output_dims)
+{
+    /* A value is in range exactly when no bit above bit 15 is set, so they are checked with one OR */
+    return (uint32_t)(input_dims->n | input_dims->w | input_dims->h | input_dims->c | dw_conv_params->ch_mult |
+                      filter_dims->w | filter_dims->h | dw_conv_params->padding.w | dw_conv_params->padding.h |
+                      dw_conv_params->stride.w | dw_conv_params->stride.h | output_dims->w | output_dims->h |
+                      dw_conv_params->dilation.w | dw_conv_params->dilation.h) > UINT16_MAX;
 }
 
 /**
@@ -2659,7 +2796,8 @@ __STATIC_FORCEINLINE int32_t arm_nn_divide_by_power_of_two(const int32_t dividen
                    : "=r"(result)
                    : "r"(temp), "r"(exponent)
                    : "cc");
-    return result;
+    // A register shift of 0 leaves the carry flag unchanged, so the rounding above adds a stale carry
+    return exponent == 0 ? dividend : result;
 #else
     int32_t result = 0;
     /* Unsigned, so that exponent 31 gives INT32_MAX rather than overflowing */
@@ -2709,6 +2847,25 @@ __STATIC_FORCEINLINE int32_t arm_nn_nonneg_divide_by_pot_s32(int32_t dividend, i
     uint32_t t = (uint32_t)dividend + (uint32_t)(1u << (exponent - 1));
     return (int32_t)(t >> exponent);
 #endif
+}
+
+/**
+ * @brief           Multiply-accumulate in int32_t that wraps as the hardware does instead of overflowing.
+ * @param[in]       acc     Accumulator
+ * @param[in]       a       Multiplicand. Product bits are accumulated modulo 2^32
+ * @param[in]       b       Multiplier
+ * @return          acc + a * b, wrapped to int32_t
+ *
+ * @details         A start value near INT32_MIN or INT32_MAX, such as a bias, can take a partial sum out of the int32_t
+ *                  range before the full sum returns to it. Adding in uint32_t keeps that defined and gives the same
+ *                  bits.
+ */
+__STATIC_FORCEINLINE int32_t arm_nn_mac_wrap_s32_bits(const int32_t acc, const int32_t a, const int32_t b)
+{
+    const uint32_t bits = (uint32_t)acc + (uint32_t)a * (uint32_t)b;
+    int32_t result;
+    memcpy(&result, &bits, sizeof(result));
+    return result;
 }
 
 /**
@@ -2956,10 +3113,10 @@ __STATIC_FORCEINLINE int32x4_t arm_doubling_high_mult_mve(const int32x4_t m1, co
  */
 __STATIC_FORCEINLINE int32x4_t arm_divide_by_power_of_two_mve(const int32x4_t dividend, const int32_t exponent)
 {
-    const int32x4_t shift = vdupq_n_s32(-exponent);
-    const int32x4_t fixup = vshrq_n_s32(vandq_s32(dividend, shift), 31);
+    /* Scalar-operand VRSHL keeps the shift out of a Q register; only the fixup mask needs one. */
+    const int32x4_t fixup = vshrq_n_s32(vandq_s32(dividend, vdupq_n_s32(-exponent)), 31);
     const int32x4_t fixed_up_dividend = vqaddq_s32(dividend, fixup);
-    return vrshlq_s32(fixed_up_dividend, shift);
+    return vrshlq_n_s32(fixed_up_dividend, -exponent);
 }
 
 /**
@@ -3016,8 +3173,39 @@ __STATIC_FORCEINLINE int32x4_t arm_requantize_mve(const int32x4_t val, const int
 
     return result;
     #else
+    return arm_divide_by_power_of_two_mve(arm_doubling_high_mult_mve(vshlq_r_s32(val, LEFT_SHIFT(shift)), multiplier),
+                                          RIGHT_SHIFT(shift));
+    #endif
+}
+
+/**
+ * @brief           Requantize a given vector that still needs a left shift applied first.
+ * @param[in]       val             Vector to be requantized
+ * @param[in]       pre_left_shift  Extra left shift to apply to val, folded into the internal one
+ * @param[in]       multiplier      multiplier
+ * @param[in]       shift           shift
+ *
+ * @return          Same result as applying vshlq_r_s32(val, pre_left_shift) before arm_requantize_mve,
+ *                  but with one VSHL instead of two. Both shift counts must be >= 0 and sum to <= 31.
+ *
+ */
+__STATIC_FORCEINLINE int32x4_t arm_requantize_shifted_mve(const int32x4_t val,
+                                                          const int32_t pre_left_shift,
+                                                          const int32_t multiplier,
+                                                          const int32_t shift)
+{
+    #ifdef CMSIS_NN_USE_SINGLE_ROUNDING
+    const int right_shift = ARM_NN_MIN(-1, shift);
+    const int left_shift = shift - right_shift;
+
+    int32x4_t result = vqdmulhq_n_s32(vshlq_r_s32(val, left_shift + pre_left_shift), multiplier);
+    result = vrshlq_n_s32(result, right_shift);
+
+    return result;
+    #else
     return arm_divide_by_power_of_two_mve(
-        arm_doubling_high_mult_mve(vshlq_s32(val, vdupq_n_s32(LEFT_SHIFT(shift))), multiplier), RIGHT_SHIFT(shift));
+        arm_doubling_high_mult_mve(vshlq_r_s32(val, LEFT_SHIFT(shift) + pre_left_shift), multiplier),
+        RIGHT_SHIFT(shift));
     #endif
 }
 
@@ -3143,7 +3331,8 @@ __STATIC_FORCEINLINE int32x4_t arm_requantize_mve_pred(const int32x4_t val,
     const int32x4_t left_shift_dup = vdupq_x_n_s32(left_shift, p);
     const int32x4_t right_shift_dup = vdupq_x_n_s32(right_shift, p);
 
-    int32x4_t result = vqrdmulhq_m_n_s32(v_zero, vshlq_m_s32(v_zero, val, left_shift_dup, p), multiplier, p);
+    /* Truncate here: vrshl below performs the single rounding step. */
+    int32x4_t result = vqdmulhq_m_n_s32(v_zero, vshlq_m_s32(v_zero, val, left_shift_dup, p), multiplier, p);
     result = vrshlq_m_s32(v_zero, result, right_shift_dup, p);
 
     return result;
@@ -3250,6 +3439,37 @@ __STATIC_FORCEINLINE int8x16_t arm_narrow_mve_from_int32x4x4_to_int8x16(int32x4_
 
     return out;
 }
+
+    #if !defined(ARM_MATH_AUTOVECTORIZE)
+/**
+ * @brief           MVE s16 depthwise convolution for any channel multiplier, used by
+ *                  arm_depthwise_conv_s16() and arm_depthwise_conv_fast_s16(). The caller first rejects the
+ *                  layers that arm_nn_depthwise_conv_s16_index_invalid() reports; the kernel forms its indices in
+ *                  int32_t on that bound.
+ *
+ * @param[in]       dw_conv_params  Depthwise convolution parameters
+ * @param[in]       quant_params    Per-channel quantization parameters
+ * @param[in]       input_dims      Input tensor dimensions, NHWC
+ * @param[in]       input           Input data pointer
+ * @param[in]       filter_dims     Filter tensor dimensions, 1HWC
+ * @param[in]       kernel          Filter data pointer
+ * @param[in]       bias            Per-channel s64 bias, or NULL
+ * @param[in]       output_dims     Output tensor dimensions, NHWC
+ * @param[out]      output          Output data pointer
+ *
+ * @return          false, with no output written, when the filter has zero or MAX_COL_COUNT or more taps, or
+ *                  the input width or height is zero. The caller then runs its own path.
+ */
+bool arm_nn_depthwise_conv_s16_mve(const cmsis_nn_dw_conv_params *dw_conv_params,
+                                   const cmsis_nn_per_channel_quant_params *quant_params,
+                                   const cmsis_nn_dims *input_dims,
+                                   const int16_t *input,
+                                   const cmsis_nn_dims *filter_dims,
+                                   const int8_t *kernel,
+                                   const int64_t *bias,
+                                   const cmsis_nn_dims *output_dims,
+                                   int16_t *output);
+    #endif
 
 #endif
 
@@ -3885,6 +4105,26 @@ __STATIC_FORCEINLINE uint32_t arm_nn_f16_bits_to_f32_bits(const uint32_t h)
 }
 #endif
 
+#if defined(ARM_NN_DEQUANTIZE_F16_MVE)
+/**
+ * @brief Widen four binary16 bit patterns, one in the low half of each lane, to binary32 bits. The vector VCVTB
+ *        gives the default NaN for every NaN, so NaN lanes are rebuilt from the input as the scalar paths give
+ *        them: sign and payload kept, quiet bit set, whatever FPSCR.DN holds.
+ *
+ * @param[in]  h  The binary16 bits, zero-extended to 32 bits per lane.
+ *
+ * @return     The binary32 bits.
+ */
+__STATIC_FORCEINLINE uint32x4_t arm_nn_vcvtbq_f32_f16_bits(const uint32x4_t h)
+{
+    const uint32x4_t converted = vreinterpretq_u32_f32(arm_nn_vcvtbq_f32_f16(vreinterpretq_f16_u32(h)));
+    /* h << 13 puts the payload in bits 22..0; the constant covers the exponent and the quiet bit */
+    const uint32x4_t nan =
+        vorrq(vorrq(vshlq_n_u32(h, 13), vdupq_n_u32(0x7FC00000u)), vandq(vshlq_n_u32(h, 16), vdupq_n_u32(0x80000000u)));
+    return vpselq(nan, converted, vcmphiq_n_u32(vandq(h, vdupq_n_u32(0x7FFFu)), 0x7C00u));
+}
+#endif
+
 /**
  * @brief The body of arm_dequantize_f16_bits_f32() without its argument checks, inline so that a caller with a
  *        small or constant size pays no call. Each element gives what the path's hardware half-to-single conversion
@@ -3906,14 +4146,14 @@ __STATIC_FORCEINLINE void arm_nn_dequantize_f16_bits_f32(const uint16_t *input, 
     float *out = output;
     for (int32_t n = block_size >> 2; n > 0; n--)
     {
-        vst1q(out, arm_nn_vcvtbq_f32_f16(vreinterpretq_f16_u32(vldrhq_u32(in))));
+        vst1q(out, vreinterpretq_f32_u32(arm_nn_vcvtbq_f32_f16_bits(vldrhq_u32(in))));
         in += 4;
         out += 4;
     }
     if ((block_size & 3) != 0)
     {
         const mve_pred16_t p = vctp32q((uint32_t)(block_size & 3));
-        vst1q_p(out, arm_nn_vcvtbq_f32_f16(vreinterpretq_f16_u32(vldrhq_z_u32(in, p))), p);
+        vst1q_p(out, vreinterpretq_f32_u32(arm_nn_vcvtbq_f32_f16_bits(vldrhq_z_u32(in, p))), p);
     }
 #elif defined(ARM_NN_DEQUANTIZE_F16_FPU)
     int32_t i = 0;

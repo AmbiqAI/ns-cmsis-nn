@@ -64,9 +64,8 @@ void arm_concatenation_s8_z(const int8_t *input,
 
     for (i = 0; i < input_w; ++i)
     {
-        arm_memcpy_s8(output, input, input_copy_size);
+        arm_memcpy_s8(output + (size_t)i * output_stride, input, input_copy_size);
         input += input_copy_size;
-        output += output_stride;
     }
 }
 

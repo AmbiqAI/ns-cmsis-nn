@@ -55,3 +55,11 @@ void test_buffer_size_out_of_range_mve_arm_depthwise_conv_s4_opt(void)
 }
 
 void test_operand_bounds_arm_depthwise_conv_s4_opt(void) { operand_bounds_arm_depthwise_conv_s4_opt(); }
+
+void test_padding_beyond_filter_arm_depthwise_conv_s4_opt(void) { padding_beyond_filter_arm_depthwise_conv_s4_opt(); }
+
+void test_arg_errors_arm_depthwise_conv_s4_opt(void) { arg_errors_arm_depthwise_conv_s4_opt(); }
+
+void test_tall_input_arm_depthwise_conv_s4_opt(void) { tall_input_arm_depthwise_conv_s4_opt(); }
+
+void test_counter_limits_arm_depthwise_conv_s4_opt(void) { counter_limits_arm_depthwise_conv_s4_opt(); }

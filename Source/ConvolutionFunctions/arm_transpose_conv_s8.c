@@ -30,6 +30,23 @@
  * -------------------------------------------------------------------- */
 #include "arm_nnfunctions.h"
 #include "arm_nnsupportfunctions.h"
+
+/* All factors are nonnegative int32 values validated by the entry. Preserve intermediate
+ * overflow rejection even when the final batch factor is zero. */
+__STATIC_FORCEINLINE int transpose_volume_fits(const int32_t a, const int32_t b, const int32_t c, const int32_t d)
+{
+    int64_t product = (int64_t)a * b;
+    if (product > INT32_MAX)
+    {
+        return 0;
+    }
+    product = (int64_t)(int32_t)product * c;
+    if (product > INT32_MAX)
+    {
+        return 0;
+    }
+    return (int64_t)(int32_t)product * d <= INT32_MAX;
+}
 /**
  *  @ingroup Public
  */
@@ -91,6 +108,31 @@ arm_cmsis_nn_status arm_transpose_conv_s8(const cmsis_nn_context *ctx,
     const int32_t stride_x = transpose_conv_params->stride.w;
     const int32_t stride_y = transpose_conv_params->stride.h;
 
+    /* MVE rounds the channel count up with input_ch + 15; keep that expression representable in every build. */
+    if (input_dims->n < 0 || input_x <= 0 || input_y <= 0 || input_ch <= 0 || input_ch > INT32_MAX - 15 ||
+        filter_x <= 0 || filter_y <= 0 || output_x <= 0 || output_y <= 0 || output_ch <= 0 || stride_x <= 0 ||
+        stride_y <= 0 || pad_x < 0 || pad_y < 0 || output_dims->n != input_dims->n || filter_dims->c != input_ch ||
+        filter_dims->n != output_ch)
+    {
+        return ARM_CMSIS_NN_ARG_ERROR;
+    }
+
+    const int64_t strided_y = (int64_t)input_y * stride_y;
+    const int64_t filter_end_y = ((int64_t)input_y - 1) * stride_y + filter_y;
+    const int64_t row_span = ((int64_t)input_x - 1) * stride_x + ARM_NN_MAX(filter_x, stride_x);
+    const int64_t emitted_rows = ARM_NN_MAX(0, strided_y - pad_y) + ARM_NN_MAX(0, filter_y - stride_y);
+    /* Check the rolling buffer's actual coverage, not a symmetric-padding equality: cropped requested outputs
+     * are valid. Bound all row expressions before the existing int32 loops or any tensor/scratch access. */
+    if (strided_y > INT32_MAX || filter_end_y > INT32_MAX || (int64_t)pad_y + output_y > INT32_MAX ||
+        (int64_t)pad_x + output_x > row_span || output_y > emitted_rows ||
+        !transpose_volume_fits(input_ch, input_x, input_y, input_dims->n) ||
+        !transpose_volume_fits(output_ch, output_x, output_y, input_dims->n) ||
+        !transpose_volume_fits(input_ch, filter_x, filter_y, output_ch) ||
+        arm_nn_transpose_conv_s8_rolling_buffer_size(transpose_conv_params, input_dims, filter_dims, output_dims) < 0)
+    {
+        return ARM_CMSIS_NN_ARG_ERROR;
+    }
+
     const int32_t *output_multiplier = quant_params->multiplier;
     const int32_t *output_shift = quant_params->shift;
 
@@ -138,22 +180,26 @@ arm_cmsis_nn_status arm_transpose_conv_s8(const cmsis_nn_context *ctx,
             int skip_rows_top = ARM_NN_MAX(0, pad_y - j * stride_y);
             int skip_rows_bottom = ARM_NN_MAX(0, (j * stride_y + filter_y) - (pad_y + output_y) - 1);
 
-            // Compute output for one row of input
-            arm_nn_transpose_conv_row_s8_s32(input,
-                                             filter,
-                                             buf,
-                                             buf_row,
-                                             buf_size,
-                                             filter_y,
-                                             filter_x,
-                                             input_ch,
-                                             output_ch,
-                                             input_offset,
-                                             buf_x,
-                                             input_x,
-                                             stride_x,
-                                             skip_rows_top,
-                                             skip_rows_bottom);
+            // Compute output for one row of input. A row whose filter lies wholly outside the output adds nothing,
+            // and the row function would step its filter pointer past the filter for it (issue #775).
+            if (skip_rows_top + skip_rows_bottom < filter_y)
+            {
+                arm_nn_transpose_conv_row_s8_s32(input,
+                                                 filter,
+                                                 buf,
+                                                 buf_row,
+                                                 buf_size,
+                                                 filter_y,
+                                                 filter_x,
+                                                 input_ch,
+                                                 output_ch,
+                                                 input_offset,
+                                                 buf_x,
+                                                 input_x,
+                                                 stride_x,
+                                                 skip_rows_top,
+                                                 skip_rows_bottom);
+            }
             input += input_ch * input_x;
 
             // Number of output rows that became final (no later input row can still add to

@@ -682,21 +682,34 @@ __STATIC_INLINE int32_t arm_nn_softmax_floor_to_int_f16(float16_t x)
 }
 
 /**
- * @brief Compute `2^n` as a float16 by building the exponent field directly.
+ * @brief Compute the power-of-two scale for the scalar float16 exp approximation.
  *
- * @param[in] n Integer exponent. Clamped to the normal float16 exponent range `[-14, 15]`.
+ * Keep the scale in float32 until the approximation is rounded to float16. Rounding
+ * the scale first would lose subnormal results when the fractional factor lifts a
+ * value above the float16 underflow threshold. The upper clamp is unchanged.
+ *
+ * @param[in] n Integer exponent. Clamped to `[-126, 15]`.
+ * @return `2^n` as a float32 intermediate.
+ */
+__STATIC_INLINE float32_t arm_nn_softmax_exp2i_wide_f16(int32_t n)
+{
+    union
+    {
+        uint32_t u;
+        float32_t f;
+    } scale;
+    n = ARM_NN_CLAMP(n, 15, -126);
+    scale.u = (uint32_t)(n + 127) << 23;
+    return scale.f;
+}
+
+/**
+ * @brief Compute `2^n` rounded to float16.
+ *
+ * @param[in] n Integer exponent. Clamped above at 15; small results round to subnormal or zero.
  * @return `2^n` as a float16.
  */
-__STATIC_INLINE float16_t arm_nn_softmax_exp2i_f16(int32_t n)
-{
-    const int32_t float16_min_normal_exponent = -14;
-    const int32_t float16_max_finite_exponent = 15;
-    const int32_t float16_exponent_bias = 15;
-    const int32_t float16_mantissa_bits = 10;
-
-    n = ARM_NN_CLAMP(n, float16_max_finite_exponent, float16_min_normal_exponent);
-    return arm_nn_softmax_fp16_from_bits((uint16_t)((n + float16_exponent_bias) << float16_mantissa_bits));
-}
+__STATIC_INLINE float16_t arm_nn_softmax_exp2i_f16(int32_t n) { return (float16_t)arm_nn_softmax_exp2i_wide_f16(n); }
 
 /**
  * @brief Taylor/Estrin exp approximation for float16 softmax helpers.
@@ -731,13 +744,13 @@ __STATIC_INLINE float16_t arm_nn_softmax_exp_taylor_f16(float16_t x)
     const float32_t t3 = (1.0f / 720.0f);
 
     const float32_t poly = t0 + t1 * r2 + t2 * r4 + t3 * r6;
-    return (float16_t)(poly * (float32_t)arm_nn_softmax_exp2i_f16(n));
+    return (float16_t)(poly * arm_nn_softmax_exp2i_wide_f16(n));
 }
 
 /**
  * @brief LUT-based exp approximation for float16 softmax helpers.
  *
- * Splits `x * log2(e)` into an integer part handled by arm_nn_softmax_exp2i_f16() and a fractional part
+ * Splits `x * log2(e)` into an integer part handled by arm_nn_softmax_exp2i_wide_f16() and a fractional part
  * interpolated linearly from `arm_nn_exp2_lut_f16`, using float32 intermediates.
  *
  * @param[in] x Exponent argument. Clamped to `[-80, 80]` before evaluation.
@@ -758,6 +771,12 @@ __STATIC_INLINE float16_t arm_nn_softmax_exp_lut_f16(float16_t x)
     const int32_t n = arm_nn_softmax_floor_to_int_f16((float16_t)t);
     const float32_t f = t - (float32_t)n;
     const float32_t idx_f = f * exp2_lut_segments;
+    #if defined(__clang__) && defined(__ARM_FEATURE_MVE) && (__ARM_FEATURE_MVE & 2)
+    /* Prevent Clang's incorrect MVE fixed-point conversion fold
+     * (llvm-project#226591), without disabling auto-vectorization. */
+    const float32_t bounded_idx = ARM_NN_CLAMP(idx_f, (float32_t)exp2_lut_max_index, 0.0f);
+    const int32_t idx = (int32_t)bounded_idx;
+    #else
     int32_t idx = (int32_t)idx_f;
 
     if (idx < 0)
@@ -768,11 +787,12 @@ __STATIC_INLINE float16_t arm_nn_softmax_exp_lut_f16(float16_t x)
     {
         idx = exp2_lut_max_index;
     }
+    #endif
 
     const float32_t frac = idx_f - (float32_t)idx;
     const float32_t y0 = (float32_t)arm_nn_softmax_fp16_from_bits(arm_nn_exp2_lut_f16[idx]);
     const float32_t y1 = (float32_t)arm_nn_softmax_fp16_from_bits(arm_nn_exp2_lut_f16[idx + 1]);
-    return (float16_t)((y0 + (y1 - y0) * frac) * (float32_t)arm_nn_softmax_exp2i_f16(n));
+    return (float16_t)((y0 + (y1 - y0) * frac) * arm_nn_softmax_exp2i_wide_f16(n));
 }
 
 /**
@@ -1553,8 +1573,139 @@ arm_cmsis_nn_status arm_nn_gru_step_f32(const float32_t *data_in,
 
 /** Lanes of the float16 small-C kernel: the route takes fewer input channels than this. */
 #define ARM_NN_CONV_SMALL_C_F16_LANES (8)
-/** Lanes of the float32 small-C kernel: the route takes fewer input channels than this. */
+/** Lanes of the float32 small-C kernel; the general gate takes fewer input channels. */
 #define ARM_NN_CONV_SMALL_C_F32_LANES (4)
+
+/**
+ * @brief Identify an empty output request, after dimension validation.
+ * @param[in] output_dims Output tensor dimensions.
+ * @return true for zero batch or spatial extent.
+ */
+__STATIC_INLINE bool arm_nn_conv_flt_empty(const cmsis_nn_dims *output_dims)
+{
+    return output_dims->n == 0 || output_dims->h == 0 || output_dims->w == 0;
+}
+
+/**
+ * @brief Bound the signed coordinate intermediates for one nonempty output axis.
+ * @param[in] out Number of output positions.
+ * @param[in] kernel Number of filter taps.
+ * @param[in] stride Positive output step.
+ * @param[in] pad Nonnegative leading padding.
+ * @param[in] dilation Positive filter step.
+ * @return true when all coordinate intermediates fit int32.
+ */
+__STATIC_INLINE bool arm_nn_conv_flt_axis_ok(int32_t out, int32_t kernel, int32_t stride, int32_t pad, int32_t dilation)
+{
+    const int64_t step = ((int64_t)out - 1) * stride;
+    const int64_t tap = ((int64_t)kernel - 1) * dilation;
+    return step <= INT32_MAX && tap <= INT32_MAX && step - pad + tap <= INT32_MAX;
+}
+
+/**
+ * @brief Validate common float convolution metadata and accessed arithmetic.
+ * Output windows are explicit; generic kernels clip their out-of-input taps.
+ * @param[in] stride Spatial output steps.
+ * @param[in] padding Leading spatial padding.
+ * @param[in] dilation Spatial filter steps.
+ * @param[in] input_dims Input dimensions [N, H, W, C_IN].
+ * @param[in] filter_dims Filter dimensions [C_OUT, KH, KW, C_IN].
+ * @param[in] output_dims Output dimensions [N, H, W, C_OUT].
+ * @param[in] element_size Bytes per tensor element.
+ * @param[in] packed_lanes Channel block size and vector loop width for the dtype.
+ * @param[in] packed Whether the filter uses NT_N_PACKED storage.
+ * @return true for consistent metadata and representable nonempty work, or a valid empty request.
+ */
+__STATIC_INLINE bool arm_nn_conv_flt_dims_ok(const cmsis_nn_tile *stride,
+                                             const cmsis_nn_tile *padding,
+                                             const cmsis_nn_tile *dilation,
+                                             const cmsis_nn_dims *input_dims,
+                                             const cmsis_nn_dims *filter_dims,
+                                             const cmsis_nn_dims *output_dims,
+                                             size_t element_size,
+                                             int32_t packed_lanes,
+                                             bool packed)
+{
+    if (input_dims->n < 0 || input_dims->h < 0 || input_dims->w < 0 || input_dims->c <= 0 ||
+        output_dims->n != input_dims->n || output_dims->h < 0 || output_dims->w < 0 || output_dims->c <= 0 ||
+        filter_dims->n != output_dims->c || filter_dims->c != input_dims->c || filter_dims->h <= 0 ||
+        filter_dims->w <= 0 || stride->h <= 0 || stride->w <= 0 || dilation->h <= 0 || dilation->w <= 0 ||
+        padding->h < 0 || padding->w < 0)
+    {
+        return false;
+    }
+    if (arm_nn_conv_flt_empty(output_dims))
+    {
+        return true;
+    }
+    if (input_dims->h == 0 || input_dims->w == 0)
+    {
+        return false;
+    }
+    /* Leave room for the largest vector loop increment as well as packed channel rounding. */
+    const int64_t limit = ARM_NN_MIN((size_t)(INT32_MAX - 2 * packed_lanes), SIZE_MAX / element_size);
+    const int64_t input_hw = (int64_t)input_dims->h * input_dims->w;
+    const int64_t output_hw = (int64_t)output_dims->h * output_dims->w;
+    const int64_t filter_hw = (int64_t)filter_dims->h * filter_dims->w;
+    if (input_hw > limit || output_hw > limit || filter_hw > limit)
+    {
+        return false;
+    }
+    const int64_t input_len = input_hw * input_dims->c;
+    const int64_t output_len = output_hw * output_dims->c;
+    const int64_t patch_len = filter_hw * input_dims->c;
+    if (input_len > limit || output_len > limit || patch_len > limit || output_dims->c > limit)
+    {
+        return false;
+    }
+    const int64_t filter_c =
+        packed ? ((int64_t)output_dims->c + packed_lanes - 1) / packed_lanes * packed_lanes : output_dims->c;
+    return input_len * input_dims->n <= limit && output_len * output_dims->n <= limit &&
+        patch_len * filter_c <= limit &&
+        arm_nn_conv_flt_axis_ok(output_dims->h, filter_dims->h, stride->h, padding->h, dilation->h) &&
+        arm_nn_conv_flt_axis_ok(output_dims->w, filter_dims->w, stride->w, padding->w, dilation->w);
+}
+
+/**
+ * @brief Check window coverage for an unpadded 1x1 body that samples directly.
+ * @param[in] stride Spatial output steps.
+ * @param[in] input_dims Input dimensions.
+ * @param[in] output_dims Output dimensions.
+ * @return true when every requested sample lies inside the input.
+ */
+__STATIC_INLINE bool arm_nn_conv_flt_1x1_window_ok(const cmsis_nn_tile *stride,
+                                                   const cmsis_nn_dims *input_dims,
+                                                   const cmsis_nn_dims *output_dims)
+{
+    return stride->h > 0 && stride->w > 0 && output_dims->h > 0 && output_dims->w > 0 &&
+        ((int64_t)output_dims->h - 1) * stride->h < input_dims->h &&
+        ((int64_t)output_dims->w - 1) * stride->w < input_dims->w;
+}
+
+/**
+ * @brief Bound f32 small-C coordinates, including inactive lanes and contiguous-load spans.
+ * @param[in] stride Spatial output steps.
+ * @param[in] padding Leading spatial padding.
+ * @param[in] dilation Spatial filter steps.
+ * @param[in] input_dims Validated input dimensions.
+ * @param[in] filter_dims Validated filter dimensions.
+ * @param[in] output_dims Validated nonempty output dimensions.
+ * @return true when signed lane coordinates and products remain representable.
+ */
+__STATIC_INLINE bool arm_nn_conv_f32_small_c_coords_ok(const cmsis_nn_tile *stride,
+                                                       const cmsis_nn_tile *padding,
+                                                       const cmsis_nn_tile *dilation,
+                                                       const cmsis_nn_dims *input_dims,
+                                                       const cmsis_nn_dims *filter_dims,
+                                                       const cmsis_nn_dims *output_dims)
+{
+    const int64_t tap = ((int64_t)filter_dims->w - 1) * dilation->w;
+    const int64_t base = ((int64_t)output_dims->w - 1) * stride->w - padding->w;
+    const int64_t span = (int64_t)ARM_NN_CONV_SMALL_C_F32_LANES * stride->w - 1 + tap;
+    return stride->w > 0 && dilation->w > 0 && padding->w >= 0 && input_dims->c > 0 && span <= INT32_MAX &&
+        base + span <= INT32_MAX && (int64_t)padding->w * input_dims->c <= INT32_MAX &&
+        (base + span) * input_dims->c <= INT32_MAX;
+}
 
 /**
  * @brief The 1x1 route: a 1x1 filter with no padding.
@@ -1588,7 +1739,7 @@ __STATIC_INLINE bool arm_nn_conv_flt_is_1d_k(const cmsis_nn_tile *stride,
 {
     return input_dims->n == 1 && input_dims->h == 1 && output_dims->h == 1 && filter_dims->h == 1 &&
         filter_dims->w == k && stride->h == 1 && stride->w == 1 && padding->h == 0 && padding->w == 0 &&
-        dilation->h == 1 && dilation->w == 1;
+        dilation->h == 1 && dilation->w == 1 && output_dims->w > 0 && (int64_t)output_dims->w + k - 1 <= input_dims->w;
 }
 
 /**
@@ -1612,12 +1763,14 @@ __STATIC_INLINE bool arm_nn_conv_flt_is_1xn(const cmsis_nn_tile *stride,
                                             const cmsis_nn_dims *output_dims)
 {
     return input_dims->h == 1 && output_dims->h == 1 && filter_dims->h == 1 && filter_dims->w > 1 && stride->h == 1 &&
-        stride->w > 0 && padding->h == 0 && dilation->h == 1 && dilation->w == 1;
+        stride->w > 0 && padding->h == 0 && dilation->h == 1 && dilation->w == 1 &&
+        (int64_t)stride->w * input_dims->c <= INT32_MAX &&
+        ((int64_t)output_dims->w - 1) * stride->w - padding->w + filter_dims->w <= INT32_MAX;
 }
 
 /**
  * @brief The float16 small-C route: fewer input channels than ARM_NN_CONV_SMALL_C_F16_LANES, a positive output
- *        depth and width, a positive filter width, stride and dilation, a non-negative padding and input width, and
+ *        depth and width, a positive input width, filter width, stride and dilation, a non-negative padding, and
  *        every gather and scatter offset within 16 bits.
  * @param[in] stride      Spatial stride
  * @param[in] padding     Spatial zero-padding
@@ -1635,7 +1788,7 @@ __STATIC_INLINE bool arm_nn_conv_f16_is_small_c(const cmsis_nn_tile *stride,
                                                 const cmsis_nn_dims *output_dims)
 {
     if (input_dims->c <= 0 || input_dims->c >= ARM_NN_CONV_SMALL_C_F16_LANES || output_dims->c <= 0 ||
-        output_dims->w <= 0 || input_dims->w < 0 || padding->w < 0 || stride->w <= 0 || dilation->w <= 0 ||
+        output_dims->w <= 0 || input_dims->w <= 0 || padding->w < 0 || stride->w <= 0 || dilation->w <= 0 ||
         filter_dims->w <= 0)
     {
         return false;
@@ -1645,7 +1798,10 @@ __STATIC_INLINE bool arm_nn_conv_f16_is_small_c(const cmsis_nn_tile *stride,
      * non-negative int32_t terms stays below 2^63; it is compared with UINT16_MAX / C rather than multiplied by C. */
     const int64_t reach = (int64_t)input_dims->w + padding->w +
         (int64_t)(ARM_NN_CONV_SMALL_C_F16_LANES - 1) * stride->w + ((int64_t)filter_dims->w - 1) * dilation->w;
-    return reach <= UINT16_MAX / input_dims->c && output_dims->c <= UINT16_MAX / ARM_NN_CONV_SMALL_C_F16_LANES;
+    const int64_t output_reach = ((int64_t)output_dims->w - 1) * stride->w - padding->w +
+        (int64_t)(ARM_NN_CONV_SMALL_C_F16_LANES - 1) * stride->w + ((int64_t)filter_dims->w - 1) * dilation->w;
+    return ARM_NN_MAX(reach, output_reach) <= UINT16_MAX / input_dims->c &&
+        output_dims->c <= UINT16_MAX / ARM_NN_CONV_SMALL_C_F16_LANES;
 }
 
 /**
@@ -1659,6 +1815,22 @@ __STATIC_INLINE bool arm_nn_conv_f32_is_small_c(const cmsis_nn_dims *input_dims,
 {
     return input_dims->c > 0 && input_dims->c < ARM_NN_CONV_SMALL_C_F32_LANES && output_dims->c > 0 &&
         output_dims->w > 0;
+}
+
+/**
+ * @brief Additional float32 small-C region: 3x3 filters, four input channels and up to 8 output channels.
+ * @note Requires at least one full four-column output tile.
+ * @param[in] input_dims  Input dimensions [N, H, W, C_IN]
+ * @param[in] filter_dims Filter dimensions [C_OUT, HK, WK, C_IN]
+ * @param[in] output_dims Output dimensions [N, H, W, C_OUT]
+ * @return true if the shape uses the small-C route, subject to its coordinate bounds
+ */
+__STATIC_INLINE bool arm_nn_conv_f32_is_small_c_3x3(const cmsis_nn_dims *input_dims,
+                                                    const cmsis_nn_dims *filter_dims,
+                                                    const cmsis_nn_dims *output_dims)
+{
+    return input_dims->c == 4 && filter_dims->h == 3 && filter_dims->w == 3 && output_dims->c > 0 &&
+        output_dims->c <= 8 && output_dims->w >= ARM_NN_CONV_SMALL_C_F32_LANES;
 }
 
 /**

@@ -86,13 +86,19 @@
 # against identical kernel logic. Please do not "helpfully" extend this
 # matrix into helia-core-tester.yml.
 #
-# One narrow execution leg is the exception:
+# Narrow execution legs are the exception:
 # unity-f16-exec-gcc-floor.yml runs the f16 suites on the oldest gated
 # release, because that defect class is introduced by the assembler and
 # so cannot be seen without executing on a second compiler
 # (AmbiqAI/ns-cmsis-nn#427). It reads the matrix below and fails unless
 # its own pin is the oldest release in it, so moving the floor moves the
 # leg.
+#
+# The atfe job likewise executes named Unity suites against the archive
+# it has just built (scripts/check_atfe_unity_suites.py): the M4
+# word-copy paths, and on M55 the kernels whose results changed under
+# LLVM fast math (#852, #853, #854). Both run under the GNU 14.3 harness
+# on QEMU, a few seconds each; neither is the full numerics suite.
 #
 # cortex-m0 and the full three-CPU sweep stay in staticlib-dryrun.yml
 # (workflow_dispatch), which also packages and uploads SDK tarballs.
@@ -180,6 +186,16 @@ jobs:
             --outdir     "./output/gcc/$TARGET_CPU" \
             --enable-f32 \
             "${f16_flag[@]}"
+
+      - name: Compile the integer-only MVE library
+        if: matrix.target_cpu == 'cortex-m55' && matrix.gcc_release == '15.3.Rel1'
+        run: |
+          cmake -S . -B "${RUNNER_TEMP}/integer-mve" \
+            -DCMAKE_TOOLCHAIN_FILE=cmake/toolchain/arm-none-eabi-gcc.cmake \
+            -DNS_CMSIS_NN_TARGET_CPU=cortex-m55 \
+            -DCMAKE_C_FLAGS="-mcpu=cortex-m55+nomve.fp -mthumb -mfloat-abi=hard -Werror" \
+            -DARM_NN_ENABLE_F32=OFF -DARM_NN_ENABLE_F16=OFF
+          cmake --build "${RUNNER_TEMP}/integer-mve" --target cmsis-nn --parallel 4
 
       - name: Strict smoke link
         # smoke_staticlib.sh is strict by default: no --gc-sections and
@@ -534,6 +550,15 @@ jobs:
           fi
           echo "ATfE $GOT (pinned)"
 
+      - name: Check floating-point register access by architecture
+        if: matrix.target_cpu == 'cortex-m55'
+        env:
+          TOOLCHAIN_ROOT: ${{ steps.fetch_toolchain.outputs.toolchain_root }}
+        run: |
+          python3 scripts/check_fp_control_arch.py \
+            --cc "${TOOLCHAIN_ROOT}/bin/clang" \
+            --output "${RUNNER_TEMP}/fp-control-arch"
+
       - name: Build static library
         env:
           TOOLCHAIN_ROOT: ${{ steps.fetch_toolchain.outputs.toolchain_root }}
@@ -551,6 +576,62 @@ jobs:
             --enable-f32 \
             "${f16_flag[@]}"
 
+      - name: Check raw-bit selectors compare integer lanes
+        if: matrix.target_cpu == 'cortex-m55'
+        env:
+          TOOLCHAIN_ROOT: ${{ steps.fetch_toolchain.outputs.toolchain_root }}
+        run: |
+          # Reduce min/max and argmax/argmin order raw bits. An MVE float
+          # compare treats FP32 subnormals as zero, and LLVM emits one for a
+          # bit test on a float load (#853).
+          set -euo pipefail
+          lib="output/atfe/cortex-m55/libns-cmsis-nn-atfe-cortex-m55-${VERSION}.a"
+          dir="${RUNNER_TEMP}/raw-bit-selectors"
+          mkdir -p "$dir"
+          for kernel in reduce_max_f32 reduce_min_f32 reduce_max_f16 reduce_min_f16 \
+                        reduce_max_tflite_f32 reduce_min_tflite_f32 reduce_max_tflite_f16 reduce_min_tflite_f16 \
+                        argmax_f32 argmin_f32 argmax_f16 argmin_f16; do
+            obj="arm_${kernel}.c.obj"
+            "${TOOLCHAIN_ROOT}/bin/llvm-ar" x --output "$dir" "$lib" "$obj"
+            "${TOOLCHAIN_ROOT}/bin/llvm-objdump" -d "$dir/$obj" > "$dir/$obj.s"
+            grep -qE '^ +[0-9a-f]+:' "$dir/$obj.s"
+            # Bare, then-/else-predicated (vcmpt, vcmpe) and multi-slot VPT (vptte) forms.
+            if grep -E '\bv(cmp[te]?|pt[te]{0,3})\.f(16|32)\b' "$dir/$obj.s"; then
+              echo "::error title=Raw-bit selector float compare::$obj compares MVE lanes as floats (#853)." >&2
+              exit 1
+            fi
+            echo "$obj: integer compares only"
+          done
+
+      - name: Check auto-vectorized FP16 softmax index conversion
+        if: matrix.target_cpu == 'cortex-m55'
+        env:
+          TOOLCHAIN_ROOT: ${{ steps.fetch_toolchain.outputs.toolchain_root }}
+        run: |
+          # The shipped explicit-MVE archive does not exercise this LLVM fold.
+          # Keep the alternate source path covered without another library build (#864).
+          set -euo pipefail
+          dir="${RUNNER_TEMP}/softmax-f16-autovec"
+          mkdir -p "$dir"
+          for src in Source/SoftmaxFunctions/arm_softmax_f16.c \
+                     Source/NNSupportFunctions/arm_nn_gru_step_f16.c \
+                     Source/NNSupportFunctions/arm_nn_lstm_step_f16.c; do
+            name="$(basename "$src" .c)"
+            "${TOOLCHAIN_ROOT}/bin/clang" --target=arm-none-eabi \
+              -mcpu=cortex-m55 -mthumb -mfloat-abi=hard -Ofast \
+              -DARM_NN_ENABLE_F32=1 -DARM_NN_ENABLE_F16=1 \
+              -DARM_MATH_AUTOVECTORIZE -IInclude \
+              -c "$src" -o "$dir/$name.o"
+            "${TOOLCHAIN_ROOT}/bin/llvm-objdump" -d "$dir/$name.o" > "$dir/$name.s"
+            test -s "$dir/$name.s"
+            grep -qE '^ *[[:xdigit:]]+:' "$dir/$name.s"
+            if grep -E '\bvcvt[te]?\.[su]32\.f32[[:space:]]+q[0-9]+,[[:space:]]*q[0-9]+,[[:space:]]*#' "$dir/$name.s"; then
+              echo "::error title=Unsafe softmax index conversion::Auto-vectorized $name uses a fixed-point vector conversion (#864)." >&2
+              exit 1
+            fi
+            echo "$name: no fixed-point vector index conversion"
+          done
+
       - name: Strict smoke link
         env:
           TOOLCHAIN_ROOT: ${{ steps.fetch_toolchain.outputs.toolchain_root }}
@@ -561,6 +642,67 @@ jobs:
             --toolchain-root "$TOOLCHAIN_ROOT" \
             --library    "./output/atfe/${TARGET_CPU}/libns-cmsis-nn-atfe-${TARGET_CPU}-${VERSION}.a" \
             --outdir     "./output/atfe/${TARGET_CPU}/smoke"
+
+      - name: Install GNU harness compiler
+        uses: carlosperate/arm-none-eabi-gcc-action@v1
+        with:
+          release: '14.3.Rel1'
+
+      - name: Prepare ATfE Unity harness
+        run: |
+          set -euo pipefail
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends qemu-system-arm ruby
+          python3 -m venv "${RUNNER_TEMP}/unity-env"
+          "${RUNNER_TEMP}/unity-env/bin/pip" install pyserial termcolor
+          for dep in CMSIS_5 ethos-u-core-platform; do
+            pin_name=CMSIS_5_COMMIT
+            url_name=CMSIS_5_URL
+            if [[ "$dep" == ethos-u-core-platform ]]; then
+              pin_name=ETHOS_U_CORE_PLATFORM_COMMIT
+              url_name=ETHOS_U_CORE_PLATFORM_URL
+            fi
+            pin=$(sed -n "s/^${pin_name}=\"\(.*\)\"/\1/p" Tests/UnitTest/build_and_run_tests.sh)
+            test -n "$pin"
+            url=$(sed -n "s/^${url_name}=\"\(.*\)\"/\1/p" Tests/UnitTest/build_and_run_tests.sh)
+            test -n "$url"
+            git clone "$url" "${RUNNER_TEMP}/${dep}"
+            git -C "${RUNNER_TEMP}/${dep}" checkout --detach "$pin"
+          done
+          python3 scripts/tests/test_check_atfe_unity_suites.py
+
+      - name: Execute ATfE M4 word-copy suites
+        if: matrix.target_cpu == 'cortex-m4'
+        env:
+          TOOLCHAIN_ROOT: ${{ steps.fetch_toolchain.outputs.toolchain_root }}
+        run: |
+          set -euo pipefail
+          "$TOOLCHAIN_ROOT/bin/clang" --target=arm-none-eabi -mcpu=cortex-m4 \
+            -I Include -include arm_nnsupportfunctions.h -E -dM -x c /dev/null \
+            > "${RUNNER_TEMP}/word-copy-macros.txt"
+          grep -q '^#define ARM_NN_WORD_COPY' "${RUNNER_TEMP}/word-copy-macros.txt"
+          cmake -S Tests/UnitTest -B "${RUNNER_TEMP}/word-copy" \
+            -DPython3_EXECUTABLE="${RUNNER_TEMP}/unity-env/bin/python" \
+            -DCMAKE_TOOLCHAIN_FILE="${RUNNER_TEMP}/ethos-u-core-platform/cmake/toolchain/arm-none-eabi-gcc.cmake" \
+            -DTARGET_CPU=cortex-m4 -DCMSIS_PATH="${RUNNER_TEMP}/CMSIS_5" \
+            -DCMAKE_C_FLAGS=-DARM_NN_WORD_COPY \
+            -DCMSIS_NN_TEST_LIBRARY="${GITHUB_WORKSPACE}/output/atfe/cortex-m4/libns-cmsis-nn-atfe-cortex-m4-${VERSION}.a" \
+            -DARM_NN_ENABLE_F32=OFF -DARM_NN_ENABLE_F16=OFF
+          "${RUNNER_TEMP}/unity-env/bin/python" scripts/tests/test_unittest_targets_paths.py
+          python3 scripts/check_atfe_unity_suites.py --build "${RUNNER_TEMP}/word-copy" --suite-set m4-word-copy
+
+      - name: Execute ATfE M55 float suites
+        if: matrix.target_cpu == 'cortex-m55'
+        run: |
+          # Kernels whose results changed under LLVM fast math (#852, #853, #854).
+          set -euo pipefail
+          cmake -S Tests/UnitTest -B "${RUNNER_TEMP}/m55-float" \
+            -DPython3_EXECUTABLE="${RUNNER_TEMP}/unity-env/bin/python" \
+            -DCMAKE_TOOLCHAIN_FILE="${RUNNER_TEMP}/ethos-u-core-platform/cmake/toolchain/arm-none-eabi-gcc.cmake" \
+            -DTARGET_CPU=cortex-m55 -DCMSIS_PATH="${RUNNER_TEMP}/CMSIS_5" \
+            -DCMSIS_NN_TEST_LIBRARY="${GITHUB_WORKSPACE}/output/atfe/cortex-m55/libns-cmsis-nn-atfe-cortex-m55-${VERSION}.a" \
+            -DARM_NN_ENABLE_F32=ON -DARM_NN_ENABLE_F16=ON
+          python3 scripts/check_atfe_unity_suites.py --build "${RUNNER_TEMP}/m55-float" --suite-set m55-float
 
   armclang:
     name: armclang / cortex-m55 + cortex-m4

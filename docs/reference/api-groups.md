@@ -20,6 +20,46 @@ doxygen
   <a class="api-story-card" href="../getting-started/neuralspot-x.html"><span class="api-tag">integration</span><strong>How it fits HELIA</strong><em>Use heliaCORE through neuralSPOT-X or direct CMake/CMSIS-Pack flows depending on your firmware stack.</em></a>
 </div>
 
+## Selected argument and scratch contracts
+
+Pin the headers and implementation together. The following lookup describes
+source at [882fb6de](https://github.com/AmbiqAI/ns-cmsis-nn/tree/882fb6de74e6e054fb89860f28b794b63d71b040);
+it does not establish which release contains those corrections. The generated
+API reference supplies the complete signatures and parameter descriptions.
+
+| Entry | Checked behavior or caller precondition | Scratch and numerical limits |
+| --- | --- | --- |
+| `arm_dequantize_s8_f32`, `arm_dequantize_s16_f32` | Caller supplies `size >= 0` and an input-type zero point: s8 `[-128, 127]`, s16 `[-32768, 32767]`. These ranges are unchecked in this source; zero count makes no tensor accesses. | No scratch. Scale is unchecked. Subnormal/NaN scales and nondefault rounding or control settings can differ between MVE assembly and C; no bitwise equivalence or NaN-payload guarantee. |
+| `arm_convolve_nhwc_f32`, `arm_convolve_nhwc_f16`, `arm_convolve_nhwc_f16_acc16` | Common metadata and accessed-arithmetic validation rejects inconsistent dimensions, nonpositive stride/dilation, negative padding and unrepresentable work. Valid zero batch or output spatial extent succeeds without tensor access. Generic output windows clip out-of-input taps. | Use the matching dtype/entry sizer for the pinned build. Allocation lengths, pointer validity and aliasing remain caller responsibilities; these checks do not validate tensor contents or promise equal accumulation across routes. |
+| `arm_softmax_s16` | Negative extents and missing LUT pointers return `ARM_CMSIS_NN_ARG_ERROR`. With a valid parameter object and both LUT pointers, zero extents succeed without input/output access. Quantization parameters remain caller preconditions. | No separate scratch query; output temporarily holds exponential values. Shift 31 uses a wide product clamped to the exp-LUT domain; other shifts retain the requantizer's intermediate representability requirements. This is not a general long-row or singleton accuracy guarantee. |
+
+For float convolution, `arm_convolve_f32_get_buffer_size` and
+`arm_convolve_f16_get_buffer_size` take `(conv_params, input_dims, filter_dims,
+output_dims, layout)`; wrapper queries omit `layout` and use NHWC. Direct 1x1,
+1xN and patch-GEMM entries have their own queries. A zero query result can mean
+no workspace, invalid query arguments, or an unrepresentable byte count; it is
+not a validator. A positive result is a byte count for the selected build,
+not the weight-storage size. Query the entry that will actually run rather
+than copying a wrapper's buffer derivation into a binding.
+
+The dequantization call order is `(input, output, size, zero_point, scale)`:
+
+```c
+const int8_t input[3] = {-3, 0, 4};
+float output[3];
+arm_cmsis_nn_status status = arm_dequantize_s8_f32(input, output, 3, 0, 0.5f);
+/* With ordinary float settings: output is {-1.5f, 0.0f, 2.0f}. */
+```
+
+The negative-count/typed-zero-point rejection added in
+[PR #800](https://github.com/AmbiqAI/ns-cmsis-nn/pull/800) belongs to that
+candidate's source, not the snapshot above. Likewise, the row-broadcast
+pointer repair in [PR #799](https://github.com/AmbiqAI/ns-cmsis-nn/pull/799)
+and transpose geometry correction in
+[PR #803](https://github.com/AmbiqAI/ns-cmsis-nn/pull/803) must be present in
+the pinned implementation before a consumer relies on them. These selected
+contracts are not a complete inventory of public kernel checks.
+
 ## Browse By Kernel Family
 
 <div class="api-group-grid">

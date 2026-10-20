@@ -66,7 +66,7 @@ arm_cmsis_nn_status arm_depthwise_conv_s8_opt_channelwise(const cmsis_nn_context
     const int32_t output_ch = output_dims->c;
 
     /* Check depth multiplier is 1 */
-    if (input_ch != output_ch)
+    if (input_ch != output_ch || dw_conv_params->ch_mult != 1)
     {
         return ARM_CMSIS_NN_ARG_ERROR;
     }
@@ -90,6 +90,14 @@ arm_cmsis_nn_status arm_depthwise_conv_s8_opt_channelwise(const cmsis_nn_context
     /* Only the MVE path reads the per-channel weight sums. Diagnose a missing buffer here rather
        than dereferencing NULL and silently returning garbage output. */
     if (weight_sum_ctx->buf == NULL)
+    {
+        return ARM_CMSIS_NN_ARG_ERROR;
+    }
+#endif
+
+#if defined(ARM_MATH_DSP) && !defined(ARM_MATH_MVEI)
+    /* The DSP path keeps its channel and tap counters as uint16_t */
+    if (input_ch > UINT16_MAX || (int64_t)filter_dims->w * filter_dims->h > UINT16_MAX)
     {
         return ARM_CMSIS_NN_ARG_ERROR;
     }
@@ -203,14 +211,9 @@ arm_cmsis_nn_status arm_depthwise_conv_s8_opt_channelwise(const cmsis_nn_context
 
                 for (int i_ker = 0; i_ker < kernel_size; i_ker++)
                 {
-                    const int32x4_t ker_0 = vldrbq_s32(row_0);
-                    int32x4_t ip_0 = vldrbq_s32(col_0);
+                    const int32x4_t ker_0 = vldrbq_s32(row_0 + (size_t)i_ker * input_ch);
+                    int32x4_t ip_0 = vldrbq_s32(col_0 + i_ker * CH_IN_BLOCK_MVE);
                     out_0 += vmulq_s32(ip_0, ker_0);
-                    if (i_ker + 1 < kernel_size)
-                    {
-                        col_0 += CH_IN_BLOCK_MVE;
-                        row_0 += input_ch;
-                    }
                 }
                 out_0 += vldrwq_s32(&weight_sum_buf[offset]);
 
@@ -236,14 +239,9 @@ arm_cmsis_nn_status arm_depthwise_conv_s8_opt_channelwise(const cmsis_nn_context
 
                 for (int i_ker = 0; i_ker < kernel_size; i_ker++)
                 {
-                    const int32x4_t ker_0 = vldrbq_z_s32(row_0, p);
-                    int32x4_t ip_0 = vldrbq_z_s32(col_0, p);
+                    const int32x4_t ker_0 = vldrbq_z_s32(row_0 + (size_t)i_ker * input_ch, p);
+                    int32x4_t ip_0 = vldrbq_z_s32(col_0 + i_ker * CH_IN_BLOCK_MVE, p);
                     out_0 += vmulq_s32(ip_0, ker_0);
-                    if (i_ker + 1 < kernel_size)
-                    {
-                        col_0 += CH_IN_BLOCK_MVE;
-                        row_0 += input_ch;
-                    }
                 }
                 out_0 += vldrwq_z_s32(&weight_sum_buf[offset], p);
 
@@ -277,16 +275,18 @@ arm_cmsis_nn_status arm_depthwise_conv_s8_opt_channelwise(const cmsis_nn_context
 
     for (int i_out_y = 0; i_out_y < output_y; i_out_y++)
     {
-        const int16_t base_idx_y = (i_out_y * stride_y) - pad_y;
+        const int32_t base_idx_y = (i_out_y * stride_y) - pad_y;
         for (int i_out_x = 0; i_out_x < output_x; i_out_x++)
         {
-            const int16_t base_idx_x = (i_out_x * stride_x) - pad_x;
+            const int32_t base_idx_x = (i_out_x * stride_x) - pad_x;
 
             /* Out of bounds is only considered for the y axis as it provides a contiguous zero'ing opportunity than
                along the x axis */
-            const int ker_y_start = ARM_NN_MAX(0, -base_idx_y);
+            /* Rows above and below the input are zeros; both bounds stay in [0, kernel_y] so the fill writes
+               exactly kernel_y rows of the buffer */
+            const int ker_y_start = ARM_NN_MIN(ARM_NN_MAX(0, -base_idx_y), kernel_y);
             /* Condition for kernel end dimension: (base_idx_y + ker_y_end) < input_y */
-            const int ker_y_end = ARM_NN_MIN(kernel_y, input_y - base_idx_y);
+            const int ker_y_end = ARM_NN_MAX(ker_y_start, ARM_NN_MIN(kernel_y, input_y - base_idx_y));
 
             int32_t index = 0;
             if (ker_y_start != 0)

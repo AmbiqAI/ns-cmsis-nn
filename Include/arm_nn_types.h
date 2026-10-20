@@ -39,7 +39,7 @@
 
 // Version information
 #define NS_CMSIS_NN_VERSION_MAJOR (7)  /* x-release-please-major */
-#define NS_CMSIS_NN_VERSION_MINOR (41) /* x-release-please-minor */
+#define NS_CMSIS_NN_VERSION_MINOR (47) /* x-release-please-minor */
 #define NS_CMSIS_NN_VERSION_PATCH (0)  /* x-release-please-patch */
 
 /**
@@ -380,7 +380,8 @@ typedef struct
     const void *hidden_effective_bias; /**< Precomputed kernel_sum * lhs_offset*/
 
     const void *bias;
-    arm_nn_activation_type activation_type;
+    int32_t activation_type; /**< An arm_nn_activation_type value; fixed width so the layout is independent of the
+                                  compiler's enum size. */
 } cmsis_nn_lstm_gate;
 
 /** CMSIS-NN object for LSTM parameters*/

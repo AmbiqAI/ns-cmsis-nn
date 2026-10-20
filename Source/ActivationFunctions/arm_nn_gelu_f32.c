@@ -6,8 +6,8 @@
  * See LICENSE (root) or LICENSES/LicenseRef-Ambiq-Apollo-SDK.txt for the full text.
  */
 
+#include "Internal/arm_nn_activation_flt.h"
 #include "arm_nnfunctions.h"
-#include <math.h>
 
 #if ARM_NN_ENABLE_F32
 
@@ -20,9 +20,7 @@ arm_cmsis_nn_status arm_nn_gelu_f32(const float32_t *input, float32_t *output, i
 
     for (int32_t i = 0; i < size; ++i)
     {
-        const float32_t x = input[i];
-        /* erfc avoids cancellation in the negative tail of x * Phi(x). */
-        output[i] = 0.5f * x * erfcf(x * -0x1.6a09e6p-1f);
+        output[i] = arm_nn_gelu_scalar_f32(input[i]);
     }
     return ARM_CMSIS_NN_SUCCESS;
 }

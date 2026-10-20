@@ -62,3 +62,7 @@ void test_transpose_num_dims_out_of_range_arm_transpose_s8(void)
     transpose_num_dims_out_of_range_arm_transpose_s8();
 }
 void test_transpose_zero_extent_arm_transpose_s8(void) { transpose_zero_extent_arm_transpose_s8(); }
+void test_transpose_all_permutations_arm_transpose_s8(void) { transpose_all_permutations_arm_transpose_s8(); }
+void test_transpose_history_arm_transpose_s8(void) { transpose_history_arm_transpose_s8(); }
+void test_transpose_wide_arm_transpose_s8(void) { transpose_wide_arm_transpose_s8(); }
+void test_transpose_route_arm_transpose_s8(void) { transpose_route_arm_transpose_s8(); }

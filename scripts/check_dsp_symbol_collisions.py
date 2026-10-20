@@ -133,22 +133,12 @@
 # sets with or without the strip), so it is a free robustness margin
 # rather than a fix for an active failure.
 #
-# Coverage boundary: this is the DECLARED public API (488 symbols today),
-# not the full exported link surface. Two things beyond that boundary,
-# neither scanned:
-#   - Include/Internal/*.h itself declares 57 more symbols -- excluded by
-#     the scope decision above, not by oversight.
-#   - Source/**/*.c defines 25 more non-static (externally linked)
-#     symbols that no header, public or Internal, declares anywhere (e.g.
-#     arm_avg_pool_nhwc_f16, arm_mean_reduce_generic_s8 -- verified by a
-#     one-off extension of extract_symbols() to Source/, not something
-#     this script checks on every run). They compile clean because C
-#     lets a definition serve as its own prototype for later use in the
-#     same file, and today each is only ever called from the file that
-#     defines it -- but "compiles clean" and "not externally linked" are
-#     different properties, and nothing here verifies the second one. A
-#     collision hiding among those ~82 symbols would be exactly as fatal
-#     as one in the declared 488, and entirely invisible to this guard.
+# Coverage boundary: this checks the declared public API, not every exported
+# symbol. Include/Internal/*.h declarations are outside its scope. The
+# mean/reduce s8/s16 helpers remain externally linked without header
+# declarations (tracked in #728); the cross-TU rsub helpers are declared in
+# Include/Internal/arm_nn_rsub_scalar.h. Source definitions without a public
+# declaration are not scanned by this guard.
 #
 # Data file: scripts/data/cmsis_dsp_symbols.txt is a checked-in snapshot of
 # CMSIS-DSP's public symbol surface, extracted with extract_symbols() below

@@ -83,30 +83,22 @@ arm_cmsis_nn_status arm_nn_depthwise_conv_nt_t_s8(const int32_t *weight_sum_buf,
         const int8_t *lhs_2 = lhs + (row_x_col * CH_IN_BLOCK_MVE * 2) + offset;
         const int8_t *lhs_3 = lhs + (row_x_col * CH_IN_BLOCK_MVE * 3) + offset;
 
+        /* Index only the taps read: no final pointer beyond the last channel slice and no per-tap guard. */
         for (int i_row_x_col = 0; i_row_x_col < row_x_col; i_row_x_col++)
         {
-            const int32x4_t ker_0 = vldrbq_s32(rhs_0);
+            const int32x4_t ker_0 = vldrbq_s32(rhs_0 + (size_t)i_row_x_col * total_ch);
 
-            int32x4_t ip_0 = vldrbq_s32(lhs_0);
+            int32x4_t ip_0 = vldrbq_s32(lhs_0 + i_row_x_col * CH_IN_BLOCK_MVE);
             out_0 += vmulq_s32(ip_0, ker_0);
 
-            int32x4_t ip_1 = vldrbq_s32(lhs_1);
+            int32x4_t ip_1 = vldrbq_s32(lhs_1 + i_row_x_col * CH_IN_BLOCK_MVE);
             out_1 += vmulq_s32(ip_1, ker_0);
 
-            int32x4_t ip_2 = vldrbq_s32(lhs_2);
+            int32x4_t ip_2 = vldrbq_s32(lhs_2 + i_row_x_col * CH_IN_BLOCK_MVE);
             out_2 += vmulq_s32(ip_2, ker_0);
 
-            int32x4_t ip_3 = vldrbq_s32(lhs_3);
+            int32x4_t ip_3 = vldrbq_s32(lhs_3 + i_row_x_col * CH_IN_BLOCK_MVE);
             out_3 += vmulq_s32(ip_3, ker_0);
-
-            if (i_row_x_col + 1 < row_x_col)
-            {
-                lhs_0 += CH_IN_BLOCK_MVE;
-                lhs_1 += CH_IN_BLOCK_MVE;
-                lhs_2 += CH_IN_BLOCK_MVE;
-                lhs_3 += CH_IN_BLOCK_MVE;
-                rhs_0 += total_ch;
-            }
         }
 
         const int32x4_t mult = vldrwq_s32(out_mult);
@@ -159,28 +151,19 @@ arm_cmsis_nn_status arm_nn_depthwise_conv_nt_t_s8(const int32_t *weight_sum_buf,
 
         for (int i_row_x_col = 0; i_row_x_col < row_x_col; i_row_x_col++)
         {
-            const int32x4_t ker_0 = vldrbq_z_s32(rhs_0, p);
+            const int32x4_t ker_0 = vldrbq_z_s32(rhs_0 + (size_t)i_row_x_col * total_ch, p);
 
-            int32x4_t ip_0 = vldrbq_z_s32(lhs_0, p);
+            int32x4_t ip_0 = vldrbq_z_s32(lhs_0 + i_row_x_col * CH_IN_BLOCK_MVE, p);
             out_0 += vmulq_s32(ip_0, ker_0);
 
-            int32x4_t ip_1 = vldrbq_z_s32(lhs_1, p);
+            int32x4_t ip_1 = vldrbq_z_s32(lhs_1 + i_row_x_col * CH_IN_BLOCK_MVE, p);
             out_1 += vmulq_s32(ip_1, ker_0);
 
-            int32x4_t ip_2 = vldrbq_z_s32(lhs_2, p);
+            int32x4_t ip_2 = vldrbq_z_s32(lhs_2 + i_row_x_col * CH_IN_BLOCK_MVE, p);
             out_2 += vmulq_s32(ip_2, ker_0);
 
-            int32x4_t ip_3 = vldrbq_z_s32(lhs_3, p);
+            int32x4_t ip_3 = vldrbq_z_s32(lhs_3 + i_row_x_col * CH_IN_BLOCK_MVE, p);
             out_3 += vmulq_s32(ip_3, ker_0);
-
-            if (i_row_x_col + 1 < row_x_col)
-            {
-                lhs_0 += CH_IN_BLOCK_MVE;
-                lhs_1 += CH_IN_BLOCK_MVE;
-                lhs_2 += CH_IN_BLOCK_MVE;
-                lhs_3 += CH_IN_BLOCK_MVE;
-                rhs_0 += total_ch;
-            }
         }
 
         const int32x4_t mult = vldrwq_z_s32(out_mult, p);

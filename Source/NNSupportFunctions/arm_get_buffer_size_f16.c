@@ -60,6 +60,12 @@ int32_t arm_depthwise_conv_f16_get_buffer_size(const cmsis_nn_dw_conv_params_f16
     if (layout == ARM_NN_LAYOUT_NHWC && dw_conv_params->ch_mult != 1 && input_dims->c == 1 &&
         output_dims->c >= CONVERT_DW_CONV_WITH_ONE_INPUT_CH_AND_OUTPUT_CH_ABOVE_THRESHOLD)
     {
+        const int64_t min_size = arm_nn_dw_f16_cin1_min_ctx_size(filter_dims, output_dims);
+        if (min_size <= 0 || min_size > INT32_MAX)
+        {
+            return 0;
+        }
+
         const cmsis_nn_conv_params_f16 conv_params = {.stride = dw_conv_params->stride,
                                                       .padding = dw_conv_params->padding,
                                                       .dilation = dw_conv_params->dilation,
@@ -68,14 +74,9 @@ int32_t arm_depthwise_conv_f16_get_buffer_size(const cmsis_nn_dw_conv_params_f16
             .n = output_dims->c, .h = filter_dims->h, .w = filter_dims->w, .c = input_dims->c};
         const int32_t conv_buf_size =
             arm_convolve_wrapper_f16_get_buffer_size(&conv_params, input_dims, &conv_filter_dims, output_dims);
-        size_t filter_bytes = (size_t)ARM_NN_ROUND_UP(output_dims->c, 8);
-
-        if (!arm_nn_checked_size_mul(filter_bytes, (size_t)filter_dims->h, &filter_bytes) ||
-            !arm_nn_checked_size_mul(filter_bytes, (size_t)filter_dims->w, &filter_bytes) ||
-            !arm_nn_checked_size_mul(filter_bytes, sizeof(float16_t), &filter_bytes))
-        {
-            return 0;
-        }
+        /* Reuse the bounded packed-filter calculation; retain larger allocations for multiple patch rows. */
+        const int64_t patch_bytes = (int64_t)filter_dims->h * filter_dims->w * sizeof(float16_t);
+        size_t filter_bytes = (size_t)(min_size - patch_bytes);
 
         if (conv_buf_size > 0)
         {
@@ -86,6 +87,10 @@ int32_t arm_depthwise_conv_f16_get_buffer_size(const cmsis_nn_dw_conv_params_f16
             filter_bytes += (size_t)conv_buf_size;
         }
 
+        if (filter_bytes < (size_t)min_size)
+        {
+            filter_bytes = (size_t)min_size;
+        }
         return arm_nn_size_to_i32_or_zero(filter_bytes);
     }
     #endif
@@ -125,7 +130,8 @@ int32_t arm_convolve_f16_get_buffer_size(const cmsis_nn_conv_params_f16 *conv_pa
         return 0;
     }
 
-    if (arm_nn_conv_flt_is_1x1(&conv_params->padding, filter_dims))
+    if (arm_nn_conv_flt_is_1x1(&conv_params->padding, filter_dims) &&
+        arm_nn_conv_flt_1x1_window_ok(&conv_params->stride, input_dims, output_dims))
     {
         return arm_convolve_1x1_f16_get_buffer_size(conv_params, input_dims, filter_dims, output_dims, layout);
     }
@@ -190,7 +196,8 @@ int32_t arm_convolve_1x1_f16_get_buffer_size(const cmsis_nn_conv_params_f16 *con
     }
 
     if (layout != ARM_NN_LAYOUT_NHWC || filter_dims->h != 1 || filter_dims->w != 1 || conv_params->padding.h != 0 ||
-        conv_params->padding.w != 0 || input_dims->c <= 0)
+        conv_params->padding.w != 0 || input_dims->c <= 0 ||
+        !arm_nn_conv_flt_1x1_window_ok(&conv_params->stride, input_dims, output_dims))
     {
         return 0;
     }
@@ -225,7 +232,9 @@ int32_t arm_convolve_1_x_n_f16_get_buffer_size(const cmsis_nn_conv_params_f16 *c
     if (layout != ARM_NN_LAYOUT_NHWC || input_dims->h != 1 || output_dims->h != 1 || filter_dims->h != 1 ||
         filter_dims->w <= 1 || conv_params->stride.h != 1 || conv_params->stride.w <= 0 ||
         conv_params->padding.h != 0 || conv_params->dilation.h != 1 || conv_params->dilation.w != 1 ||
-        input_dims->c <= 0 || input_dims->c != filter_dims->c)
+        input_dims->c <= 0 || input_dims->c != filter_dims->c ||
+        !arm_nn_conv_flt_is_1xn(
+            &conv_params->stride, &conv_params->padding, &conv_params->dilation, input_dims, filter_dims, output_dims))
     {
         return 0;
     }

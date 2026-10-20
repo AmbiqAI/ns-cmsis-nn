@@ -18,6 +18,7 @@
  */
 
 #include <arm_nnfunctions.h>
+#include <arm_nnsupportfunctions.h>
 #include <inttypes.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -86,6 +87,7 @@ void dw_int16xint8_fast_arm_depthwise_conv_fast_s16(void)
     int buf_size = arm_depthwise_conv_fast_s16_get_buffer_size(&input_dims, &filter_dims);
     ctx.buf = malloc(buf_size);
 
+    bias_dims = (cmsis_nn_dims){1, 1, 1, output_dims.c};
     arm_cmsis_nn_status result = arm_depthwise_conv_fast_s16(&ctx,
                                                              &dw_conv_params,
                                                              &quant_params,
@@ -183,6 +185,7 @@ void dw_int16xint8_fast_spill_arm_depthwise_conv_fast_s16(void)
     int buf_size = arm_depthwise_conv_fast_s16_get_buffer_size(&input_dims, &filter_dims);
     ctx.buf = malloc(buf_size);
 
+    bias_dims = (cmsis_nn_dims){1, 1, 1, output_dims.c};
     arm_cmsis_nn_status result = arm_depthwise_conv_fast_s16(&ctx,
                                                              &dw_conv_params,
                                                              &quant_params,
@@ -279,6 +282,7 @@ void dw_int16xint8_fast_stride_arm_depthwise_conv_fast_s16(void)
     int buf_size = arm_depthwise_conv_fast_s16_get_buffer_size(&input_dims, &filter_dims);
     ctx.buf = malloc(buf_size);
 
+    bias_dims = (cmsis_nn_dims){1, 1, 1, output_dims.c};
     arm_cmsis_nn_status result = arm_depthwise_conv_fast_s16(&ctx,
                                                              &dw_conv_params,
                                                              &quant_params,
@@ -376,6 +380,7 @@ void dw_int16xint8_fast_null_bias_arm_depthwise_conv_fast_s16(void)
     int buf_size = arm_depthwise_conv_fast_s16_get_buffer_size(&input_dims, &filter_dims);
     ctx.buf = malloc(buf_size);
 
+    bias_dims = (cmsis_nn_dims){1, 1, 1, output_dims.c};
     arm_cmsis_nn_status result = arm_depthwise_conv_fast_s16(&ctx,
                                                              &dw_conv_params,
                                                              &quant_params,
@@ -473,6 +478,7 @@ void dw_int16xint8_fast_stride_null_bias_arm_depthwise_conv_fast_s16(void)
     int buf_size = arm_depthwise_conv_fast_s16_get_buffer_size(&input_dims, &filter_dims);
     ctx.buf = malloc(buf_size);
 
+    bias_dims = (cmsis_nn_dims){1, 1, 1, output_dims.c};
     arm_cmsis_nn_status result = arm_depthwise_conv_fast_s16(&ctx,
                                                              &dw_conv_params,
                                                              &quant_params,
@@ -570,6 +576,7 @@ void dw_int16xint8_fast_spill_null_bias_arm_depthwise_conv_fast_s16(void)
     int buf_size = arm_depthwise_conv_fast_s16_get_buffer_size(&input_dims, &filter_dims);
     ctx.buf = malloc(buf_size);
 
+    bias_dims = (cmsis_nn_dims){1, 1, 1, output_dims.c};
     arm_cmsis_nn_status result = arm_depthwise_conv_fast_s16(&ctx,
                                                              &dw_conv_params,
                                                              &quant_params,
@@ -667,6 +674,7 @@ void dw_int16xint8_fast_test_bias_arm_depthwise_conv_fast_s16(void)
     int buf_size = arm_depthwise_conv_fast_s16_get_buffer_size(&input_dims, &filter_dims);
     ctx.buf = malloc(buf_size);
 
+    bias_dims = (cmsis_nn_dims){1, 1, 1, output_dims.c};
     arm_cmsis_nn_status result = arm_depthwise_conv_fast_s16(&ctx,
                                                              &dw_conv_params,
                                                              &quant_params,
@@ -764,6 +772,7 @@ void dw_int16xint8_fast_multiple_batches_uneven_buffers_arm_depthwise_conv_fast_
     int buf_size = arm_depthwise_conv_fast_s16_get_buffer_size(&input_dims, &filter_dims);
     ctx.buf = malloc(buf_size);
 
+    bias_dims = (cmsis_nn_dims){1, 1, 1, output_dims.c};
     arm_cmsis_nn_status result = arm_depthwise_conv_fast_s16(&ctx,
                                                              &dw_conv_params,
                                                              &quant_params,
@@ -862,6 +871,7 @@ void dw_int16xint8_fast_multiple_batches_uneven_buffers_null_bias_arm_depthwise_
     int buf_size = arm_depthwise_conv_fast_s16_get_buffer_size(&input_dims, &filter_dims);
     ctx.buf = malloc(buf_size);
 
+    bias_dims = (cmsis_nn_dims){1, 1, 1, output_dims.c};
     arm_cmsis_nn_status result = arm_depthwise_conv_fast_s16(&ctx,
                                                              &dw_conv_params,
                                                              &quant_params,
@@ -1237,6 +1247,176 @@ void dilated_1d_route_arm_depthwise_conv_fast_s16(void)
     TEST_ASSERT_EQUAL_INT16_ARRAY(dil_reference, dil_output, len * ch);
 }
 
+/* An output size times the stride past INT32_MAX / 2 is an argument error on every build, through the fast entry
+   and through the wrapper, with nothing written: the MVE kernel forms its tap indices in int32_t. */
+void stride_reach_arg_check_arm_depthwise_conv_fast_s16(void)
+{
+    const cmsis_nn_dims filter_w = {1, 1, 2, 1}, filter_h = {1, 2, 1, 1}, bias_dims = {1, 1, 1, 1};
+    const cmsis_nn_dims input_w = {1, 1, 4, 1}, input_h = {1, 4, 1, 1};
+    const cmsis_nn_dims output_w = {1, 1, 40000, 1}, output_h = {1, 40000, 1, 1};
+    const cmsis_nn_per_channel_quant_params quant = {dil_mult, dil_shift};
+    const cmsis_nn_context ctx = {dil_scratch, (int32_t)sizeof(dil_scratch)};
+    for (int32_t axis = 0; axis < 2; axis++)
+    {
+        cmsis_nn_dw_conv_params params = {.input_offset = 0,
+                                          .output_offset = 0,
+                                          .ch_mult = 1,
+                                          .stride = {1, 1},
+                                          .padding = {0, 0},
+                                          .dilation = {1, 1},
+                                          .activation = {-32768, 32767}};
+        if (axis == 0)
+        {
+            params.stride.w = UINT16_MAX;
+            params.padding.w = INT16_MAX + 1;
+        }
+        else
+        {
+            params.stride.h = UINT16_MAX;
+            params.padding.h = INT16_MAX + 1;
+        }
+        const cmsis_nn_dims *input_dims = axis == 0 ? &input_w : &input_h;
+        const cmsis_nn_dims *filter_dims = axis == 0 ? &filter_w : &filter_h;
+        const cmsis_nn_dims *output_dims = axis == 0 ? &output_w : &output_h;
+        for (int32_t route = 0; route < 2; route++)
+        {
+            dil_output[0] = 0x5A5A;
+            const arm_cmsis_nn_status status = route == 0
+                ? arm_depthwise_conv_fast_s16(&ctx,
+                                              &params,
+                                              &quant,
+                                              input_dims,
+                                              dil_input,
+                                              filter_dims,
+                                              dil_filter,
+                                              &bias_dims,
+                                              dil_bias,
+                                              output_dims,
+                                              dil_output)
+                : arm_depthwise_conv_wrapper_s16(&ctx,
+                                                 &params,
+                                                 &quant,
+                                                 input_dims,
+                                                 dil_input,
+                                                 filter_dims,
+                                                 dil_filter,
+                                                 &bias_dims,
+                                                 dil_bias,
+                                                 output_dims,
+                                                 dil_output);
+            TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR, status);
+            TEST_ASSERT_EQUAL_INT16(0x5A5A, dil_output[0]);
+        }
+    }
+}
+
+/* A 65,535 x 65,535 filter is past the fast kernel's tap limit although its tap count wraps a 32-bit int: an argument
+   error through the fast entry and through the wrapper, and the wrapper's sizers route it to arm_depthwise_conv_s16(),
+   which needs no buffer. The layer has no outputs, so only the checks reject it. */
+void tap_count_arg_check_arm_depthwise_conv_fast_s16(void)
+{
+    const cmsis_nn_dims input_dims = {1, 1, 1, 1}, filter_dims = {1, UINT16_MAX, UINT16_MAX, 1},
+                        bias_dims = {1, 1, 1, 1}, output_dims = {1, 1, 0, 1};
+    const cmsis_nn_dw_conv_params params = {.input_offset = 0,
+                                            .output_offset = 0,
+                                            .ch_mult = 1,
+                                            .stride = {1, 1},
+                                            .padding = {0, 0},
+                                            .dilation = {1, 1},
+                                            .activation = {-32768, 32767}};
+    const cmsis_nn_per_channel_quant_params quant = {dil_mult, dil_shift};
+    const cmsis_nn_context ctx = {dil_scratch, (int32_t)sizeof(dil_scratch)};
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR,
+                      arm_depthwise_conv_fast_s16(&ctx,
+                                                  &params,
+                                                  &quant,
+                                                  &input_dims,
+                                                  dil_input,
+                                                  &filter_dims,
+                                                  dil_filter,
+                                                  &bias_dims,
+                                                  dil_bias,
+                                                  &output_dims,
+                                                  dil_output));
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR,
+                      arm_depthwise_conv_wrapper_s16(&ctx,
+                                                     &params,
+                                                     &quant,
+                                                     &input_dims,
+                                                     dil_input,
+                                                     &filter_dims,
+                                                     dil_filter,
+                                                     &bias_dims,
+                                                     dil_bias,
+                                                     &output_dims,
+                                                     dil_output));
+    TEST_ASSERT_EQUAL(
+        0, arm_depthwise_conv_wrapper_s16_get_buffer_size_dsp(&params, &input_dims, &filter_dims, &output_dims));
+    TEST_ASSERT_EQUAL(
+        0, arm_depthwise_conv_wrapper_s16_get_buffer_size_mve(&params, &input_dims, &filter_dims, &output_dims));
+}
+
+/* The bounds of arm_depthwise_conv_s16() hold on every path of arm_depthwise_conv_fast_s16(): a stride of 0 or a
+   negative filter width is an argument error through the fast entry and through the wrapper, with nothing written. */
+void shared_bounds_arg_check_arm_depthwise_conv_fast_s16(void)
+{
+    const cmsis_nn_dims input_dims = {1, 4, 8, 4}, bias_dims = {1, 1, 1, 4}, output_dims = {1, 4, 8, 4};
+    const cmsis_nn_per_channel_quant_params quant = {dil_mult, dil_shift};
+    const cmsis_nn_context ctx = {dil_scratch, (int32_t)sizeof(dil_scratch)};
+    for (int32_t c = 0; c < 3; c++)
+    {
+        cmsis_nn_dw_conv_params params = {.input_offset = 0,
+                                          .output_offset = 0,
+                                          .ch_mult = 1,
+                                          .stride = {1, 1},
+                                          .padding = {1, 1},
+                                          .dilation = {1, 1},
+                                          .activation = {-32768, 32767}};
+        cmsis_nn_dims filter_dims = {1, 3, 3, 4};
+        if (c == 0)
+        {
+            params.stride.w = 0;
+        }
+        else if (c == 1)
+        {
+            params.stride.h = 0;
+        }
+        else
+        {
+            filter_dims.w = -4;
+        }
+        for (int32_t route = 0; route < 2; route++)
+        {
+            dil_output[0] = 0x5A5A;
+            const arm_cmsis_nn_status status = route == 0
+                ? arm_depthwise_conv_fast_s16(&ctx,
+                                              &params,
+                                              &quant,
+                                              &input_dims,
+                                              dil_input,
+                                              &filter_dims,
+                                              dil_filter,
+                                              &bias_dims,
+                                              dil_bias,
+                                              &output_dims,
+                                              dil_output)
+                : arm_depthwise_conv_wrapper_s16(&ctx,
+                                                 &params,
+                                                 &quant,
+                                                 &input_dims,
+                                                 dil_input,
+                                                 &filter_dims,
+                                                 dil_filter,
+                                                 &bias_dims,
+                                                 dil_bias,
+                                                 &output_dims,
+                                                 dil_output);
+            TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR, status);
+            TEST_ASSERT_EQUAL_INT16(0x5A5A, dil_output[0]);
+        }
+    }
+}
+
 /* arm_depthwise_conv_fast_s16() steps only the horizontal tap index by dilation, so it rejects vertical dilation
    and a non-positive horizontal dilation instead of computing a wrong result. */
 void dilation_arg_check_arm_depthwise_conv_fast_s16(void)
@@ -1267,6 +1447,47 @@ void dilation_arg_check_arm_depthwise_conv_fast_s16(void)
                                                       dil_bias,
                                                       &output_dims,
                                                       dil_output));
+    }
+}
+
+/* A channel multiplier other than 1 is an argument error with nothing written, even when the input and output
+   depths match. */
+void ch_mult_arg_check_arm_depthwise_conv_fast_s16(void)
+{
+    const cmsis_nn_dims input_dims = {1, 4, 4, 4}, filter_dims = {1, 3, 3, 4}, bias_dims = {1, 1, 1, 4},
+                        output_dims = {1, 4, 4, 4};
+    const cmsis_nn_per_channel_quant_params quant = {dil_mult, dil_shift};
+    const cmsis_nn_context ctx = {dil_scratch, (int32_t)sizeof(dil_scratch)};
+    static int16_t output[2 * 4 * 4 * 4];
+    for (int32_t ch_mult = 2; ch_mult <= 3; ch_mult++)
+    {
+        const cmsis_nn_dw_conv_params params = {.input_offset = 0,
+                                                .output_offset = 0,
+                                                .ch_mult = ch_mult,
+                                                .stride = {1, 1},
+                                                .padding = {1, 1},
+                                                .dilation = {1, 1},
+                                                .activation = {-32768, 32767}};
+        for (size_t i = 0; i < sizeof(output) / sizeof(output[0]); i++)
+        {
+            output[i] = 0x5A5A;
+        }
+        TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR,
+                          arm_depthwise_conv_fast_s16(&ctx,
+                                                      &params,
+                                                      &quant,
+                                                      &input_dims,
+                                                      dil_input,
+                                                      &filter_dims,
+                                                      dil_filter,
+                                                      &bias_dims,
+                                                      dil_bias,
+                                                      &output_dims,
+                                                      output));
+        for (size_t i = 0; i < sizeof(output) / sizeof(output[0]); i++)
+        {
+            TEST_ASSERT_EQUAL_INT16(0x5A5A, output[i]);
+        }
     }
 }
 
@@ -1372,5 +1593,314 @@ void operand_bounds_arm_depthwise_conv_fast_s16(void)
             }
         }
     }
+#endif
+}
+
+/*
+ * The DSP path keeps the first tap index of an output as int16_t (#727), and builds without DSP run
+ * arm_depthwise_conv_s16(), which does too: there 32,769 outputs in W or H, or a padding of 32,768, is an argument
+ * error with the output untouched. The MVE path indexes in int32_t and runs those layers. 32,767 outputs in W or H run
+ * on every build.
+ */
+#define WIDE_DW_FAST_MAX 32769
+static int16_t wide_fast_input[WIDE_DW_FAST_MAX];
+static int16_t wide_fast_output[WIDE_DW_FAST_MAX];
+
+static void wide_dw_fast_s16_case(int32_t w, int32_t h, int32_t pad_w, int32_t pad_h, arm_cmsis_nn_status expected)
+{
+    static const int8_t weight[1] = {3};
+    static const int64_t bias[1] = {-7};
+    static int32_t multiplier[1] = {1 << 30};
+    static int32_t shift[1] = {0};
+    const cmsis_nn_dw_conv_params params = {0, 0, 1, {1, 1}, {pad_w, pad_h}, {1, 1}, {-32768, 32767}};
+    const cmsis_nn_per_channel_quant_params quant_params = {multiplier, shift};
+    const cmsis_nn_dims input_dims = {1, h, w, 1};
+    const cmsis_nn_dims filter_dims = {1, 1, 1, 1};
+    const cmsis_nn_dims bias_dims = {1, 1, 1, 1};
+    const cmsis_nn_dims output_dims = {1, h, w, 1};
+    const int32_t buf_size = arm_depthwise_conv_fast_s16_get_buffer_size(&input_dims, &filter_dims);
+    TEST_ASSERT_TRUE(buf_size >= 0 && buf_size <= (int32_t)sizeof(dil_scratch));
+    TEST_ASSERT_TRUE(w * h <= WIDE_DW_FAST_MAX);
+    const cmsis_nn_context ctx = {dil_scratch, buf_size};
+
+    for (int32_t i = 0; i < w * h; i++)
+    {
+        wide_fast_input[i] = (int16_t)(i % 2001 - 1000);
+    }
+    memset(wide_fast_output, 0x55, sizeof(wide_fast_output));
+    TEST_ASSERT_EQUAL(expected,
+                      arm_depthwise_conv_fast_s16(&ctx,
+                                                  &params,
+                                                  &quant_params,
+                                                  &input_dims,
+                                                  wide_fast_input,
+                                                  &filter_dims,
+                                                  weight,
+                                                  &bias_dims,
+                                                  bias,
+                                                  &output_dims,
+                                                  wide_fast_output));
+    if (expected != ARM_CMSIS_NN_SUCCESS)
+    {
+        TEST_ASSERT_EQUAL_INT16(0x5555, wide_fast_output[0]);
+        return;
+    }
+    const int32_t reduced_multiplier = REDUCE_MULTIPLIER(multiplier[0]);
+    for (int32_t y = 0; y < h; y++)
+    {
+        for (int32_t x = 0; x < w; x++)
+        {
+            /* Output (x, y) reads input (x - pad_w, y - pad_h), or the zero padding */
+            const int32_t in = (x >= pad_w && y >= pad_h) ? wide_fast_input[(y - pad_h) * w + (x - pad_w)] : 0;
+            const int32_t expected_xy = arm_nn_requantize_s64((int64_t)in * 3 - 7, reduced_multiplier, 0);
+            TEST_ASSERT_EQUAL_INT16(expected_xy, wide_fast_output[y * w + x]);
+        }
+    }
+}
+
+void tap_index_arm_depthwise_conv_fast_s16(void)
+{
+#if defined(ARM_MATH_MVEI) && !defined(ARM_MATH_AUTOVECTORIZE)
+    const arm_cmsis_nn_status wide = ARM_CMSIS_NN_SUCCESS;
+#else
+    const arm_cmsis_nn_status wide = ARM_CMSIS_NN_ARG_ERROR;
+#endif
+    wide_dw_fast_s16_case(INT16_MAX, 1, 0, 0, ARM_CMSIS_NN_SUCCESS);
+    wide_dw_fast_s16_case(1, INT16_MAX, 0, 0, ARM_CMSIS_NN_SUCCESS);
+    wide_dw_fast_s16_case(INT16_MAX + 2, 1, 0, 0, wide);
+    wide_dw_fast_s16_case(1, INT16_MAX + 2, 0, 0, wide);
+    wide_dw_fast_s16_case(2, 1, INT16_MAX + 1, 0, wide);
+    wide_dw_fast_s16_case(1, 2, 0, INT16_MAX + 1, wide);
+}
+
+/*
+ * Padding taller than the filter, and output rows wholly below the input, are zero rows of the im2col buffer: the
+ * DSP path fills exactly the filter's rows and writes nothing past the scratch size it reports (#766). The outputs
+ * equal arm_depthwise_conv_s16().
+ */
+void padding_beyond_filter_arm_depthwise_conv_fast_s16(void)
+{
+    enum
+    {
+        ch = 4,
+        in_h = 4,
+        in_w = 4,
+        max_out = 40 * 4 * ch,
+        guard_words = 64
+    };
+    static int16_t input[in_h * in_w * ch];
+    static int8_t filter[3 * 3 * ch];
+    static int64_t bias[ch];
+    static int32_t mult[ch];
+    static int32_t shift[ch];
+    static int16_t output[max_out];
+    static int16_t reference[max_out];
+    static uint32_t scratch[(3 * 3 * ch * 4 * sizeof(int16_t) + 8) / sizeof(uint32_t) + guard_words];
+    for (int32_t i = 0; i < in_h * in_w * ch; i++)
+    {
+        input[i] = (int16_t)(i * 97 % 2001 - 1000);
+    }
+    for (int32_t i = 0; i < 3 * 3 * ch; i++)
+    {
+        filter[i] = (int8_t)(i * 37 % 255 - 127);
+    }
+    for (int32_t i = 0; i < ch; i++)
+    {
+        bias[i] = 1000 * i - 1500;
+        mult[i] = 0x40000000 + i * 0x1000000;
+        shift[i] = -4;
+    }
+    const cmsis_nn_per_channel_quant_params quant = {mult, shift};
+    const cmsis_nn_dims input_dims = {1, in_h, in_w, ch}, bias_dims = {1, 1, 1, ch};
+    /* filter H x W, padding H, output H: padding above the filter height, a 1x1 filter under deep padding, and an
+       output taller than the input supports */
+    const int32_t cases[3][4] = {{3, 3, 5, 12}, {1, 1, 5, 14}, {3, 3, 1, 40}};
+    for (int32_t c = 0; c < 3; c++)
+    {
+        const cmsis_nn_dims filter_dims = {1, cases[c][0], cases[c][1], ch};
+        const cmsis_nn_dims output_dims = {1, cases[c][3], in_w + 2 - cases[c][1] + 1, ch};
+        const cmsis_nn_dw_conv_params params = {.input_offset = 0,
+                                                .output_offset = 0,
+                                                .ch_mult = 1,
+                                                .stride = {1, 1},
+                                                .padding = {1, cases[c][2]},
+                                                .dilation = {1, 1},
+                                                .activation = {-32768, 32767}};
+        const int32_t out_size = output_dims.h * output_dims.w * ch;
+        const cmsis_nn_context none = {NULL, 0};
+        TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
+                          arm_depthwise_conv_s16(&none,
+                                                 &params,
+                                                 &quant,
+                                                 &input_dims,
+                                                 input,
+                                                 &filter_dims,
+                                                 filter,
+                                                 &bias_dims,
+                                                 bias,
+                                                 &output_dims,
+                                                 reference));
+
+        const int32_t scratch_size = arm_depthwise_conv_fast_s16_get_buffer_size(&input_dims, &filter_dims);
+        TEST_ASSERT_TRUE(scratch_size >= 0 && scratch_size % 4 == 0 &&
+                         scratch_size + guard_words * 4 <= (int32_t)sizeof(scratch));
+        for (size_t i = 0; i < sizeof(scratch) / sizeof(scratch[0]); i++)
+        {
+            scratch[i] = 0xA5A5A5A5u;
+        }
+        const cmsis_nn_context ctx = {scratch, scratch_size};
+        TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
+                          arm_depthwise_conv_fast_s16(&ctx,
+                                                      &params,
+                                                      &quant,
+                                                      &input_dims,
+                                                      input,
+                                                      &filter_dims,
+                                                      filter,
+                                                      &bias_dims,
+                                                      bias,
+                                                      &output_dims,
+                                                      output));
+        for (size_t i = (size_t)scratch_size / 4; i < sizeof(scratch) / sizeof(scratch[0]); i++)
+        {
+            TEST_ASSERT_EQUAL_HEX32(0xA5A5A5A5u, scratch[i]);
+        }
+        TEST_ASSERT_EQUAL_INT16_ARRAY(reference, output, out_size);
+    }
+}
+
+/*
+ * Values above 65,535 (#787). A 1x3 filter dilated by 65,536 over 131,073 input columns sums columns 0, 65,536 and
+ * 131,072 into one output. The MVE and DSP kernels form their indices in int32_t and compute it; builds without DSP
+ * run the generic kernel of arm_depthwise_conv_s16(), which takes its values as uint16_t, and return an argument
+ * error, as does arm_depthwise_conv_s16() itself without the MVE kernel. The DSP kernel keeps its channel counters as
+ * uint16_t, so there 65,536 channels are an argument error; the buffers below hold that layer too. They sit in SRAM on
+ * the Corstone-300 FVP.
+ */
+#if defined(USING_FVP_CORSTONE_300)
+    #define LARGE_DW_SECTION __attribute__((section(".bss.NoInit")))
+#else
+    #define LARGE_DW_SECTION
+#endif
+#define LARGE_DW_DILATION 65536
+#define LARGE_DW_W (2 * LARGE_DW_DILATION + 1)
+static int16_t large_dw_input[LARGE_DW_W] LARGE_DW_SECTION;
+static int16_t large_dw_output[LARGE_DW_DILATION] LARGE_DW_SECTION;
+static int16_t large_dw_scratch[4 * LARGE_DW_DILATION + 4] LARGE_DW_SECTION;
+#if defined(ARM_MATH_DSP) && !(defined(ARM_MATH_MVEI) && !defined(ARM_MATH_AUTOVECTORIZE))
+static int32_t large_dw_quant[LARGE_DW_DILATION] LARGE_DW_SECTION;
+#endif
+
+void large_dims_arm_depthwise_conv_fast_s16(void)
+{
+    static const int8_t weights[3] = {1, 1, 1};
+    static const int64_t bias[1] = {0};
+    static int32_t multiplier[1] = {1 << 30};
+    static int32_t shift[1] = {1};
+    const cmsis_nn_dw_conv_params params = {.input_offset = 0,
+                                            .output_offset = 0,
+                                            .ch_mult = 1,
+                                            .stride = {1, 1},
+                                            .padding = {0, 0},
+                                            .dilation = {LARGE_DW_DILATION, 1},
+                                            .activation = {-32768, 32767}};
+    const cmsis_nn_per_channel_quant_params quant = {multiplier, shift};
+    const cmsis_nn_dims input_dims = {1, 1, LARGE_DW_W, 1}, filter_dims = {1, 1, 3, 1}, bias_dims = {1, 1, 1, 1},
+                        output_dims = {1, 1, 1, 1};
+    memset(large_dw_input, 0, sizeof(large_dw_input));
+    large_dw_input[0] = 1000;
+    large_dw_input[LARGE_DW_DILATION] = 2000;
+    large_dw_input[2 * LARGE_DW_DILATION] = 3000;
+    const int32_t buf_size = arm_depthwise_conv_fast_s16_get_buffer_size(&input_dims, &filter_dims);
+    TEST_ASSERT_TRUE(buf_size >= 0 && buf_size <= (int32_t)sizeof(large_dw_scratch));
+    const cmsis_nn_context ctx = {large_dw_scratch, buf_size};
+
+#if defined(ARM_MATH_MVEI) && !defined(ARM_MATH_AUTOVECTORIZE)
+    const arm_cmsis_nn_status fast_expected = ARM_CMSIS_NN_SUCCESS;
+    const arm_cmsis_nn_status generic_expected = ARM_CMSIS_NN_SUCCESS;
+#elif defined(ARM_MATH_DSP)
+    const arm_cmsis_nn_status fast_expected = ARM_CMSIS_NN_SUCCESS;
+    const arm_cmsis_nn_status generic_expected = ARM_CMSIS_NN_ARG_ERROR;
+#else
+    const arm_cmsis_nn_status fast_expected = ARM_CMSIS_NN_ARG_ERROR;
+    const arm_cmsis_nn_status generic_expected = ARM_CMSIS_NN_ARG_ERROR;
+#endif
+    typedef arm_cmsis_nn_status (*dw_s16_fn)(const cmsis_nn_context *,
+                                             const cmsis_nn_dw_conv_params *,
+                                             const cmsis_nn_per_channel_quant_params *,
+                                             const cmsis_nn_dims *,
+                                             const int16_t *,
+                                             const cmsis_nn_dims *,
+                                             const int8_t *,
+                                             const cmsis_nn_dims *,
+                                             const int64_t *,
+                                             const cmsis_nn_dims *,
+                                             int16_t *);
+    const dw_s16_fn routes[3] = {arm_depthwise_conv_fast_s16, arm_depthwise_conv_wrapper_s16, arm_depthwise_conv_s16};
+    for (int32_t route = 0; route < 3; route++)
+    {
+        large_dw_output[0] = 0x5A5A;
+        const arm_cmsis_nn_status expected = route == 2 ? generic_expected : fast_expected;
+        TEST_ASSERT_EQUAL(expected,
+                          routes[route](&ctx,
+                                        &params,
+                                        &quant,
+                                        &input_dims,
+                                        large_dw_input,
+                                        &filter_dims,
+                                        weights,
+                                        &bias_dims,
+                                        bias,
+                                        &output_dims,
+                                        large_dw_output));
+        TEST_ASSERT_EQUAL_INT16(expected == ARM_CMSIS_NN_SUCCESS ? 6000 : 0x5A5A, large_dw_output[0]);
+    }
+
+    /* Values that fit 16 bits whose input, 32,770 * 65,535 elements, is past INT32_MAX; no outputs */
+    const cmsis_nn_dims deep_dims = {1, 32770, 1, 65535}, deep_out_dims = {1, 0, 1, 65535};
+    const cmsis_nn_dims deep_filter_dims = {1, 1, 1, 65535};
+    cmsis_nn_dw_conv_params deep_params = params;
+    deep_params.dilation.w = 1;
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR,
+                      arm_depthwise_conv_fast_s16(&ctx,
+                                                  &deep_params,
+                                                  &quant,
+                                                  &deep_dims,
+                                                  large_dw_input,
+                                                  &deep_filter_dims,
+                                                  weights,
+                                                  &bias_dims,
+                                                  bias,
+                                                  &deep_out_dims,
+                                                  large_dw_output));
+
+#if defined(ARM_MATH_DSP) && !(defined(ARM_MATH_MVEI) && !defined(ARM_MATH_AUTOVECTORIZE))
+    /* 65,536 channels in one pixel; every operand would fit the buffers above */
+    const cmsis_nn_dw_conv_params wide_params = {.input_offset = 0,
+                                                 .output_offset = 0,
+                                                 .ch_mult = 1,
+                                                 .stride = {1, 1},
+                                                 .padding = {0, 0},
+                                                 .dilation = {1, 1},
+                                                 .activation = {-32768, 32767}};
+    const cmsis_nn_dims wide_dims = {1, 1, 1, LARGE_DW_DILATION}, wide_filter_dims = {1, 1, 1, LARGE_DW_DILATION};
+    TEST_ASSERT_TRUE(arm_depthwise_conv_fast_s16_get_buffer_size(&wide_dims, &wide_filter_dims) <=
+                     (int32_t)sizeof(large_dw_scratch));
+    const cmsis_nn_per_channel_quant_params wide_quant = {large_dw_quant, large_dw_quant};
+    const cmsis_nn_context wide_ctx = {large_dw_scratch, (int32_t)sizeof(large_dw_scratch)};
+    large_dw_output[0] = 0x5A5A;
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR,
+                      arm_depthwise_conv_fast_s16(&wide_ctx,
+                                                  &wide_params,
+                                                  &wide_quant,
+                                                  &wide_dims,
+                                                  large_dw_input,
+                                                  &wide_filter_dims,
+                                                  (const int8_t *)large_dw_input,
+                                                  &bias_dims,
+                                                  NULL,
+                                                  &wide_dims,
+                                                  large_dw_output));
+    TEST_ASSERT_EQUAL_INT16(0x5A5A, large_dw_output[0]);
 #endif
 }

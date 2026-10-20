@@ -125,6 +125,7 @@ function(_ns_cmsis_nn_group_def group out_subdir out_patterns out_extras)
     if(ARM_NN_ENABLE_F16)
       list(APPEND extras "arm_hard_swish_f16.c"
                          "arm_nn_activation_f16.c"
+                         "arm_nn_gelu_f16.c"
                          "arm_prelu_f16.c")
     endif()
   elseif(group STREQUAL "basicmath")
@@ -132,10 +133,13 @@ function(_ns_cmsis_nn_group_def group out_subdir out_patterns out_extras)
     set(patterns "*_s8*.c" "*_s16*.c")
     if(ARM_NN_ENABLE_F32)
       list(APPEND extras "arm_nn_abs_f32.c"
+                         "arm_nn_neg_f32.c"
                          "arm_nn_fill_f32.c"
                          "arm_elementwise_add_f32.c"
                          "arm_elementwise_sub_f32.c"
                          "arm_elementwise_mul_f32.c"
+                         "arm_elementwise_squared_difference_f32.c"
+                         "arm_elementwise_div_f32.c"
                          "arm_elementwise_sub_broadcast_f32.c"
                          "arm_elementwise_add_broadcast_f32.c"
                          "arm_elementwise_mul_broadcast_f32.c"
@@ -147,18 +151,22 @@ function(_ns_cmsis_nn_group_def group out_subdir out_patterns out_extras)
                          "arm_nn_mean_f32.c"
                          "arm_reduce_max_f32.c"
                          "arm_reduce_min_f32.c"
+                         "arm_reduce_max_tflite_f32.c"
+                         "arm_reduce_min_tflite_f32.c"
                          "arm_reduce_sum_f32.c"
                          "arm_nn_sqrt_f32.c"
                          "arm_rsqrt_f32.c")
     endif()
     if(ARM_NN_ENABLE_F16)
       list(APPEND extras "arm_nn_abs_f16.c"
+                         "arm_nn_neg_f16.c"
                          "arm_nn_fill_f16.c"
                          "arm_elementwise_add_fp16.c"
                          "arm_elementwise_add_f16.c"
                          "arm_elementwise_sub_f16.c"
                          "arm_elementwise_squared_difference_f16.c"
                          "arm_elementwise_mul_f16.c"
+                         "arm_elementwise_div_f16.c"
                          "arm_elementwise_sub_broadcast_f16.c"
                          "arm_elementwise_add_broadcast_f16.c"
                          "arm_elementwise_mul_broadcast_f16.c"
@@ -170,12 +178,14 @@ function(_ns_cmsis_nn_group_def group out_subdir out_patterns out_extras)
                          "arm_nn_mean_f16.c"
                          "arm_reduce_max_f16.c"
                          "arm_reduce_min_f16.c"
+                         "arm_reduce_max_tflite_f16.c"
+                         "arm_reduce_min_tflite_f16.c"
                          "arm_reduce_sum_f16.c"
                          "arm_nn_sqrt_f16.c"
                          "arm_rsqrt_f16.c")
     endif()
   elseif(group STREQUAL "comparison")
-    set(subdir   "ComparisonFunctions")
+    set(subdir   "ComparisonFunctions") # Numeric comparisons and Boolean logical entries.
     set(patterns "*.c")
   elseif(group STREQUAL "concatenation")
     set(subdir   "ConcatenationFunctions")
@@ -314,6 +324,8 @@ function(_ns_cmsis_nn_group_def group out_subdir out_patterns out_extras)
                  "arm_batch_to_space_nd_s16.c"
                  "arm_depth_to_space_s8.c"
                  "arm_depth_to_space_s16.c"
+                 "arm_resize_bilinear_s8.c"
+                 "arm_resize_bilinear_s8_pow2.c"
                  "arm_resize_nearest_neighbor_s8.c"
                  "arm_resize_nearest_neighbor_s16.c"
                  "arm_space_to_batch_nd_s8.c"
@@ -379,7 +391,7 @@ function(_ns_cmsis_nn_group_def group out_subdir out_patterns out_extras)
     set(patterns "*_s8.c" "*_s16.c")
   elseif(group STREQUAL "select")
     set(subdir   "SelectFunctions")
-    set(patterns "*_s8.c" "*_s16.c")
+    set(patterns "*_s8.c" "*_s16.c" "*_s32.c")
   elseif(group STREQUAL "reversesequence")
     set(subdir   "ReverseSequenceFunctions")
     set(patterns "*_s8.c" "*_s16.c")
@@ -441,6 +453,8 @@ endfunction()
 # ----------------------------------------------------------------------------
 # Public: absolute source paths for <group> (no dtype filtering).
 # ----------------------------------------------------------------------------
+include("${CMAKE_CURRENT_LIST_DIR}/ns_cmsis_nn_div_options.cmake")
+
 function(ns_cmsis_nn_group_sources group out_var)
   _ns_cmsis_nn_group_def("${group}" subdir patterns extras)
 
@@ -557,6 +571,7 @@ function(ns_cmsis_nn_attach target)
     endif()
   endforeach()
 
+  ns_cmsis_nn_div_options(${target} ${all_sources})
   target_sources(${target} PRIVATE ${all_sources})
   # Wrap in $<BUILD_INTERFACE:...> so consumers that re-export <target> via
   # install(TARGETS ... EXPORT ...) do not leak this absolute build-tree path

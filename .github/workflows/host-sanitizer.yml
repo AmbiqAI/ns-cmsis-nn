@@ -9,24 +9,15 @@ name: Host sanitizer unit tests
 #
 # Float16 needs _Float16 on x86, which the ubuntu-24.04 gcc provides.
 #
-# One UBSan check is masked: -fno-sanitize=shift-base. It silences two
-# diagnostics, not one: "left shift of negative value", and "left shift of X by
-# N places cannot be represented in type 'int'", i.e. signed left-shift
-# overflow of a positive value. Both are well defined on every Arm target but
-# UB in C. No suite reports under shift-base any more (gcc-12, F32 and F16 on):
-# the int4 decode paths (#612) and the softmax code (#704) now shift unsigned
-# values, and test_softmax_shift_probe rebuilds the softmax objects with
-# shift-base enabled.
-# Earlier inventories also listed arm_elementwise_{add,sub,mul}*_s16.c and
-# arm_{add,sub,mul}_scalar_s16.c -- those reported only through the shared
-# pack macros, which now use the defined unsigned-shift idiom (#357) and can
-# no longer fire -- plus the comparison and squared-difference files, which
-# re-measured as zero shift-base REPORTS on the suite corpus and were stale
-# entries all along. Zero reports is not zero sites: those TUs still inline
-# shift-base-instrumentable code from arm_nn_requantize, silent only because
-# no test reaches the offending shift counts. Removing the mask is #711.
+# Nothing in -fsanitize=undefined is masked, including shift-base (#711): a
+# left shift of a negative value, or a signed left shift whose result does not
+# fit in 'int', is well defined on every Arm target but UB in C, and fails the
+# suite. The int4 decode paths (#612), the shared s16 pack macros (#357) and
+# the softmax code (#704) shift unsigned values. Zero reports is not zero
+# sites: TUs that inline arm_nn_requantize still carry shift-base-instrumentable
+# code that no test reaches. The M4 DSP sites are not compiled on x86 at all.
 #
-# shift-exponent stays on, so a shift count at or past the operand width is
+# shift-exponent is on as well, so a shift count at or past the operand width is
 # still reported. LeakSanitizer is on (it is part of ASan by default), so a test
 # that mallocs without freeing fails its suite.
 #
@@ -69,7 +60,7 @@ jobs:
       - name: Install build dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends cmake ninja-build ruby gcc g++
+          sudo apt-get install -y --no-install-recommends cmake ninja-build ruby gcc g++ clang
           # Tests/UnitTest/unittest_targets.py (Unity download + test-runner generation, run at configure
           # time) imports these two; the full Tests/UnitTest/requirements.txt is for the FVP/Mbed flows.
           python3 -m pip install --user termcolor pyserial
@@ -83,8 +74,9 @@ jobs:
             -DCMSIS_PATH=/nonexistent-host-build-needs-no-cmsis \
             -DARM_NN_ENABLE_F32=ON \
             -DARM_NN_ENABLE_F16=ON \
+            "-DCONCAT_POINTER_CLANGXX:FILEPATH=$(command -v clang++)" \
             -DCMSIS_OPTIMIZATION_LEVEL=-O1 \
-            "-DCMAKE_C_FLAGS=-fsanitize=address,undefined -fno-sanitize=shift-base -fno-sanitize-recover=all -g -fno-omit-frame-pointer ${DEFINES}" \
+            "-DCMAKE_C_FLAGS=-fsanitize=address,undefined -fno-sanitize-recover=all -g -fno-omit-frame-pointer ${DEFINES}" \
             "-DCMAKE_EXE_LINKER_FLAGS=-fsanitize=address,undefined"
 
       - name: Build every suite
@@ -104,6 +96,23 @@ jobs:
             fi
           done
 
+      - name: Require pointer-formation regressions
+        run: |
+          pointer_cxx=$(sed -n 's/^CONCAT_POINTER_CLANGXX:FILEPATH=//p' build-host/CMakeCache.txt)
+          echo "Pointer regression compiler: ${pointer_cxx:?No configured Clang compiler}"
+          "$pointer_cxx" --version
+          ctest --test-dir build-host --show-only=json-v1 > build-host/registered-tests.json
+          python3 - <<'PYTESTS'
+          import json
+          with open("build-host/registered-tests.json") as stream:
+              names = {test["name"] for test in json.load(stream)["tests"]}
+          required = {"concatenation_pointer_probe", "concatenation_s8_pointer_probe", "row_broadcast_s8_pointer_probe"}
+          missing = required - names
+          if missing:
+              raise SystemExit("Missing required pointer regressions: " + ", ".join(sorted(missing)))
+          print("Required pointer regressions registered: " + ", ".join(sorted(required)))
+          PYTESTS
+
       # --no-tests=error turns a *fully* empty test set into a failure rather than a
       # pass. It says nothing about a partial regression, so the count check below
       # guards that separately: a floor, not the exact number, so adding or retiring
@@ -118,3 +127,27 @@ jobs:
           echo "ctest registered $registered suites"
           test "$registered" -ge 140
           ctest --test-dir build-host --output-on-failure --parallel 4 --no-tests=error
+
+  # helia-aot's native contract tests compile kernels with the runner's own
+  # clang, which targets x86 and has no ACLE; CLZ expanded to an undeclared
+  # __clz there and nothing here noticed. ubuntu-22.04 carries the clang 14
+  # that first hit it, ubuntu-24.04 a current one.
+  host-clang-headers:
+    name: host-clang-headers / ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-22.04, ubuntu-24.04]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Install clang
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends clang
+
+      - name: Compile every public header with host clang
+        run: scripts/check_host_clang_headers.sh clang

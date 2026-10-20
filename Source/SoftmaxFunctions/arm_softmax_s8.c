@@ -97,7 +97,8 @@ void arm_softmax_s8(const int8_t *input,
     #define ACT_MIN ((int8_t)NN_Q7_MIN)
     #define ACT_MAX ((int8_t)NN_Q7_MAX)
 
-    const int32_t mask = (1 << shift);
+    /* Keep the shift and multiply defined at shift 31, matching the MVE lane arithmetic. */
+    const uint32_t mask = 1U << shift;
 
     for (int i_num_rows = 0; i_num_rows < num_rows; ++i_num_rows)
     {
@@ -124,7 +125,7 @@ void arm_softmax_s8(const int8_t *input,
             mve_pred16_t p = vcmpgeq_n_s32(ip, diff_min);
             if (p != 0)
             {
-                ip = vmulq_n_s32(ip, mask);
+                ip = vmulq_n_s32(ip, (int32_t)mask);
 
                 int32x4_t res = MUL_SAT_MVE(ip, vdupq_n_s32(mult));
 
@@ -144,7 +145,7 @@ void arm_softmax_s8(const int8_t *input,
             const int32_t diff = input[tail_idx + i] - max;
             if (diff >= diff_min)
             {
-                sum += DIV_POW2(EXP_ON_NEG(MUL_SAT(diff * mask, mult)), ACCUM_BITS);
+                sum += DIV_POW2(EXP_ON_NEG(MUL_SAT((int32_t)((uint32_t)diff * mask), mult)), ACCUM_BITS);
             }
         }
 
@@ -165,7 +166,7 @@ void arm_softmax_s8(const int8_t *input,
 
             if (p != 0)
             {
-                ip = vmulq_n_s32(ip, mask);
+                ip = vmulq_n_s32(ip, (int32_t)mask);
 
                 tmp_res = MUL_SAT_MVE(ip, vdupq_n_s32(mult));
                 tmp_res = arm_exp_on_negative_values_mve_32x4(tmp_res);
@@ -192,7 +193,8 @@ void arm_softmax_s8(const int8_t *input,
             if (diff >= diff_min)
             {
                 const int32_t res =
-                    DIV_POW2(MUL_SAT(shifted_scale, EXP_ON_NEG(MUL_SAT(diff * mask, mult))), bits_over_unit) +
+                    DIV_POW2(MUL_SAT(shifted_scale, EXP_ON_NEG(MUL_SAT((int32_t)((uint32_t)diff * mask), mult))),
+                             bits_over_unit) +
                     NN_Q7_MIN;
                 output[tail_idx + i] = (int8_t)ARM_NN_CLAMP(res, (int32_t)ACT_MAX, (int32_t)ACT_MIN);
             }

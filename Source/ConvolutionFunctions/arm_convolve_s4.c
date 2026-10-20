@@ -41,27 +41,26 @@
  * @{
  */
 
-/*
- * Basic s8 convolution function with int4 weights.
- *
- * Refer header file for details. Optimal use case for the DSP/MVE implementation is when input and output channels
- * are multiples of 4 or at least greater than 4.
- *
- */
-arm_cmsis_nn_status arm_convolve_s4(const cmsis_nn_context *ctx,
-                                    const cmsis_nn_conv_params *conv_params,
-                                    const cmsis_nn_per_channel_quant_params *quant_params,
-                                    const cmsis_nn_dims *input_dims,
-                                    const int8_t *input_data,
-                                    const cmsis_nn_dims *filter_dims,
-                                    const int8_t *packed_filter_data,
-                                    const cmsis_nn_dims *bias_dims,
-                                    const int32_t *bias_data,
-                                    const cmsis_nn_dims *output_dims,
-                                    int8_t *output_data)
+/* The convolution after the argument check. It is kept out of line, and GCC is kept from cloning it, so the check's
+   call does not change the register allocation of its loops. */
+#if defined(__GNUC__) && !defined(__clang__)
+    #define ARM_CONVOLVE_S4_KERNEL_ATTR __attribute__((noinline, noipa))
+#else
+    #define ARM_CONVOLVE_S4_KERNEL_ATTR __attribute__((noinline))
+#endif
+static ARM_CONVOLVE_S4_KERNEL_ATTR arm_cmsis_nn_status
+arm_convolve_s4_kernel(const cmsis_nn_context *ctx,
+                       const cmsis_nn_conv_params *conv_params,
+                       const cmsis_nn_per_channel_quant_params *quant_params,
+                       const cmsis_nn_dims *input_dims,
+                       const int8_t *input_data,
+                       const cmsis_nn_dims *filter_dims,
+                       const int8_t *packed_filter_data,
+                       const int32_t *bias_data,
+                       const cmsis_nn_dims *output_dims,
+                       int8_t *output_data)
 {
-    (void)bias_dims;
-
+    /* Retain the scratch check here: ATfE otherwise spills the input-width bound in the im2col tap loop. */
     if (ctx->buf == NULL)
     {
         return ARM_CMSIS_NN_ARG_ERROR;
@@ -264,7 +263,7 @@ arm_cmsis_nn_status arm_convolve_s4(const cmsis_nn_context *ctx,
 
     #if defined(ARM_MATH_DSP)
                 /* 4 multiply and accumulates are done in one loop. */
-                uint16_t col_count = rhs_cols / 4;
+                int32_t col_count = rhs_cols / 4;
                 while (col_count)
                 {
                     int32_t ker_a1, ker_a2;
@@ -281,7 +280,7 @@ arm_cmsis_nn_status arm_convolve_s4(const cmsis_nn_context *ctx,
                 }
                 col_count = (rhs_cols & 0x3) >> 1;
     #else
-                uint16_t col_count = rhs_cols >> 1;
+                int32_t col_count = rhs_cols >> 1;
     #endif
 
                 while (col_count)
@@ -324,6 +323,46 @@ arm_cmsis_nn_status arm_convolve_s4(const cmsis_nn_context *ctx,
 
     /* Return to application */
     return ARM_CMSIS_NN_SUCCESS;
+}
+
+/*
+ * Basic s8 convolution function with int4 weights.
+ *
+ * Refer header file for details. Optimal use case for the DSP/MVE implementation is when input and output channels
+ * are multiples of 4 or at least greater than 4.
+ *
+ */
+arm_cmsis_nn_status arm_convolve_s4(const cmsis_nn_context *ctx,
+                                    const cmsis_nn_conv_params *conv_params,
+                                    const cmsis_nn_per_channel_quant_params *quant_params,
+                                    const cmsis_nn_dims *input_dims,
+                                    const int8_t *input_data,
+                                    const cmsis_nn_dims *filter_dims,
+                                    const int8_t *packed_filter_data,
+                                    const cmsis_nn_dims *bias_dims,
+                                    const int32_t *bias_data,
+                                    const cmsis_nn_dims *output_dims,
+                                    int8_t *output_data)
+{
+    (void)bias_dims;
+
+    /* The kernel keeps dimensions as uint16_t. It takes the filter depth to be C_IN and never reads the filter C,
+       so the check is given C_IN there too. */
+    const cmsis_nn_dims kernel_filter_dims = {output_dims->c, filter_dims->h, filter_dims->w, input_dims->c};
+    if (ctx->buf == NULL || arm_nn_convolve_s8_args_invalid(conv_params, input_dims, &kernel_filter_dims, output_dims))
+    {
+        return ARM_CMSIS_NN_ARG_ERROR;
+    }
+    return arm_convolve_s4_kernel(ctx,
+                                  conv_params,
+                                  quant_params,
+                                  input_dims,
+                                  input_data,
+                                  filter_dims,
+                                  packed_filter_data,
+                                  bias_data,
+                                  output_dims,
+                                  output_data);
 }
 
 /**
