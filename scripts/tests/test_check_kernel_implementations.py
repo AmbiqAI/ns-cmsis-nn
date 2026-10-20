@@ -5,6 +5,7 @@ rule rejects a copied tree mutated to break it, with the exact diagnostic."""
 
 import hashlib
 import json
+import re
 from pathlib import Path
 import shutil
 import subprocess
@@ -40,7 +41,7 @@ class RealTree(unittest.TestCase):
         self.assertEqual(document['signature_schema'], 'ns-cmsis-nn/kernel-contracts/1')
         self.assertEqual(document['signature_sha256'], hashlib.sha256((ROOT / SIGNATURES).read_bytes()).hexdigest())
         self.assertEqual(document['planner_abi'], 1)
-        version = '.'.join(__import__('re').findall(
+        version = '.'.join(re.findall(
             r'NS_CMSIS_NN_VERSION_(?:MAJOR|MINOR|PATCH)\s*\((\d+)\)', (ROOT / 'Include/arm_nn_types.h').read_text()))
         self.assertEqual(document['library_version'], version)
 
@@ -283,6 +284,12 @@ class CopiedTree(unittest.TestCase):
         self.edit_signature('arm_max_pool_s8', lambda r: r.update(guards=['defined(ARM_MATH_MVEI)']))
         self.assertRejected('arm_max_pool_s8 is declared under #if defined(ARM_MATH_MVEI), so requires needs mvei')
 
+    def test_dtype_differs_from_c_type(self):
+        layout = '    layout: {input_data: NHWC, output_data: NHWC}\n    entry: arm_max_pool_s8'
+        self.edit(POOL, 'dtypes: {input_data: int8, output_data: int8}\n' + layout,
+                  'dtypes: {input_data: int16, output_data: int8}\n' + layout)
+        self.assertRejected('input_data is const int8_t *, which does not hold int16')
+
     def test_float_dtype_without_float_api(self):
         layout = '    layout: {input_data: NHWC, output_data: NHWC}\n    entry: arm_max_pool_s8'
         self.edit(POOL, 'dtypes: {input_data: int8, output_data: int8}\n' + layout,
@@ -415,9 +422,12 @@ class CopiedTree(unittest.TestCase):
             check(self.root, self.root / OUTPUT)
 
     def test_stale_after_a_version_bump(self):
-        self.edit('Include/arm_nn_types.h', '#define NS_CMSIS_NN_VERSION_PATCH (0)',
-                  '#define NS_CMSIS_NN_VERSION_PATCH (9)')
-        with self.assertRaisesRegex(ExportError, r"library_version: '(\d+\.){2}0' -> '(\d+\.){2}9'"):
+        version = build_document(self.root)['library_version']
+        major, minor, patch = version.split('.')
+        bumped = f'{major}.{minor}.{int(patch) + 1}'
+        self.edit('Include/arm_nn_types.h', f'#define NS_CMSIS_NN_VERSION_PATCH ({patch})',
+                  f'#define NS_CMSIS_NN_VERSION_PATCH ({int(patch) + 1})')
+        with self.assertRaisesRegex(ExportError, re.escape(f"library_version: '{version}' -> '{bumped}'")):
             check(self.root, self.root / OUTPUT)
 
     def test_non_canonical_json(self):

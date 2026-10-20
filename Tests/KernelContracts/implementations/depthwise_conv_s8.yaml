@@ -192,7 +192,9 @@ implementations:
         when: >-
           arm_depthwise_conv_s8_opt_planar_supported() rejects the layer for a reason other than those argument checks
       - cause: buffer
-        when: ctx->size cannot hold the plane, or weight_sum_ctx->buf is NULL
+        when: >-
+          ctx->size cannot hold the plane. A NULL weight_sum_ctx->buf is ARM_CMSIS_NN_ARG_ERROR instead, on builds
+          with ARM_MATH_DSP and ARM_MATH_MVEI
     since: 7.37.0
     numerics:
       reference: hct_ref:depthwise_conv_s8
