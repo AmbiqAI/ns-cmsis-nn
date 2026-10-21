@@ -29,8 +29,13 @@
  * Target :  Arm(R) M-Profile Architecture
  *
  * -------------------------------------------------------------------- */
+#include "Internal/arm_nn_dispatch.h"
 #include "arm_nnfunctions.h"
 #include "arm_nnsupportfunctions.h"
+
+#if !ARM_NN_ROUTES_MATCH_BUILD
+    #error "ARM_NN_ROUTE_* must describe the build that compiles this wrapper"
+#endif
 
 /**
  *  @ingroup Public
@@ -115,12 +120,10 @@ arm_cmsis_nn_status arm_depthwise_conv_wrapper_s8(const cmsis_nn_context *ctx,
                                                   const cmsis_nn_dims *output_dims,
                                                   int8_t *output)
 {
-    arm_cmsis_nn_status status = ARM_CMSIS_NN_SUCCESS;
-    (void)weight_sum_ctx;
-
-#if defined(ARM_MATH_MVEI)
-    if (input_dims->c == 1 && output_dims->c > CONVERT_DW_CONV_WITH_ONE_INPUT_CH_AND_OUTPUT_CH_ABOVE_THRESHOLD)
+    switch (arm_nn_depthwise_conv_wrapper_s8_select(dw_conv_params, input_dims, filter_dims, output_dims))
     {
+#if defined(ARM_MATH_MVEI)
+    case ARM_NN_DW_CONV_S8_ROUTE_TO_CONV:
         return arm_depthwise_conv_to_conv_s8(ctx,
                                              weight_sum_ctx,
                                              dw_conv_params,
@@ -133,64 +136,47 @@ arm_cmsis_nn_status arm_depthwise_conv_wrapper_s8(const cmsis_nn_context *ctx,
                                              bias,
                                              output_dims,
                                              output);
-    }
 #endif
-
-    const bool dilation_opt_supported =
-        arm_nn_dw_conv_opt_dilation_supported(dw_conv_params, input_dims, filter_dims, output_dims);
-
-    if (1 == dw_conv_params->ch_mult && input_dims->n == 1 && dilation_opt_supported)
-    {
 #if !defined(ARM_MATH_MVEI)
-        if (filter_dims->w == 3 && filter_dims->h == 3 && dw_conv_params->padding.h <= 1 &&
-            dw_conv_params->padding.w <= 1 && dw_conv_params->dilation.w == 1 && dw_conv_params->dilation.h == 1)
-        {
-            status = arm_depthwise_conv_3x3_s8(ctx,
-                                               dw_conv_params,
-                                               quant_params,
-                                               input_dims,
-                                               input,
-                                               filter_dims,
-                                               filter,
-                                               bias_dims,
-                                               bias,
-                                               output_dims,
-                                               output);
-        }
-        else
+    case ARM_NN_DW_CONV_S8_ROUTE_3X3:
+        return arm_depthwise_conv_3x3_s8(ctx,
+                                         dw_conv_params,
+                                         quant_params,
+                                         input_dims,
+                                         input,
+                                         filter_dims,
+                                         filter,
+                                         bias_dims,
+                                         bias,
+                                         output_dims,
+                                         output);
 #endif
-        {
-            status = arm_depthwise_conv_s8_opt(ctx,
-                                               weight_sum_ctx,
-                                               dw_conv_params,
-                                               quant_params,
-                                               input_dims,
-                                               input,
-                                               filter_dims,
-                                               filter,
-                                               bias_dims,
-                                               bias,
-                                               output_dims,
-                                               output);
-        }
+    case ARM_NN_DW_CONV_S8_ROUTE_OPT:
+        return arm_depthwise_conv_s8_opt(ctx,
+                                         weight_sum_ctx,
+                                         dw_conv_params,
+                                         quant_params,
+                                         input_dims,
+                                         input,
+                                         filter_dims,
+                                         filter,
+                                         bias_dims,
+                                         bias,
+                                         output_dims,
+                                         output);
+    default:
+        return arm_depthwise_conv_s8(ctx,
+                                     dw_conv_params,
+                                     quant_params,
+                                     input_dims,
+                                     input,
+                                     filter_dims,
+                                     filter,
+                                     bias_dims,
+                                     bias,
+                                     output_dims,
+                                     output);
     }
-    else
-    {
-        status = arm_depthwise_conv_s8(ctx,
-                                       dw_conv_params,
-                                       quant_params,
-                                       input_dims,
-                                       input,
-                                       filter_dims,
-                                       filter,
-                                       bias_dims,
-                                       bias,
-                                       output_dims,
-                                       output);
-    }
-
-    /* Return to application */
-    return status;
 }
 
 /**
