@@ -96,6 +96,11 @@ After adding or changing any public prototype or its `@param` tags, run
 `Tests/KernelContracts/kernel_contracts.json`: helia-core-tester reads that
 export instead of the headers, and the `kernel_contract` CI job and the
 `kernel-contract-fresh` pre-commit hook fail on a stale copy.
+Then run `python3 scripts/check_kernel_implementations.py export` and commit
+`Tests/KernelContracts/kernel_implementations.json`: it carries the sha256 of
+the signature export. When a change touches an implementation listed in
+`Tests/KernelContracts/implementations/*.yaml` (its routing, sizer, buffers,
+preparation or NO_IMPL conditions), update that YAML in the same change.
 
 **Naming — a new public float kernel must not take a bare CMSIS-DSP verb
 name** (`arm_add_f32`, `arm_sqrt_f32`, `arm_mean_f32`, ...) — CMSIS-DSP owns

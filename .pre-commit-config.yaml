@@ -102,6 +102,18 @@ repos:
         files: ^(Include/arm_nn[^/]*functions[^/]*\.h|Tests/KernelContracts/kernel_contracts\.json)$
         pass_filenames: false
 
+      # The implementation manifest is generated from the authored YAML and
+      # bound to the signature export by its hash, so it goes stale when
+      # either changes; regenerate with
+      # `python3 scripts/check_kernel_implementations.py export`.
+      - id: kernel-implementations-fresh
+        name: Tests/KernelContracts/kernel_implementations.json matches its sources
+        entry: scripts/check_kernel_implementations.py
+        language: python
+        additional_dependencies: [pyyaml==6.0.3]
+        files: ^(Include/arm_nn[^/]*functions[^/]*\.h|Include/arm_nn_types\.h|Include/arm_nn_plan\.h|Tests/KernelContracts/.*|scripts/check_kernel_(implementations|contract)\.py)$
+        pass_filenames: false
+
       - id: todo-needs-issue
         name: deferred-work markers reference an issue
         entry: scripts/check_todo_markers.sh
