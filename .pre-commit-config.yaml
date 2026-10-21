@@ -59,7 +59,7 @@ repos:
     rev: v18.1.8
     hooks:
       - id: clang-format
-        files: ^(Source|Include)/.*\.(c|h)$
+        files: ^(Source|Include|Planner)/.*\.(c|h)$
         # Byte-identical to Arm upstream and rejected by 18; reformatting them
         # would conflict on every sync (see AmbiqAI/ns-cmsis-nn#394).
         exclude: |
