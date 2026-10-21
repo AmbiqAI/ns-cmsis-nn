@@ -3,7 +3,7 @@
   "library_version": "7.47.0",
   "signature_schema": "ns-cmsis-nn/kernel-contracts/1",
   "signature_sha256": "c4a4d4221c16699079f8c376563861e6ff74a63a81ef87cc2ca8a260748f91b0",
-  "planner_abi": null,
+  "planner_abi": 1,
   "implementations": [
     {
       "id": "avg_pool_s8",

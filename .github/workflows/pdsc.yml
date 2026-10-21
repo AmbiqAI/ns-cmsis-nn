@@ -300,6 +300,37 @@ jobs:
       - name: Check the committed implementation manifest against its sources
         run: python3 scripts/check_kernel_implementations.py
 
+  contracts_package:
+    # python/ns_cmsis_nn_contracts is what helia-core-tester and heliaAOT
+    # import to read the signature export and the implementation manifest
+    # and to call the host planner (Planner/). The planner is a host shared
+    # library built per target toolchain with the host compiler, so build and
+    # drive it on both host OSes the consumers run on. Installing the package
+    # proves it ships without the checkout on sys.path. See #829.
+    name: Contracts package and host planner (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Python
+        uses: actions/setup-python@v7
+        with:
+          python-version: "3.11"
+
+      - name: Install the package and test dependencies
+        run: python -m pip install pytest==8.4.2 pyyaml==6.0.3 ./python
+
+      - name: Package, planner and dispatch selector tests
+        run: >-
+          python -m pytest -q python/tests scripts/tests/test_planner.py
+          scripts/tests/test_dispatch_selectors.py
+
   script_check_tests:
     # Mutation tests for the scripts/check_*.py merge gates.
     #

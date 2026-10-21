@@ -1,3 +1,4 @@
+# SPDX-License-Identifier: LicenseRef-Ambiq-Apollo-SDK
 """The host planner library (Planner/): routes and sizes per target, and its refusals.
 
 Built from Planner/sources.txt with the host compiler for both target toolchains and driven through ctypes. A plan's

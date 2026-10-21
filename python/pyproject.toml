@@ -1,0 +1,17 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ns-cmsis-nn-contracts"
+version = "0.1.0"
+description = "Reader of an ns-cmsis-nn checkout's kernel contracts: signature export, implementation manifest and host planner"
+requires-python = ">=3.9"
+license = {text = "LicenseRef-Ambiq-Apollo-SDK"}
+dependencies = []
+
+[tool.setuptools]
+packages = ["ns_cmsis_nn_contracts"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

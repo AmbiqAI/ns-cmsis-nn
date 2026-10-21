@@ -111,7 +111,7 @@ repos:
         entry: scripts/check_kernel_implementations.py
         language: python
         additional_dependencies: [pyyaml==6.0.3]
-        files: ^(Include/arm_nn[^/]*functions[^/]*\.h|Include/arm_nn_types\.h|Include/arm_nn_plan\.h|Tests/KernelContracts/.*|scripts/check_kernel_(implementations|contract)\.py)$
+        files: ^(Include/arm_nn[^/]*functions[^/]*\.h|Include/arm_nn_types\.h|Planner/include/arm_nn_plan\.h|Tests/KernelContracts/.*|scripts/check_kernel_(implementations|contract)\.py|python/ns_cmsis_nn_contracts/vocabulary\.py)$
         pass_filenames: false
 
       - id: todo-needs-issue
