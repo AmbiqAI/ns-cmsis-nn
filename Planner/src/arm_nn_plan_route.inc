@@ -26,3 +26,31 @@ int32_t ARM_NN_PLAN_ROUTE_FN(fc_s8)(const cmsis_nn_quant_params *quant_params)
 {
     return (int32_t)arm_nn_fully_connected_wrapper_s8_select(quant_params);
 }
+
+/* arm_depthwise_conv_s8_opt(): the planar kernel's own gate after the cheap test the router applies first. The call's
+   buffers are set, so only their sizes decide. */
+int32_t ARM_NN_PLAN_ROUTE_FN(dw_opt_s8)(const cmsis_nn_dw_conv_params *dw_conv_params,
+                                        const cmsis_nn_dims *input_dims,
+                                        const cmsis_nn_dims *filter_dims,
+                                        const cmsis_nn_dims *output_dims,
+                                        int32_t ctx_size)
+{
+    if (!arm_nn_depthwise_conv_s8_planar_candidate(dw_conv_params, input_dims))
+    {
+        return (int32_t)ARM_NN_DW_OPT_S8_ROUTE_CHANNELWISE;
+    }
+    int8_t set = 0;
+    const cmsis_nn_context ctx = {&set, ctx_size};
+    const cmsis_nn_context weight_sum_ctx = {&set, 0};
+    return (int32_t)arm_nn_depthwise_conv_s8_opt_select(
+        arm_nn_depthwise_conv_s8_planar_bytes(dw_conv_params, input_dims, filter_dims, output_dims),
+        &ctx,
+        &weight_sum_ctx,
+        input_dims,
+        filter_dims);
+}
+
+int32_t ARM_NN_PLAN_ROUTE_FN(weights_sum_bytes)(const cmsis_nn_dims *output_dims)
+{
+    return arm_nn_convolve_s8_weights_sum_bytes(output_dims);
+}

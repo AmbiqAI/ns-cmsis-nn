@@ -2,16 +2,19 @@
 """build_planner and Planner: the cache, the refusals of a library or manifest that does not match, every plan resolving
 to a manifest implementation, and the preparation helpers against the definitions they implement."""
 
+import ctypes
 import dataclasses
 import os
 import random
 import shutil
+import subprocess
 
 import pytest
 
 from conftest import ROOT
-from ns_cmsis_nn_contracts import (PlannerError, PlanRefused, Planner, Target, build_planner, load_implementations,
-                                   load_signatures, open_planner)
+from ns_cmsis_nn_contracts import (ContractError, PlannerError, PlanRefused, Planner, Target, build_planner,
+                                   load_implementations, load_signatures, open_planner, route_enums)
+from ns_cmsis_nn_contracts.planner import _Dims
 
 pytestmark = pytest.mark.skipif(not (os.environ.get("CC") or shutil.which("cc") or shutil.which("gcc")),
                                 reason="host C compiler required")
@@ -243,3 +246,241 @@ def test_pack_refusals(planner, kwargs, error, match):
     args.update(kwargs)
     with pytest.raises(error, match=match):
         planner.pack_fully_connected_per_channel_packed_s8(args.pop("filter_data"), **args)
+
+
+def _direct(planner, target, base, *args):
+    """The library's own query: its _mve or _dsp leg for the target, or the dispatching query of this scalar build."""
+    name = {"mve": f"{base}_mve", "dsp": f"{base}_dsp", "scalar": base}[target.isa]
+    fn = getattr(planner._lib, name)
+    fn.restype = ctypes.c_int32
+    return fn(*[ctypes.byref(_Dims(*a)) if isinstance(a, tuple) else a for a in args])
+
+
+def _plain(planner, name, *dims):
+    fn = getattr(planner._lib, name)
+    fn.restype = ctypes.c_int32
+    return fn(*[ctypes.byref(_Dims(*d)) for d in dims])
+
+
+DW_3X3 = dict(input_dims=(1, 10, 10, 16), filter_dims=(1, 3, 3, 16), output_dims=(1, 8, 8, 16))
+
+
+@pytest.mark.parametrize("target", TARGETS, ids=str)
+def test_buffer_bytes_equal_the_direct_queries(planner, target):
+    i, f, o = DW_3X3["input_dims"], DW_3X3["filter_dims"], DW_3X3["output_dims"]
+    for impl in ("depthwise_conv_s8_opt_3x3", "depthwise_conv_s8_opt_3x3_c64_s1"):
+        got = planner.buffer_bytes(target, impl, "scratch", input_dims=i)
+        assert got == _plain(planner, "arm_depthwise_conv_s8_opt_3x3_get_buffer_size", i)
+        assert got == 16 * (3 * 52 + 32) + 10 * 16 + 16
+    for impl in ("depthwise_conv_s8_opt", "depthwise_conv_s8_opt_planar", "depthwise_conv_s8_opt_channelwise"):
+        assert planner.buffer_bytes(target, impl, "scratch", input_dims=i, filter_dims=f) == \
+            _direct(planner, target, "arm_depthwise_conv_s8_opt_get_buffer_size", i, f)
+        assert planner.buffer_bytes(target, impl, "weight_sums", output_dims=o) == \
+            (16 * 4 if target.isa == "mve" else 0)
+    to_conv = dict(input_dims=(1, 6, 6, 1), filter_dims=(1, 3, 3, 9), output_dims=(1, 4, 4, 9))
+    plan = planner.depthwise_conv_wrapper_s8(target, ch_mult=9, **to_conv)
+    assert planner.buffer_bytes(target, "depthwise_conv_s8_to_conv", "scratch", dw_conv_params={"ch_mult": 9},
+                                **to_conv) == plan.ctx_bytes
+    for impl in ("fully_connected_s8", "fully_connected_per_channel_s8"):
+        assert planner.buffer_bytes(target, impl, "kernel_sums", filter_dims=(40, 1, 1, 10)) == \
+            _direct(planner, target, "arm_fully_connected_s8_get_buffer_size", (40, 1, 1, 10))
+    packed = planner.buffer_bytes(target, "fully_connected_per_channel_packed_s8", "packed_weights",
+                                  filter_dims=(23, 1, 1, 9))
+    assert packed == _plain(planner, "arm_fully_connected_per_channel_packed_s8_get_packed_size", (23, 1, 1, 9))
+    assert planner.buffer_bytes(target, "avg_pool_s8", "accumulators", output_dims=(1, 4, 4, 13),
+                                input_dims=(1, 8, 8, 13)) == \
+        _direct(planner, target, "arm_avgpool_s8_get_buffer_size", 4, 13)
+
+
+def test_every_manifest_size_query_is_answered(planner, implementations):
+    layer = dict(input_dims=(1, 10, 10, 8), filter_dims=(1, 3, 3, 8), output_dims=(1, 8, 8, 8),
+                 dw_conv_params={"ch_mult": 1})
+    asked = 0
+    for impl in implementations.implementations.values():
+        for buffer in impl.buffers:
+            if buffer.size_query is None:
+                continue
+            roots = {ref.split(".")[0] for ref in buffer.size_args.values()}
+            for target in TARGETS:
+                assert planner.buffer_bytes(target, impl.id, buffer.name, **{r: layer[r] for r in roots}) >= 0
+            asked += 1
+    assert asked >= 15
+
+
+@pytest.mark.parametrize("target", TARGETS, ids=str)
+def test_dw_opt_plan_resolves_to_the_manifest_routes(planner, target):
+    layer = dict(input_dims=(1, 10, 10, 8), filter_dims=(1, 3, 3, 8), output_dims=(1, 8, 8, 8))
+    scratch = planner.buffer_bytes(target, "depthwise_conv_s8_opt", "scratch", input_dims=layer["input_dims"],
+                                   filter_dims=layer["filter_dims"])
+    for ctx_size in (0, scratch):
+        plan = planner.depthwise_conv_s8_opt(target, ctx_size=ctx_size, **layer)
+        planar = target.isa == "mve" and ctx_size > 0
+        assert plan.route == ("dw_opt_s8:planar" if planar else "dw_opt_s8:channelwise")
+        assert plan.implementation.id == ("depthwise_conv_s8_opt_planar" if planar
+                                          else "depthwise_conv_s8_opt_channelwise")
+        assert plan.implementation.entry == plan.kernel
+        assert plan.ctx_bytes == scratch
+
+
+def test_dw_opt_plan_at_the_plane_boundary(planner):
+    """The plane of this layer is 10 x 10 + 32 bytes: ctx->size at the plane runs planar, one byte short fails."""
+    layer = dict(input_dims=(1, 10, 10, 8), filter_dims=(1, 3, 3, 8), output_dims=(1, 8, 8, 8))
+    assert planner.depthwise_conv_s8_opt(Target("mve"), ctx_size=132, **layer).route == "dw_opt_s8:planar"
+    with pytest.raises(PlanRefused) as refused:
+        planner.depthwise_conv_s8_opt(Target("mve"), ctx_size=131, **layer)
+    assert refused.value.status == "range"
+    wide = dict(input_dims=(1, 1, 465, 4), filter_dims=(1, 1, 1, 4), output_dims=(1, 1, 465, 4))
+    assert planner.depthwise_conv_s8_opt(Target("mve"), ctx_size=1 << 20, **wide).route == "dw_opt_s8:channelwise"
+    narrow = dict(input_dims=(1, 1, 464, 4), filter_dims=(1, 1, 1, 4), output_dims=(1, 1, 464, 4))
+    assert planner.depthwise_conv_s8_opt(Target("mve"), ctx_size=1 << 20, **narrow).route == "dw_opt_s8:planar"
+
+
+@pytest.mark.parametrize("change, status", [
+    (dict(ch_mult=2, output_dims=(1, 8, 8, 16), filter_dims=(1, 3, 3, 16)), "shape"),
+    (dict(dilation=(2, 1)), "shape"),
+    (dict(ctx_size=-1), "range"),
+    (dict(input_dims=(1, 65536, 65536, 8)), "range"),
+])
+def test_dw_opt_plan_refusals(planner, change, status):
+    layer = dict(input_dims=(1, 10, 10, 8), filter_dims=(1, 3, 3, 8), output_dims=(1, 8, 8, 8), ctx_size=0)
+    layer.update(change)
+    with pytest.raises(PlanRefused) as refused:
+        planner.depthwise_conv_s8_opt(Target("mve"), **layer)
+    assert refused.value.status == status
+
+
+@pytest.mark.parametrize("kwargs, match", [
+    (dict(ctx_size=2**31), "ctx_size"),
+    (dict(ctx_size=1.5), "ctx_size"),
+    (dict(stride=(1,)), "stride"),
+    (dict(ch_mult=True), "ch_mult"),
+])
+def test_dw_opt_arguments_checked_before_the_call(planner, kwargs, match):
+    layer = dict(input_dims=(1, 10, 10, 8), filter_dims=(1, 3, 3, 8), output_dims=(1, 8, 8, 8), ctx_size=0)
+    layer.update(kwargs)
+    with pytest.raises(ValueError, match=match):
+        planner.depthwise_conv_s8_opt(Target("mve"), **layer)
+
+
+@pytest.mark.parametrize("args, operands, error, match", [
+    (("no_such_implementation", "scratch"), {}, ContractError, "no such implementation"),
+    (("depthwise_conv_s8_opt", "no_such_buffer"), {}, ContractError, "no buffer"),
+    (("depthwise_conv_s8", "ctx"), {}, ContractError, "no size query"),
+    (("depthwise_conv_s8_opt", "scratch"), dict(input_dims=(1, 4, 4, 8)), ValueError, "missing \\['filter_dims'\\]"),
+    (("depthwise_conv_s8_opt", "scratch"),
+     dict(input_dims=(1, 4, 4, 8), filter_dims=(1, 3, 3, 8), output_dims=(1, 2, 2, 8)), ValueError,
+     "unexpected \\['output_dims'\\]"),
+    (("depthwise_conv_s8_opt", "scratch"), dict(input_dims=(1, 4, 4), filter_dims=(1, 3, 3, 8)), ValueError,
+     "input_dims"),
+    (("depthwise_conv_s8_to_conv", "scratch"), dict(dw_conv_params={"ch_mult": 9, "groups": 1},
+                                                    input_dims=(1, 6, 6, 1), filter_dims=(1, 3, 3, 9),
+                                                    output_dims=(1, 4, 4, 9)), ValueError, "dw_conv_params"),
+    (("depthwise_conv_s8_to_conv", "scratch"), dict(dw_conv_params={"stride": (1, 1)}, input_dims=(1, 6, 6, 1),
+                                                    filter_dims=(1, 3, 3, 9), output_dims=(1, 4, 4, 9)), ValueError,
+     "dw_conv_params"),
+    (("avg_pool_s8", "accumulators"), dict(output_dims=(1, 4, 4, 13), input_dims=(1, 8, 8)), ValueError,
+     "input_dims"),
+])
+def test_buffer_bytes_refusals(planner, args, operands, error, match):
+    with pytest.raises(error, match=match):
+        planner.buffer_bytes(Target("mve"), *args, **operands)
+
+
+@pytest.mark.parametrize("target, args, operands, status", [
+    (Target("mve"), ("depthwise_conv_s8_opt_3x3", "scratch"), dict(input_dims=(1, 1, 1, 2**31 - 100)), "range"),
+    (Target("mve"), ("depthwise_conv_s8_opt_3x3", "scratch"), dict(input_dims=(1, 1, 65536, 32768)), "range"),
+    (Target("mve"), ("depthwise_conv_s8_opt", "weight_sums"), dict(output_dims=(1, 1, 1, 1 << 29)), "range"),
+    (Target("mve"), ("fully_connected_per_channel_packed_s8", "packed_weights"),
+     dict(filter_dims=((2**31 - 1) // 2, 1, 1, 1)), "range"),
+    (Target("dsp"), ("avg_pool_s8", "accumulators"),
+     dict(output_dims=(1, 1, 1, 1), input_dims=(1, 1, 1, (1 << 29) + 1)), "range"),
+    (Target("mve"), ("depthwise_conv_s8_opt", "scratch"), dict(input_dims=(1, 4, 4, 0), filter_dims=(1, 3, 3, 8)),
+     "shape"),
+    (Target("mve"), ("depthwise_conv_s8_to_conv", "scratch"), dict(dw_conv_params={"ch_mult": 9},
+                                                                   input_dims=(1, 6, 6, 1), filter_dims=(1, 3, 3, 9),
+                                                                   output_dims=(1, 4, 4, 8)), "shape"),
+])
+def test_buffer_bytes_planner_refusals(planner, target, args, operands, status):
+    with pytest.raises(PlanRefused) as refused:
+        planner.buffer_bytes(target, *args, **operands)
+    assert refused.value.status == status
+
+
+def test_buffer_bytes_needs_the_manifest(cache):
+    bare = Planner(build_planner(ROOT, "gcc", cache_dir=cache), "gcc")
+    with pytest.raises(PlannerError, match="manifest"):
+        bare.buffer_bytes(Target("mve"), "depthwise_conv_s8_opt_3x3", "scratch", input_dims=(1, 4, 4, 16))
+
+
+# The route ids of the manifest and the arm_nn_dispatch.h constant each one is.
+ROUTE_NAMES = {
+    "dw_wrapper_s8:to_conv": "ARM_NN_DW_CONV_S8_ROUTE_TO_CONV", "dw_wrapper_s8:conv_3x3": "ARM_NN_DW_CONV_S8_ROUTE_3X3",
+    "dw_wrapper_s8:opt": "ARM_NN_DW_CONV_S8_ROUTE_OPT", "dw_wrapper_s8:generic": "ARM_NN_DW_CONV_S8_ROUTE_GENERIC",
+    "fc_wrapper_s8:per_channel": "ARM_NN_FC_S8_ROUTE_PER_CHANNEL",
+    "fc_wrapper_s8:per_tensor": "ARM_NN_FC_S8_ROUTE_PER_TENSOR",
+    "dw_opt_s8:planar": "ARM_NN_DW_OPT_S8_ROUTE_PLANAR", "dw_opt_s8:channelwise": "ARM_NN_DW_OPT_S8_ROUTE_CHANNELWISE",
+}
+
+
+def test_route_enums_read_the_values_the_compiler_gives(tmp_path):
+    enums = route_enums(ROOT)
+    assert set(enums) >= {"arm_depthwise_conv_wrapper_s8", "arm_fully_connected_wrapper_s8",
+                          "arm_depthwise_conv_s8_opt"}
+    names = [name for constants in enums.values() for name in constants.values()]
+    probe = tmp_path / "probe.c"
+    probe.write_text('#include <stdio.h>\n#include "Internal/arm_nn_dispatch.h"\nint main(void) {\n'
+                     + "".join(f'printf("{n} %d\\n", (int){n});\n' for n in names) + "return 0; }\n")
+    cc = os.environ.get("CC") or shutil.which("cc") or shutil.which("gcc")
+    subprocess.run([cc, "-std=c11", f"-I{ROOT / 'Include'}", str(probe), "-o", str(tmp_path / "probe")], check=True,
+                   capture_output=True)
+    out = subprocess.run([str(tmp_path / "probe")], check=True, capture_output=True, text=True).stdout
+    compiled = dict(line.split() for line in out.splitlines())
+    assert {n: int(v) for n, v in compiled.items()} == {n: v for c in enums.values() for v, n in c.items()}
+
+
+@pytest.mark.parametrize("target", TARGETS, ids=str)
+def test_routed_plans_carry_the_selector_value(planner, target):
+    plans = [planner.depthwise_conv_wrapper_s8(target, **layer) for layer in DW_GRID]
+    plans += [planner.fully_connected_wrapper_s8(target, input_dims=(1, 1, 1, 40), filter_dims=(40, 1, 1, 10),
+                                                 output_dims=(1, 1, 1, 10), per_channel=per_channel)
+              for per_channel in (False, True)]
+    plans += [planner.depthwise_conv_s8_opt(target, input_dims=(1, 10, 10, 8), filter_dims=(1, 3, 3, 8),
+                                            output_dims=(1, 8, 8, 8), ctx_size=ctx_size) for ctx_size in (0, 1 << 20)]
+    enums = route_enums(ROOT)
+    for plan in plans:
+        assert plan.route_name == ROUTE_NAMES[plan.route]
+        assert enums[plan.implementation.wrapper][plan.route_value] == plan.route_name
+
+
+def test_direct_entries_have_no_route_value(planner):
+    for plan in (planner.pool_s8(Target("mve"), max_pool=max_pool, input_dims=(1, 8, 8, 16), kernel_hw=(2, 2),
+                                 output_dims=(1, 4, 4, 16), stride=(2, 2)) for max_pool in (False, True)):
+        assert (plan.route, plan.route_value, plan.route_name) == (None, None, None)
+    plan = planner.fully_connected_per_channel_packed_s8(Target("mve"), filter_dims=(64, 1, 1, 16), filter_offset=0,
+                                                         multipliers=[1 << 30] * 16, shifts=[-1] * 16)
+    assert (plan.route, plan.route_value, plan.route_name) == (None, None, None)
+
+
+def test_a_plan_without_a_manifest_keeps_the_value_but_no_name(cache):
+    bare = Planner(build_planner(ROOT, "gcc", cache_dir=cache), "gcc")
+    plan = bare.depthwise_conv_wrapper_s8(Target("mve"), **DW_GRID[0])
+    assert (plan.route, plan.route_value, plan.route_name) == ("dw_wrapper_s8:opt", 2, None)
+
+
+@pytest.mark.parametrize("edit, match", [
+    (lambda text: text.replace("ARM_NN_DW_CONV_S8_ROUTE_GENERIC = 3", "ARM_NN_DW_CONV_S8_ROUTE_GENERIC = 2"), "twice"),
+    (lambda text: text.replace("The kernel arm_fully_connected_wrapper_s8() calls.", "Routes."), "no route 0"),
+    (lambda text: "", "declares no route enum"),
+])
+def test_a_route_without_a_readable_constant_fails_closed(tree, tmp_path, edit, match):
+    header = tree / "Include" / "Internal" / "arm_nn_dispatch.h"
+    header.write_text(edit(header.read_text()))
+    shutil.copytree(ROOT / "python" / "ns_cmsis_nn_contracts", tree / "python" / "ns_cmsis_nn_contracts")
+    implementations = load_implementations(ROOT, load_signatures(ROOT))
+    planner = Planner(build_planner(ROOT, "gcc", cache_dir=tmp_path), "gcc",
+                      dataclasses.replace(implementations, path=tree / implementations.path.relative_to(ROOT)))
+    with pytest.raises(PlannerError, match=match):
+        planner.fully_connected_wrapper_s8(Target("mve"), input_dims=(1, 1, 1, 8), filter_dims=(8, 1, 1, 4),
+                                           output_dims=(1, 1, 1, 4), per_channel=True)
+    with pytest.raises(PlannerError, match="cannot be read"):
+        route_enums(tmp_path / "nowhere")

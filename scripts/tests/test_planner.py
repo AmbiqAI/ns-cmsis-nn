@@ -9,6 +9,7 @@ from what the firmware asks for.
 from __future__ import annotations
 
 import ctypes
+import json
 import shutil
 import subprocess
 import sys
@@ -73,6 +74,12 @@ class Plan(ctypes.Structure):
                 ("ctx_bytes", ctypes.c_int32), ("prepared_bytes", ctypes.c_int32)]
 
 
+class SizeOperands(ctypes.Structure):
+    _fields_ = [("dw_conv_params", ctypes.POINTER(DwConvParams)), ("input_dims", ctypes.POINTER(Dims)),
+                ("filter_dims", ctypes.POINTER(Dims)), ("output_dims", ctypes.POINTER(Dims)),
+                ("dim_dst_width", ctypes.POINTER(ctypes.c_int32)), ("ch_src", ctypes.POINTER(ctypes.c_int32))]
+
+
 def _check_struct_layouts(tmp: Path) -> None:
     """The ctypes mirrors above must match the C structs, field for field."""
     probe = tmp / "layout.c"
@@ -80,7 +87,7 @@ def _check_struct_layouts(tmp: Path) -> None:
     for cname, py in (("cmsis_nn_dw_conv_params", DwConvParams), ("cmsis_nn_pool_params", PoolParams),
                       ("cmsis_nn_fc_params", FcParams), ("cmsis_nn_quant_params", QuantParams),
                       ("cmsis_nn_per_channel_quant_params", PerChannelQuant), ("arm_nn_plan_target", Target),
-                      ("arm_nn_plan_result", Plan)):
+                      ("arm_nn_plan_result", Plan), ("arm_nn_plan_size_operands", SizeOperands)):
         lines.append(f'printf("{cname} %zu\\n", sizeof({cname}));')
         for field, _ in py._fields_:
             lines.append(f'printf("{cname}.{field} %zu\\n", offsetof({cname}, {field}));')
@@ -94,7 +101,7 @@ def _check_struct_layouts(tmp: Path) -> None:
     for cname, py in (("cmsis_nn_dw_conv_params", DwConvParams), ("cmsis_nn_pool_params", PoolParams),
                       ("cmsis_nn_fc_params", FcParams), ("cmsis_nn_quant_params", QuantParams),
                       ("cmsis_nn_per_channel_quant_params", PerChannelQuant), ("arm_nn_plan_target", Target),
-                      ("arm_nn_plan_result", Plan)):
+                      ("arm_nn_plan_result", Plan), ("arm_nn_plan_size_operands", SizeOperands)):
         assert int(got[cname]) == ctypes.sizeof(py), cname
         for field, _ in py._fields_:
             assert int(got[f"{cname}.{field}"]) == getattr(py, field).offset, f"{cname}.{field}"
@@ -350,3 +357,255 @@ def test_the_planner_refuses_a_target_build(tmp_path):
                               f"-I{ROOT / 'Planner/include'}", f"-I{ROOT / 'Planner/src'}",
                               str(ROOT / "Planner/src/arm_nn_plan.c")], capture_output=True, text=True)
         assert out.returncode != 0 and "the ns-cmsis-nn planner is a host library" in out.stderr
+
+
+PLANAR, CHANNELWISE = range(2)
+
+
+def plan_dw_opt(lib, tgt, params, i, f, o, ctx_size):
+    plan = Plan()
+    status = lib.arm_nn_plan_depthwise_conv_s8_opt(ctypes.byref(tgt), ctypes.byref(params), ctypes.byref(i),
+                                                   ctypes.byref(f), ctypes.byref(o), ctypes.c_int32(ctx_size),
+                                                   ctypes.byref(plan))
+    return status, plan
+
+
+def opt_scratch(lib, isa, i, f):
+    sizer = {MVE: lib.arm_depthwise_conv_s8_opt_get_buffer_size_mve,
+             DSP: lib.arm_depthwise_conv_s8_opt_get_buffer_size_dsp,
+             SCALAR: lib.arm_depthwise_conv_s8_opt_get_buffer_size}[isa]
+    return sizer(ctypes.byref(i), ctypes.byref(f))
+
+
+def planar_bytes(lib, params, i, f, o):
+    return lib.arm_nn_depthwise_conv_s8_planar_bytes(ctypes.byref(params), ctypes.byref(i), ctypes.byref(f),
+                                                     ctypes.byref(o))
+
+
+# A 3x3 layer the planar path takes: an 8 + 2 by 8 + 2 plane plus 32 bytes of slack.
+PLANAR_3X3 = dict(c=8, h=10, w=10)
+PLANAR_3X3_PLANE = 10 * 10 + 32
+
+
+@pytest.mark.parametrize("toolchain", [GCC, ARMCLANG])
+@pytest.mark.parametrize("isa, autovectorize", [(SCALAR, 0), (DSP, 0), (MVE, 0), (MVE, 1)])
+def test_depthwise_opt_plan_reports_the_route_and_scratch(libs, toolchain, isa, autovectorize):
+    lib = libs[toolchain]
+    params, i, f, o = dw_layer(**PLANAR_3X3)
+    assert planar_bytes(lib, params, i, f, o) == PLANAR_3X3_PLANE
+    scratch = opt_scratch(lib, isa, i, f)
+    tgt = target(isa, autovectorize, toolchain=toolchain)
+    for ctx_size in (0, scratch, PLANAR_3X3_PLANE):
+        status, plan = plan_dw_opt(lib, tgt, params, i, f, o, ctx_size)
+        planar = isa == MVE and ctx_size >= PLANAR_3X3_PLANE
+        if not planar and 0 < ctx_size < scratch:
+            assert status == E_RANGE, ctx_size
+            continue
+        assert status == OK, ctx_size
+        assert plan.route == (PLANAR if planar else CHANNELWISE)
+        assert plan.kernel == (b"arm_depthwise_conv_s8_opt_planar" if planar else
+                               b"arm_depthwise_conv_s8_opt_channelwise")
+        assert plan.route_id == (b"dw_opt_s8:planar" if planar else b"dw_opt_s8:channelwise")
+        assert plan.ctx_bytes == scratch and plan.prepared_bytes == 0
+        assert plan.ctx_role == (CTX_SCRATCH if scratch else CTX_NONE)
+
+
+@pytest.mark.parametrize("isa", [MVE, DSP])
+def test_depthwise_opt_ctx_one_byte_short_of_the_plane(libs, isa):
+    """Planar declines and channelwise rejects a declared ctx->size below its scratch, so the call fails."""
+    lib = libs[GCC]
+    params, i, f, o = dw_layer(**PLANAR_3X3)
+    assert opt_scratch(lib, isa, i, f) > PLANAR_3X3_PLANE
+    status, _ = plan_dw_opt(lib, target(isa), params, i, f, o, PLANAR_3X3_PLANE - 1)
+    assert status == E_RANGE
+    status, plan = plan_dw_opt(lib, target(isa), params, i, f, o, PLANAR_3X3_PLANE)
+    if isa == MVE:
+        assert status == OK and plan.route == PLANAR
+    else:
+        assert status == E_RANGE
+
+
+@pytest.mark.parametrize("width, planar", [(464, True), (465, False)])
+def test_depthwise_opt_plane_against_the_mve_scratch(libs, width, planar):
+    """A 1x1 filter has a 4 * 124-byte MVE scratch; a 1-row plane of W + 32 bytes fits it up to W = 464."""
+    lib = libs[GCC]
+    params, i, f, o = dw_layer(c=4, h=1, w=width, k=(1, 1))
+    scratch = opt_scratch(lib, MVE, i, f)
+    assert scratch == 4 * 124
+    assert planar_bytes(lib, params, i, f, o) == width + 32
+    status, plan = plan_dw_opt(lib, target(MVE), params, i, f, o, 1 << 20)
+    assert status == OK and plan.route == (PLANAR if planar else CHANNELWISE)
+
+
+@pytest.mark.parametrize("layer, planar", [
+    (dict(c=33, h=10, w=10), False),               # more than 32 channels
+    (dict(c=8, h=11, w=11, stride=(2, 2)), False),  # not the planar candidate
+    (dict(c=8, h=12, w=12, dilation=(2, 1)), True),
+    (dict(c=8, h=10, w=10, n=1, pad=(1, 1)), True),
+    (dict(c=16, h=6, w=6), False),                 # narrow plane: not profitable
+])
+def test_depthwise_opt_plan_follows_the_planar_rule(libs, layer, planar):
+    lib = libs[GCC]
+    params, i, f, o = dw_layer(**layer)
+    plane = planar_bytes(lib, params, i, f, o)
+    assert (0 <= plane <= opt_scratch(lib, MVE, i, f)) == planar
+    status, plan = plan_dw_opt(lib, target(MVE), params, i, f, o, 1 << 20)
+    assert status == OK and plan.route == (PLANAR if planar else CHANNELWISE)
+
+
+def test_depthwise_opt_dsp_counter_limits(libs):
+    lib = libs[GCC]
+    wide = dw_layer(c=65536, h=1, w=1, k=(1, 1))
+    taps = dw_layer(c=1, h=256, w=256, k=(256, 256))
+    for params, i, f, o in (wide, taps):
+        assert plan_dw_opt(lib, target(DSP), params, i, f, o, 0)[0] == E_RANGE
+        status, plan = plan_dw_opt(lib, target(MVE), params, i, f, o, 0)
+        assert status == OK and plan.route == CHANNELWISE
+    params, i, f, o = dw_layer(c=65535, h=1, w=1, k=(1, 1))
+    assert plan_dw_opt(lib, target(DSP), params, i, f, o, 0)[0] == OK
+
+
+@pytest.mark.parametrize("change, status", [
+    (lambda p, i, f, o: (setattr(p, "ch_mult", 2), setattr(o, "c", 16), setattr(f, "c", 16)), E_SHAPE),
+    (lambda p, i, f, o: setattr(p.dilation, "h", 2), E_SHAPE),
+    (lambda p, i, f, o: setattr(p.dilation, "w", 0), E_SHAPE),
+    (lambda p, i, f, o: setattr(f, "c", 9), E_SHAPE),
+    (lambda p, i, f, o: setattr(i, "n", 0), E_SHAPE),
+    (lambda p, i, f, o: (setattr(i, "h", 65536), setattr(i, "w", 65536)), E_RANGE),
+])
+def test_invalid_depthwise_opt_layers_are_refused(libs, change, status):
+    params, i, f, o = dw_layer(**PLANAR_3X3)
+    change(params, i, f, o)
+    assert plan_dw_opt(libs[GCC], target(), params, i, f, o, 0)[0] == status
+
+
+def test_depthwise_opt_refusals(libs):
+    lib = libs[GCC]
+    params, i, f, o = dw_layer(**PLANAR_3X3)
+    assert plan_dw_opt(lib, target(), params, i, f, o, -1)[0] == E_RANGE
+    assert plan_dw_opt(lib, target(toolchain=ARMCLANG), params, i, f, o, 0)[0] == E_TARGET
+    assert plan_dw_opt(lib, target(isa=DSP, autovectorize=1), params, i, f, o, 0)[0] == E_TARGET
+    tgt = target()
+    for args in ((None, params, i, f, o), (tgt, None, i, f, o), (tgt, params, None, f, o), (tgt, params, i, f, None)):
+        refs = [ctypes.byref(a) if a is not None else None for a in args]
+        assert lib.arm_nn_plan_depthwise_conv_s8_opt(*refs, ctypes.c_int32(0), ctypes.byref(Plan())) == E_NULL
+    assert lib.arm_nn_plan_depthwise_conv_s8_opt(ctypes.byref(tgt), ctypes.byref(params), ctypes.byref(i),
+                                                 ctypes.byref(f), ctypes.byref(o), ctypes.c_int32(0), None) == E_NULL
+
+
+def buffer_bytes(lib, tgt, symbol, **operands):
+    refs = {}
+    for name, value in operands.items():
+        refs[name] = ctypes.pointer(ctypes.c_int32(value) if isinstance(value, int) else value)
+    out = ctypes.c_int32(-12345)
+    status = lib.arm_nn_plan_buffer_bytes(ctypes.byref(tgt), symbol.encode() if symbol is not None else None,
+                                          ctypes.byref(SizeOperands(**refs)), ctypes.byref(out))
+    return status, out.value
+
+
+def direct(lib, isa, base):
+    """The library's query of `base` for an ISA: its _mve or _dsp leg, or the dispatching query of this scalar build."""
+    return getattr(lib, {MVE: f"{base}_mve", DSP: f"{base}_dsp", SCALAR: base}[isa])
+
+
+@pytest.mark.parametrize("toolchain", [GCC, ARMCLANG])
+@pytest.mark.parametrize("isa, autovectorize", [(SCALAR, 0), (DSP, 0), (MVE, 0), (MVE, 1)])
+def test_buffer_bytes_equal_the_library_queries(libs, toolchain, isa, autovectorize):
+    lib = libs[toolchain]
+    tgt = target(isa, autovectorize, toolchain=toolchain)
+    for width, ch in ((1, 1), (4, 13), (7, 300)):
+        status, got = buffer_bytes(lib, tgt, "arm_avgpool_s8_get_buffer_size", dim_dst_width=width, ch_src=ch)
+        assert status == OK and got == direct(lib, isa, "arm_avgpool_s8_get_buffer_size")(width, ch)
+    for layer in (dict(c=8, pad=(1, 1)), dict(c=1, ch_mult=9), dict(c=13, k=(5, 5), h=9, w=9), dict(c=4, ch_mult=2)):
+        params, i, f, o = dw_layer(**layer)
+        status, got = buffer_bytes(lib, tgt, "arm_depthwise_conv_wrapper_s8_get_buffer_size", dw_conv_params=params,
+                                   input_dims=i, filter_dims=f, output_dims=o)
+        want = direct(lib, isa, "arm_depthwise_conv_wrapper_s8_get_buffer_size")(
+            ctypes.byref(params), ctypes.byref(i), ctypes.byref(f), ctypes.byref(o))
+        assert status == OK and got == want
+        status, got = buffer_bytes(lib, tgt, "arm_depthwise_conv_s8_opt_get_buffer_size", input_dims=i, filter_dims=f)
+        assert status == OK and got == opt_scratch(lib, isa, i, f)
+        status, got = buffer_bytes(lib, tgt, "arm_convolve_s8_get_weights_sum_size", output_dims=o)
+        assert status == OK and got == (4 * o.c if isa == MVE else 0)
+        if isa != MVE:
+            assert got == lib.arm_convolve_s8_get_weights_sum_size(ctypes.byref(o))
+    for i in (dims(1, 5, 3, 16), dims(1, 9, 41, 64), dims(1, 1, 2048, 2048)):
+        status, got = buffer_bytes(lib, tgt, "arm_depthwise_conv_s8_opt_3x3_get_buffer_size", input_dims=i)
+        assert status == OK and got == lib.arm_depthwise_conv_s8_opt_3x3_get_buffer_size(ctypes.byref(i))
+        assert got == 16 * (3 * 52 + 32) + i.w * i.c + 16
+    for f in (dims(21, 1, 1, 5), dims(23, 1, 1, 9), dims(1, 1, 1, 1)):
+        status, got = buffer_bytes(lib, tgt, "arm_fully_connected_s8_get_buffer_size", filter_dims=f)
+        assert status == OK and got == direct(lib, isa, "arm_fully_connected_s8_get_buffer_size")(ctypes.byref(f))
+        status, got = buffer_bytes(lib, tgt, "arm_fully_connected_per_channel_packed_s8_get_packed_size",
+                                   filter_dims=f)
+        assert status == OK
+        assert got == lib.arm_fully_connected_per_channel_packed_s8_get_packed_size(ctypes.byref(f)) > 0
+
+
+def test_every_manifest_size_query_is_answered(libs):
+    manifest = json.loads((ROOT / "Tests" / "KernelContracts" / "kernel_implementations.json").read_text())
+    params, i, f, o = dw_layer(**PLANAR_3X3)
+    values = dict(dw_conv_params=params, input_dims=i, filter_dims=f, output_dims=o, dim_dst_width=8, ch_src=8)
+    queries = {(b["size_query"]["symbol"], tuple(sorted(b["size_query"]["args"])))
+               for record in manifest["implementations"] for b in record["buffers"] if b["size_query"]}
+    assert queries
+    for symbol, args in queries:
+        assert set(args) <= set(values), (symbol, args)
+        for isa in (SCALAR, DSP, MVE):
+            status, got = buffer_bytes(libs[GCC], target(isa), symbol, **{a: values[a] for a in args})
+            assert status == OK and got >= 0, (symbol, isa)
+
+
+def test_buffer_bytes_refusals(libs):
+    lib = libs[GCC]
+    params, i, f, o = dw_layer(**PLANAR_3X3)
+    tgt = target()
+    opt = "arm_depthwise_conv_s8_opt_get_buffer_size"
+    assert buffer_bytes(lib, tgt, "arm_depthwise_conv_s8_get_buffer_size", input_dims=i, filter_dims=f) == \
+        (E_UNSUPPORTED, -12345)
+    assert buffer_bytes(lib, tgt, None, input_dims=i, filter_dims=f)[0] == E_NULL
+    assert buffer_bytes(lib, target(toolchain=ARMCLANG), opt, input_dims=i, filter_dims=f)[0] == E_TARGET
+    assert buffer_bytes(lib, tgt, opt, input_dims=i) == (E_NULL, -12345)
+    assert buffer_bytes(lib, tgt, opt, input_dims=i, filter_dims=f, output_dims=o) == (E_SHAPE, -12345)
+    assert buffer_bytes(lib, tgt, "arm_avgpool_s8_get_buffer_size", dim_dst_width=4)[0] == E_NULL
+    assert buffer_bytes(lib, tgt, "arm_avgpool_s8_get_buffer_size", dim_dst_width=4, ch_src=4, input_dims=i)[0] \
+        == E_SHAPE
+    out = ctypes.c_int32()
+    operands = SizeOperands(input_dims=ctypes.pointer(i), filter_dims=ctypes.pointer(f))
+    assert lib.arm_nn_plan_buffer_bytes(ctypes.byref(tgt), opt.encode(), None, ctypes.byref(out)) == E_NULL
+    assert lib.arm_nn_plan_buffer_bytes(ctypes.byref(tgt), opt.encode(), ctypes.byref(operands), None) == E_NULL
+    assert lib.arm_nn_plan_buffer_bytes(None, opt.encode(), ctypes.byref(operands), ctypes.byref(out)) == E_NULL
+
+
+@pytest.mark.parametrize("isa, symbol, operands, status", [
+    (MVE, "arm_depthwise_conv_s8_opt_get_buffer_size", dict(input_dims=dims(1, 4, 4, 0), filter_dims=dims(1, 3, 3, 8)),
+     E_SHAPE),
+    (MVE, "arm_depthwise_conv_s8_opt_get_buffer_size", dict(input_dims=dims(1, 4, 4, 8), filter_dims=dims(1, -3, 3, 8)),
+     E_SHAPE),
+    (MVE, "arm_avgpool_s8_get_buffer_size", dict(dim_dst_width=0, ch_src=4), E_SHAPE),
+    (MVE, "arm_avgpool_s8_get_buffer_size", dict(dim_dst_width=4, ch_src=-1), E_SHAPE),
+    # The element count passes int32_t.
+    (MVE, "arm_depthwise_conv_s8_opt_3x3_get_buffer_size", dict(input_dims=dims(1, 1, 65536, 32768)), E_RANGE),
+    # Within int32_t elements, but the size query's bytes are not: its -1.
+    (MVE, "arm_depthwise_conv_s8_opt_3x3_get_buffer_size", dict(input_dims=dims(1, 1, 1, INT32_MAX - 100)), E_RANGE),
+    (MVE, "arm_convolve_s8_get_weights_sum_size", dict(output_dims=dims(1, 1, 1, 1 << 29)), E_RANGE),
+    (DSP, "arm_avgpool_s8_get_buffer_size", dict(dim_dst_width=1, ch_src=(1 << 29) + 1), E_RANGE),
+    (MVE, "arm_fully_connected_s8_get_buffer_size", dict(filter_dims=dims(1, 1, 1, 1 << 29)), E_RANGE),
+    (MVE, "arm_fully_connected_per_channel_packed_s8_get_packed_size",
+     dict(filter_dims=dims(INT32_MAX // 2, 1, 1, 1)), E_RANGE),
+])
+def test_buffer_bytes_refuses_invalid_or_oversized_operands(libs, isa, symbol, operands, status):
+    assert buffer_bytes(libs[GCC], target(isa), symbol, **operands) == (status, -12345)
+
+
+def test_buffer_bytes_on_a_mismatched_depthwise_layer(libs):
+    params, i, f, o = dw_layer(c=4, ch_mult=2)
+    o.c = 9
+    assert buffer_bytes(libs[GCC], target(), "arm_depthwise_conv_wrapper_s8_get_buffer_size", dw_conv_params=params,
+                        input_dims=i, filter_dims=f, output_dims=o)[0] == E_SHAPE
+
+
+def test_weights_sum_bytes_on_scalar_builds_ignore_the_channel_count(libs):
+    status, got = buffer_bytes(libs[GCC], target(SCALAR), "arm_convolve_s8_get_weights_sum_size",
+                               output_dims=dims(1, 1, 1, 1 << 29))
+    assert (status, got) == (OK, 0)

@@ -11,15 +11,16 @@ from __future__ import annotations
 import ctypes
 import hashlib
 import os
+import re
 import shutil
 import subprocess
 import sys
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Optional, Sequence
+from typing import Mapping, Optional, Sequence
 
-from .errors import PlannerError, PlanRefused
+from .errors import ContractError, PlannerError, PlanRefused
 from .implementations import Implementation, ImplementationSet
 
 ABI_VERSION = 1
@@ -75,6 +76,17 @@ class _Plan(ctypes.Structure):
                 ("ctx_role", ctypes.c_int32), ("ctx_bytes", ctypes.c_int32), ("prepared_bytes", ctypes.c_int32)]
 
 
+class _SizeOperands(ctypes.Structure):
+    _fields_ = [("dw_conv_params", ctypes.POINTER(_DwConvParams)), ("input_dims", ctypes.POINTER(_Dims)),
+                ("filter_dims", ctypes.POINTER(_Dims)), ("output_dims", ctypes.POINTER(_Dims)),
+                ("dim_dst_width", ctypes.POINTER(ctypes.c_int32)), ("ch_src", ctypes.POINTER(ctypes.c_int32))]
+
+
+_DIMS_OPERANDS = frozenset({"input_dims", "filter_dims", "output_dims"})
+_INT_OPERANDS = frozenset({"dim_dst_width", "ch_src"})
+_DW_PARAM_KEYS = frozenset({"ch_mult", "stride", "padding", "dilation"})
+
+
 @dataclass(frozen=True)
 class Target:
     """The build of the target library: isa is scalar, dsp or mve."""
@@ -92,12 +104,18 @@ class Target:
 
 @dataclass(frozen=True)
 class Plan:
+    """route is the manifest route id; route_value the selector's enum value (what the wrapper's
+    arm_nn_*_select() returns on the target) and route_name its constant in Include/Internal/arm_nn_dispatch.h.
+    All three are None for a direct entry; route_name is None when the planner has no manifest."""
+
     kernel: str
     route: Optional[str]
     implementation: Optional[Implementation]
     ctx_role: str
     ctx_bytes: int
     prepared_bytes: int
+    route_value: Optional[int] = None
+    route_name: Optional[str] = None
 
 
 def _dims(value: Sequence[int], what: str) -> _Dims:
@@ -106,6 +124,25 @@ def _dims(value: Sequence[int], what: str) -> _Dims:
     if not all(-2**31 <= v <= INT32_MAX for v in value):
         raise ValueError(f"{what} {value!r} does not fit int32")
     return _Dims(*value)
+
+
+def _int32(value, what: str) -> int:
+    if not isinstance(value, int) or isinstance(value, bool) or not -2**31 <= value <= INT32_MAX:
+        raise ValueError(f"{what} must be an int32, got {value!r}")
+    return value
+
+
+def _pair(value, what: str) -> tuple[int, int]:
+    if not isinstance(value, (tuple, list)) or len(value) != 2:
+        raise ValueError(f"{what} must be an (h, w) pair, got {value!r}")
+    return _int32(value[0], what), _int32(value[1], what)
+
+
+def _dw_params(ch_mult, stride, padding, dilation) -> _DwConvParams:
+    """stride, padding and dilation are (h, w)."""
+    (sh, sw), (ph, pw), (dh, dw) = _pair(stride, "stride"), _pair(padding, "padding"), _pair(dilation, "dilation")
+    return _DwConvParams(0, 0, _int32(ch_mult, "ch_mult"), _Tile(sw, sh), _Tile(pw, ph), _Tile(dw, dh),
+                         _Activation(-128, 127))
 
 
 def _int32_array(values: Sequence[int], what: str):
@@ -121,6 +158,35 @@ def _int8_array(values, what: str):
             raise ValueError(f"{what} holds a value outside int8")
         data = bytes(int(v) & 0xFF for v in values)
     return (ctypes.c_int8 * len(data)).from_buffer_copy(data), len(data)
+
+
+DISPATCH_RELPATH = Path("Include") / "Internal" / "arm_nn_dispatch.h"
+# A route enum of arm_nn_dispatch.h: its doc comment names the function whose route it is.
+_ROUTE_ENUM_RE = re.compile(
+    r"/\*\*\s*The (?:kernel|path) (\w+)\(\) (?:calls|runs)\.\s*\*/\s*typedef enum\s*\{(.*?)\}\s*\w+;", re.S)
+_ENUMERATOR_RE = re.compile(r"\b(ARM_NN_\w+)\s*=\s*(\d+)")
+
+
+def route_enums(root: Path) -> dict[str, dict[int, str]]:
+    """Per routing function, its route enum's constants by value, read from the checkout's arm_nn_dispatch.h."""
+    path = Path(root) / DISPATCH_RELPATH
+    try:
+        text = path.read_text(encoding="utf-8")
+    except OSError as error:
+        raise PlannerError(f"{path}: cannot be read ({error})") from None
+    enums: dict[str, dict[int, str]] = {}
+    for match in _ROUTE_ENUM_RE.finditer(text):
+        constants: dict[int, str] = {}
+        for name, value in _ENUMERATOR_RE.findall(match.group(2)):
+            if int(value) in constants:
+                raise PlannerError(f"{path}: {match.group(1)}'s route enum gives {value} twice")
+            constants[int(value)] = name
+        if not constants or match.group(1) in enums:
+            raise PlannerError(f"{path}: cannot read the route enum of {match.group(1)}")
+        enums[match.group(1)] = constants
+    if not enums:
+        raise PlannerError(f"{path}: declares no route enum")
+    return enums
 
 
 def _sources(root: Path) -> list[Path]:
@@ -207,6 +273,7 @@ class Planner:
             raise PlannerError(f"{library}: built for toolchain {built}, asked for {toolchain}")
         self.toolchain = toolchain
         self.implementations = implementations
+        self._route_enums: Optional[dict[str, dict[int, str]]] = None
 
     def _bind(self) -> None:
         lib = self._lib
@@ -222,6 +289,9 @@ class Planner:
                                                                   ptr(_Dims), ptr(_Plan)],
             "arm_nn_plan_pool_s8": [ptr(_Target), ctypes.c_int32, ptr(_PoolParams), ptr(_Dims), ptr(_Dims),
                                     ptr(_Dims), ptr(_Plan)],
+            "arm_nn_plan_depthwise_conv_s8_opt": [ptr(_Target), ptr(_DwConvParams), ptr(_Dims), ptr(_Dims), ptr(_Dims),
+                                                  ctypes.c_int32, ptr(_Plan)],
+            "arm_nn_plan_buffer_bytes": [ptr(_Target), ctypes.c_char_p, ptr(_SizeOperands), ptr(ctypes.c_int32)],
             "arm_vector_sum_s8": [ptr(ctypes.c_int32), ctypes.c_int32, ctypes.c_int32, ptr(ctypes.c_int8),
                                   ctypes.c_int32, ctypes.c_int32, ptr(ctypes.c_int32)],
             "arm_fully_connected_per_channel_packed_s8_pack": [ptr(_Dims), ptr(ctypes.c_int8), ptr(ctypes.c_int32),
@@ -242,23 +312,97 @@ class Planner:
             raise PlanRefused(name, f"{what}: the planner refused the layer ({name})")
         kernel = plan.kernel.decode()
         route = plan.route_id.decode() if plan.route_id else None
-        impl = None
+        if (route is None) != (plan.route == -1) or (route is not None and wrapper is None):
+            raise PlannerError(f"{what}: the planner returned route {plan.route} with route id {route!r}")
+        impl = route_name = None
         if self.implementations is not None:
             impl = (self.implementations.by_route(wrapper, route) if route is not None
                     else self.implementations.by_direct_entry(kernel))
+            if route is not None:
+                route_name = self._route_name(wrapper, plan.route)
         return Plan(kernel=kernel, route=route, implementation=impl, ctx_role=CTX_ROLES[plan.ctx_role],
-                    ctx_bytes=plan.ctx_bytes, prepared_bytes=plan.prepared_bytes)
+                    ctx_bytes=plan.ctx_bytes, prepared_bytes=plan.prepared_bytes,
+                    route_value=None if route is None else plan.route, route_name=route_name)
+
+    def _route_name(self, wrapper: str, value: int) -> str:
+        if self._route_enums is None:
+            self._route_enums = route_enums(self.implementations.path.parents[2])
+        try:
+            return self._route_enums[wrapper][value]
+        except KeyError:
+            raise PlannerError(f"{DISPATCH_RELPATH} has no route {value} of {wrapper}") from None
 
     def depthwise_conv_wrapper_s8(self, target: Target, *, input_dims, filter_dims, output_dims, ch_mult: int,
                                   stride=(1, 1), padding=(0, 0), dilation=(1, 1)) -> Plan:
         """stride, padding and dilation are (h, w)."""
-        params = _DwConvParams(0, 0, ch_mult, _Tile(stride[1], stride[0]), _Tile(padding[1], padding[0]),
-                               _Tile(dilation[1], dilation[0]), _Activation(-128, 127))
+        params = _dw_params(ch_mult, stride, padding, dilation)
         plan = _Plan()
         status = self._lib.arm_nn_plan_depthwise_conv_wrapper_s8(
             self._target(target), params, _dims(input_dims, "input_dims"), _dims(filter_dims, "filter_dims"),
             _dims(output_dims, "output_dims"), plan)
         return self._result(status, plan, "arm_depthwise_conv_wrapper_s8", "arm_depthwise_conv_wrapper_s8")
+
+    def depthwise_conv_s8_opt(self, target: Target, *, input_dims, filter_dims, output_dims, ctx_size: int,
+                              ch_mult: int = 1, stride=(1, 1), padding=(0, 0), dilation=(1, 1)) -> Plan:
+        """The path arm_depthwise_conv_s8_opt() runs for a call whose ctx->size is ``ctx_size`` and whose ctx->buf and
+        weight_sum_ctx->buf are set (dw_opt_s8:planar or dw_opt_s8:channelwise). stride, padding and dilation are
+        (h, w). A call the entry rejects, such as a non-zero ctx_size below the channelwise scratch, is refused."""
+        params = _dw_params(ch_mult, stride, padding, dilation)
+        plan = _Plan()
+        status = self._lib.arm_nn_plan_depthwise_conv_s8_opt(
+            self._target(target), params, _dims(input_dims, "input_dims"), _dims(filter_dims, "filter_dims"),
+            _dims(output_dims, "output_dims"), _int32(ctx_size, "ctx_size"), plan)
+        return self._result(status, plan, "arm_depthwise_conv_s8_opt", "arm_depthwise_conv_s8_opt")
+
+    def buffer_bytes(self, target: Target, implementation_id: str, buffer_name: str, **operands) -> int:
+        """Bytes the size query of a manifest buffer returns for ``target``, from the library's own query for its ISA.
+
+        ``operands`` are the entry operands the query's arguments name, each given once: dims as (n, h, w, c) and
+        dw_conv_params as a mapping of ch_mult and optional (h, w) stride, padding and dilation. The size holds on the
+        target whether or not the implementation runs there.
+        """
+        if self.implementations is None:
+            raise PlannerError("buffer_bytes reads the implementation manifest; open the planner with open_planner()")
+        impl = self.implementations.require(implementation_id)
+        try:
+            buffer = impl.buffer(buffer_name)
+        except KeyError:
+            raise ContractError(f"{implementation_id} has no buffer {buffer_name!r}") from None
+        if buffer.size_query is None:
+            raise ContractError(f"{implementation_id}.{buffer_name} has no size query")
+        roots = {ref.split(".", 1)[0] for ref in buffer.size_args.values()}
+        missing, extra = sorted(roots - set(operands)), sorted(set(operands) - roots)
+        if missing or extra:
+            raise ValueError(f"{buffer.size_query} for {implementation_id}.{buffer_name} takes operands "
+                             f"{sorted(roots)}; missing {missing}, unexpected {extra}")
+        fields = {}
+        for param, ref in buffer.size_args.items():
+            root, _, member = ref.partition(".")
+            value = operands[root]
+            if member:
+                if root not in _DIMS_OPERANDS or member not in ("n", "h", "w", "c"):
+                    raise PlannerError(f"{buffer.size_query}: cannot resolve {ref!r}")
+                value = getattr(_dims(value, root), member)
+            if param in _DIMS_OPERANDS:
+                fields[param] = ctypes.pointer(_dims(value, root))
+            elif param in _INT_OPERANDS:
+                fields[param] = ctypes.pointer(ctypes.c_int32(_int32(value, ref)))
+            elif param == "dw_conv_params" and not member:
+                if not isinstance(value, Mapping) or "ch_mult" not in value or set(value) - _DW_PARAM_KEYS:
+                    raise ValueError(f"dw_conv_params must map ch_mult and optionally stride, padding and dilation, "
+                                     f"got {value!r}")
+                fields[param] = ctypes.pointer(_dw_params(value["ch_mult"], value.get("stride", (1, 1)),
+                                                          value.get("padding", (0, 0)), value.get("dilation", (1, 1))))
+            else:
+                raise PlannerError(f"{buffer.size_query}: the planner takes no argument {param!r}")
+        out = ctypes.c_int32()
+        status = self._lib.arm_nn_plan_buffer_bytes(self._target(target), buffer.size_query.encode(),
+                                                    _SizeOperands(**fields), out)
+        if status != 0:
+            name = STATUSES.get(status, f"status {status}")
+            raise PlanRefused(name, f"{buffer.size_query} for {implementation_id}.{buffer_name}: the planner refused "
+                                    f"the operands ({name})")
+        return out.value
 
     def fully_connected_wrapper_s8(self, target: Target, *, input_dims, filter_dims, output_dims,
                                    per_channel: bool) -> Plan:

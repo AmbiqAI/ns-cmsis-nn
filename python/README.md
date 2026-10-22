@@ -10,7 +10,9 @@ neither keeps its own port of the library's dispatch, sizing or weight preparati
   the signature export by sha256.
 - `build_planner(root, toolchain)` and `Planner`: the host planner library (`Planner/`), built with the host C
   compiler from the checkout's own sources and cached by their content. A plan names the kernel, the manifest
-  implementation it reaches and the bytes its buffers need; `vector_sum_s8` and
+  implementation it reaches and the bytes its buffers need; `buffer_bytes(target, implementation_id, buffer, **operands)`
+  evaluates one manifest buffer's size query for the target; a routed plan's `route_value` is what the wrapper's
+  `arm_nn_*_select()` returns on the target and `route_name` its `arm_nn_dispatch.h` constant (`route_enums(root)`); `vector_sum_s8` and
   `pack_fully_connected_per_channel_packed_s8` run the library's own preparation code.
 - `open_planner(root, toolchain)`: all three, bound together.
 

@@ -59,6 +59,26 @@ int main(int argc, char **argv)
         printf("%d\n", (int)arm_nn_depthwise_conv_wrapper_s8_select(&p, &in, &f, &out));
         return 0;
     }
+    if (argv[1][0] == 'o' && argc == 9)
+    {
+        /* plane_bytes, ctx (0 NULL, 1 set, 2 NULL buf), ctx->size, weight_sum_ctx (as ctx), filter h w, input c */
+        int8_t byte = 0;
+        const int32_t ctx_kind = a(argv, 3), ws_kind = a(argv, 5);
+        const cmsis_nn_context ctx = {ctx_kind == 1 ? &byte : NULL, a(argv, 4)};
+        const cmsis_nn_context ws = {ws_kind == 1 ? &byte : NULL, 0};
+        const cmsis_nn_dims in = {1, 8, 8, a(argv, 8)};
+        const cmsis_nn_dims f = {1, a(argv, 6), a(argv, 7), a(argv, 8)};
+        printf("%d\n",
+               (int)arm_nn_depthwise_conv_s8_opt_select(
+                   a(argv, 2), ctx_kind == 0 ? NULL : &ctx, ws_kind == 0 ? NULL : &ws, &in, &f));
+        return 0;
+    }
+    if (argv[1][0] == 'w' && argc == 3)
+    {
+        const cmsis_nn_dims out = {1, 1, 1, a(argv, 2)};
+        printf("%d\n", (int)arm_nn_convolve_s8_weights_sum_bytes(&out));
+        return 0;
+    }
     if (argv[1][0] == 'f' && argc == 3)
     {
         int32_t m = 1, s = 0;
@@ -70,9 +90,15 @@ int main(int argc, char **argv)
 }
 """
 
+# The MVE opt scratch the dw_opt selector compares against, built for the host.
+SIZER_SOURCES = [ROOT / "Source" / "ConvolutionFunctions" / "arm_depthwise_conv_get_buffer_sizes_s8.c",
+                 ROOT / "Source" / "ConvolutionFunctions" / "arm_convolve_get_buffer_sizes_s8.c"]
+
 # Route enums, in arm_nn_dispatch.h order.
 FAST, ONE, ONE_X_N, OUT, SMALL_CIN, C16, CONV = range(7)
+INT32_MAX = 2**31 - 1
 TO_CONV, DW3X3, OPT, DW = range(4)
+PLANAR, CHANNELWISE = range(2)
 
 
 @pytest.fixture(scope="module")
@@ -83,7 +109,8 @@ def route(tmp_path_factory):
     for name, flags in PROFILES.items():
         exe = build / name
         subprocess.run([CC, "-std=c11", "-Wall", "-Wextra", "-Werror", *flags, "-I", str(ROOT / "Include"),
-                        str(build / "driver.c"), "-o", str(exe)], check=True, capture_output=True, text=True)
+                        str(build / "driver.c"), *map(str, SIZER_SOURCES), "-o", str(exe)], check=True,
+                       capture_output=True, text=True)
         binaries[name] = exe
 
     def run(profile, kind, *values):
@@ -154,19 +181,57 @@ def test_depthwise_routes(route, case, profile):
     assert route(profile, "d", *args) == expected[profile]
 
 
+# The MVE opt scratch of a 3x3 filter is 4 * CH_IN_BLOCK_MVE (124) * 3 * 3 bytes on every MVE build.
+SCRATCH_3X3 = 4 * 124 * 3 * 3
+
+
+# (plane_bytes, ctx, ctx->size, weight_sum_ctx) with ctx kinds 0 NULL, 1 set, 2 NULL buf -> planar on MVE builds
+DW_OPT_CASES = {
+    "fits": ((100, 1, 100, 1), True),
+    "ctx_one_byte_short": ((100, 1, 99, 1), False),
+    "ctx_size_zero": ((100, 1, 0, 1), False),
+    "plane_is_the_scratch": ((SCRATCH_3X3, 1, 1 << 20, 1), True),
+    "plane_one_past_the_scratch": ((SCRATCH_3X3 + 1, 1, 1 << 20, 1), False),
+    "declined_plane": ((-1, 1, 1 << 20, 1), False),
+    "ctx_null": ((100, 0, 100, 1), False),
+    "ctx_buf_null": ((100, 2, 100, 1), False),
+    "weight_sums_null": ((100, 1, 100, 0), False),
+    "weight_sums_buf_null": ((100, 1, 100, 2), False),
+}
+
+
+@pytest.mark.parametrize("profile", PROFILES)
+@pytest.mark.parametrize("case", DW_OPT_CASES)
+def test_depthwise_opt_routes(route, case, profile):
+    (plane, ctx, size, ws), planar_on_mve = DW_OPT_CASES[case]
+    expected = PLANAR if planar_on_mve and profile != "scalar" else CHANNELWISE
+    assert route(profile, "o", plane, ctx, size, ws, 3, 3, 8) == expected
+
+
+@pytest.mark.parametrize("profile", PROFILES)
+@pytest.mark.parametrize("channels, mve_bytes", [(1, 4), (13, 52), ((1 << 29) - 1, INT32_MAX - 3), (1 << 29, -1),
+                                                 (-1, -1)])
+def test_weights_sum_bytes(route, profile, channels, mve_bytes):
+    assert route(profile, "w", channels) == (0 if profile == "scalar" else mve_bytes)
+
+
 @pytest.mark.parametrize("profile", PROFILES)
 def test_fully_connected_routes(route, profile):
     assert route(profile, "f", 1) == 0
     assert route(profile, "f", 0) == 1
 
 
+@pytest.mark.parametrize("source, what", [
+    ("Source/FullyConnectedFunctions/arm_fully_connected_wrapper_s8.c", "wrapper"),
+    ("Source/NNSupportFunctions/arm_nn_depthwise_conv_s8_planar.c", "kernel"),
+])
 @pytest.mark.parametrize("flags", [["-DARM_NN_ROUTE_MVEI=1"], ["-DARM_NN_ROUTE_AUTOVECTORIZE=1"]])
-def test_a_wrapper_refuses_routes_for_another_build(tmp_path, flags):
-    wrapper = ROOT / "Source" / "FullyConnectedFunctions" / "arm_fully_connected_wrapper_s8.c"
-    ok = subprocess.run([CC, "-std=c11", "-fsyntax-only", "-I", str(ROOT / "Include"), str(wrapper)],
+def test_a_routed_file_refuses_routes_for_another_build(tmp_path, flags, source, what):
+    path = ROOT / source
+    ok = subprocess.run([CC, "-std=c11", "-fsyntax-only", "-I", str(ROOT / "Include"), str(path)],
                         capture_output=True, text=True)
     assert ok.returncode == 0, ok.stderr
-    bad = subprocess.run([CC, "-std=c11", "-fsyntax-only", *flags, "-I", str(ROOT / "Include"), str(wrapper)],
+    bad = subprocess.run([CC, "-std=c11", "-fsyntax-only", *flags, "-I", str(ROOT / "Include"), str(path)],
                          capture_output=True, text=True)
     assert bad.returncode != 0
-    assert "ARM_NN_ROUTE_* must describe the build that compiles this wrapper" in bad.stderr
+    assert f"ARM_NN_ROUTE_* must describe the build that compiles this {what}" in bad.stderr

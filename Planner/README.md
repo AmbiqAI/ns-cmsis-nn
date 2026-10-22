@@ -8,8 +8,11 @@ cannot disagree. API: `include/arm_nn_plan.h`.
 - The target ISA (scalar, DSP, MVE), `ARM_MATH_AUTOVECTORIZE` and `CMSIS_NN_USE_SINGLE_ROUNDING` are runtime inputs.
 - The target toolchain is fixed per build (`ARM_NN_PLAN_TOOLCHAIN=gcc|armclang`) because a few routes and sizes
   depend on it at compile time; a plan for another toolchain returns `ARM_NN_PLAN_E_TARGET`.
-- Covered so far: `arm_depthwise_conv_wrapper_s8`, `arm_fully_connected_wrapper_s8`,
-  `arm_fully_connected_per_channel_packed_s8` and `arm_avgpool_s8` / `arm_max_pool_s8`.
+- Covered so far: `arm_depthwise_conv_wrapper_s8`, `arm_depthwise_conv_s8_opt` (planar or channelwise for a given
+  `ctx->size`), `arm_fully_connected_wrapper_s8`, `arm_fully_connected_per_channel_packed_s8` and `arm_avgpool_s8` /
+  `arm_max_pool_s8`.
+- `arm_nn_plan_buffer_bytes` answers every buffer `size_query` in `Tests/KernelContracts/kernel_implementations.json`
+  for a target ISA, with the library's own query; a new query in the manifest needs an entry there.
 
 ```
 cmake -S Planner -B build/plan -DARM_NN_PLAN_TOOLCHAIN=gcc
