@@ -19,21 +19,36 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / 'scripts'))
 from check_doxygen_params import parse_header, public_headers  # noqa: E402
 from check_kernel_contract import build_contract  # noqa: E402
+from check_kernel_implementations import GUARD_TOKENS  # noqa: E402
 
 INCLUDE = ROOT / 'Include'
 FUNCTIONS_HEADERS = ('Include/arm_nnfunctions.h', 'Include/arm_nnfunctions_flt.h')
 SUPPORT_HEADERS = ('Include/arm_nnsupportfunctions.h', 'Include/arm_nnsupportfunctions_flt.h')
 FLOAT_HEADERS = ('Include/arm_nnfunctions_flt.h', 'Include/arm_nnsupportfunctions_flt.h')
 
-# The consumer models exactly these: a status, a scratch size, nothing, or a pointer into
-# the output a support helper advanced. Pointer returns stay in the support header.
+# The consumer models exactly these: a status, a scratch size, nothing, a pointer into the
+# output a support helper advanced, or whether a support helper took its path
+# (arm_nn_depthwise_conv_s16_mve returns false to hand the layer back to its caller). Pointer and
+# bool returns stay in the support header.
 RETURN_TYPES = {'arm_cmsis_nn_status', 'int32_t', 'void'}
-SUPPORT_RETURN_TYPES = RETURN_TYPES | {'int8_t *', 'int16_t *'}
+SUPPORT_RETURN_TYPES = RETURN_TYPES | {'int8_t *', 'int16_t *', 'bool'}
 FLOAT_GUARDS = {'ARM_NN_ENABLE_F16', 'ARM_NN_ENABLE_F32'}
-SUPPORT_GUARDS = FLOAT_GUARDS | {'defined(ARM_MATH_DSP)'}
+# Every admitted guard must also be one the implementation manifest maps to a planner feature.
+MVE_GUARDS = {'defined(ARM_MATH_MVEI)', '!defined(ARM_MATH_AUTOVECTORIZE)'}
+SUPPORT_GUARDS = FLOAT_GUARDS | {'defined(ARM_MATH_DSP)'} | MVE_GUARDS
 SIZER_RE = re.compile(r'^(?P<base>arm_\w+?)_get_buffer_size(?P<variant>_mve|_dsp)?$')
 # A kernel with several scratch buffers names each query after the buffer it sizes.
 SIZER_BUFFER_SUFFIX_RE = re.compile(r'_(temp[12]|input_ctx|output_ctx)$')
+# Queries that size a family of layout entries rather than one kernel of the same name. Listed, not
+# inferred: a prefix rule would let a renamed arm_convolve_s16 resolve through arm_convolve_*_s16.
+FAMILY_SIZERS = {
+    'arm_convolve_patch_gemm_f32': ('arm_convolve_patch_gemm_nhwc_ohwi_f32',
+                                    'arm_convolve_patch_gemm_nhwc_packed_f32'),
+    'arm_convolve_patch_gemm_f16': ('arm_convolve_patch_gemm_nhwc_ohwi_f16',
+                                    'arm_convolve_patch_gemm_nhwc_ohwi_f16_acc16',
+                                    'arm_convolve_patch_gemm_nhwc_packed_f16',
+                                    'arm_convolve_patch_gemm_nhwc_packed_f16_acc16'),
+}
 
 
 def sizer_kernel(name):
@@ -66,8 +81,9 @@ def real_tree_violations(document):
         kernel = sizer_kernel(name)
         if kernel is None:
             continue
-        if kernel not in names:
-            problems.append(f'{name}: sizes {kernel}, which the headers do not declare')
+        for sized in FAMILY_SIZERS.get(kernel, (kernel,)):
+            if sized not in names:
+                problems.append(f'{name}: sizes {sized}, which the headers do not declare')
         if returns != 'int32_t':
             problems.append(f'{name}: a scratch-size query must return int32_t, not {returns!r}')
         for param in record['params']:
@@ -106,14 +122,18 @@ class RealTreeTests(unittest.TestCase):
                             for s in sizers))
         self.assertTrue(any(s.endswith('_mve') for s in sizers))
         self.assertTrue(any(s.endswith('_dsp') for s in sizers))
+        self.assertEqual({sizer_kernel(s) for s in sizers} & FAMILY_SIZERS.keys(), FAMILY_SIZERS.keys())
+
+    def test_admitted_guards_are_planner_features(self):
+        self.assertLessEqual(SUPPORT_GUARDS, GUARD_TOKENS.keys())
 
 
-def perturbed_include(edit):
-    """A copy of Include/ with `edit(text) -> text` applied to arm_nnfunctions.h."""
+def perturbed_include(edit, header_name='arm_nnfunctions.h'):
+    """A copy of Include/ with `edit(text) -> text` applied to `header_name`."""
     root = Path(tempfile.mkdtemp())
     include = root / 'Include'
     shutil.copytree(INCLUDE, include)
-    header = include / 'arm_nnfunctions.h'
+    header = include / header_name
     before = header.read_text()
     after = edit(before)
     if after == before:
@@ -125,8 +145,8 @@ def perturbed_include(edit):
 class PerturbedTreeTests(unittest.TestCase):
     """Each invariant must be able to fail: perturb the real headers and watch it."""
 
-    def violations_after(self, edit):
-        root, include = perturbed_include(edit)
+    def violations_after(self, edit, header_name='arm_nnfunctions.h'):
+        root, include = perturbed_include(edit, header_name)
         try:
             return real_tree_violations(build_contract(include))
         finally:
@@ -138,6 +158,27 @@ class PerturbedTreeTests(unittest.TestCase):
                                       'arm_cmsis_nn_status arm_convolve_s16x(', 1))
         self.assertTrue(any('arm_convolve_s16_get_buffer_size' in p and 'do not declare' in p for p in problems),
                         problems)
+
+    def test_family_sizer_without_one_of_its_kernels(self):
+        problems = self.violations_after(
+            lambda text: text.replace('arm_cmsis_nn_status arm_convolve_patch_gemm_nhwc_packed_f16_acc16(',
+                                      'arm_cmsis_nn_status arm_convolve_patch_gemm_nhwc_packedx_f16_acc16(', 1),
+            'arm_nnfunctions_flt.h')
+        self.assertIn('arm_convolve_patch_gemm_f16_get_buffer_size: sizes '
+                      'arm_convolve_patch_gemm_nhwc_packed_f16_acc16, which the headers do not declare', problems)
+
+    def test_bool_return_outside_the_support_header(self):
+        problems = self.violations_after(
+            lambda text: text.replace('arm_cmsis_nn_status arm_convolve_s16(', 'bool arm_convolve_s16(', 1))
+        self.assertTrue(any(p.startswith('arm_convolve_s16: returns') for p in problems), problems)
+
+    def test_mve_guard_outside_the_support_header(self):
+        problems = self.violations_after(
+            lambda text: text.replace('arm_cmsis_nn_status arm_convolve_s16(',
+                                      '#if defined(ARM_MATH_MVEI)\narm_cmsis_nn_status arm_convolve_s16(', 1)
+                                  .replace('arm_cmsis_nn_status arm_convolve_s4(',
+                                           '#endif\narm_cmsis_nn_status arm_convolve_s4(', 1))
+        self.assertTrue(any("guard 'defined(ARM_MATH_MVEI)'" in p for p in problems), problems)
 
     def test_unlisted_return_type(self):
         problems = self.violations_after(
