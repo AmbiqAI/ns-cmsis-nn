@@ -9,12 +9,14 @@
  * Route selection of the s8 wrappers, one copy shared by the wrapper, its scratch query and an ahead-of-time planner
  * (RFC #829). Each selector returns the kernel its wrapper calls for the given layer on the build described by
  * ARM_NN_ROUTE_MVEI, ARM_NN_ROUTE_AUTOVECTORIZE and ARM_NN_TOOLCHAIN_ARMCLANG. The selectors only read dims and params;
- * they do not validate them, which stays with the kernel that is selected.
+ * they do not validate them, which stays with the kernel that is selected. The buffer sizes that depend on the build
+ * but have no per-ISA public query are here too, for the same readers.
  */
 
 #ifndef ARM_NN_DISPATCH_H
 #define ARM_NN_DISPATCH_H
 
+#include "arm_nnfunctions.h"
 #include "arm_nnsupportfunctions.h"
 
 /* The build this translation unit compiles kernels for. */
@@ -62,6 +64,13 @@ typedef enum
     ARM_NN_DW_CONV_S8_ROUTE_OPT = 2,     /**< arm_depthwise_conv_s8_opt() */
     ARM_NN_DW_CONV_S8_ROUTE_GENERIC = 3  /**< arm_depthwise_conv_s8() */
 } arm_nn_dw_conv_s8_route;
+
+/** The path arm_depthwise_conv_s8_opt() runs. */
+typedef enum
+{
+    ARM_NN_DW_OPT_S8_ROUTE_PLANAR = 0,     /**< arm_depthwise_conv_s8_opt_planar() (MVE) */
+    ARM_NN_DW_OPT_S8_ROUTE_CHANNELWISE = 1 /**< arm_depthwise_conv_s8_opt_channelwise() */
+} arm_nn_dw_opt_s8_route;
 
 /** The kernel arm_fully_connected_wrapper_s8() calls. */
 typedef enum
@@ -138,6 +147,51 @@ arm_nn_depthwise_conv_wrapper_s8_select(const cmsis_nn_dw_conv_params *dw_conv_p
         return ARM_NN_DW_CONV_S8_ROUTE_OPT;
     }
     return ARM_NN_DW_CONV_S8_ROUTE_GENERIC;
+}
+
+/* plane_bytes is arm_nn_depthwise_conv_s8_planar_bytes() of the layer. The planar kernel runs only when the plane fits
+ * ctx->size and the MVE scratch and both buffers are set; otherwise it declines and arm_depthwise_conv_s8_opt() runs
+ * channelwise. */
+__STATIC_FORCEINLINE arm_nn_dw_opt_s8_route arm_nn_depthwise_conv_s8_opt_select(const int32_t plane_bytes,
+                                                                                const cmsis_nn_context *ctx,
+                                                                                const cmsis_nn_context *weight_sum_ctx,
+                                                                                const cmsis_nn_dims *input_dims,
+                                                                                const cmsis_nn_dims *filter_dims)
+{
+#if ARM_NN_ROUTE_MVEI
+    if (plane_bytes < 0 || ctx == NULL || ctx->buf == NULL || plane_bytes > ctx->size || weight_sum_ctx == NULL ||
+        weight_sum_ctx->buf == NULL ||
+        plane_bytes > arm_depthwise_conv_s8_opt_get_buffer_size_mve(input_dims, filter_dims))
+    {
+        return ARM_NN_DW_OPT_S8_ROUTE_CHANNELWISE;
+    }
+    return ARM_NN_DW_OPT_S8_ROUTE_PLANAR;
+#else
+    (void)plane_bytes;
+    (void)ctx;
+    (void)weight_sum_ctx;
+    (void)input_dims;
+    (void)filter_dims;
+    return ARM_NN_DW_OPT_S8_ROUTE_CHANNELWISE;
+#endif
+}
+
+/* arm_convolve_s8_get_weights_sum_size(): only MVE kernels read the sums. -1 when the size does not fit int32_t. */
+__STATIC_FORCEINLINE int32_t arm_nn_convolve_s8_weights_sum_bytes(const cmsis_nn_dims *output_dims)
+{
+#if !ARM_NN_ROUTE_MVEI
+    (void)output_dims;
+    return 0;
+#else
+    const int64_t weights_sums_size = (int64_t)output_dims->c * (int64_t)sizeof(int32_t);
+
+    if ((output_dims->c < 0) || (weights_sums_size > INT32_MAX))
+    {
+        return -1;
+    }
+
+    return (int32_t)weights_sums_size;
+#endif
 }
 
 __STATIC_FORCEINLINE arm_nn_fc_s8_route

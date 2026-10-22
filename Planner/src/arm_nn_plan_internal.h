@@ -15,7 +15,13 @@
                                                   const cmsis_nn_dims *input_dims,                                     \
                                                   const cmsis_nn_dims *filter_dims,                                    \
                                                   const cmsis_nn_dims *output_dims);                                   \
-    int32_t arm_nn_plan_route_fc_s8_##suffix(const cmsis_nn_quant_params *quant_params);
+    int32_t arm_nn_plan_route_fc_s8_##suffix(const cmsis_nn_quant_params *quant_params);                               \
+    int32_t arm_nn_plan_route_dw_opt_s8_##suffix(const cmsis_nn_dw_conv_params *dw_conv_params,                        \
+                                                 const cmsis_nn_dims *input_dims,                                      \
+                                                 const cmsis_nn_dims *filter_dims,                                     \
+                                                 const cmsis_nn_dims *output_dims,                                     \
+                                                 int32_t ctx_size);                                                    \
+    int32_t arm_nn_plan_route_weights_sum_bytes_##suffix(const cmsis_nn_dims *output_dims);
 
 ARM_NN_PLAN_ROUTE_DECLS(scalar)
 ARM_NN_PLAN_ROUTE_DECLS(mve)

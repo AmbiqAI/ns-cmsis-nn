@@ -62,8 +62,10 @@ typedef enum
     ARM_NN_PLAN_E_NULL = 1,       /**< a required pointer is NULL */
     ARM_NN_PLAN_E_TARGET = 2,     /**< a target field is out of range, or names a toolchain this library is not for */
     ARM_NN_PLAN_E_SHAPE = 3,      /**< a dimension is not positive, or the dims and params disagree */
-    ARM_NN_PLAN_E_RANGE = 4,      /**< a tensor or buffer size does not fit int32_t */
-    ARM_NN_PLAN_E_UNSUPPORTED = 5 /**< the entry declines this layer or target (ARM_CMSIS_NN_NO_IMPL_ERROR) */
+    ARM_NN_PLAN_E_RANGE = 4,      /**< a tensor or buffer size does not fit int32_t, or a given buffer size is negative
+                                       or one the call rejects */
+    ARM_NN_PLAN_E_UNSUPPORTED = 5 /**< the entry declines this layer or target (ARM_CMSIS_NN_NO_IMPL_ERROR), or the
+                                       planner does not evaluate the size query named */
 } arm_nn_plan_status;
 
 /** What the ctx argument of the planned call holds. */
@@ -86,6 +88,20 @@ typedef struct
     int32_t prepared_bytes; /**< bytes of a prepared stream that replaces the filter data, else 0 */
 } arm_nn_plan_result;
 
+/**
+ * Operands of one size query, named as the query's parameters. A query reads the operands it takes; every other one
+ * must be NULL.
+ */
+typedef struct
+{
+    const cmsis_nn_dw_conv_params *dw_conv_params;
+    const cmsis_nn_dims *input_dims;
+    const cmsis_nn_dims *filter_dims;
+    const cmsis_nn_dims *output_dims;
+    const int32_t *dim_dst_width;
+    const int32_t *ch_src;
+} arm_nn_plan_size_operands;
+
 /** ARM_NN_PLAN_ABI_VERSION of the library. */
 int32_t arm_nn_plan_abi_version(void);
 
@@ -104,6 +120,23 @@ arm_nn_plan_status arm_nn_plan_depthwise_conv_wrapper_s8(const arm_nn_plan_targe
                                                          const cmsis_nn_dims *filter_dims,
                                                          const cmsis_nn_dims *output_dims,
                                                          arm_nn_plan_result *plan);
+
+/**
+ * @brief Plan arm_depthwise_conv_s8_opt(), which runs its planar path or its channelwise path.
+ *
+ * Dims: input [N, H, W, C], filter [1, H, W, C], output [N, H, W, C]; ch_mult must be 1, dilation.h 1 and dilation.w
+ * positive, as the entry requires on every build. ctx_size is the ctx->size of a call whose ctx->buf and
+ * weight_sum_ctx->buf are set: the planar path needs its plane to fit it, and the channelwise path rejects a
+ * non-zero ctx_size below its scratch (ARM_NN_PLAN_E_RANGE). The plan's ctx_bytes is
+ * arm_depthwise_conv_s8_opt_get_buffer_size() for the target.
+ */
+arm_nn_plan_status arm_nn_plan_depthwise_conv_s8_opt(const arm_nn_plan_target *target,
+                                                     const cmsis_nn_dw_conv_params *dw_conv_params,
+                                                     const cmsis_nn_dims *input_dims,
+                                                     const cmsis_nn_dims *filter_dims,
+                                                     const cmsis_nn_dims *output_dims,
+                                                     int32_t ctx_size,
+                                                     arm_nn_plan_result *plan);
 
 /**
  * @brief Plan arm_fully_connected_wrapper_s8().
@@ -145,6 +178,23 @@ arm_nn_plan_status arm_nn_plan_pool_s8(const arm_nn_plan_target *target,
                                        const cmsis_nn_dims *filter_dims,
                                        const cmsis_nn_dims *output_dims,
                                        arm_nn_plan_result *plan);
+
+/**
+ * @brief Bytes a buffer size query returns for the target: the size_query.symbol of a buffer in
+ *        Tests/KernelContracts/kernel_implementations.json, answered by the library's own query for the target ISA.
+ *
+ * Every dims operand must have positive dimensions within int32_t elements, dw_conv_params a valid window that agrees
+ * with the dims (as for arm_nn_plan_depthwise_conv_wrapper_s8()) and the int32_t operands must be positive. The size is
+ * the query's answer whether or not the buffer's entry runs on the target. A query that names no size in range
+ * (its -1) is ARM_NN_PLAN_E_RANGE; *bytes is written only on ARM_NN_PLAN_OK.
+ *
+ * @return ARM_NN_PLAN_E_UNSUPPORTED for a query this planner does not evaluate, ARM_NN_PLAN_E_NULL for a missing
+ *         operand the query takes, ARM_NN_PLAN_E_SHAPE for an operand it does not take.
+ */
+arm_nn_plan_status arm_nn_plan_buffer_bytes(const arm_nn_plan_target *target,
+                                            const char *size_query,
+                                            const arm_nn_plan_size_operands *operands,
+                                            int32_t *bytes);
 
 #ifdef __cplusplus
 }
