@@ -16,6 +16,7 @@
 #include <stdint.h>
 #include <string.h>
 
+#include "../../../../Include/Internal/arm_nn_fp_control.h"
 #include <arm_nnfunctions.h>
 #include <unity.h>
 
@@ -231,15 +232,14 @@ void nn_activation_helpers_f16_tanh_public_tails(void)
 
 void nn_activation_helpers_f16_tanh_fp_controls(void)
 {
-#if defined(__ARM_FP) && (__ARM_FP != 0)
-    uint32_t saved;
-    __asm__ volatile("vmrs %0, fpscr" : "=r"(saved) : : "memory");
-    const uint32_t controls = (3U << 22) | (1U << 24) | (1U << 25) | (1U << 19);
+#if defined(ARM_NN_FP_CONTROL_AVAILABLE)
+    const arm_nn_fp_control_t saved = arm_nn_get_fp_control();
+    const arm_nn_fp_control_t controls = (3U << 22) | (1U << 24) | (1U << 25) | (1U << 19);
     const volatile uint16_t patterns[] = {0x0000U, 0x8000U, 0x7C00U, 0xFC00U, 0x7E00U, 0xFE00U, 0x7C01U, 0xFC01U};
     uint32_t errors = 0;
     for (uint32_t mode = 0; mode < 32U; ++mode)
     {
-        const uint32_t selected = (saved & ~controls) | ((mode & 3U) << 22) | (((mode >> 2) & 1U) << 24) |
+        const arm_nn_fp_control_t selected = (saved & ~controls) | ((mode & 3U) << 22) | (((mode >> 2) & 1U) << 24) |
             (((mode >> 3) & 1U) << 25) | (((mode >> 4) & 1U) << 19);
         float16_t input[9];
         float16_t output[9];
@@ -247,16 +247,17 @@ void nn_activation_helpers_f16_tanh_fp_controls(void)
         {
             input[i] = f16_from_bits(patterns[i % 8U]);
         }
-        __asm__ volatile("vmsr fpscr, %0" : : "r"(selected) : "memory");
+        arm_nn_set_fp_control(selected);
+        /* Unsupported controls may read as zero; preserve the effective hardware state. */
+        const arm_nn_fp_control_t effective = arm_nn_get_fp_control();
         const arm_cmsis_nn_status status = arm_nn_activation_f16(input, output, 9, ARM_NN_FLT_ACT_TANH, 0);
         /* Also exercise the scalar helper when the public dispatch selects MVE. */
         const uint16_t scalar_positive_zero = f16_bits(arm_nn_tanh_scalar_ref_f16(input[0]));
         const uint16_t scalar_negative_zero = f16_bits(arm_nn_tanh_scalar_ref_f16(input[1]));
-        uint32_t after;
-        __asm__ volatile("vmrs %0, fpscr" : "=r"(after) : : "memory");
-        __asm__ volatile("vmsr fpscr, %0" : : "r"(saved) : "memory");
+        const arm_nn_fp_control_t after = arm_nn_get_fp_control();
+        arm_nn_set_fp_control(saved);
         errors += status != ARM_CMSIS_NN_SUCCESS;
-        errors += (after & controls) != (selected & controls);
+        errors += (after & controls) != (effective & controls);
         errors += scalar_positive_zero != 0x0000U;
         errors += scalar_negative_zero != 0x8000U;
         for (uint32_t i = 0; i < 9U; ++i)

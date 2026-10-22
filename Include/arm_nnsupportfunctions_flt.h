@@ -682,21 +682,34 @@ __STATIC_INLINE int32_t arm_nn_softmax_floor_to_int_f16(float16_t x)
 }
 
 /**
- * @brief Compute `2^n` as a float16 by building the exponent field directly.
+ * @brief Compute the power-of-two scale for the scalar float16 exp approximation.
  *
- * @param[in] n Integer exponent. Clamped to the normal float16 exponent range `[-14, 15]`.
+ * Keep the scale in float32 until the approximation is rounded to float16. Rounding
+ * the scale first would lose subnormal results when the fractional factor lifts a
+ * value above the float16 underflow threshold. The upper clamp is unchanged.
+ *
+ * @param[in] n Integer exponent. Clamped to `[-126, 15]`.
+ * @return `2^n` as a float32 intermediate.
+ */
+__STATIC_INLINE float32_t arm_nn_softmax_exp2i_wide_f16(int32_t n)
+{
+    union
+    {
+        uint32_t u;
+        float32_t f;
+    } scale;
+    n = ARM_NN_CLAMP(n, 15, -126);
+    scale.u = (uint32_t)(n + 127) << 23;
+    return scale.f;
+}
+
+/**
+ * @brief Compute `2^n` rounded to float16.
+ *
+ * @param[in] n Integer exponent. Clamped above at 15; small results round to subnormal or zero.
  * @return `2^n` as a float16.
  */
-__STATIC_INLINE float16_t arm_nn_softmax_exp2i_f16(int32_t n)
-{
-    const int32_t float16_min_normal_exponent = -14;
-    const int32_t float16_max_finite_exponent = 15;
-    const int32_t float16_exponent_bias = 15;
-    const int32_t float16_mantissa_bits = 10;
-
-    n = ARM_NN_CLAMP(n, float16_max_finite_exponent, float16_min_normal_exponent);
-    return arm_nn_softmax_fp16_from_bits((uint16_t)((n + float16_exponent_bias) << float16_mantissa_bits));
-}
+__STATIC_INLINE float16_t arm_nn_softmax_exp2i_f16(int32_t n) { return (float16_t)arm_nn_softmax_exp2i_wide_f16(n); }
 
 /**
  * @brief Taylor/Estrin exp approximation for float16 softmax helpers.
@@ -731,13 +744,13 @@ __STATIC_INLINE float16_t arm_nn_softmax_exp_taylor_f16(float16_t x)
     const float32_t t3 = (1.0f / 720.0f);
 
     const float32_t poly = t0 + t1 * r2 + t2 * r4 + t3 * r6;
-    return (float16_t)(poly * (float32_t)arm_nn_softmax_exp2i_f16(n));
+    return (float16_t)(poly * arm_nn_softmax_exp2i_wide_f16(n));
 }
 
 /**
  * @brief LUT-based exp approximation for float16 softmax helpers.
  *
- * Splits `x * log2(e)` into an integer part handled by arm_nn_softmax_exp2i_f16() and a fractional part
+ * Splits `x * log2(e)` into an integer part handled by arm_nn_softmax_exp2i_wide_f16() and a fractional part
  * interpolated linearly from `arm_nn_exp2_lut_f16`, using float32 intermediates.
  *
  * @param[in] x Exponent argument. Clamped to `[-80, 80]` before evaluation.
@@ -758,6 +771,12 @@ __STATIC_INLINE float16_t arm_nn_softmax_exp_lut_f16(float16_t x)
     const int32_t n = arm_nn_softmax_floor_to_int_f16((float16_t)t);
     const float32_t f = t - (float32_t)n;
     const float32_t idx_f = f * exp2_lut_segments;
+    #if defined(__clang__) && defined(__ARM_FEATURE_MVE) && (__ARM_FEATURE_MVE & 2)
+    /* Prevent Clang's incorrect MVE fixed-point conversion fold
+     * (llvm-project#226591), without disabling auto-vectorization. */
+    const float32_t bounded_idx = ARM_NN_CLAMP(idx_f, (float32_t)exp2_lut_max_index, 0.0f);
+    const int32_t idx = (int32_t)bounded_idx;
+    #else
     int32_t idx = (int32_t)idx_f;
 
     if (idx < 0)
@@ -768,11 +787,12 @@ __STATIC_INLINE float16_t arm_nn_softmax_exp_lut_f16(float16_t x)
     {
         idx = exp2_lut_max_index;
     }
+    #endif
 
     const float32_t frac = idx_f - (float32_t)idx;
     const float32_t y0 = (float32_t)arm_nn_softmax_fp16_from_bits(arm_nn_exp2_lut_f16[idx]);
     const float32_t y1 = (float32_t)arm_nn_softmax_fp16_from_bits(arm_nn_exp2_lut_f16[idx + 1]);
-    return (float16_t)((y0 + (y1 - y0) * frac) * (float32_t)arm_nn_softmax_exp2i_f16(n));
+    return (float16_t)((y0 + (y1 - y0) * frac) * arm_nn_softmax_exp2i_wide_f16(n));
 }
 
 /**
@@ -1351,6 +1371,43 @@ arm_cmsis_nn_status arm_nn_mat_mult_nt_n_packed_f16(const float16_t *__RESTRICT 
                                                     float16_t activation_max);
 
 /**
+ * @brief Packed float16 matrix multiply with shorter partial sums, for precise packed callers.
+ *
+ * The packed layout and all argument meanings are those of arm_nn_mat_mult_nt_n_packed_f16.
+ * This entry has its own numerical order; it does not change that entry or its acc16 twin.
+ *
+ * @param[in] lhs Non-transposed lhs, with lhs_rows rows of rhs_cols elements.
+ * @param[in] rhs_packed Logical rhs_rows output columns in 8-column blocks, K-major within each block.
+ * @param[in] bias Optional rhs_rows-element bias; NULL means zero bias.
+ * @param[out] dst Output matrix. The caller provides the complete arrays, including packed column padding.
+ * @param[in] lhs_rows Positive number of lhs rows.
+ * @param[in] rhs_rows Positive number of logical output columns.
+ * @param[in] rhs_cols Positive shared reduction dimension K.
+ * @param[in] row_address_offset Positive output row stride, in elements.
+ * @param[in] activation_min Lower ordered clamp bound.
+ * @param[in] activation_max Upper ordered clamp bound.
+ * @return ARM_CMSIS_NN_SUCCESS, or ARM_CMSIS_NN_ARG_ERROR for NULL lhs/rhs/dst or nonpositive dimensions/stride.
+ *
+ * @note MVE: each lane forms at most four fused-product taps in float16, starting from zero. Each partial is
+ * widened and added to its float32 lane accumulator in K order; bias is added in float32 after the final fold,
+ * then the result rounds to float16 once before clamping. The scalar/autovectorized leg uses the existing
+ * float32 accumulation rule. This order is not bit-equivalent to the standard or legacy packed entries, and
+ * no universal absolute-error bound is implied. Float16 products/partials can overflow for finite inputs;
+ * shorter partials do not make this an overflow-free float32 dot product. As with the legacy packed entry,
+ * the scalar clamp propagates NaN, while the MVE maxNum/minNum clamp resolves NaN to a bound.
+ */
+arm_cmsis_nn_status arm_nn_mat_mult_nt_n_packed_f16_precise(const float16_t *__RESTRICT lhs,
+                                                            const float16_t *__RESTRICT rhs_packed,
+                                                            const float16_t *__RESTRICT bias,
+                                                            float16_t *__RESTRICT dst,
+                                                            int32_t lhs_rows,
+                                                            int32_t rhs_rows,
+                                                            int32_t rhs_cols,
+                                                            int32_t row_address_offset,
+                                                            float16_t activation_min,
+                                                            float16_t activation_max);
+
+/**
  * @brief arm_nn_mat_mult_nt_n_packed_f16 with every MVE accumulator lane in float16 (no blockwise fold).
  *
  * Same arguments, return codes and scalar leg as arm_nn_mat_mult_nt_n_packed_f16; see its accumulation note.
@@ -1491,6 +1548,383 @@ arm_cmsis_nn_status arm_nn_gru_step_f32(const float32_t *data_in,
                                         const int32_t batch_offset);
 
 #endif /* ARM_NN_ENABLE_F32 */
+
+/**
+ * @defgroup floatConvRoutes Float convolution route predicates
+ * The rules by which arm_convolve_f16(), arm_convolve_f16_acc16() and arm_convolve_f32() choose a route, in their
+ * dispatch order: 1x1, 1xN, conv1d k5, conv1d k3, small-C (MVE float builds), packed-patch GEMM (when ctx holds one
+ * patch row), direct. The routers, their buffer-size queries and the direct entries of each route share these, so
+ * that a caller selecting the entry per layer ahead of time takes the route the router takes.
+ * @{
+ */
+
+/** The packed-patch GEMM route needs at least this many output channels (float32 and float16 alike). */
+#define ARM_NN_CONV_NHWC_PATCH_GEMM_F32_MIN_OC (8)
+/** The packed-patch GEMM route needs at least this many output positions per batch (float32). */
+#define ARM_NN_CONV_NHWC_PATCH_GEMM_F32_MIN_POS (8)
+/** The packed-patch GEMM route needs at least this many output channels (float16). */
+#define ARM_NN_CONV_NHWC_PATCH_GEMM_F16_MIN_OC (8)
+/** The packed-patch GEMM route needs at least this many output positions per batch (float16). */
+#define ARM_NN_CONV_NHWC_PATCH_GEMM_F16_MIN_POS (8)
+#if ARM_NN_CONV_NHWC_PATCH_GEMM_F16_MIN_OC != ARM_NN_CONV_NHWC_PATCH_GEMM_F32_MIN_OC ||                                \
+    ARM_NN_CONV_NHWC_PATCH_GEMM_F16_MIN_POS != ARM_NN_CONV_NHWC_PATCH_GEMM_F32_MIN_POS
+    #error "arm_nn_conv_flt_is_patch_gemm serves both types; the float16 and float32 thresholds must agree"
+#endif
+
+/** Lanes of the float16 small-C kernel: the route takes fewer input channels than this. */
+#define ARM_NN_CONV_SMALL_C_F16_LANES (8)
+/** Lanes of the float32 small-C kernel; the general gate takes fewer input channels. */
+#define ARM_NN_CONV_SMALL_C_F32_LANES (4)
+
+/**
+ * @brief Identify an empty output request, after dimension validation.
+ * @param[in] output_dims Output tensor dimensions.
+ * @return true for zero batch or spatial extent.
+ */
+__STATIC_INLINE bool arm_nn_conv_flt_empty(const cmsis_nn_dims *output_dims)
+{
+    return output_dims->n == 0 || output_dims->h == 0 || output_dims->w == 0;
+}
+
+/**
+ * @brief Bound the signed coordinate intermediates for one nonempty output axis.
+ * @param[in] out Number of output positions.
+ * @param[in] kernel Number of filter taps.
+ * @param[in] stride Positive output step.
+ * @param[in] pad Nonnegative leading padding.
+ * @param[in] dilation Positive filter step.
+ * @return true when all coordinate intermediates fit int32.
+ */
+__STATIC_INLINE bool arm_nn_conv_flt_axis_ok(int32_t out, int32_t kernel, int32_t stride, int32_t pad, int32_t dilation)
+{
+    const int64_t step = ((int64_t)out - 1) * stride;
+    const int64_t tap = ((int64_t)kernel - 1) * dilation;
+    return step <= INT32_MAX && tap <= INT32_MAX && step - pad + tap <= INT32_MAX;
+}
+
+/**
+ * @brief Validate common float convolution metadata and accessed arithmetic.
+ * Output windows are explicit; generic kernels clip their out-of-input taps.
+ * @param[in] stride Spatial output steps.
+ * @param[in] padding Leading spatial padding.
+ * @param[in] dilation Spatial filter steps.
+ * @param[in] input_dims Input dimensions [N, H, W, C_IN].
+ * @param[in] filter_dims Filter dimensions [C_OUT, KH, KW, C_IN].
+ * @param[in] output_dims Output dimensions [N, H, W, C_OUT].
+ * @param[in] element_size Bytes per tensor element.
+ * @param[in] packed_lanes Channel block size and vector loop width for the dtype.
+ * @param[in] packed Whether the filter uses NT_N_PACKED storage.
+ * @return true for consistent metadata and representable nonempty work, or a valid empty request.
+ */
+__STATIC_INLINE bool arm_nn_conv_flt_dims_ok(const cmsis_nn_tile *stride,
+                                             const cmsis_nn_tile *padding,
+                                             const cmsis_nn_tile *dilation,
+                                             const cmsis_nn_dims *input_dims,
+                                             const cmsis_nn_dims *filter_dims,
+                                             const cmsis_nn_dims *output_dims,
+                                             size_t element_size,
+                                             int32_t packed_lanes,
+                                             bool packed)
+{
+    if (input_dims->n < 0 || input_dims->h < 0 || input_dims->w < 0 || input_dims->c <= 0 ||
+        output_dims->n != input_dims->n || output_dims->h < 0 || output_dims->w < 0 || output_dims->c <= 0 ||
+        filter_dims->n != output_dims->c || filter_dims->c != input_dims->c || filter_dims->h <= 0 ||
+        filter_dims->w <= 0 || stride->h <= 0 || stride->w <= 0 || dilation->h <= 0 || dilation->w <= 0 ||
+        padding->h < 0 || padding->w < 0)
+    {
+        return false;
+    }
+    if (arm_nn_conv_flt_empty(output_dims))
+    {
+        return true;
+    }
+    if (input_dims->h == 0 || input_dims->w == 0)
+    {
+        return false;
+    }
+    /* Leave room for the largest vector loop increment as well as packed channel rounding. */
+    const int64_t limit = ARM_NN_MIN((size_t)(INT32_MAX - 2 * packed_lanes), SIZE_MAX / element_size);
+    const int64_t input_hw = (int64_t)input_dims->h * input_dims->w;
+    const int64_t output_hw = (int64_t)output_dims->h * output_dims->w;
+    const int64_t filter_hw = (int64_t)filter_dims->h * filter_dims->w;
+    if (input_hw > limit || output_hw > limit || filter_hw > limit)
+    {
+        return false;
+    }
+    const int64_t input_len = input_hw * input_dims->c;
+    const int64_t output_len = output_hw * output_dims->c;
+    const int64_t patch_len = filter_hw * input_dims->c;
+    if (input_len > limit || output_len > limit || patch_len > limit || output_dims->c > limit)
+    {
+        return false;
+    }
+    const int64_t filter_c =
+        packed ? ((int64_t)output_dims->c + packed_lanes - 1) / packed_lanes * packed_lanes : output_dims->c;
+    return input_len * input_dims->n <= limit && output_len * output_dims->n <= limit &&
+        patch_len * filter_c <= limit &&
+        arm_nn_conv_flt_axis_ok(output_dims->h, filter_dims->h, stride->h, padding->h, dilation->h) &&
+        arm_nn_conv_flt_axis_ok(output_dims->w, filter_dims->w, stride->w, padding->w, dilation->w);
+}
+
+/**
+ * @brief Check window coverage for an unpadded 1x1 body that samples directly.
+ * @param[in] stride Spatial output steps.
+ * @param[in] input_dims Input dimensions.
+ * @param[in] output_dims Output dimensions.
+ * @return true when every requested sample lies inside the input.
+ */
+__STATIC_INLINE bool arm_nn_conv_flt_1x1_window_ok(const cmsis_nn_tile *stride,
+                                                   const cmsis_nn_dims *input_dims,
+                                                   const cmsis_nn_dims *output_dims)
+{
+    return stride->h > 0 && stride->w > 0 && output_dims->h > 0 && output_dims->w > 0 &&
+        ((int64_t)output_dims->h - 1) * stride->h < input_dims->h &&
+        ((int64_t)output_dims->w - 1) * stride->w < input_dims->w;
+}
+
+/**
+ * @brief Bound f32 small-C coordinates, including inactive lanes and contiguous-load spans.
+ * @param[in] stride Spatial output steps.
+ * @param[in] padding Leading spatial padding.
+ * @param[in] dilation Spatial filter steps.
+ * @param[in] input_dims Validated input dimensions.
+ * @param[in] filter_dims Validated filter dimensions.
+ * @param[in] output_dims Validated nonempty output dimensions.
+ * @return true when signed lane coordinates and products remain representable.
+ */
+__STATIC_INLINE bool arm_nn_conv_f32_small_c_coords_ok(const cmsis_nn_tile *stride,
+                                                       const cmsis_nn_tile *padding,
+                                                       const cmsis_nn_tile *dilation,
+                                                       const cmsis_nn_dims *input_dims,
+                                                       const cmsis_nn_dims *filter_dims,
+                                                       const cmsis_nn_dims *output_dims)
+{
+    const int64_t tap = ((int64_t)filter_dims->w - 1) * dilation->w;
+    const int64_t base = ((int64_t)output_dims->w - 1) * stride->w - padding->w;
+    const int64_t span = (int64_t)ARM_NN_CONV_SMALL_C_F32_LANES * stride->w - 1 + tap;
+    return stride->w > 0 && dilation->w > 0 && padding->w >= 0 && input_dims->c > 0 && span <= INT32_MAX &&
+        base + span <= INT32_MAX && (int64_t)padding->w * input_dims->c <= INT32_MAX &&
+        (base + span) * input_dims->c <= INT32_MAX;
+}
+
+/**
+ * @brief The 1x1 route: a 1x1 filter with no padding.
+ * @param[in] padding     Spatial zero-padding
+ * @param[in] filter_dims Filter dimensions [C_OUT, KH, KW, C_IN]
+ * @return true if the router takes the 1x1 route
+ */
+__STATIC_INLINE bool arm_nn_conv_flt_is_1x1(const cmsis_nn_tile *padding, const cmsis_nn_dims *filter_dims)
+{
+    return filter_dims->h == 1 && filter_dims->w == 1 && padding->h == 0 && padding->w == 0;
+}
+
+/**
+ * @brief A conv1d with a 1 x k filter: batch 1, input and output height 1, unit stride and dilation, no padding.
+ * @param[in] stride      Spatial stride
+ * @param[in] padding     Spatial zero-padding
+ * @param[in] dilation    Spatial dilation
+ * @param[in] input_dims  Input dimensions [N, H, W, C_IN]
+ * @param[in] filter_dims Filter dimensions [C_OUT, KH, KW, C_IN]
+ * @param[in] output_dims Output dimensions [N, H, W, C_OUT]
+ * @param[in] k           Filter width
+ * @return true for the conv1d k5 route with k = 5 and the conv1d k3 route with k = 3
+ */
+__STATIC_INLINE bool arm_nn_conv_flt_is_1d_k(const cmsis_nn_tile *stride,
+                                             const cmsis_nn_tile *padding,
+                                             const cmsis_nn_tile *dilation,
+                                             const cmsis_nn_dims *input_dims,
+                                             const cmsis_nn_dims *filter_dims,
+                                             const cmsis_nn_dims *output_dims,
+                                             const int32_t k)
+{
+    return input_dims->n == 1 && input_dims->h == 1 && output_dims->h == 1 && filter_dims->h == 1 &&
+        filter_dims->w == k && stride->h == 1 && stride->w == 1 && padding->h == 0 && padding->w == 0 &&
+        dilation->h == 1 && dilation->w == 1 && output_dims->w > 0 && (int64_t)output_dims->w + k - 1 <= input_dims->w;
+}
+
+/**
+ * @brief The shape part of the 1xN route: input, output and filter height 1, a filter wider than 1, unit stride and
+ *        dilation in height, unit dilation in width, a positive width stride and no height padding. Unless
+ *        NN_DISABLE_SPECIALIZATION is defined, the routers take the conv1d routes for their shapes first. The router
+ *        also needs ctx to hold arm_convolve_1_x_n_f16_get_buffer_size() (or _f32).
+ * @param[in] stride      Spatial stride
+ * @param[in] padding     Spatial zero-padding
+ * @param[in] dilation    Spatial dilation
+ * @param[in] input_dims  Input dimensions [N, H, W, C_IN]
+ * @param[in] filter_dims Filter dimensions [C_OUT, KH, KW, C_IN]
+ * @param[in] output_dims Output dimensions [N, H, W, C_OUT]
+ * @return true if the shape takes the 1xN route when ctx is large enough and no conv1d route claims it
+ */
+__STATIC_INLINE bool arm_nn_conv_flt_is_1xn(const cmsis_nn_tile *stride,
+                                            const cmsis_nn_tile *padding,
+                                            const cmsis_nn_tile *dilation,
+                                            const cmsis_nn_dims *input_dims,
+                                            const cmsis_nn_dims *filter_dims,
+                                            const cmsis_nn_dims *output_dims)
+{
+    return input_dims->h == 1 && output_dims->h == 1 && filter_dims->h == 1 && filter_dims->w > 1 && stride->h == 1 &&
+        stride->w > 0 && padding->h == 0 && dilation->h == 1 && dilation->w == 1 &&
+        (int64_t)stride->w * input_dims->c <= INT32_MAX &&
+        ((int64_t)output_dims->w - 1) * stride->w - padding->w + filter_dims->w <= INT32_MAX;
+}
+
+/**
+ * @brief The float16 small-C route: fewer input channels than ARM_NN_CONV_SMALL_C_F16_LANES, a positive output
+ *        depth and width, a positive input width, filter width, stride and dilation, a non-negative padding, and
+ *        every gather and scatter offset within 16 bits.
+ * @param[in] stride      Spatial stride
+ * @param[in] padding     Spatial zero-padding
+ * @param[in] dilation    Spatial dilation
+ * @param[in] input_dims  Input dimensions [N, H, W, C_IN]
+ * @param[in] filter_dims Filter dimensions [C_OUT, KH, KW, C_IN]
+ * @param[in] output_dims Output dimensions [N, H, W, C_OUT]
+ * @return true if the float16 routers take the small-C route on MVE float builds
+ */
+__STATIC_INLINE bool arm_nn_conv_f16_is_small_c(const cmsis_nn_tile *stride,
+                                                const cmsis_nn_tile *padding,
+                                                const cmsis_nn_tile *dilation,
+                                                const cmsis_nn_dims *input_dims,
+                                                const cmsis_nn_dims *filter_dims,
+                                                const cmsis_nn_dims *output_dims)
+{
+    if (input_dims->c <= 0 || input_dims->c >= ARM_NN_CONV_SMALL_C_F16_LANES || output_dims->c <= 0 ||
+        output_dims->w <= 0 || input_dims->w <= 0 || padding->w < 0 || stride->w <= 0 || dilation->w <= 0 ||
+        filter_dims->w <= 0)
+    {
+        return false;
+    }
+    /* u16 gather/scatter offsets are relative to one input row / one output position group, and every
+     * reachable column (including the padded ones, which wrap) must stay inside the offset type. The reach of
+     * non-negative int32_t terms stays below 2^63; it is compared with UINT16_MAX / C rather than multiplied by C. */
+    const int64_t reach = (int64_t)input_dims->w + padding->w +
+        (int64_t)(ARM_NN_CONV_SMALL_C_F16_LANES - 1) * stride->w + ((int64_t)filter_dims->w - 1) * dilation->w;
+    const int64_t output_reach = ((int64_t)output_dims->w - 1) * stride->w - padding->w +
+        (int64_t)(ARM_NN_CONV_SMALL_C_F16_LANES - 1) * stride->w + ((int64_t)filter_dims->w - 1) * dilation->w;
+    return ARM_NN_MAX(reach, output_reach) <= UINT16_MAX / input_dims->c &&
+        output_dims->c <= UINT16_MAX / ARM_NN_CONV_SMALL_C_F16_LANES;
+}
+
+/**
+ * @brief The float32 small-C route: fewer input channels than ARM_NN_CONV_SMALL_C_F32_LANES and a positive output
+ *        depth and width.
+ * @param[in] input_dims  Input dimensions [N, H, W, C_IN]
+ * @param[in] output_dims Output dimensions [N, H, W, C_OUT]
+ * @return true if arm_convolve_f32() takes the small-C route on MVE float builds
+ */
+__STATIC_INLINE bool arm_nn_conv_f32_is_small_c(const cmsis_nn_dims *input_dims, const cmsis_nn_dims *output_dims)
+{
+    return input_dims->c > 0 && input_dims->c < ARM_NN_CONV_SMALL_C_F32_LANES && output_dims->c > 0 &&
+        output_dims->w > 0;
+}
+
+/**
+ * @brief Additional float32 small-C region: 3x3 filters, four input channels and up to 8 output channels.
+ * @note Requires at least one full four-column output tile.
+ * @param[in] input_dims  Input dimensions [N, H, W, C_IN]
+ * @param[in] filter_dims Filter dimensions [C_OUT, HK, WK, C_IN]
+ * @param[in] output_dims Output dimensions [N, H, W, C_OUT]
+ * @return true if the shape uses the small-C route, subject to its coordinate bounds
+ */
+__STATIC_INLINE bool arm_nn_conv_f32_is_small_c_3x3(const cmsis_nn_dims *input_dims,
+                                                    const cmsis_nn_dims *filter_dims,
+                                                    const cmsis_nn_dims *output_dims)
+{
+    return input_dims->c == 4 && filter_dims->h == 3 && filter_dims->w == 3 && output_dims->c > 0 &&
+        output_dims->c <= 8 && output_dims->w >= ARM_NN_CONV_SMALL_C_F32_LANES;
+}
+
+/**
+ * @brief The shape part of the packed-patch GEMM route: at least ARM_NN_CONV_NHWC_PATCH_GEMM_F16_MIN_OC output
+ *        channels and ARM_NN_CONV_NHWC_PATCH_GEMM_F16_MIN_POS output positions per batch (the float32 thresholds
+ *        are equal). The router also needs ctx to hold one patch row (KH x KW x C_IN elements).
+ * @param[in] output_dims Output dimensions [N, H, W, C_OUT]
+ * @return true if the shape takes the packed-patch GEMM route when ctx is large enough
+ */
+__STATIC_INLINE bool arm_nn_conv_flt_is_patch_gemm(const cmsis_nn_dims *output_dims)
+{
+    return output_dims->c >= ARM_NN_CONV_NHWC_PATCH_GEMM_F16_MIN_OC &&
+        (int64_t)output_dims->h * output_dims->w >= ARM_NN_CONV_NHWC_PATCH_GEMM_F16_MIN_POS;
+}
+
+#if ARM_NN_ENABLE_F16
+/**
+ * @brief The depthwise conv1d k3 route of arm_depthwise_conv_f16(): batch 1, channel multiplier 1, a 1x3 filter, input
+ *        and output height 1, unit stride and dilation, no padding.
+ * @param[in] dw_conv_params Depthwise parameters
+ * @param[in] input_dims     Input dimensions [N, H, W, C_IN]
+ * @param[in] filter_dims    Filter dimensions [1, HK, WK, C_OUT]
+ * @param[in] output_dims    Output dimensions [N, H, W, C_OUT]
+ * @return true if the router takes the conv1d k3 route (unless NN_DISABLE_SPECIALIZATION is defined)
+ */
+__STATIC_INLINE bool arm_nn_dw_f16_is_1d_k3(const cmsis_nn_dw_conv_params_f16 *dw_conv_params,
+                                            const cmsis_nn_dims *input_dims,
+                                            const cmsis_nn_dims *filter_dims,
+                                            const cmsis_nn_dims *output_dims)
+{
+    return input_dims->n == 1 && output_dims->n == 1 && dw_conv_params->ch_mult == 1 && filter_dims->w == 3 &&
+        filter_dims->h == 1 && input_dims->h == 1 && output_dims->h == 1 && dw_conv_params->dilation.h == 1 &&
+        dw_conv_params->dilation.w == 1 && dw_conv_params->stride.h == 1 && dw_conv_params->stride.w == 1 &&
+        dw_conv_params->padding.h == 0 && dw_conv_params->padding.w == 0;
+}
+
+/**
+ * @brief The depthwise 2x5 route of arm_depthwise_conv_f16(): a 2x5 filter, input height 2, output height 1, unit
+ *        stride and dilation, no padding; any batch and channel multiplier.
+ * @param[in] dw_conv_params Depthwise parameters
+ * @param[in] input_dims     Input dimensions [N, H, W, C_IN]
+ * @param[in] filter_dims    Filter dimensions [1, HK, WK, C_OUT]
+ * @param[in] output_dims    Output dimensions [N, H, W, C_OUT]
+ * @return true if the router takes the 2x5 route (unless NN_DISABLE_SPECIALIZATION is defined)
+ */
+__STATIC_INLINE bool arm_nn_dw_f16_is_2x5(const cmsis_nn_dw_conv_params_f16 *dw_conv_params,
+                                          const cmsis_nn_dims *input_dims,
+                                          const cmsis_nn_dims *filter_dims,
+                                          const cmsis_nn_dims *output_dims)
+{
+    return filter_dims->w == 5 && filter_dims->h == 2 && input_dims->h == 2 && output_dims->h == 1 &&
+        dw_conv_params->dilation.h == 1 && dw_conv_params->dilation.w == 1 && dw_conv_params->stride.h == 1 &&
+        dw_conv_params->stride.w == 1 && dw_conv_params->padding.h == 0 && dw_conv_params->padding.w == 0;
+}
+
+/**
+ * @brief The shape part of the depthwise one-input-channel route of arm_depthwise_conv_f16() on MVE float builds: one
+ *        input channel and at least CONVERT_DW_CONV_WITH_ONE_INPUT_CH_AND_OUTPUT_CH_ABOVE_THRESHOLD output channels
+ *        (the threshold depends on the compiler). The router takes the route after the channel-multiplier-1 route,
+ *        and only when ctx->size is at least arm_nn_dw_f16_cin1_min_ctx_size; otherwise it takes the generic
+ *        route.
+ * @param[in] input_dims     Input dimensions [N, H, W, C_IN]
+ * @param[in] output_dims    Output dimensions [N, H, W, C_OUT]
+ * @return true if the shape takes the one-input-channel route when ctx is large enough
+ */
+__STATIC_INLINE bool arm_nn_dw_f16_is_cin1(const cmsis_nn_dims *input_dims, const cmsis_nn_dims *output_dims)
+{
+    return input_dims->c == 1 && output_dims->c >= CONVERT_DW_CONV_WITH_ONE_INPUT_CH_AND_OUTPUT_CH_ABOVE_THRESHOLD;
+}
+
+/**
+ * @brief The least ctx->size, in bytes, of the depthwise one-input-channel route: the filter packed in blocks of 8
+ *        output channels, then one patch row of KH x KW elements. More scratch packs more patch rows per step.
+ * @param[in] filter_dims    Filter dimensions [1, HK, WK, C_OUT]
+ * @param[in] output_dims    Output dimensions [N, H, W, C_OUT]
+ * @return the size in bytes (64 bits, so that the caller can bound it), or INT64_MAX for a negative dimension or
+ *         more than INT32_MAX taps, which no ctx can hold
+ */
+__STATIC_INLINE int64_t arm_nn_dw_f16_cin1_min_ctx_size(const cmsis_nn_dims *filter_dims,
+                                                        const cmsis_nn_dims *output_dims)
+{
+    if (filter_dims->h < 0 || filter_dims->w < 0 || output_dims->c < 0 ||
+        (int64_t)filter_dims->h * filter_dims->w > INT32_MAX)
+    {
+        return INT64_MAX;
+    }
+    const int64_t taps = (int64_t)filter_dims->h * filter_dims->w;
+    return ((int64_t)output_dims->c + 7) / 8 * 8 * taps * 2 + taps * 2;
+}
+#endif /* ARM_NN_ENABLE_F16 */
+
+/**
+ * @} end of floatConvRoutes group
+ */
 
 /**
  * @}

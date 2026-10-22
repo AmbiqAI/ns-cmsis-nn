@@ -45,3 +45,13 @@
  void tearDown(void) {}
  
  void test_dequantize_arm_dequantize_s16_f32(void) { test_arm_dequantize_s16_f32(); }
+
+ void test_dequantize_zero_point_range_arm_dequantize_s16_f32(void)
+ {
+     dequantize_s16_f32_rejects_out_of_range_zero_point();
+ }
+
+ void test_dequantize_negative_size_arm_dequantize_s16_f32(void) { dequantize_s16_f32_rejects_negative_size(); }
+
+void test_dequantize_s16_f32_tails(void) { dequantize_s16_f32_tails(); }
+void test_dequantize_s16_f32_protected_tails(void) { dequantize_s16_f32_protected_tails(); }

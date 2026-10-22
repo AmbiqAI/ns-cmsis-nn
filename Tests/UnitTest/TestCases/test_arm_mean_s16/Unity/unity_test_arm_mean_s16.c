@@ -37,6 +37,7 @@ void tearDown(void) {}
 
 void test_mean_axis_n_arm_mean_s16(void) { mean_axis_n_arm_mean_s16(); }
 void test_mean_axis_h_arm_mean_s16(void) { mean_axis_h_arm_mean_s16(); }
+void test_mean_axis_h_mixed_arm_mean_s16(void) { mean_axis_h_mixed_arm_mean_s16(); }
 void test_mean_axis_w_arm_mean_s16(void) { mean_axis_w_arm_mean_s16(); }
 void test_mean_axis_c_arm_mean_s16(void) { mean_axis_c_arm_mean_s16(); }
 void test_mean_axis_hw_arm_mean_s16(void) { mean_axis_hw_arm_mean_s16(); }

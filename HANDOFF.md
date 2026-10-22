@@ -1,13 +1,8 @@
-# Documentation UI rollout
+# Hero brand sizing
 
-Goal: adopt released shared UI alpha.22 for mobile section navigation and compact tab terminals.
-
-Issue: https://github.com/AmbiqAI/ns-cmsis-nn/issues/636 (creation approved). Branch codex/mobile-ui-rollout, isolated worktree /Users/adam.page/Ambiq/helia/helia-core-ui-rollout. Existing checkouts untouched.
-
-Dependency and npm-regenerated lock pin alpha.22 commit a62e8d45505dd3bbcdf1c4a03dfd1ec863322ecf. Clean installation, build and type checks passed. Preserve product content, URLs, branding, runtime and package release workflows. Check mobile sidebar scope, keyboard switching, desktop rendering and terminal copy controls.
-
-Local documentation output checks and 16 browser cases passed. Rendered mobile menus inspected at 390px; light/dark and desktop checks passed. Existing test expectations updated where they assumed all sections in the sidebar. Next: publish focused PR and verify CI. No merge or deployment authorized.
-
-Published PR: https://github.com/AmbiqAI/ns-cmsis-nn/pull/639. Local checks passed; remote CI pending. No merge/deployment.
-
-CORE CI exposed npm 11.6 versus declared 11.19 optional-dependency lock differences. Regenerated with npm 11.19.0; clean npm ci and 16 browser tests pass. Publish correction and verify CI.
+Goal: align the product identity in the landing hero with KIT sizing.
+Tracking: AmbiqAI/helia-ui#199. Branch: codex/hero-brand-sizing.
+Implemented and verified locally: shared brand style, responsive 28–38.4px names, 32px loaded official icons. Mobile/desktop light/dark rendering has no overflow. Fresh locked installation, type checks, production build, and applicable reference/link contracts pass against released alpha.26.
+Dependency: alpha.26 from c84a28eb2b66407abba03aa945cac05bee593c40. Shared PRs #200/#201 merged; merged-main CI and publication passed.
+Decision: use shared brand styling and remove local size overrides; ordinary eyebrows stay compact. CORE's lock was regenerated and installed on Linux before a fresh macOS install. NSX locks the exact release source SHA.
+Next: consumer PR CI, resolve findings, squash merge only at a green reviewed head, then verify deployed pages. User authorized merging this rollout. Preserve local preview and unrelated files.

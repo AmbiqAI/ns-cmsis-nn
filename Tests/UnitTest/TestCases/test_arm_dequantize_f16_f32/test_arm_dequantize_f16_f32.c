@@ -8,17 +8,18 @@
  */
 
 /*
- * arm_dequantize_f16_f32 (#411): bit-exact float16 -> float32 widening.
+ * arm_dequantize_f16_f32 (#411): float16 -> float32 widening as the hardware conversion does it.
  *
  * Reference: for every non-NaN half the compiler's own (float32_t) cast, which is the NumPy
  * float32(float16(x)) semantics and is independent of the kernel (VCVT scalar on an FP16 core,
- * libgcc's software conversion elsewhere). For a NaN the contract is the bit-expansion
- * sign | 0x7F800000 | mantissa << 13, i.e. sign, quiet bit and payload preserved. Every comparison
- * is bit-for-bit, the output sits between guard words, and the exhaustive case covers all 65536
- * input patterns in blocks that are not multiples of the vector width.
+ * libgcc's software conversion elsewhere). For a NaN, every path returns
+ * sign | 0x7FC00000 | mantissa << 13, the payload kept and the NaN quiet (#871). Every comparison is
+ * bit-for-bit, the output sits between guard words, and the exhaustive case covers all 65536 input
+ * patterns in blocks that are not multiples of the vector width.
  */
 
 #include <arm_nnfunctions.h>
+#include <arm_nnsupportfunctions.h>
 #include <stdint.h>
 #include <string.h>
 #include <unity.h>
@@ -55,7 +56,7 @@ static uint32_t dq_expected(uint16_t h)
 {
     if ((h & 0x7C00u) == 0x7C00u && (h & 0x03FFu) != 0u)
     {
-        return ((uint32_t)(h & 0x8000u) << 16) | 0x7F800000u | ((uint32_t)(h & 0x03FFu) << 13);
+        return ((uint32_t)(h & 0x8000u) << 16) | 0x7FC00000u | ((uint32_t)(h & 0x03FFu) << 13);
     }
     /* The cast is the reference; staged through volatile so it is evaluated at run time, by the
      * toolchain's conversion, not folded from the constant. */
@@ -119,8 +120,8 @@ void dequantize_f16_f32_exhaustive(void)
     }
 }
 
-/* NaN lanes mixed with ordinary lanes in every position of an 8-lane block: the MVE lane repair must
- * touch only the NaN lanes. */
+/* NaN lanes mixed with ordinary lanes in every position of an 8-lane block: each lane converts on its
+ * own. */
 void dequantize_f16_f32_nan_lanes_mixed(void)
 {
     static const uint16_t nans[] = {0x7E00u, 0xFE00u, 0x7C01u, 0xFDFFu, 0x7FFFu, 0x7E55u, 0xFC2Au};

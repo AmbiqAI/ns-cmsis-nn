@@ -245,17 +245,16 @@ arm_cmsis_nn_status arm_svdf_state_s16_s8(const cmsis_nn_context *input_ctx,
     const int32_t loop_count = (num_elements + 3) / 4;
     for (int i_op = 0; i_op < loop_count; i_op++)
     {
+        const size_t offset = (size_t)i_op * 4U;
         mve_pred16_t p = vctp32q((uint32_t)num_elements);
-        int32x4_t op = vldrwq_z_s32(buffer_b, p);
+        int32x4_t op = vldrwq_z_s32(buffer_b + offset, p);
         op = arm_requantize_mve(op, multiplier_out, shift_2);
         op = vaddq_n_s32(op, zp_out);
         const int32x4_t min_vec = vdupq_n_s32((int8_t)out_activation_min);
         const int32x4_t max_vec = vdupq_n_s32((int8_t)out_activation_max);
         op = vmaxq_s32(op, min_vec);
         op = vminq_s32(op, max_vec);
-        vstrbq_p_s32(output_data, op, p);
-        output_data += 4;
-        buffer_b += 4;
+        vstrbq_p_s32(output_data + offset, op, p);
         num_elements -= 4;
     }
 #else

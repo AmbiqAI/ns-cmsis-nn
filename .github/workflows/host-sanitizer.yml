@@ -9,34 +9,25 @@ name: Host sanitizer unit tests
 #
 # Float16 needs _Float16 on x86, which the ubuntu-24.04 gcc provides.
 #
-# One UBSan check is masked: -fno-sanitize=shift-base. It silences two
-# diagnostics, not one: "left shift of negative value", and "left shift of X by
-# N places cannot be represented in type 'int'", i.e. signed left-shift
-# overflow of a positive value. Both are well defined on every Arm target but
-# UB in C. The surviving reporting sites fall into two groups, so fixing either
-# alone would not make the mask droppable:
-#   - The Arm-inherited s4 paths (arm_nn_mat_mult_nt_t_s4.c,
-#     arm_nn_vec_mat_mult_t_s4.c, arm_depthwise_conv_s4{,_opt}.c, arm_convolve_s4.c,
-#     arm_nn_mat_mult_kernel_s4_s16.c), plus
-#     Source/SoftmaxFunctions/arm_nn_softmax_common_s8.c:93, the only site of the
-#     overflow kind — every other site is a shift of a negative value.
-#   - Two __STATIC_FORCEINLINE helpers in the public Include/arm_nnsupportfunctions.h,
-#     arm_nn_exp_on_negative_values and arm_nn_mult_by_power_of_two, so the mask also
-#     covers header code that downstream callers compile.
-# Earlier inventories also listed arm_elementwise_{add,sub,mul}*_s16.c and
-# arm_{add,sub,mul}_scalar_s16.c -- those reported only through the shared
-# pack macros, which now use the defined unsigned-shift idiom (#357) and can
-# no longer fire -- plus the comparison and squared-difference files, which
-# re-measured as zero shift-base REPORTS on the suite corpus and were stale
-# entries all along. Zero reports is not zero sites: those TUs still inline
-# shift-base-instrumentable code from arm_nn_requantize and
-# arm_nn_divide_by_power_of_two, silent only because no test reaches the
-# offending shift counts. Narrowing the mask per-file so the clean files
-# regain protection is the open half of #357.
+# Nothing in -fsanitize=undefined is masked, including shift-base (#711): a
+# left shift of a negative value, or a signed left shift whose result does not
+# fit in 'int', is well defined on every Arm target but UB in C, and fails the
+# suite. The int4 decode paths (#612), the shared s16 pack macros (#357) and
+# the softmax code (#704) shift unsigned values. Zero reports is not zero
+# sites: TUs that inline arm_nn_requantize still carry shift-base-instrumentable
+# code that no test reaches. The M4 DSP sites are not compiled on x86 at all.
 #
-# shift-exponent stays on, so a shift count at or past the operand width is
+# shift-exponent is on as well, so a shift count at or past the operand width is
 # still reported. LeakSanitizer is on (it is part of ASan by default), so a test
 # that mallocs without freeing fails its suite.
+#
+# The word-copy cell builds the same suites with ARM_NN_WORD_COPY defined. The
+# library defines it by default only for clang (not armclang) with unaligned
+# access on armv7-m, armv7e-m and armv8-m.main, and no PR leg executes a clang
+# build (#340), so without this cell nothing in CI runs the word-at-a-time
+# arm_memcpy_* and arm_memset_* bodies inside the scalar kernel paths that call
+# them, or arm_convolve_s8's depth-1 im2col fill. Call sites inside DSP or MVE
+# branches still run nowhere with the macro on.
 
 on:
   # Invoked from ci.yml so it reports under the single required gate
@@ -51,8 +42,17 @@ permissions:
 
 jobs:
   host-sanitizer:
+    name: host-sanitizer / ${{ matrix.config }}
     runs-on: ubuntu-24.04
     timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - config: default
+            defines: ''
+          - config: word-copy
+            defines: -DARM_NN_WORD_COPY
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7
@@ -60,24 +60,58 @@ jobs:
       - name: Install build dependencies
         run: |
           sudo apt-get update
-          sudo apt-get install -y --no-install-recommends cmake ninja-build ruby gcc g++
+          sudo apt-get install -y --no-install-recommends cmake ninja-build ruby gcc g++ clang
           # Tests/UnitTest/unittest_targets.py (Unity download + test-runner generation, run at configure
           # time) imports these two; the full Tests/UnitTest/requirements.txt is for the FVP/Mbed flows.
           python3 -m pip install --user termcolor pyserial
 
       - name: Configure (host, ASan + UBSan, F32 and F16 on)
+        env:
+          DEFINES: ${{ matrix.defines }}
         run: |
           cmake -S Tests/UnitTest -B build-host -G Ninja \
             -DBUILD_CMSIS_NN_UNIT=ON \
             -DCMSIS_PATH=/nonexistent-host-build-needs-no-cmsis \
             -DARM_NN_ENABLE_F32=ON \
             -DARM_NN_ENABLE_F16=ON \
+            "-DCONCAT_POINTER_CLANGXX:FILEPATH=$(command -v clang++)" \
             -DCMSIS_OPTIMIZATION_LEVEL=-O1 \
-            "-DCMAKE_C_FLAGS=-fsanitize=address,undefined -fno-sanitize=shift-base -fno-sanitize-recover=all -g -fno-omit-frame-pointer" \
+            "-DCMAKE_C_FLAGS=-fsanitize=address,undefined -fno-sanitize-recover=all -g -fno-omit-frame-pointer ${DEFINES}" \
             "-DCMAKE_EXE_LINKER_FLAGS=-fsanitize=address,undefined"
 
       - name: Build every suite
         run: cmake --build build-host --parallel
+
+      # Without this the cell would pass as a copy of the default one if the
+      # macro stopped selecting the word helpers.
+      - name: Assert the word-copy code is built
+        if: matrix.config == 'word-copy'
+        run: |
+          set -euo pipefail
+          syms="$(nm -A build-host/cmsis-nn/libcmsis-nn.a)"
+          for want in 'arm_convolve_s8\.c\.o:.* arm_nn_im2col_depth1_s8' ' arm_nn_copy_words_s8' ' arm_nn_fill_words_s8'; do
+            if ! grep -qE "${want}\$" <<<"${syms}"; then
+              echo "::error title=Word-copy code not built::no symbol matching '${want}' in the library" >&2
+              exit 1
+            fi
+          done
+
+      - name: Require pointer-formation regressions
+        run: |
+          pointer_cxx=$(sed -n 's/^CONCAT_POINTER_CLANGXX:FILEPATH=//p' build-host/CMakeCache.txt)
+          echo "Pointer regression compiler: ${pointer_cxx:?No configured Clang compiler}"
+          "$pointer_cxx" --version
+          ctest --test-dir build-host --show-only=json-v1 > build-host/registered-tests.json
+          python3 - <<'PYTESTS'
+          import json
+          with open("build-host/registered-tests.json") as stream:
+              names = {test["name"] for test in json.load(stream)["tests"]}
+          required = {"concatenation_pointer_probe", "concatenation_s8_pointer_probe", "row_broadcast_s8_pointer_probe"}
+          missing = required - names
+          if missing:
+              raise SystemExit("Missing required pointer regressions: " + ", ".join(sorted(missing)))
+          print("Required pointer regressions registered: " + ", ".join(sorted(required)))
+          PYTESTS
 
       # --no-tests=error turns a *fully* empty test set into a failure rather than a
       # pass. It says nothing about a partial regression, so the count check below
@@ -93,3 +127,27 @@ jobs:
           echo "ctest registered $registered suites"
           test "$registered" -ge 140
           ctest --test-dir build-host --output-on-failure --parallel 4 --no-tests=error
+
+  # helia-aot's native contract tests compile kernels with the runner's own
+  # clang, which targets x86 and has no ACLE; CLZ expanded to an undeclared
+  # __clz there and nothing here noticed. ubuntu-22.04 carries the clang 14
+  # that first hit it, ubuntu-24.04 a current one.
+  host-clang-headers:
+    name: host-clang-headers / ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-22.04, ubuntu-24.04]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Install clang
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends clang
+
+      - name: Compile every public header with host clang
+        run: scripts/check_host_clang_headers.sh clang

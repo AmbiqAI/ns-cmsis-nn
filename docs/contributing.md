@@ -348,6 +348,27 @@ and commit the result; CI and the `kernel-contract-fresh` pre-commit hook fail
 when the file is stale, non-canonical or missing. Line-number changes alone do
 not count as drift. See AmbiqAI/ns-cmsis-nn#525 and #386.
 
+### The kernel implementation manifest
+
+`Tests/KernelContracts/kernel_implementations.json` records what the
+signatures cannot: for each implementation of an operator, the entry to call,
+the wrapper route that reaches it, the build features it needs, the sizer of
+each buffer, the preparation of its constant operands and when it returns
+`ARM_CMSIS_NN_NO_IMPL_ERROR`. It is generated from the YAML files in
+`Tests/KernelContracts/implementations/`; the schema is described at the top
+of `scripts/check_kernel_implementations.py`. After editing a YAML file, or
+re-exporting `kernel_contracts.json`, run
+
+```bash
+python3 scripts/check_kernel_implementations.py export
+```
+
+and commit the result; CI and the `kernel-implementations-fresh` pre-commit
+hook fail when it is stale or non-canonical. The export refuses any symbol,
+argument binding, struct field or feature token that does not resolve against
+`kernel_contracts.json` and the public headers. It needs PyYAML. See
+AmbiqAI/ns-cmsis-nn#885 and #829.
+
 ## Reporting bugs
 
 Open an issue at

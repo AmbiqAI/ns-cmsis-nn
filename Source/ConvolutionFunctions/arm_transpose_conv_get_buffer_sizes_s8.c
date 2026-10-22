@@ -43,39 +43,6 @@
  */
 
 /*
- * Scratch size indexed by arm_transpose_conv_s8() itself: the rolling row buffer,
- * ARM_NN_MAX(filter_y, stride_y) rows of ((input_x - 1) * stride_x + ARM_NN_MAX(filter_x, stride_x)) * out_ch
- * int32 accumulators.
- */
-static int32_t transpose_conv_s8_rolling_buffer_size(const cmsis_nn_transpose_conv_params *transpose_conv_params,
-                                                     const cmsis_nn_dims *input_dims,
-                                                     const cmsis_nn_dims *filter_dims,
-                                                     const cmsis_nn_dims *out_dims)
-{
-    if ((input_dims->w < 0) || (out_dims->c < 0) || (filter_dims->w < 0) || (filter_dims->h < 0) ||
-        (transpose_conv_params->stride.w <= 0) || (transpose_conv_params->stride.h <= 0))
-    {
-        return -1;
-    }
-
-    // (w - 1) * stride_w + ARM_NN_MAX(filter_w, stride_w) is bounded by ~2^62 given the validation above and so cannot
-    // wrap an int64_t. It is also non-negative for every input that reaches here - at w == 0 it is ARM_NN_MAX(filter_w,
-    // stride_w) - stride_w >= 0 - so it is computed directly and fed to the bounded fold, which needs a non-negative
-    // accumulator and would report a negative one as -1 in any case. See arm_nn_size_mul().
-    const int64_t row_span = ((int64_t)input_dims->w - 1) * (int64_t)transpose_conv_params->stride.w +
-        ARM_NN_MAX(filter_dims->w, transpose_conv_params->stride.w);
-
-    int64_t buf_x = arm_nn_size_mul(row_span, out_dims->c);
-
-    const int32_t buf_y = ARM_NN_MAX(filter_dims->h, transpose_conv_params->stride.h);
-
-    int64_t required_bytes = arm_nn_size_mul(buf_x, buf_y);
-    required_bytes = arm_nn_size_mul(required_bytes, (int32_t)sizeof(int32_t));
-
-    return (int32_t)required_bytes;
-}
-
-/*
  * Build the reverse-convolution input dims. The strided geometry is computed in 64 bits because
  * input_dims->{h,w} * stride is signed-overflow UB when left in int32_t. Returns -1 if the result
  * does not fit, 0 otherwise.
@@ -120,7 +87,7 @@ int32_t arm_transpose_conv_s8_get_buffer_size(const cmsis_nn_transpose_conv_para
     const bool reverse_conv_efficient = (input_dims->c > REVERSE_TCOL_EFFICIENT_THRESHOLD);
 
     const int32_t rolling_size =
-        transpose_conv_s8_rolling_buffer_size(transpose_conv_params, input_dims, filter_dims, out_dims);
+        arm_nn_transpose_conv_s8_rolling_buffer_size(transpose_conv_params, input_dims, filter_dims, out_dims);
 
     if (rolling_size < 0)
     {
@@ -170,7 +137,7 @@ int32_t arm_transpose_conv_s8_get_buffer_size_mve(const cmsis_nn_transpose_conv_
     const bool reverse_conv_efficient = (input_dims->c > REVERSE_TCOL_EFFICIENT_THRESHOLD);
 
     const int32_t rolling_size =
-        transpose_conv_s8_rolling_buffer_size(transpose_conv_params, input_dims, filter_dims, out_dims);
+        arm_nn_transpose_conv_s8_rolling_buffer_size(transpose_conv_params, input_dims, filter_dims, out_dims);
 
     if (rolling_size < 0)
     {

@@ -93,6 +93,11 @@ args:
     -C  Path to cmsis 5
     -D  Pass through a CMake -D argument, e.g. CMSIS_NN_USE_REQUANTIZE_INLINE_ASSEMBLY=ON (default: empty)
 
+environment:
+    FVP_TEST_TIMEOUT_SECONDS  Positive per-image timeout in seconds (default: 90).
+    GNU timeout is required; a timed-out image fails even if it printed a PASS summary.
+    Simulator stdout/stderr are saved beside each image as <image>.fvp.log.
+
     example usage: $(basename "$0") -c cortex-m3,cortex-m4 -o '-O2' -q
 "
 
@@ -492,22 +497,46 @@ Build_Tests() {
 }
 
 Run_Tests() {
-    set +e
     echo "++ Running Unit Tests"
+    local limit=${FVP_TEST_TIMEOUT_SECONDS:-90}
+    if [[ ! "$limit" =~ ^[1-9][0-9]*$ ]]; then
+        echo "FVP_TEST_TIMEOUT_SECONDS must be a positive integer."
+        exit 1
+    fi
+    command -v timeout >/dev/null || { echo "GNU timeout is required."; exit 1; }
+    local tests test log status
     readarray -d '' tests < <(find ./build-${cpu}-${compiler}/ -iname "*.elf" -print0)
+    if [[ ${#tests[@]} -eq 0 ]]; then
+        echo "No test images found for ${cpu}/${compiler}."
+        exit 1
+    fi
     for test in "${tests[@]}"
     do
-        echo "Test: ${test}"
-        output=$(FVP_Corstone_SSE-300_Ethos-U55 -C mps3_board.uart0.shutdown_on_eot=1 -C mps3_board.visualisation.disable-visualisation=1 -C mps3_board.telnetterminal0.start_telnet=0 -C mps3_board.uart0.out_file="-" -C mps3_board.uart0.unbuffered_output=1 ${test})
-        # Pass only on Unity's own summary line with zero failures followed by OK; a substring test on
-        # "0 Failures" also matches "10 Failures".
-        if ! echo "$output" | grep -Eq '^[0-9]+ Tests 0 Failures [0-9]+ Ignored[[:space:]]*$' ||
-            ! echo "$output" | grep -Eq '^OK[[:space:]]*$'; then
-            echo "${output}"
-            echo "${test} failed. Script exiting."
+        log="${test}.fvp.log"
+        echo "Test: ${test} (timeout ${limit}s; log ${log})"
+        if timeout --kill-after=5s "${limit}s" FVP_Corstone_SSE-300_Ethos-U55 \
+            -C mps3_board.uart0.shutdown_on_eot=1 \
+            -C mps3_board.visualisation.disable-visualisation=1 \
+            -C mps3_board.telnetterminal0.start_telnet=0 \
+            -C mps3_board.uart0.out_file="-" \
+            -C mps3_board.uart0.unbuffered_output=1 "${test}" >"${log}" 2>&1; then
+            status=0
+        else
+            status=$?
+        fi
+        if [[ ${status} -ne 0 ]]; then
+            cat "${log}"
+            echo "${test} failed: simulator exit ${status} (124/137 indicates timeout); log ${log}."
+            exit 1
+        fi
+        # Require Unity's anchored summary: "10 Failures" must not match "0 Failures".
+        if ! grep -Eq '^[0-9]+ Tests 0 Failures [0-9]+ Ignored[[:space:]]*$' "${log}" ||
+            ! grep -Eq '^OK[[:space:]]*$' "${log}"; then
+            cat "${log}"
+            echo "${test} failed: missing successful Unity summary; log ${log}."
             exit 1
         elif [[ ${QUIET} -eq 0 ]]; then
-            echo "${output}"
+            cat "${log}"
         fi
     done
     echo "Tests for ${cpu} ran successfully."

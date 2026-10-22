@@ -91,6 +91,26 @@ The wrappers exist for as long as a GCC 13 release is in the support matrix;
 their removal is tracked by
 [#435](https://github.com/AmbiqAI/ns-cmsis-nn/issues/435).
 
+### NaN in `float16` dequantize
+
+`arm_dequantize_f16_f32()` and `arm_dequantize_f16_bits_f32()`
+return, for each element, what the path's half-to-single conversion instruction
+returns. With `FPSCR.AHP` clear, finite values, subnormals, ±0 and ±Inf convert
+exactly on every path, whatever `FPSCR.FZ` and `FZ16`. A NaN keeps its sign and
+payload, quieted, on every path except where `FPSCR.DN` is set on the scalar FPU path:
+
+| Path | A NaN input gives |
+|---|---|
+| MVE `float16` with `ARM_NN_ENABLE_F16` and no `ARM_MATH_AUTOVECTORIZE` (vector `VCVTB`, or the scalar form where the wrappers above select it) | Its sign and payload, quieted: NaN lanes are rebuilt from the input bits after the conversion, whatever `FPSCR` holds (#871). |
+| Other little-endian M-profile FPU paths (scalar `VCVTB`/`VCVTT`) | Its sign and payload, quieted. With `FPSCR.DN` set, the default NaN. |
+| Other configurations, including no FPU or big-endian builds (integer widening) | The scalar instruction's result at reset `FPSCR`: sign and payload, quieted, independently of `FPSCR`. |
+
+On both hardware paths a signaling NaN sets `FPSCR.IOC`, and with `FPSCR.AHP`
+set exponent 31 reads as a number rather than as Inf or NaN (on the MVE path,
+Inf only: a NaN pattern is still rebuilt as a NaN). The output must be 4-byte
+aligned, like any `float` storage. At reset `FPSCR`, NaN bits agree across
+targets.
+
 ### How the form is chosen
 
 The preprocessor cannot see the assembler, so the CMake build asks it. At
@@ -212,11 +232,35 @@ See [#437](https://github.com/AmbiqAI/ns-cmsis-nn/issues/437).
 See [#427](https://github.com/AmbiqAI/ns-cmsis-nn/issues/427) for the analysis
 this section summarizes.
 
+## `ARM_NN_WORD_COPY`
+
+ATfE 22.1's C library implements `memcpy` and `memset` one byte at a time on
+Armv7-M, Armv7E-M and Armv8-M Mainline. `ARM_NN_WORD_COPY` makes
+`arm_memcpy_s8`/`_s16`/`_s32`/`_q15`, `arm_memset_s8` and `arm_memset_s16` copy
+and fill a word at a time instead. Without MVE it also makes `arm_convolve_s8`
+fill the im2col taps of a filter depth of 1 (4 taps or more) with one call per
+output pixel.
+
+- **Default:** defined by `arm_nnsupportfunctions.h` for clang (not armclang)
+  when the target has unaligned access (`__ARM_FEATURE_UNALIGNED`) and is
+  Armv7-M, Armv7E-M or Armv8-M Mainline: ATfE on Cortex-M3, M4, M7 and M33.
+  GCC, armclang, MVE, Armv6-M and Armv8.1-M builds compile the same code as
+  without it.
+- **Requirement:** unaligned word access. Do not define it for a target that
+  traps unaligned accesses (for example with `CCR.UNALIGN_TRP` set).
+- **Overriding:** a build may define it for another target that meets the
+  requirement. There is no switch to turn the default off; a target that must
+  avoid unaligned access should be built without `__ARM_FEATURE_UNALIGNED`
+  (`-mno-unaligned-access`).
+- **Coverage:** the `word-copy` cell of `host-sanitizer.yml` runs every Unity
+  suite with it defined. No pull request leg executes an ATfE build yet
+  ([#340](https://github.com/AmbiqAI/ns-cmsis-nn/issues/340)).
+
 ## What gets pinned
 
 Each tarball contains a `manifest.json` recording the identity of the archive.
 Its `"version"` field is the heliaCORE release the archive was built from:
-tarballs for this release carry `"version": "7.39.0"`. <!-- x-release-please-version -->
+tarballs for this release carry `"version": "7.47.0"`. <!-- x-release-please-version -->
 
 The example below is trimmed. The `"version"` field is left out on purpose, so
 the block stays valid JSON that no release has to edit; the `"features"`,
@@ -284,3 +328,56 @@ for a hard-to-debug runtime crash on a device in a customer's hands. The compile
 ID check is about package provenance and qualification. If you intentionally mix
 objects from different Arm embedded toolchains, validate the CPU/FPU, float ABI,
 and calling convention as part of your integration.
+
+## Executing ACfE archives in a GNU test harness
+
+The UnitTest prebuilt-library path can execute an ACfE-compiled archive with a
+GNU harness on Cortex-M4 or Cortex-M55. Enable its runtime binding explicitly:
+
+```sh
+cmake -S Tests/UnitTest -B build-acfe-m4 \
+  -DCMAKE_TOOLCHAIN_FILE=<ethos-u-core-platform>/cmake/toolchain/arm-none-eabi-gcc.cmake \
+  -DTARGET_CPU=cortex-m4 -DCMSIS_PATH=<CMSIS_5> \
+  -DCMSIS_NN_TEST_LIBRARY=<acfe-built-libcmsis-nn.a> \
+  -DCMSIS_NN_TEST_ARMCLANG_ROOT=<acfe-install-root> \
+  -DARM_NN_ENABLE_F32=ON -DARM_NN_ENABLE_F16=OFF
+cmake --build build-acfe-m4 --target test_arm_quantize_f32_s8
+```
+
+The feature flags and ABI settings must match the imported archive, including
+floating-point calling convention and enum sizes. The ACfE installation must
+match the compiler that produced it. The qualified layout is ACfE 6.24.
+
+The helper extracts an audited dependency closure for `__hardfp_erfcf`,
+`__hardfp_floorf` and `__hardfp_roundf` from M4's `m_wm.l` or M55's `m_wv.l`,
+plus the matching `fz_wm.l`/`fz_wv.l` support and `c_wu.l` errno accessors. It
+localizes only the three conflicting bare math aliases: Arm's ordinary `erfcf`,
+`floorf` and `roundf` entries use base PCS and must not capture GNU VFP calls.
+Native instruction bodies and hard-float names are unchanged. The selected
+objects' strong dependencies must resolve within the closure, except for the
+explicit errno accessor; unexpected dependencies or public math exports stop
+configuration. Missing archives or members also stop configuration. Other
+native math entry points require separately qualifying their dependency closure.
+
+Arm errno has its own zero-initialized cell. Its codes (EDOM=1, ERANGE=2) are
+not GNU's codes, so sharing GNU errno storage would misinterpret errors. Native
+math errors do not overwrite GNU errno, and changes to GNU errno do not alter
+Arm's cell. This binding is for single-thread test executables.
+
+This combines Arm kernel/math code with GNU startup and libc. It does not
+qualify a fully native Arm runtime, multithreaded use or silicon performance.
+M0 needs no such binding and is not accepted by this option. Normal source
+builds and GNU/ATfE prebuilt tests leave the option unset. After correct symbol
+binding, bit-identical transcendental results can still depend on compiler,
+libm and FP settings; numerical checks must use the operation's defined contract.
+
+Other GNU test harnesses can reuse the same binding after creating their
+imported `cmsis-nn` target:
+
+```cmake
+include("${CMSIS_NN_ROOT}/Tests/UnitTest/cmake/armclang_runtime.cmake")
+cmsis_nn_link_armclang_test_runtime(cmsis-nn "${ACFE_ROOT}")
+```
+
+The configure-only dependency and failure controls run without an Arm licence:
+`python3 scripts/tests/test_check_armclang_test_runtime.py`.

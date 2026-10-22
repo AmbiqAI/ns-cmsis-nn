@@ -54,3 +54,143 @@ void test_arm_dequantize_s8_f32(void)
         );
     }
 }
+
+#define DEQUANTIZE_INT8_GUARD (-1234.5f)
+
+// A zero point outside the input type is rejected before any access (issue #784).
+void dequantize_s8_f32_rejects_out_of_range_zero_point(void)
+{
+    const int8_t input[4] = {1, 2, 3, 4};
+    float output[4];
+    const int32_t zero_points[] = {INT8_MIN - 1, INT8_MAX + 1, INT32_MIN, INT32_MAX};
+
+    for (size_t z = 0; z < sizeof(zero_points) / sizeof(zero_points[0]); z++)
+    {
+        for (int i = 0; i < 4; i++)
+        {
+            output[i] = DEQUANTIZE_INT8_GUARD;
+        }
+        TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR, arm_dequantize_s8_f32(input, output, 4, zero_points[z], 0.5f));
+        for (int i = 0; i < 4; i++)
+        {
+            TEST_ASSERT_EQUAL_FLOAT(DEQUANTIZE_INT8_GUARD, output[i]);
+        }
+    }
+
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, arm_dequantize_s8_f32(input, output, 4, INT8_MIN, 0.5f));
+    for (int i = 0; i < 4; i++)
+    {
+        TEST_ASSERT_EQUAL_FLOAT(((float)input[i] - (float)INT8_MIN) * 0.5f, output[i]);
+    }
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, arm_dequantize_s8_f32(input, output, 4, INT8_MAX, 0.5f));
+    for (int i = 0; i < 4; i++)
+    {
+        TEST_ASSERT_EQUAL_FLOAT(((float)input[i] - (float)INT8_MAX) * 0.5f, output[i]);
+    }
+}
+
+// A negative size is rejected and nothing is written; the Helium loop would read it as a huge count (issue #784).
+void dequantize_s8_f32_rejects_negative_size(void)
+{
+    const int8_t input[8] = {1, 2, 3, 4, 5, 6, 7, 8};
+    float output[8];
+    const int32_t sizes[] = {-1, -5, INT32_MIN};
+
+    for (size_t s = 0; s < sizeof(sizes) / sizeof(sizes[0]); s++)
+    {
+        for (int i = 0; i < 8; i++)
+        {
+            output[i] = DEQUANTIZE_INT8_GUARD;
+        }
+        TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR, arm_dequantize_s8_f32(input, output, sizes[s], 0, 0.5f));
+        for (int i = 0; i < 8; i++)
+        {
+            TEST_ASSERT_EQUAL_FLOAT(DEQUANTIZE_INT8_GUARD, output[i]);
+        }
+    }
+
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, arm_dequantize_s8_f32(input, output, 0, 0, 0.5f));
+    for (int i = 0; i < 8; i++)
+    {
+        TEST_ASSERT_EQUAL_FLOAT(DEQUANTIZE_INT8_GUARD, output[i]);
+    }
+}
+
+/* Exact binary scale keeps the reference independent of floating-point tolerances. */
+void dequantize_s8_f32_tails(void)
+{
+    const int8_t values[] = {INT8_MIN, INT8_MAX, -1, 0, 1, 123, -123};
+    int8_t input[33];
+    float output[35];
+    const int32_t zero_points[] = {INT8_MIN, 0, INT8_MAX};
+    for (int32_t i = 0; i < 33; i++)
+    {
+        input[i] = values[i % 7];
+    }
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, arm_dequantize_s8_f32(NULL, NULL, 0, 0, 0.5f));
+    for (size_t z = 0; z < sizeof(zero_points) / sizeof(zero_points[0]); z++)
+    {
+        for (int32_t n = 0; n <= 33; n++)
+        {
+            for (int32_t i = 0; i < 35; i++)
+            {
+                output[i] = DEQUANTIZE_INT8_GUARD;
+            }
+            TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
+                              arm_dequantize_s8_f32(input, output + 1, n, zero_points[z], 0.5f));
+            TEST_ASSERT_EQUAL_FLOAT(DEQUANTIZE_INT8_GUARD, output[0]);
+            for (int32_t i = 0; i < n; i++)
+            {
+                const float expected = (float)(((double)input[i] - zero_points[z]) * 0.5);
+                TEST_ASSERT_EQUAL_MEMORY(&expected, &output[i + 1], sizeof(expected));
+            }
+            for (int32_t i = n + 1; i < 35; i++)
+            {
+                TEST_ASSERT_EQUAL_FLOAT(DEQUANTIZE_INT8_GUARD, output[i]);
+            }
+        }
+    }
+}
+
+#include "../Utils/mpu_guard.h"
+
+/* Place each operand separately at the MPU gap: reads cannot hide behind an output canary. */
+void dequantize_s8_f32_protected_tails(void)
+{
+#if defined(MPU_GUARD_AVAILABLE)
+    int8_t input[33];
+    float output[33];
+    for (int32_t i = 0; i < 33; i++)
+    {
+        input[i] = (int8_t)(i - 16);
+    }
+    for (int32_t n = 0; n <= 33; n++)
+    {
+        const int8_t *bounded_input = guard_place(input, (size_t)n * sizeof(input[0]));
+        guard_gap_enable();
+        arm_cmsis_nn_status status = arm_dequantize_s8_f32(bounded_input, output, n, 1, 0.5f);
+        guard_gap_disable();
+        TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, status);
+        for (int32_t i = 0; i < n; i++)
+        {
+            const float expected = (float)(i - 17) * 0.5f;
+            TEST_ASSERT_EQUAL_MEMORY(&expected, &output[i], sizeof(expected));
+        }
+
+        float *bounded_output = (float *)guard_end(((size_t)n + 1) * sizeof(float));
+        bounded_output[0] = DEQUANTIZE_INT8_GUARD;
+        guard_gap_enable();
+        status = arm_dequantize_s8_f32(input, bounded_output + 1, n, 1, 0.5f);
+        guard_gap_disable();
+        TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, status);
+        TEST_ASSERT_EQUAL_FLOAT(DEQUANTIZE_INT8_GUARD, bounded_output[0]);
+        for (int32_t i = 0; i < n; i++)
+        {
+            const float expected = (float)(i - 17) * 0.5f;
+            TEST_ASSERT_EQUAL_MEMORY(&expected, &bounded_output[i + 1], sizeof(expected));
+        }
+    }
+#else
+    TEST_IGNORE_MESSAGE("no MPU guard on this platform");
+#endif
+}

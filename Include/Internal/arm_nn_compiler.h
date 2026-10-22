@@ -32,6 +32,21 @@
 #define ARM_NN_COMPILER_H
 
 /**
+ * @brief 1 when kernel routes and scratch sizes follow Arm Compiler 6, else 0.
+ *
+ * A few routes and buffer sizes differ under Arm Compiler 6 (for example the depthwise-to-conv threshold). The
+ * default follows the compiler building this translation unit; a host planner that sizes for an armclang target
+ * defines it explicitly.
+ */
+#ifndef ARM_NN_TOOLCHAIN_ARMCLANG
+    #if defined(__ARMCC_VERSION) && (__ARMCC_VERSION >= 6010050)
+        #define ARM_NN_TOOLCHAIN_ARMCLANG 1
+    #else
+        #define ARM_NN_TOOLCHAIN_ARMCLANG 0
+    #endif
+#endif
+
+/**
  *
  * @brief Arm C-Language Extension(ACLE) Includes
  *
@@ -194,8 +209,10 @@ extern "C++" {
 // as __GNUC__ is defined by non-GCC compilers as well
 
 /* Common intrinsics for all architectures */
+// A clang without ACLE (a host build) has no __clz: <arm_acle.h> is included only for Arm targets above, so it takes
+// the __GNUC__ inline below instead.
 #if (defined(__ARMCC_VERSION) && (__ARMCC_VERSION >= 6010050)) || defined(__ICCARM__) ||                               \
-    (defined(__clang__) && !defined(__ARMCC_VERSION))
+    (defined(__clang__) && !defined(__ARMCC_VERSION) && (defined(__ARM_ARCH) || defined(__ARM_ACLE)))
     #define CLZ __clz
 #elif defined(__GNUC__)
 /**

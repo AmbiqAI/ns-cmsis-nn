@@ -10,8 +10,9 @@
 // Ambiq-specific: not in upstream ARM-software/CMSIS-NN, which has no float depthwise convolution (#448).
 // Float16 depthwise convolution: every ch_mult == 1 shape takes the direct channel-vectorized kernel (#448),
 // ch_mult > 1 the generic route. Each case is checked against an in-test float64 reference with guard bytes
-// on the output and on a scratch buffer sized exactly by the sizer. The MVE leg accumulates in float16 lanes,
-// the scalar leg in float32 with one rounding at the store (#449), so the tolerance is per tap count.
+// on the output and on a scratch buffer sized exactly by the sizer. The default entry accumulates every tap in
+// float32 and rounds once on every leg (#449, #830); the data sit on a 1/32 grid, so every product and partial sum is
+// exact and each output must be the reference rounded to float16. The _acc16 entry keeps float16 lanes on MVE.
 
 #include <arm_nnfunctions.h>
 #include <arm_nnsupportfunctions.h>
@@ -124,7 +125,8 @@ static int32_t dw_out_size(int32_t in, int32_t k, int32_t stride, int32_t pad, i
 }
 
 // Run arm_depthwise_conv_wrapper_f16 (scratch sized exactly by the sizer when use_ctx, else no ctx), check
-// the guards, and compare every output with the float64 reference within `tol`.
+// the guards, and require every output to be the float64 reference rounded to float16 (a value compare, so a
+// zero's sign is free).
 static void dw_f16_check(const cmsis_nn_dw_conv_params_f16 *dp,
                          const cmsis_nn_dims *in,
                          const float16_t *x,
@@ -132,8 +134,7 @@ static void dw_f16_check(const cmsis_nn_dw_conv_params_f16 *dp,
                          const float16_t *w,
                          const float16_t *bias,
                          const cmsis_nn_dims *out,
-                         int32_t use_ctx,
-                         float32_t tol)
+                         int32_t use_ctx)
 {
     const int32_t out_size = out->n * out->h * out->w * out->c;
     const size_t out_bytes = (size_t)out_size * sizeof(float16_t);
@@ -166,7 +167,8 @@ static void dw_f16_check(const cmsis_nn_dw_conv_params_f16 *dp,
     dw_assert_guard_intact(y, out_bytes, "kernel wrote past the output buffer");
     for (int32_t i = 0; i < out_size; i++)
     {
-        TEST_ASSERT_FLOAT_WITHIN(tol, (float32_t)ref[i], (float32_t)y[i]);
+        const float16_t want = (float16_t)(float32_t)ref[i];
+        TEST_ASSERT_TRUE_MESSAGE((float32_t)want == (float32_t)y[i], "default entry is not the rounded exact sum");
     }
 
     free(ctx.buf);
@@ -215,10 +217,8 @@ static void dw_f16_layer(int32_t batch,
         bias[i] = dw_f16_value(i, seed + 2);
     }
 
-    // Float16 lanes on MVE: half an ulp of a partial sum below 32 (0.0078) per tap, plus the final rounding.
-    const float32_t tol = 0.008f * (float32_t)(kh * kw) + 0.01f;
-    dw_f16_check(dp, &in, x, &flt, w, with_bias ? bias : NULL, &out, 1, tol);
-    dw_f16_check(dp, &in, x, &flt, w, with_bias ? bias : NULL, &out, 0, tol);
+    dw_f16_check(dp, &in, x, &flt, w, with_bias ? bias : NULL, &out, 1);
+    dw_f16_check(dp, &in, x, &flt, w, with_bias ? bias : NULL, &out, 0);
 
     free(bias);
     free(w);
@@ -387,7 +387,7 @@ void depthwise_conv_sizer_one_input_channel_f16(void)
     const int32_t size8 = arm_depthwise_conv_f16_get_buffer_size(&dp, &in, &flt8, &out8, ARM_NN_LAYOUT_NHWC);
     TEST_ASSERT_EQUAL_INT32(size8, arm_depthwise_conv_wrapper_f16_get_buffer_size(&dp, &in, &flt8, &out8));
 #if defined(ARM_MATH_MVE_FLOAT16) && !defined(ARM_MATH_AUTOVECTORIZE)
-    TEST_ASSERT_TRUE(size8 > 0);
+    TEST_ASSERT_EQUAL_INT32(8192, size8); /* Packed filter plus the existing eight patch rows. */
 #else
     TEST_ASSERT_EQUAL_INT32(0, size8);
 #endif
@@ -396,8 +396,8 @@ void depthwise_conv_sizer_one_input_channel_f16(void)
 // ch_mult 2 over a 7x7 window (49 taps, valid and padded). The data sits on a 1/32 grid, so every product and every
 // float32 partial sum is exact and the float64 reference is the exact sum. The scalar legs accumulate in float32 and
 // round once (#449, #645), so each output is that sum rounded to float16, bit for bit; a float16 accumulator would
-// round partial sums that need more than 11 significant bits. MVE builds keep the #586 blockwise float16 lanes and
-// are checked against the reference within the usual tolerance.
+// round partial sums that need more than 11 significant bits. The default entry does the same on MVE builds (#830);
+// the _acc16 entry keeps float16 lanes there and is checked against the reference within a tolerance.
 void depthwise_conv_ch_mult2_long_window_f16(void)
 {
     cmsis_nn_dw_conv_params_f16 dp;
@@ -440,11 +440,14 @@ void depthwise_conv_ch_mult2_long_window_f16(void)
             for (int32_t i = 0; i < out_size; i++)
             {
 #if defined(ARM_MATH_MVE_FLOAT16) && !defined(ARM_MATH_AUTOVECTORIZE)
-                TEST_ASSERT_FLOAT_WITHIN(0.05f, (float32_t)ref[i], (float32_t)y[i]);
-#else
+                if (run & 2)
+                {
+                    TEST_ASSERT_FLOAT_WITHIN(0.05f, (float32_t)ref[i], (float32_t)y[i]);
+                    continue;
+                }
+#endif
                 const float16_t want = (float16_t)(float32_t)ref[i];
                 TEST_ASSERT_EQUAL_MEMORY(&want, &y[i], sizeof(float16_t));
-#endif
             }
         }
     }
@@ -557,4 +560,672 @@ void depthwise_conv_nonfinite_inputs_f16(void)
             }
         }
     }
+}
+
+/* Direct entries (#674): for one layer on each route of arm_depthwise_nhwc_conv_f16(), the entry a caller picks with
+ * the route predicates in dispatch order gives the router's output byte for byte, for both accumulations; the
+ * entries of the shape-specific routes decline other layers with ARM_CMSIS_NN_NO_IMPL_ERROR and write nothing. */
+typedef arm_cmsis_nn_status (*dw_entry_f16)(const cmsis_nn_context *,
+                                            const cmsis_nn_dw_conv_params_f16 *,
+                                            const cmsis_nn_dims *,
+                                            const float16_t *,
+                                            const cmsis_nn_dims *,
+                                            const float16_t *,
+                                            const cmsis_nn_dims *,
+                                            const float16_t *,
+                                            const cmsis_nn_dims *,
+                                            float16_t *);
+
+enum
+{
+    DW_ROUTE_K3_F16,
+    DW_ROUTE_2X5_F16,
+    DW_ROUTE_DIRECT_F16,
+    DW_ROUTE_CIN1_F16,
+    DW_ROUTE_GENERIC_F16,
+    DW_ROUTE_COUNT_F16
+};
+
+/* [route][accumulation: 0 float32, 1 float16 lanes] */
+static const dw_entry_f16 dw_entries_f16[DW_ROUTE_COUNT_F16][2] = {
+    {arm_depthwise_conv_1d_k3_nhwc_f16, arm_depthwise_conv_1d_k3_nhwc_f16_acc16},
+    {arm_depthwise_conv_2x5_nhwc_f16, arm_depthwise_conv_2x5_nhwc_f16_acc16},
+    {arm_depthwise_conv_direct_nhwc_f16, arm_depthwise_conv_direct_nhwc_f16_acc16},
+    {arm_depthwise_conv_cin1_nhwc_f16, arm_depthwise_conv_cin1_nhwc_f16_acc16},
+    {arm_depthwise_conv_generic_nhwc_f16, arm_depthwise_conv_generic_nhwc_f16_acc16},
+};
+static const dw_entry_f16 dw_routers_f16[2] = {arm_depthwise_nhwc_conv_f16, arm_depthwise_nhwc_conv_f16_acc16};
+
+static void dw_direct_entries_case_f16(int32_t n,
+                                       int32_t h,
+                                       int32_t w,
+                                       int32_t c,
+                                       int32_t ch_mult,
+                                       int32_t kh,
+                                       int32_t kw,
+                                       int32_t pad,
+                                       int32_t expected_route)
+{
+    const int32_t oc = c * ch_mult;
+    const cmsis_nn_dims in = {n, h, w, c};
+    const cmsis_nn_dims flt = {1, kh, kw, oc};
+    const cmsis_nn_dims out = {n, h + 2 * pad - kh + 1, w + 2 * pad - kw + 1, oc};
+    const cmsis_nn_dims bias_dims = {1, 1, 1, oc};
+    const int32_t in_size = n * h * w * c;
+    const int32_t w_size = kh * kw * oc;
+    const int32_t out_size = out.n * out.h * out.w * oc;
+    float16_t *x = malloc((size_t)in_size * sizeof(float16_t));
+    float16_t *wt = malloc((size_t)w_size * sizeof(float16_t));
+    float16_t *bias = malloc((size_t)oc * sizeof(float16_t));
+    float16_t *ref = malloc((size_t)out_size * sizeof(float16_t));
+    float16_t *got = malloc((size_t)out_size * sizeof(float16_t));
+    TEST_ASSERT_NOT_NULL(x);
+    TEST_ASSERT_NOT_NULL(wt);
+    TEST_ASSERT_NOT_NULL(bias);
+    TEST_ASSERT_NOT_NULL(ref);
+    TEST_ASSERT_NOT_NULL(got);
+    for (int32_t i = 0; i < in_size; i++)
+    {
+        x[i] = (float16_t)((float32_t)(((i * 29 + 7) % 97) - 48) / 37.0f);
+    }
+    for (int32_t i = 0; i < w_size; i++)
+    {
+        wt[i] = (float16_t)((float32_t)(((i * 31 + 3) % 89) - 44) / 41.0f);
+    }
+    for (int32_t i = 0; i < oc; i++)
+    {
+        bias[i] = (float16_t)((float32_t)(i - 3) / 8.0f);
+    }
+    cmsis_nn_dw_conv_params_f16 dp;
+    memset(&dp, 0, sizeof(dp));
+    dp.ch_mult = ch_mult;
+    dp.stride.h = 1;
+    dp.stride.w = 1;
+    dp.padding.h = kh > 1 ? pad : 0;
+    dp.padding.w = pad;
+    dp.dilation.h = 1;
+    dp.dilation.w = 1;
+    dp.activation.min = (float16_t)-2.0f;
+    dp.activation.max = (float16_t)2.0f;
+    const int32_t buf_size = arm_depthwise_conv_f16_get_buffer_size(&dp, &in, &flt, &out, ARM_NN_LAYOUT_NHWC);
+    void *buf = buf_size > 0 ? malloc((size_t)buf_size) : NULL;
+    const cmsis_nn_context ctx = {buf, buf_size};
+
+    /* The router's choice, in its dispatch order */
+    int32_t route = DW_ROUTE_GENERIC_F16;
+#ifndef NN_DISABLE_SPECIALIZATION
+    if (arm_nn_dw_f16_is_1d_k3(&dp, &in, &flt, &out))
+    {
+        route = DW_ROUTE_K3_F16;
+    }
+    else if (arm_nn_dw_f16_is_2x5(&dp, &in, &flt, &out))
+    {
+        route = DW_ROUTE_2X5_F16;
+    }
+    else
+#endif
+        if (dp.ch_mult == 1)
+    {
+        route = DW_ROUTE_DIRECT_F16;
+    }
+#if defined(ARM_MATH_MVE_FLOAT16) && !defined(ARM_MATH_AUTOVECTORIZE)
+    else if (arm_nn_dw_f16_is_cin1(&in, &out) && buf_size >= arm_nn_dw_f16_cin1_min_ctx_size(&flt, &out))
+    {
+        route = DW_ROUTE_CIN1_F16;
+    }
+#endif
+    TEST_ASSERT_EQUAL(expected_route, route);
+
+    for (int32_t acc = 0; acc < 2; acc++)
+    {
+        memset(ref, 0x55, (size_t)out_size * sizeof(float16_t));
+        TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
+                          dw_routers_f16[acc](&ctx, &dp, &in, x, &flt, wt, &bias_dims, bias, &out, ref));
+        memset(got, 0x55, (size_t)out_size * sizeof(float16_t));
+        TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
+                          dw_entries_f16[route][acc](&ctx, &dp, &in, x, &flt, wt, &bias_dims, bias, &out, got));
+        TEST_ASSERT_EQUAL_MEMORY(ref, got, (size_t)out_size * sizeof(float16_t));
+        /* The shape-specific entries decline every other layer */
+        for (int32_t r = DW_ROUTE_K3_F16; r <= DW_ROUTE_DIRECT_F16; r++)
+        {
+            if (r == route || (r == DW_ROUTE_DIRECT_F16 && dp.ch_mult == 1))
+            {
+                continue;
+            }
+            memset(got, 0x55, (size_t)out_size * sizeof(float16_t));
+            TEST_ASSERT_EQUAL(ARM_CMSIS_NN_NO_IMPL_ERROR,
+                              dw_entries_f16[r][acc](&ctx, &dp, &in, x, &flt, wt, &bias_dims, bias, &out, got));
+            for (int32_t i = 0; i < out_size * (int32_t)sizeof(float16_t); i++)
+            {
+                TEST_ASSERT_EQUAL_HEX8(0x55, ((const uint8_t *)got)[i]);
+            }
+        }
+    }
+#if !(defined(ARM_MATH_MVE_FLOAT16) && !defined(ARM_MATH_AUTOVECTORIZE))
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_NO_IMPL_ERROR,
+                      arm_depthwise_conv_cin1_nhwc_f16(&ctx, &dp, &in, x, &flt, wt, &bias_dims, bias, &out, got));
+#else
+    if (route == DW_ROUTE_CIN1_F16)
+    {
+        /* Without scratch the entry reports it; the router falls back to the generic route instead */
+        const cmsis_nn_context none = {NULL, 0};
+        TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR,
+                          arm_depthwise_conv_cin1_nhwc_f16(&none, &dp, &in, x, &flt, wt, &bias_dims, bias, &out, got));
+    }
+#endif
+    free(buf);
+    free(x);
+    free(wt);
+    free(bias);
+    free(ref);
+    free(got);
+}
+
+void depthwise_conv_direct_entries_f16(void)
+{
+#ifndef NN_DISABLE_SPECIALIZATION
+    dw_direct_entries_case_f16(1, 1, 20, 6, 1, 1, 3, 0, DW_ROUTE_K3_F16);
+    dw_direct_entries_case_f16(1, 2, 16, 4, 2, 2, 5, 0, DW_ROUTE_2X5_F16);
+#endif
+    dw_direct_entries_case_f16(2, 6, 6, 10, 1, 3, 3, 1, DW_ROUTE_DIRECT_F16);
+    /* 49 taps per output: float16 folding differs from float16 lanes */
+    dw_direct_entries_case_f16(1, 9, 9, 10, 1, 7, 7, 3, DW_ROUTE_DIRECT_F16);
+#if defined(ARM_MATH_MVE_FLOAT16) && !defined(ARM_MATH_AUTOVECTORIZE)
+    dw_direct_entries_case_f16(1, 6, 6, 1, 12, 3, 3, 1, DW_ROUTE_CIN1_F16);
+    /* 49 taps per output */
+    dw_direct_entries_case_f16(1, 9, 9, 1, 12, 7, 7, 3, DW_ROUTE_CIN1_F16);
+    /* The 1x1 size query includes a patch row even though regular 1x1 convolution needs none. */
+    dw_direct_entries_case_f16(1, 6, 6, 1, 12, 1, 1, 0, DW_ROUTE_CIN1_F16);
+#else
+    dw_direct_entries_case_f16(1, 6, 6, 1, 12, 3, 3, 1, DW_ROUTE_GENERIC_F16);
+    dw_direct_entries_case_f16(1, 9, 9, 1, 12, 7, 7, 3, DW_ROUTE_GENERIC_F16);
+#endif
+    dw_direct_entries_case_f16(1, 5, 5, 3, 2, 3, 3, 1, DW_ROUTE_GENERIC_F16);
+    /* 49 taps per output */
+    dw_direct_entries_case_f16(1, 9, 9, 3, 2, 7, 7, 3, DW_ROUTE_GENERIC_F16);
+}
+
+/* The query must fund the packed filter and a patch row, even for scratch-free 1x1 convolution. */
+void depthwise_conv_cin1_exact_scratch_f16(void)
+{
+#if defined(ARM_MATH_MVE_FLOAT16) && !defined(ARM_MATH_AUTOVECTORIZE)
+    const int channels[] = {4, 8, 12, 16};
+    const cmsis_nn_dims in = {1, 6, 6, 1};
+    const float16_t guard = (float16_t)123.0f;
+    float16_t input[36], weights[16], scratch[19], output[36 * 16 + 2];
+    for (int i = 0; i < 36; ++i)
+    {
+        input[i] = (float16_t)((i % 7 - 3) * 0.25f);
+    }
+    for (int i = 0; i < 16; ++i)
+    {
+        weights[i] = (float16_t)((i % 5 + 1) * 0.125f);
+    }
+    for (unsigned c = 0; c < sizeof(channels) / sizeof(channels[0]); ++c)
+    {
+        const int ch = channels[c];
+        const cmsis_nn_dims flt = {1, 1, 1, ch}, out = {1, 6, 6, ch}, bias_dims = {1, 1, 1, ch};
+        cmsis_nn_dw_conv_params_f16 dp;
+        dw_f16_params(&dp, ch, 1, 1, 0, 0, 1, 1);
+        const int size = arm_depthwise_conv_wrapper_f16_get_buffer_size(&dp, &in, &flt, &out);
+        if (!arm_nn_dw_f16_is_cin1(&in, &out))
+        {
+            TEST_ASSERT_EQUAL_INT32(0, size);
+            continue;
+        }
+        TEST_ASSERT_EQUAL_INT32(((ch + 7) / 8 * 8 + 1) * 2, size);
+        TEST_ASSERT_EQUAL_INT32(size, arm_depthwise_conv_f16_get_buffer_size(&dp, &in, &flt, &out, ARM_NN_LAYOUT_NHWC));
+        for (int acc = 0; acc < 2; ++acc)
+        {
+            for (int call = 0; call < 3; ++call)
+            {
+                for (unsigned i = 0; i < sizeof(scratch) / sizeof(scratch[0]); ++i)
+                {
+                    scratch[i] = guard;
+                }
+                output[0] = output[36 * ch + 1] = guard;
+                const cmsis_nn_context ctx = {scratch + 1, size - (call == 2)};
+                if (call == 2)
+                {
+                    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR,
+                                      dw_entries_f16[DW_ROUTE_CIN1_F16][acc](
+                                          &ctx, &dp, &in, input, &flt, weights, &bias_dims, NULL, &out, output + 1));
+                }
+                TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
+                                  (call == 1 ? dw_entries_f16[DW_ROUTE_CIN1_F16][acc] : dw_routers_f16[acc])(
+                                      &ctx, &dp, &in, input, &flt, weights, &bias_dims, NULL, &out, output + 1));
+                for (int i = 0; i < 36 * ch; ++i)
+                {
+                    const float16_t expected = (float16_t)((float)input[i / ch] * (float)weights[i % ch]);
+                    TEST_ASSERT_EQUAL_MEMORY(&expected, &output[i + 1], sizeof(expected));
+                }
+                TEST_ASSERT_EQUAL_MEMORY(&guard, &output[0], sizeof(guard));
+                TEST_ASSERT_EQUAL_MEMORY(&guard, &output[36 * ch + 1], sizeof(guard));
+                TEST_ASSERT_EQUAL_MEMORY(&guard, &scratch[0], sizeof(guard));
+                TEST_ASSERT_EQUAL_MEMORY(&guard, &scratch[size / 2 + 1], sizeof(guard));
+                /* Only the _acc16 cin1 route packs weights into scratch; the generic fallback and the default entry's
+                 * float32 cin1 route leave it alone (#830). */
+                const float16_t *first = (call == 2 || acc == 0) ? &guard : &weights[0];
+                TEST_ASSERT_EQUAL_MEMORY(first, &scratch[1], sizeof(*first));
+            }
+        }
+    }
+    cmsis_nn_dw_conv_params_f16 dp;
+    dw_f16_params(&dp, 8, 1, 1, 0, 0, 1, 1);
+    cmsis_nn_dims flt = {1, 1, 1, 8}, out = {1, 6, 6, 8};
+    const int invalid_taps[] = {-1, 0, INT32_MAX};
+    for (unsigned i = 0; i < sizeof(invalid_taps) / sizeof(invalid_taps[0]); ++i)
+    {
+        flt.h = invalid_taps[i];
+        TEST_ASSERT_EQUAL_INT32(0, arm_depthwise_conv_wrapper_f16_get_buffer_size(&dp, &in, &flt, &out));
+    }
+    flt.h = 1;
+    out.c = INT32_MAX;
+    TEST_ASSERT_EQUAL_INT32(0, arm_depthwise_conv_wrapper_f16_get_buffer_size(&dp, &in, &flt, &out));
+#endif
+}
+
+/* Each term of the depthwise route predicates against a fixed answer: one layer inside each gate, then that layer
+ * with one term changed. */
+typedef struct
+{
+    cmsis_nn_dw_conv_params_f16 dp;
+    cmsis_nn_dims in, flt, out;
+} dw_shape_f16;
+
+#define DW_SHAPE(s) &(s).dp, &(s).in, &(s).flt, &(s).out
+#define EXPECT_DW_TERM(base, field, value, expected, call)                                                             \
+    do                                                                                                                 \
+    {                                                                                                                  \
+        dw_shape_f16 s_ = (base);                                                                                      \
+        s_.field = (value);                                                                                            \
+        TEST_ASSERT_EQUAL_MESSAGE((expected), (call), #call ": " #field " = " #value);                                 \
+    } while (0)
+
+void depthwise_conv_route_predicates_f16(void)
+{
+    dw_shape_f16 k3 = {.in = {1, 1, 20, 6}, .flt = {1, 1, 3, 6}, .out = {1, 1, 18, 6}};
+    k3.dp.ch_mult = 1;
+    k3.dp.stride = (cmsis_nn_tile){1, 1};
+    k3.dp.dilation = (cmsis_nn_tile){1, 1};
+    TEST_ASSERT_TRUE(arm_nn_dw_f16_is_1d_k3(DW_SHAPE(k3)));
+    EXPECT_DW_TERM(k3, in.n, 2, false, arm_nn_dw_f16_is_1d_k3(DW_SHAPE(s_)));
+    EXPECT_DW_TERM(k3, out.n, 2, false, arm_nn_dw_f16_is_1d_k3(DW_SHAPE(s_)));
+    EXPECT_DW_TERM(k3, dp.ch_mult, 2, false, arm_nn_dw_f16_is_1d_k3(DW_SHAPE(s_)));
+    EXPECT_DW_TERM(k3, flt.w, 4, false, arm_nn_dw_f16_is_1d_k3(DW_SHAPE(s_)));
+    EXPECT_DW_TERM(k3, flt.h, 2, false, arm_nn_dw_f16_is_1d_k3(DW_SHAPE(s_)));
+    EXPECT_DW_TERM(k3, in.h, 2, false, arm_nn_dw_f16_is_1d_k3(DW_SHAPE(s_)));
+    EXPECT_DW_TERM(k3, out.h, 2, false, arm_nn_dw_f16_is_1d_k3(DW_SHAPE(s_)));
+    EXPECT_DW_TERM(k3, dp.dilation.h, 2, false, arm_nn_dw_f16_is_1d_k3(DW_SHAPE(s_)));
+    EXPECT_DW_TERM(k3, dp.dilation.w, 2, false, arm_nn_dw_f16_is_1d_k3(DW_SHAPE(s_)));
+    EXPECT_DW_TERM(k3, dp.stride.h, 2, false, arm_nn_dw_f16_is_1d_k3(DW_SHAPE(s_)));
+    EXPECT_DW_TERM(k3, dp.stride.w, 2, false, arm_nn_dw_f16_is_1d_k3(DW_SHAPE(s_)));
+    EXPECT_DW_TERM(k3, dp.padding.h, 1, false, arm_nn_dw_f16_is_1d_k3(DW_SHAPE(s_)));
+    EXPECT_DW_TERM(k3, dp.padding.w, 1, false, arm_nn_dw_f16_is_1d_k3(DW_SHAPE(s_)));
+
+    dw_shape_f16 k25 = {.in = {1, 2, 16, 4}, .flt = {1, 2, 5, 4}, .out = {1, 1, 12, 4}};
+    k25.dp.ch_mult = 1;
+    k25.dp.stride = (cmsis_nn_tile){1, 1};
+    k25.dp.dilation = (cmsis_nn_tile){1, 1};
+    TEST_ASSERT_TRUE(arm_nn_dw_f16_is_2x5(DW_SHAPE(k25)));
+    EXPECT_DW_TERM(k25, dp.ch_mult, 2, true, arm_nn_dw_f16_is_2x5(DW_SHAPE(s_)));
+    EXPECT_DW_TERM(k25, in.n, 2, true, arm_nn_dw_f16_is_2x5(DW_SHAPE(s_)));
+    EXPECT_DW_TERM(k25, flt.w, 4, false, arm_nn_dw_f16_is_2x5(DW_SHAPE(s_)));
+    EXPECT_DW_TERM(k25, flt.h, 1, false, arm_nn_dw_f16_is_2x5(DW_SHAPE(s_)));
+    EXPECT_DW_TERM(k25, in.h, 3, false, arm_nn_dw_f16_is_2x5(DW_SHAPE(s_)));
+    EXPECT_DW_TERM(k25, out.h, 2, false, arm_nn_dw_f16_is_2x5(DW_SHAPE(s_)));
+    EXPECT_DW_TERM(k25, dp.dilation.h, 2, false, arm_nn_dw_f16_is_2x5(DW_SHAPE(s_)));
+    EXPECT_DW_TERM(k25, dp.dilation.w, 2, false, arm_nn_dw_f16_is_2x5(DW_SHAPE(s_)));
+    EXPECT_DW_TERM(k25, dp.stride.h, 2, false, arm_nn_dw_f16_is_2x5(DW_SHAPE(s_)));
+    EXPECT_DW_TERM(k25, dp.stride.w, 2, false, arm_nn_dw_f16_is_2x5(DW_SHAPE(s_)));
+    EXPECT_DW_TERM(k25, dp.padding.h, 1, false, arm_nn_dw_f16_is_2x5(DW_SHAPE(s_)));
+    EXPECT_DW_TERM(k25, dp.padding.w, 1, false, arm_nn_dw_f16_is_2x5(DW_SHAPE(s_)));
+
+    /* One input channel and at least CONVERT_DW_CONV_WITH_ONE_INPUT_CH_AND_OUTPUT_CH_ABOVE_THRESHOLD outputs */
+    const int32_t min_oc = CONVERT_DW_CONV_WITH_ONE_INPUT_CH_AND_OUTPUT_CH_ABOVE_THRESHOLD;
+    const cmsis_nn_dims one = {1, 6, 6, 1};
+    const cmsis_nn_dims two = {1, 6, 6, 2};
+    const cmsis_nn_dims at_min = {1, 6, 6, min_oc};
+    const cmsis_nn_dims below_min = {1, 6, 6, min_oc - 1};
+    TEST_ASSERT_TRUE(arm_nn_dw_f16_is_cin1(&one, &at_min));
+    TEST_ASSERT_FALSE(arm_nn_dw_f16_is_cin1(&two, &at_min));
+    TEST_ASSERT_FALSE(arm_nn_dw_f16_is_cin1(&one, &below_min));
+
+    /* The packed filter (C_OUT rounded up to 8, then KH x KW halves) and one patch row of KH x KW halves */
+    const cmsis_nn_dims f3x3 = {1, 3, 3, 12};
+    const cmsis_nn_dims o12 = {1, 4, 4, 12};
+    const cmsis_nn_dims o16 = {1, 4, 4, 16};
+    TEST_ASSERT_TRUE(arm_nn_dw_f16_cin1_min_ctx_size(&f3x3, &o12) == 16 * 9 * 2 + 9 * 2);
+    TEST_ASSERT_TRUE(arm_nn_dw_f16_cin1_min_ctx_size(&f3x3, &o16) == 16 * 9 * 2 + 9 * 2);
+    /* No dimension makes it overflow: INT64_MAX past INT32_MAX taps or for a negative one, exact up to there */
+    const cmsis_nn_dims negative = {1, -1, 3, 12};
+    const cmsis_nn_dims too_many_taps = {1, 46341, 46341, 1};
+    const cmsis_nn_dims most_taps = {1, 46340, 46340, 1};
+    const cmsis_nn_dims widest = {1, 1, 1, INT32_MAX};
+    TEST_ASSERT_TRUE(arm_nn_dw_f16_cin1_min_ctx_size(&negative, &o12) == INT64_MAX);
+    TEST_ASSERT_TRUE(arm_nn_dw_f16_cin1_min_ctx_size(&too_many_taps, &o12) == INT64_MAX);
+    TEST_ASSERT_TRUE(arm_nn_dw_f16_cin1_min_ctx_size(&most_taps, &widest) == INT64_C(9222993877869088800));
+
+    /* A filter whose packed size, 32,768 x 65,536 halves, wraps a 32-bit size_t to 0 is refused before anything is
+       packed into a 64-byte ctx */
+    dw_shape_f16 wrapping = {.in = {1, 1, 65536, 1}, .flt = {1, 1, 65536, 32768}, .out = {1, 1, 1, 32768}};
+    wrapping.dp.ch_mult = 32768;
+    wrapping.dp.stride = (cmsis_nn_tile){1, 1};
+    wrapping.dp.dilation = (cmsis_nn_tile){1, 1};
+    wrapping.dp.activation.min = (float16_t)-2.0f;
+    wrapping.dp.activation.max = (float16_t)2.0f;
+    static float16_t small[32];
+    memset(small, 0x55, sizeof(small));
+    const cmsis_nn_context tiny = {small, (int32_t)sizeof(small)};
+    const cmsis_nn_dims bias_dims = {1, 1, 1, 32768};
+    float16_t data[4] = {0};
+#if defined(ARM_MATH_MVE_FLOAT16) && !defined(ARM_MATH_AUTOVECTORIZE)
+    const arm_cmsis_nn_status expected = ARM_CMSIS_NN_ARG_ERROR;
+#else
+    const arm_cmsis_nn_status expected = ARM_CMSIS_NN_NO_IMPL_ERROR;
+#endif
+    TEST_ASSERT_EQUAL(expected,
+                      arm_depthwise_conv_cin1_nhwc_f16(&tiny,
+                                                       &wrapping.dp,
+                                                       &wrapping.in,
+                                                       data,
+                                                       &wrapping.flt,
+                                                       data,
+                                                       &bias_dims,
+                                                       NULL,
+                                                       &wrapping.out,
+                                                       data));
+    TEST_ASSERT_EQUAL(expected,
+                      arm_depthwise_conv_cin1_nhwc_f16_acc16(&tiny,
+                                                             &wrapping.dp,
+                                                             &wrapping.in,
+                                                             data,
+                                                             &wrapping.flt,
+                                                             data,
+                                                             &bias_dims,
+                                                             NULL,
+                                                             &wrapping.out,
+                                                             data));
+    for (size_t i = 0; i < sizeof(small); i++)
+    {
+        TEST_ASSERT_EQUAL_HEX8(0x55, ((const uint8_t *)small)[i]);
+    }
+}
+
+/* Small exactly represented taps must not vanish into a unit bias (#830): every tap of 1 * (+-1/4096) is a quarter of
+ * a float16 ulp at 1, so float16 lanes started from the bias drop them all, while the default entry's float32 sum
+ * keeps them and rounds once, on every route and every leg. One layer per route, through the router and the route's
+ * own entry. */
+void depthwise_conv_short_window_precision_f16(void)
+{
+    /* {in h, in w, in c, kh, kw, ch_mult} for the direct 3x3 and 5x5, generic, one-input-channel, k3 and 2x5 routes */
+    static const int32_t layers[][6] = {
+        {3, 7, 13, 3, 3, 1}, {5, 9, 13, 5, 5, 1}, {3, 7, 3, 3, 3, 2}, {3, 7, 1, 3, 3, 13}, {1, 7, 13, 1, 3, 1}, {2, 7, 13, 2, 5, 1}};
+    static const dw_entry_f16 entries[] = {arm_depthwise_conv_direct_nhwc_f16,
+                                           arm_depthwise_conv_direct_nhwc_f16,
+                                           arm_depthwise_conv_generic_nhwc_f16,
+                                           arm_depthwise_conv_cin1_nhwc_f16,
+                                           arm_depthwise_conv_1d_k3_nhwc_f16,
+                                           arm_depthwise_conv_2x5_nhwc_f16};
+    for (uint32_t l = 0; l < sizeof(layers) / sizeof(layers[0]); l++)
+    {
+        const int32_t in_c = layers[l][2], kh = layers[l][3], kw = layers[l][4], oc = in_c * layers[l][5];
+        const cmsis_nn_dims in = {1, layers[l][0], layers[l][1], in_c};
+        const cmsis_nn_dims flt = {1, kh, kw, oc};
+        const cmsis_nn_dims out = {1, layers[l][0] - kh + 1, layers[l][1] - kw + 1, oc};
+        const cmsis_nn_dims bias_dims = {1, 1, 1, oc};
+        const int32_t out_size = out.h * out.w * oc;
+        cmsis_nn_dw_conv_params_f16 dp;
+        dw_f16_params(&dp, layers[l][5], 1, 1, 0, 0, 1, 1);
+        const int32_t buf_size = arm_depthwise_conv_wrapper_f16_get_buffer_size(&dp, &in, &flt, &out);
+        void *buf = buf_size > 0 ? malloc((size_t)buf_size) : NULL;
+        const cmsis_nn_context ctx = {buf, buf_size};
+        float16_t *x = malloc((size_t)(in.h * in.w * in_c) * sizeof(float16_t));
+        float16_t *w = malloc((size_t)(kh * kw * oc) * sizeof(float16_t));
+        float16_t *bias = malloc((size_t)oc * sizeof(float16_t));
+        float16_t *y = malloc((size_t)out_size * sizeof(float16_t));
+        float16_t *fast = malloc((size_t)out_size * sizeof(float16_t));
+        TEST_ASSERT_TRUE(x && w && bias && y && fast && (buf_size == 0 || buf));
+        for (int32_t sign = -1; sign <= 1; sign += 2)
+        {
+            for (int32_t i = 0; i < in.h * in.w * in_c; i++)
+            {
+                x[i] = (float16_t)1.0f;
+            }
+            for (int32_t i = 0; i < kh * kw * oc; i++)
+            {
+                w[i] = (float16_t)((float32_t)sign / 4096.0f);
+            }
+            for (int32_t i = 0; i < oc; i++)
+            {
+                bias[i] = (float16_t)(float32_t)sign;
+            }
+            const float16_t expected = (float16_t)((float32_t)sign * (1.0f + (float32_t)(kh * kw) / 4096.0f));
+            for (int32_t via = 0; via < 2; via++)
+            {
+#if !(defined(ARM_MATH_MVE_FLOAT16) && !defined(ARM_MATH_AUTOVECTORIZE))
+                if (via && entries[l] == arm_depthwise_conv_cin1_nhwc_f16)
+                {
+                    continue; /* MVE float builds only */
+                }
+#endif
+                memset(y, 0x55, (size_t)out_size * sizeof(float16_t));
+                TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
+                                  via ? entries[l](&ctx, &dp, &in, x, &flt, w, &bias_dims, bias, &out, y)
+                                      : arm_depthwise_conv_wrapper_f16(&ctx, &dp, &in, x, &flt, w, &bias_dims, bias, &out, y));
+                for (int32_t i = 0; i < out_size; i++)
+                {
+                    TEST_ASSERT_EQUAL_MEMORY(&expected, &y[i], sizeof(expected));
+                }
+            }
+#if defined(ARM_MATH_MVE_FLOAT16) && !defined(ARM_MATH_AUTOVECTORIZE)
+            if (l < 2)
+            {
+                /* The direct route's _acc16 entry starts its float16 lanes from the bias and loses every tap */
+                const float16_t fast_expected = (float16_t)(float32_t)sign;
+                TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
+                                  arm_depthwise_conv_wrapper_f16_acc16(&ctx, &dp, &in, x, &flt, w, &bias_dims, bias, &out, fast));
+                for (int32_t i = 0; i < out_size; i++)
+                {
+                    TEST_ASSERT_EQUAL_MEMORY(&fast_expected, &fast[i], sizeof(fast_expected));
+                }
+            }
+#endif
+        }
+        free(fast);
+        free(y);
+        free(bias);
+        free(w);
+        free(x);
+        free(buf);
+    }
+}
+
+/* Tap order on every leg (#830): with taps 2^24 and -2^24 in the first kernel row and 1 in the second, the float32
+ * sum in (ky, kx) order is exactly 1; a sum that takes the second row's tap before the first row's second tap rounds
+ * 2^24 + 1 back to 2^24 and gives 0. The router and the 2x5 entry must give 1, as the direct entry does. */
+void depthwise_conv_tap_order_f16(void)
+{
+    const cmsis_nn_dims in = {1, 2, 5, 1}, flt = {1, 2, 5, 1}, out = {1, 1, 1, 1}, bias_dims = {1, 1, 1, 1};
+    const float16_t x[10] = {4096.0f, -4096.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f};
+    const float16_t w[10] = {4096.0f, 4096.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f};
+    const cmsis_nn_context ctx = {NULL, 0};
+    const dw_entry_f16 entries[] = {
+        arm_depthwise_nhwc_conv_f16, arm_depthwise_conv_2x5_nhwc_f16, arm_depthwise_conv_direct_nhwc_f16};
+    cmsis_nn_dw_conv_params_f16 dp;
+    dw_f16_params(&dp, 1, 1, 1, 0, 0, 1, 1);
+    dp.activation.min = (float16_t)-65504.0f;
+    dp.activation.max = (float16_t)65504.0f;
+    TEST_ASSERT_TRUE(arm_nn_dw_f16_is_2x5(&dp, &in, &flt, &out));
+    for (unsigned e = 0; e < sizeof(entries) / sizeof(entries[0]); e++)
+    {
+        float16_t y = (float16_t)-1.0f;
+        TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, entries[e](&ctx, &dp, &in, x, &flt, w, &bias_dims, NULL, &out, &y));
+        TEST_ASSERT_EQUAL_FLOAT(1.0f, (float32_t)y);
+    }
+}
+
+#if defined(ARM_MATH_MVE_FLOAT16) && !defined(ARM_MATH_AUTOVECTORIZE)
+static uint32_t dw_rng = 0x8301u;
+static uint32_t dw_rand(void)
+{
+    dw_rng ^= dw_rng << 13;
+    dw_rng ^= dw_rng >> 17;
+    dw_rng ^= dw_rng << 5;
+    return dw_rng;
+}
+
+/* A finite half with a random sign, exponent in [-6, 2] and mantissa, so products and partial sums round */
+static float16_t dw_rand_half(void)
+{
+    const uint32_t r = dw_rand();
+    const uint16_t bits = (uint16_t)((((r >> 8) & 1u) << 15) | ((uint16_t)((int)(r % 9u) - 6 + 15) << 10) |
+                                     ((r >> 12) & 0x3FFu));
+    float16_t h;
+    memcpy(&h, &bits, sizeof(h));
+    return h;
+}
+
+/* Bits of the float32 sum from the bias in (ky, kx) order, one rounding, then the clamp; `volatile` keeps -Ofast
+ * from reordering it, and the clamp selects bit patterns, not halves (no scalar _Float16 select, see AGENTS.md) */
+static uint16_t dw_sequential_f16(const cmsis_nn_dw_conv_params_f16 *dp,
+                                   const cmsis_nn_dims *in,
+                                   const float16_t *x,
+                                   const cmsis_nn_dims *flt,
+                                   const float16_t *w,
+                                   const float16_t *bias,
+                                   int32_t oy,
+                                   int32_t ox,
+                                   int32_t oc)
+{
+    const int32_t out_c = in->c * dp->ch_mult;
+    const int32_t ic = oc / dp->ch_mult;
+    volatile float32_t acc = bias ? (float32_t)bias[oc] : 0.0f;
+    for (int32_t ky = 0; ky < flt->h; ky++)
+    {
+        const int32_t iy = oy * dp->stride.h - dp->padding.h + ky * dp->dilation.h;
+        if (iy < 0 || iy >= in->h)
+        {
+            continue;
+        }
+        for (int32_t kx = 0; kx < flt->w; kx++)
+        {
+            const int32_t ix = ox * dp->stride.w - dp->padding.w + kx * dp->dilation.w;
+            if (ix < 0 || ix >= in->w)
+            {
+                continue;
+            }
+            acc = acc + (float32_t)x[(iy * in->w + ix) * in->c + ic] * (float32_t)w[(ky * flt->w + kx) * out_c + oc];
+        }
+    }
+    const float16_t y = (float16_t)acc;
+    const float32_t yf = (float32_t)y;
+    uint16_t bits;
+    memcpy(&bits, &y, sizeof(bits));
+    if (yf < (float32_t)dp->activation.min)
+    {
+        memcpy(&bits, &dp->activation.min, sizeof(bits));
+    }
+    if (yf > (float32_t)dp->activation.max)
+    {
+        memcpy(&bits, &dp->activation.max, sizeof(bits));
+    }
+    return bits;
+}
+#endif
+
+/* MVE vector routes on rounding data (#830): the direct and one-input-channel kernels fuse each exact product into
+ * float32 lanes in tap order from the bias, so every output must equal the sequential float32 sum bit for bit. Three
+ * data sets per layer: random halves, then two whose float32 partials lose a unit to 2^24 unless the order is right
+ * -- a unit bias before taps of +2^24 and -2^24 (a bias added last gives 1, not 0), and taps of +2^24 and -2^24 in
+ * the first kernel row before a unit tap in the second (columns before rows give 0, not 1). Exact data cannot tell
+ * these orders apart. */
+void depthwise_conv_vector_routes_sequential_f16(void)
+{
+#if defined(ARM_MATH_MVE_FLOAT16) && !defined(ARM_MATH_AUTOVECTORIZE)
+    /* {in h, in w, in c, kh, kw, ch_mult, stride, pad, dilation} */
+    static const int32_t layers[][9] = {
+        {6, 9, 21, 3, 3, 1, 1, 1, 1},
+        {7, 7, 13, 5, 5, 1, 1, 2, 1},
+        {6, 8, 5, 3, 3, 1, 2, 1, 1},
+        {7, 9, 16, 3, 3, 1, 1, 2, 2},
+        {1, 9, 6, 1, 3, 1, 1, 0, 1},
+        {6, 7, 1, 3, 3, 13, 1, 1, 1},
+        {5, 6, 1, 2, 5, 9, 1, 0, 1},
+    };
+    for (uint32_t l = 0; l < sizeof(layers) / sizeof(layers[0]); l++)
+    {
+        const int32_t ih = layers[l][0], iw = layers[l][1], ic = layers[l][2], kh = layers[l][3], kw = layers[l][4];
+        const int32_t cm = layers[l][5], s = layers[l][6], p = layers[l][7], d = layers[l][8], oc = ic * cm;
+        cmsis_nn_dw_conv_params_f16 dp;
+        dw_f16_params(&dp, cm, s, s, p, p, d, d);
+        const cmsis_nn_dims in = {1, ih, iw, ic}, flt = {1, kh, kw, oc}, bias_dims = {1, 1, 1, oc};
+        const cmsis_nn_dims out = {1, dw_out_size(ih, kh, s, 2 * p, d), dw_out_size(iw, kw, s, 2 * p, d), oc};
+        const int32_t n_out = out.h * out.w * oc;
+        float16_t *x = malloc((size_t)(ih * iw * ic) * sizeof(float16_t));
+        float16_t *w = malloc((size_t)(kh * kw * oc) * sizeof(float16_t));
+        float16_t *bias = malloc((size_t)oc * sizeof(float16_t));
+        float16_t *y = malloc((size_t)n_out * sizeof(float16_t));
+        const int32_t buf_size = arm_depthwise_conv_wrapper_f16_get_buffer_size(&dp, &in, &flt, &out);
+        void *buf = buf_size > 0 ? malloc((size_t)buf_size) : NULL;
+        const cmsis_nn_context ctx = {buf, buf_size};
+        TEST_ASSERT_TRUE(x && w && bias && y && (buf_size == 0 || buf));
+        for (int32_t set = 0; set < 3; set++)
+        {
+            for (int32_t i = 0; i < ih * iw * ic; i++)
+            {
+                x[i] = set ? (float16_t)4096.0f : dw_rand_half();
+            }
+            for (int32_t i = 0; i < kh * kw * oc; i++)
+            {
+                const int32_t tap = i / oc;
+                float16_t v = (float16_t)0.0f;
+                if (set == 0)
+                {
+                    v = dw_rand_half();
+                }
+                else if (tap == 0)
+                {
+                    v = (float16_t)4096.0f;
+                }
+                else if (tap == 1 && kw > 1)
+                {
+                    v = (float16_t)-4096.0f;
+                }
+                else if (set == 2 && tap == kw && kh > 1)
+                {
+                    v = (float16_t)(1.0f / 4096.0f);
+                }
+                w[i] = v;
+            }
+            for (int32_t i = 0; i < oc; i++)
+            {
+                bias[i] = set == 0 ? dw_rand_half() : (float16_t)(set == 1 ? 1.0f : 0.0f);
+            }
+            TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
+                              arm_depthwise_conv_wrapper_f16(&ctx, &dp, &in, x, &flt, w, &bias_dims, bias, &out, y));
+            for (int32_t oy = 0; oy < out.h; oy++)
+            {
+                for (int32_t ox = 0; ox < out.w; ox++)
+                {
+                    for (int32_t c = 0; c < oc; c++)
+                    {
+                        uint16_t got;
+                        memcpy(&got, &y[(oy * out.w + ox) * oc + c], sizeof(got));
+                        TEST_ASSERT_EQUAL_HEX16_MESSAGE(dw_sequential_f16(&dp, &in, x, &flt, w, bias, oy, ox, c),
+                                                        got,
+                                                        "default entry is not the sequential float32 sum");
+                    }
+                }
+            }
+        }
+        free(buf);
+        free(y);
+        free(bias);
+        free(w);
+        free(x);
+    }
+#else
+    TEST_IGNORE_MESSAGE("MVE float16 vector routes only");
+#endif
 }

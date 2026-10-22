@@ -21,7 +21,11 @@
 #   4. License plumbing — every <license name=...> in the pdsc points at
 #      a file that exists, and the repo top-level LICENSE / LICENSES/
 #      files are all declared.
-#   5. File existence — every <file name="..."/> path is on disk.
+#   5. File existence — every <file name="..."/> path is on disk: a file,
+#      or for category="include" a directory inside the repo spelled with a
+#      trailing "/" and no "..". Every heliaCORE component, Source and
+#      Prebuilt, also declares the pack root ("./") as an include path, which
+#      the Include/-prefixed header spelling needs.
 #   6. Coverage cross-check — every Source/**/*.c that exists in the
 #      repo is enumerated under <files> with category="source", so
 #      adding a kernel without updating the pack fails CI (replaces the
@@ -383,10 +387,36 @@ def check_file_existence(entries: list[tuple[str, str]]) -> None:
         if not name:
             fail(f"<file category='{cat}'/> is missing the 'name' attribute")
             continue
+        # An include entry names a directory that is added to the include path. It is checked before the
+        # generated-artefact exemption, so no include path skips validation.
+        if cat == "include":
+            target = (REPO / name).resolve()
+            root = REPO.resolve()
+            if not name.endswith("/") or ".." in Path(name).parts or Path(name).is_absolute():
+                fail(f"<file category='include' name='{name}'/> must be a relative path ending in '/' without '..'")
+            elif target != root and root not in target.parents:
+                fail(f"<file category='include' name='{name}'/> resolves outside the repository")
+            elif not target.is_dir():
+                fail(f"<file category='include' name='{name}'/> is not a directory")
+            continue
         if any(name.startswith(p) for p in GENERATED_PREFIXES):
             continue
         if not (REPO / name).is_file():
             fail(f"<file name='{name}'/> not found on disk")
+
+
+def check_root_include(pkg: ET.Element) -> None:
+    """Every heliaCORE component, whatever its variant, puts the pack root on the include path, so
+    `#include "Include/arm_nnfunctions.h"` resolves for a pack consumer without an add-path (#657)."""
+    comps = pkg.find("components")
+    if comps is None:
+        return
+    for c in comps.findall("component"):
+        if not all(c.attrib.get(k) == v for k, v in EXPECTED_COMPONENT.items()):
+            continue
+        if ("include", "./") not in collect_file_entries(c):
+            variant = c.attrib.get("Cvariant", "?")
+            fail(f"heliaCORE component Cvariant='{variant}' does not declare <file category='include' name='./'/>")
 
 
 def tracked_source_files() -> list[str] | None:
@@ -1380,6 +1410,7 @@ def main() -> int:
     check_licenses(pkg)
     entries = collect_file_entries(comp)
     check_file_existence(entries)
+    check_root_include(pkg)
     check_header_closure(pkg)
     check_source_coverage(entries)
     check_float_source_gating(entries)

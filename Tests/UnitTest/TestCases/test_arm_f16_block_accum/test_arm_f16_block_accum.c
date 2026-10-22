@@ -23,9 +23,15 @@
 // most 32 taps must agree byte for byte between the two entries. A +0 / -0 difference counts as agreement. The tap
 // count is the output's own: the direct kernels skip padded taps, so an edge output counts only its in-range taps;
 // the paths that multiply a zero-padded patch (patch-GEMM, the 1xN padded regions, the depthwise to-conv route)
-// count every tap of the patch. Under clang (-ffast-math) the float16 reduction of a short dot is the compiler's
-// order, so there outputs of at most 32 taps are checked only against the other entry and `_acc16` only for its
-// checksum; the fold, whose order the kernels pin, is checked exactly on every compiler.
+// count every tap of the patch. With a library built by clang (-ffast-math) the float16 reduction of a short dot is
+// the compiler's order, so there outputs of at most 32 taps are checked only against the other entry and `_acc16`
+// only for its checksum; the fold, whose order the kernels pin, is checked exactly on every compiler. The generic
+// depthwise kernel's taps are scalar multiply-adds that match the fused emulation only where the compiler contracts
+// them, as the library's builds do, and the shapes here keep its rows short of where GCC -Ofast vectorizes them.
+//
+// The default depthwise entry is the exception (#830): on MVE it accumulates every in-range tap in float32 from the
+// bias, in (ky, kx) order, and rounds once, so it is checked against that sum on every output and no longer agrees
+// with `_acc16` on short windows. A product of two halves is exact in float32, so only the float32 additions round.
 //
 // Two lane shapes are emulated. A lane kernel keeps one output per vector lane and adds one tap per step, the bias
 // starting the first partial. A reduction kernel spreads one output's taps over the eight lanes of a vector
@@ -45,7 +51,11 @@
 #define BA_BLOCK 32
 #define BA_NONE INT32_MAX
 
-#if defined(__clang__)
+// The short-dot relaxation follows the compiler that built the library, taken to be the test's own compiler unless
+// the harness says otherwise: NN_TEST_LIBRARY_CLANG=1 for a library built by clang, 0 for one built by GCC.
+#if defined(NN_TEST_LIBRARY_CLANG)
+    #define BA_EXACT_SHORT (!(NN_TEST_LIBRARY_CLANG))
+#elif defined(__clang__)
     #define BA_EXACT_SHORT 0
 #else
     #define BA_EXACT_SHORT 1
@@ -789,7 +799,7 @@ void ba_batch_matmul_long_k(void)
 }
 
 /* ---------------------------------------------------------------------------------------------------------------- */
-/* 1xN convolution: padded regions through the matmul, the no-padding region through the strided kernel            */
+/* 1xN convolution: padded and long-K no-padding rows through the matmul, other no-padding rows strided            */
 /* ---------------------------------------------------------------------------------------------------------------- */
 
 typedef struct
@@ -837,6 +847,13 @@ static void ba_c1d_lane_tap(const void *vctx, int32_t t, float16_t *x, float16_t
     *w = ba_w[(size_t)c->oc * c->kw * c->in_c + t];
 }
 
+/* Mirrors arm_convolve_1_x_n_rows_in_place_f16(): whether the no-padding rows run, read in place, through the
+ * contiguous-K matmul instead of the strided kernel. */
+static bool ba_c1xn_in_place(int32_t out_c, int32_t k)
+{
+    return BA_MVE && out_c >= 4 && ((out_c % 8 >= 4 && k >= 80) || k >= 224);
+}
+
 static float16_t ba_c1xn_ref(const void *vctx, int32_t idx, int32_t block)
 {
     ba_c1d c = *(const ba_c1d *)vctx;
@@ -851,8 +868,9 @@ static float16_t ba_c1xn_ref(const void *vctx, int32_t idx, int32_t block)
         return ba_emu_lane(&c, ba_c1d_lane_tap, k, bias, block);
     }
     /* Strided kernel (no-padding region): gather lanes for whole blocks of 8, then 4, of output channels, then the
-     * remainder dot. Padded regions: the matmul's contiguous-K groups of four and its remainder dot. */
-    const int32_t lane_oc = (c.out_c / 8) * 8 + ((c.out_c % 8) / 4) * 4;
+     * remainder dot. Padded regions, and no-padding rows read in place: the matmul's contiguous-K groups of four and
+     * its remainder dot. */
+    const int32_t lane_oc = ba_c1xn_in_place(c.out_c, k) ? 0 : (c.out_c / 8) * 8 + ((c.out_c % 8) / 4) * 4;
     if (interior && c.oc < lane_oc)
     {
         return ba_emu_lane(&c, ba_c1d_lane_tap, k, bias, block);
@@ -931,12 +949,22 @@ static void ba_c1xn_case(int32_t in_w, int32_t in_c, int32_t kw, int32_t out_c, 
 void ba_conv_1xn_long_k(void)
 {
     ba_begin();
-    ba_c1xn_case(16, 14, 7, 13, false); /* K = 98 */
-    ba_c1xn_case(12, 40, 7, 13, false); /* K = 280 */
+    ba_c1xn_case(16, 14, 7, 13, false); /* K = 98, no-padding rows read in place */
+    ba_c1xn_case(12, 40, 7, 13, false); /* K = 280, no-padding rows read in place */
     ba_c1xn_case(12, 40, 7, 5, true);
     ba_c1xn_case(10, 5, 7, 13, false);  /* K = 35 */
     ba_c1xn_case(10, 4, 7, 13, false);  /* K = 28 */
-    ba_c1xn_case(12, 14, 7, 21, false); /* 16- and 4-lane gather groups, then the remainder dot */
+    ba_c1xn_case(12, 10, 7, 21, false); /* K = 70: 16- and 4-lane gather groups, then the remainder dot */
+    /* Both sides of each in-place bound: 4 to 7 channels left in the last lane block from K = 80, any count of 4 or
+     * more from K = 224. */
+    ba_c1xn_case(12, 16, 5, 4, false); /* K = 80, in place */
+    ba_c1xn_case(12, 8, 9, 4, false);  /* K = 72, strided */
+    ba_c1xn_case(12, 32, 7, 8, false); /* K = 224, in place */
+    ba_c1xn_case(12, 24, 9, 8, false); /* K = 216, strided */
+    ba_c1xn_case(12, 32, 7, 3, false); /* K = 224, 3 channels: dot products, never in place */
+    ba_c1xn_case(12, 13, 6, 4, false); /* K = 78, strided */
+    ba_c1xn_case(12, 16, 6, 11, false); /* K = 96, 3 channels left in the last lane block: strided */
+    ba_c1xn_case(12, 37, 6, 8, false); /* K = 222, strided */
     /* K = 56. The padded outputs multiply a zero-padded patch row, so they count all 56 taps, 32 of them in range at
      * the ends. */
     ba_c1xn_case(10, 8, 7, 13, false);
@@ -1388,7 +1416,7 @@ void ba_conv_direct_edges(void)
 }
 
 /* ---------------------------------------------------------------------------------------------------------------- */
-/* Depthwise: ch_mult == 1 direct kernel, ch_mult > 1 generic kernel, one-channel to-conv route                    */
+/* Depthwise: ch_mult == 1 direct kernel, ch_mult > 1 generic kernel, one-channel route (to-conv on _acc16)         */
 /* ---------------------------------------------------------------------------------------------------------------- */
 
 typedef struct
@@ -1449,6 +1477,51 @@ static float16_t ba_dw_ref(const void *vctx, int32_t idx, int32_t block)
     ba_dw c = *(const ba_dw *)vctx;
     ba_dw_taps_of(&c, idx);
     return ba_emu_lane(&c, ba_dw_lane_tap, c.n, &ba_bias[c.oc], block);
+}
+
+// The default entry from #830: the in-range taps (its one-input-channel route skips the padding too), in (ky, kx)
+// order, added in float32 to the bias, rounded once.
+static float16_t ba_dw_ref32(const void *vctx, int32_t idx, int32_t block)
+{
+    (void)block;
+    ba_dw c = *(const ba_dw *)vctx;
+    c.zero_taps = false;
+    ba_dw_taps_of(&c, idx);
+    float32_t acc = (float32_t)ba_bias[c.oc];
+    for (int32_t t = 0; t < c.n; ++t)
+    {
+        float16_t x;
+        float16_t w;
+        ba_dw_lane_tap(&c, t, &x, &w);
+        acc = ba_add32(acc, (float32_t)x * (float32_t)w);
+    }
+    return ba_round_f16((double)acc);
+}
+
+// On MVE the default entry against ba_dw_ref32 on every output and _acc16 against the float16 chain, as
+// ba_expect_taps checks _acc16. Scalar legs accumulate in float32 on both entries, which must then agree everywhere.
+static void ba_expect_dw(const char *what, int32_t n, const ba_dw *c, int32_t k_taps)
+{
+    char label[80];
+    if (!BA_MVE)
+    {
+        ba_expect_same(what, n);
+        return;
+    }
+    ba_checksum = 2166136261u;
+    snprintf(label, sizeof(label), "%s acc16", what);
+    const int32_t bad16 =
+        ba_check(label, ba_out16, n, ba_dw_ref, c, BA_NONE, ba_dw_taps, k_taps, BA_EXACT_SHORT, BA_EXACT_SHORT);
+    const uint32_t sum16 = ba_checksum;
+    snprintf(label, sizeof(label), "%s acc32", what);
+    const int32_t bad = ba_check(label, ba_out, n, ba_dw_ref32, c, BA_NONE, ba_dw_taps, k_taps, true, true);
+    printf("CASE %s n=%ld acc32_mismatch=%ld acc16_mismatch=%ld acc16_cksum=%08lx\n",
+           what,
+           (long)n,
+           (long)bad,
+           (long)bad16,
+           (unsigned long)sum16);
+    ba_failures += (bad != 0) + (bad16 != 0);
 }
 
 static void ba_dw_case(int32_t hw, int32_t k, int32_t in_c, int32_t mult, bool with_ctx)
@@ -1521,7 +1594,7 @@ static void ba_dw_case(int32_t hw, int32_t k, int32_t in_c, int32_t mult, bool w
     c.mult = mult;
     c.zero_taps = BA_MVE && with_ctx && in_c == 1 && out_c >= 8;
     snprintf(what, sizeof(what), "dw k%ld c%ld x%ld", (long)k, (long)in_c, (long)mult);
-    ba_expect_taps(what, hw * hw * out_c, ba_dw_ref, &c, k * k, ba_dw_taps);
+    ba_expect_dw(what, hw * hw * out_c, &c, k * k);
 }
 
 void ba_depthwise_long_k(void)

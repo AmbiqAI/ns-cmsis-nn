@@ -70,3 +70,10 @@ GEN_D2S_TEST(DEPTH_TO_SPACE_BS2_BATCH_S8,        depth_to_space_bs2_batch_s8)
 GEN_D2S_TEST(DEPTH_TO_SPACE_BS2_CHANNELS_S8,     depth_to_space_bs2_channels_s8)
 GEN_D2S_TEST(DEPTH_TO_SPACE_BS2_RECTANGULAR_S8,  depth_to_space_bs2_rectangular_s8)
 GEN_D2S_TEST(DEPTH_TO_SPACE_MIN_DEPTH_S8,        depth_to_space_min_depth_s8)
+
+#include "../Utils/depth_space_s8.h"
+
+void depth_to_space_permutations_s8(void)
+{
+    depth_space_permutations_s8(1, arm_depth_to_space_s8);
+}

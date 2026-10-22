@@ -34,6 +34,11 @@ on:
         default: ''
         type: string
 
+# packages: read is for the resolve-ci-image.yml call.
+permissions:
+  contents: read
+  packages: read
+
 jobs:
   resolve-container-image:
     uses: ./.github/workflows/resolve-ci-image.yml
@@ -42,7 +47,8 @@ jobs:
 
   build-and-test:
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    # Allow build/setup headroom; individual FVP images are separately bounded.
+    timeout-minutes: 35
     needs: resolve-container-image
     container:
       image: ${{ needs.resolve-container-image.outputs.container_image }}
@@ -126,3 +132,11 @@ jobs:
         with:
           path: Tests/UnitTest/downloads
           key: ${{ runner.os }}-tests-downloads-${{ hashFiles('Tests/UnitTest/requirements.txt','Tests/UnitTest/build_and_run_tests.sh') }}
+
+      - name: Preserve simulator logs
+        if: always()
+        uses: actions/upload-artifact@v7
+        with:
+          name: legacy-fvp-logs-${{ matrix.core }}
+          path: Tests/UnitTest/build-${{ matrix.core }}-gcc/**/*.fvp.log
+          if-no-files-found: warn
