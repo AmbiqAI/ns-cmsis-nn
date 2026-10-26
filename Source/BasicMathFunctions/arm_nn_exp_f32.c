@@ -40,10 +40,21 @@ arm_cmsis_nn_status arm_nn_exp_f32(const float32_t *input, float32_t *output, in
     }
 
     // Each element is read before its output is written, so output may alias input.
+    #if defined(ARM_NN_EXP_MVE_F32)
+    // Tail-predicated: the last block loads, computes and stores only its live lanes.
+    const int32_t blocks = block_size / 4 + ((block_size & 3) != 0);
+    for (int32_t b = 0; b < blocks; ++b)
+    {
+        const int32_t i = b * 4;
+        const mve_pred16_t p = vctp32q((uint32_t)(block_size - i));
+        vstrwq_p(&output[i], arm_nn_exp_mve_f32(vld1q_z(&input[i], p)), p);
+    }
+    #else
     for (int32_t i = 0; i < block_size; ++i)
     {
         output[i] = arm_nn_exp_scalar_f32(input[i]);
     }
+    #endif
 
     return ARM_CMSIS_NN_SUCCESS;
 }

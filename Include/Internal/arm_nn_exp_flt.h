@@ -10,7 +10,7 @@
 /* ----------------------------------------------------------------------
  * Project:      CMSIS NN Library
  * Title:        arm_nn_exp_flt.h
- * Description:  Scalar body of the float exponential kernels
+ * Description:  Scalar and Helium bodies of the float exponential kernels
  *
  * $Date:        26 October 2026
  * $Revision:    V.1.0.0
@@ -130,6 +130,73 @@ __STATIC_FORCEINLINE float32_t arm_nn_exp_scalar_f32(float32_t x)
     const float32_t second = arm_nn_exp_from_bits_f32((uint32_t)(n - half + 127) << 23);
     return scaled * second;
 }
+
+    #if defined(ARM_MATH_MVEF) && !defined(ARM_MATH_AUTOVECTORIZE)
+        /** The Helium body below is compiled; arm_nn_exp_f32 and arm_nn_exp_f16 use it. */
+        #define ARM_NN_EXP_MVE_F32 1
+
+/*
+ * Four lanes of arm_nn_exp_scalar_f32, the same operation sequence per lane:
+ *
+ *   fmaf              VFMA, or VFMAS for p * r + c, one rounding per lane.
+ *   (int32_t) cast    VCVT.S32.F32, which truncates as the cast does.
+ *   (float32_t)n      VCVT.F32.S32, exact for every n reached.
+ *   n / 2             C division truncates and an arithmetic shift floors, so the shift
+ *                     is of n plus its sign bit: (n + ((uint32_t)n >> 31)) >> 1.
+ *   2^k, p * 2^(n/2)  integer shifts and adds on the bit patterns, as the scalar body.
+ *   the guards        integer compares on the input's bits, applied after the
+ *                     arithmetic in the scalar body's precedence: under the zero
+ *                     threshold +0, over the overflow threshold +inf, and NaN last, the
+ *                     input with its quiet bit set. No float compare, so no compare can
+ *                     read a NaN or a subnormal operand.
+ *
+ * A lane the guards replace (an infinity, x < -103.97f) computes saturated or wrapped
+ * integers on the way and is discarded. The result is bit-identical to the scalar body
+ * whenever that result is not subnormal. Helium flushes a subnormal result to +0
+ * whatever FPSCR.FZ holds (measured on the Apollo510B for helia-ml's
+ * heliaml_kernel_rbf_block4_f32, which runs these operations), so the lanes whose
+ * scalar result is below 2^-126, x in [-103.97f, -87.3366f), return +0 here.
+ */
+__STATIC_FORCEINLINE float32x4_t arm_nn_exp_mve_f32(float32x4_t x)
+{
+    const float32_t log2e = 1.44269502f;
+    const float32_t ln2_hi = 0.693145752f;
+    const float32_t ln2_lo = 1.42860677e-06f;
+    const float32_t c2 = 0.49999994f;
+    const float32_t c3 = 0.166664213f;
+    const float32_t c4 = 0.0416680574f;
+    const float32_t c5 = 0.00837495551f;
+    const float32_t c6 = 0.00138427224f;
+    const uint32x4_t bits = vreinterpretq_u32_f32(x);
+
+    const uint32x4_t sign_bit = vandq_u32(bits, vdupq_n_u32(UINT32_C(0x80000000)));
+    const float32x4_t round_half = vreinterpretq_f32_u32(vorrq_u32(sign_bit, vdupq_n_u32(UINT32_C(0x3F000000))));
+    const int32x4_t n = vcvtq_s32_f32(vfmaq_n_f32(round_half, x, log2e));
+    const float32x4_t nf = vcvtq_f32_s32(n);
+    float32x4_t r = vfmaq_n_f32(x, nf, -ln2_hi);
+    r = vfmaq_n_f32(r, nf, -ln2_lo);
+    float32x4_t p = vfmasq_n_f32(r, vdupq_n_f32(c6), c5);
+    p = vfmasq_n_f32(p, r, c4);
+    p = vfmasq_n_f32(p, r, c3);
+    p = vfmasq_n_f32(p, r, c2);
+    p = vfmasq_n_f32(p, r, 1.0f);
+    p = vfmasq_n_f32(p, r, 1.0f);
+
+    const int32x4_t sign = vreinterpretq_s32_u32(vshrq_n_u32(vreinterpretq_u32_s32(n), 31));
+    const int32x4_t half = vshrq_n_s32(vaddq_s32(n, sign), 1);
+    const float32x4_t scaled =
+        vreinterpretq_f32_u32(vaddq_u32(vreinterpretq_u32_f32(p), vreinterpretq_u32_s32(vshlq_n_s32(half, 23))));
+    const float32x4_t second = vreinterpretq_f32_s32(vshlq_n_s32(vaddq_n_s32(vsubq_s32(n, half), 127), 23));
+    float32x4_t result = vmulq_f32(scaled, second);
+
+    const mve_pred16_t under = vcmphiq_n_u32(bits, ARM_NN_EXP_F32_ZERO_BITS);
+    const mve_pred16_t over = vcmpgtq_n_s32(vreinterpretq_s32_u32(bits), (int32_t)ARM_NN_EXP_F32_INF_BITS);
+    const mve_pred16_t nan = vcmphiq_n_u32(vandq_u32(bits, vdupq_n_u32(UINT32_C(0x7FFFFFFF))), UINT32_C(0x7F800000));
+    result = vpselq_f32(vdupq_n_f32(0.0f), result, under);
+    result = vpselq_f32(vreinterpretq_f32_u32(vdupq_n_u32(UINT32_C(0x7F800000))), result, over);
+    return vpselq_f32(vreinterpretq_f32_u32(vorrq_u32(bits, vdupq_n_u32(UINT32_C(0x00400000)))), result, nan);
+}
+    #endif
 
 #endif /* ARM_NN_FLOAT_API_ENABLED */
 

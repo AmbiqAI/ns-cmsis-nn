@@ -14,6 +14,7 @@
 #include <string.h>
 #include <unity.h>
 
+#include "../../../../Include/Internal/arm_nn_exp_flt.h"
 #include "exp_f32_data.h"
 
 /*
@@ -29,6 +30,20 @@
 #define EXP_F32_GUARD 8
 #define EXP_F32_MAX_TAIL 17
 #define EXP_F32_LONG 4096
+
+// The tier comparison: every 4 099th bit pattern, and every input of two dense ranges.
+#define EXP_F32_TIER_STRIDE UINT32_C(4099)
+#define EXP_F32_TIER_BLOCK 1024
+#define EXP_F32_DENSE_LOW_FIRST UINT32_C(0xC2AE0000)  /* -87.0 */
+#define EXP_F32_DENSE_LOW_LAST UINT32_C(0xC2D00000)   /* -104.0 */
+#define EXP_F32_DENSE_HIGH_FIRST UINT32_C(0x42B00000) /* 88.0 */
+#define EXP_F32_DENSE_HIGH_LAST UINT32_C(0x42B18000)  /* 88.75 */
+/*
+ * Inputs whose scalar result is subnormal: every bit pattern from 0xC2AEAC50
+ * (-87.3365479f) to 0xC2CFF0A4 (-103.97f), all inside the dense range [-104, -87].
+ * The Helium body returns +0 for each of them and equals the scalar body elsewhere.
+ */
+#define EXP_F32_SUBNORMAL_RESULTS 2180181
 
 static uint32_t exp_f32_bits(float32_t value)
 {
@@ -55,7 +70,7 @@ static double exp_f32_from_bits64(uint64_t bits)
 // FPSCR.FZ holds, and the scalar body follows FZ (or a host's FTZ), probed at run time.
 static int exp_f32_subnormal_may_flush(void)
 {
-#if defined(ARM_MATH_MVEF) && !defined(ARM_MATH_AUTOVECTORIZE)
+#if defined(ARM_NN_EXP_MVE_F32)
     return 1;
 #else
     volatile float32_t smallest_normal = 0x1.0p-126f;
@@ -292,4 +307,103 @@ void exp_f32_fp_controls_arm_nn_exp_f32(void)
         TEST_ASSERT_EQUAL_HEX32(exp_f32_bits(plain[i]), exp_f32_bits(flushed[i]));
     }
 #endif
+}
+
+// The scalar body through a volatile read, so a vectorizing compiler cannot fold the
+// reference into Helium lanes that flush.
+static uint32_t exp_f32_scalar_reference(uint32_t in_bits)
+{
+    volatile float32_t x = exp_f32_from_bits(in_bits);
+    return exp_f32_bits(arm_nn_exp_scalar_f32(x));
+}
+
+static uint32_t exp_f32_tier_block(const uint32_t *in_bits, int32_t count)
+{
+    static float32_t input[EXP_F32_TIER_BLOCK];
+    static float32_t output[EXP_F32_TIER_BLOCK];
+    uint32_t flushed = 0;
+    char msg[64];
+
+    memcpy(input, in_bits, (size_t)count * sizeof(input[0]));
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, arm_nn_exp_f32(input, output, count));
+    for (int32_t i = 0; i < count; ++i)
+    {
+        const uint32_t expected = exp_f32_scalar_reference(in_bits[i]);
+        const uint32_t actual = exp_f32_bits(output[i]);
+        if (expected == actual)
+        {
+            continue;
+        }
+    #if defined(ARM_NN_EXP_MVE_F32)
+        if (expected != 0 && expected < UINT32_C(0x00800000) && actual == 0)
+        {
+            ++flushed;
+            continue;
+        }
+    #endif
+        snprintf(msg, sizeof(msg), "input 0x%08lx", (unsigned long)in_bits[i]);
+        TEST_ASSERT_EQUAL_HEX32_MESSAGE(expected, actual, msg);
+    }
+    return flushed;
+}
+
+static uint32_t exp_f32_tier_range(uint32_t first, uint32_t last)
+{
+    static uint32_t bits[EXP_F32_TIER_BLOCK];
+    uint32_t flushed = 0;
+    int32_t n = 0;
+
+    for (uint32_t b = first;; ++b)
+    {
+        bits[n++] = b;
+        if (n == EXP_F32_TIER_BLOCK || b == last)
+        {
+            flushed += exp_f32_tier_block(bits, n);
+            n = 0;
+        }
+        if (b == last)
+        {
+            return flushed;
+        }
+    }
+}
+
+/*
+ * arm_nn_exp_f32 against the internal scalar body, arm_nn_exp_scalar_f32: equal bits on
+ * every input, except that the Helium body returns +0 where the scalar result is
+ * subnormal. The exception is counted and must be exactly the subnormal-result inputs
+ * on a Helium build and nothing elsewhere.
+ */
+void exp_f32_tiers_arm_nn_exp_f32(void)
+{
+    static uint32_t bits[EXP_F32_TIER_BLOCK];
+    uint32_t flushed = 0;
+    int32_t n = 0;
+
+    for (uint64_t u = 0; u <= UINT64_C(0xFFFFFFFF); u += EXP_F32_TIER_STRIDE)
+    {
+        const uint32_t b = (uint32_t)u;
+        if ((b >= EXP_F32_DENSE_LOW_FIRST && b <= EXP_F32_DENSE_LOW_LAST) ||
+            (b >= EXP_F32_DENSE_HIGH_FIRST && b <= EXP_F32_DENSE_HIGH_LAST))
+        {
+            continue;
+        }
+        bits[n++] = b;
+        if (n == EXP_F32_TIER_BLOCK)
+        {
+            flushed += exp_f32_tier_block(bits, n);
+            n = 0;
+        }
+    }
+    if (n > 0)
+    {
+        flushed += exp_f32_tier_block(bits, n);
+    }
+    flushed += exp_f32_tier_range(EXP_F32_DENSE_LOW_FIRST, EXP_F32_DENSE_LOW_LAST);
+    flushed += exp_f32_tier_range(EXP_F32_DENSE_HIGH_FIRST, EXP_F32_DENSE_HIGH_LAST);
+    #if defined(ARM_NN_EXP_MVE_F32)
+    TEST_ASSERT_EQUAL_UINT32(EXP_F32_SUBNORMAL_RESULTS, flushed);
+    #else
+    TEST_ASSERT_EQUAL_UINT32(0, flushed);
+    #endif
 }

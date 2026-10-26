@@ -1564,14 +1564,19 @@ arm_cmsis_nn_status arm_nn_sqrt_f32(const float32_t *input, float32_t *output, i
 /**
  * @brief Elementwise exponential, `exp(x)`: the LiteRT `EXP` builtin on a float32 tensor.
  *
- * Every element is computed by one body, `arm_nn_exp_scalar_f32` in
- * `Internal/arm_nn_exp_flt.h`: heliaML's `heliaml_reference_exp_f32` (helia-ml 4633a47c),
- * a Cody-Waite reduction `x = n ln2 + r` and a degree-6 minimax polynomial in `r`
- * evaluated in `fmaf`, scaled by `2^n` through the exponent bits. Its result is
- * bit-identical to heliaML's on all 4 278 190 082 non-NaN float32 inputs, measured
- * exhaustively, and does not depend on the optimisation level, on contraction or on the
- * compiler (GCC or LLVM fast-math): every classification is on the bit pattern and the
- * scaling leaves no float operation to reassociate.
+ * The scalar body, `arm_nn_exp_scalar_f32` in `Internal/arm_nn_exp_flt.h`, is heliaML's
+ * `heliaml_reference_exp_f32` (helia-ml 4633a47c): a Cody-Waite reduction
+ * `x = n ln2 + r` and a degree-6 minimax polynomial in `r` evaluated in `fmaf`, scaled by
+ * `2^n` through the exponent bits. Its result is bit-identical to heliaML's on all
+ * 4 278 190 082 non-NaN float32 inputs, measured exhaustively, and does not depend on
+ * the optimisation level, on contraction or on the compiler (GCC or LLVM fast-math):
+ * every classification is on the bit pattern and the scaling leaves no float operation
+ * to reassociate.
+ *
+ * Value path per leg: under `ARM_MATH_MVEF && !ARM_MATH_AUTOVECTORIZE` a Helium body,
+ * `arm_nn_exp_mve_f32`, runs the same operations four lanes at a time, tail-predicated,
+ * and is bit-identical to the scalar body on every input whose scalar result is not
+ * subnormal; every other build runs the scalar body.
  *
  * Accuracy: `|y - exp(x)| <= 2^-149 + 2.5e-7 * exp(x)` against a float64 exponential,
  * which is helia-ml's `EXP_F32` (python/helia_ml/tolerance.py). heliaML measured it over
@@ -1585,13 +1590,16 @@ arm_cmsis_nn_status arm_nn_sqrt_f32(const float32_t *input, float32_t *output, i
  * - `x > 88.7228317f`, `+Inf` included: `+Inf`. `0x42B17217` is the largest input with a
  *   finite result.
  * - `+0` and `-0`: exactly `1.0f`. A subnormal input gives `1.0f` too, on every leg.
- * - `-103.97f <= x < -87.3366f` (bits `0xC2CFF0A4` down to `0xC2AEAC50`): a subnormal
- *   result, below `2^-126`, rounded once. It follows FPSCR.FZ: with FZ set (as the
- *   Apollo510 Lite and Apollo330M Plus images start) it is `+0`.
+ * - `-103.97f <= x < -87.3366f` (bits `0xC2CFF0A4` down to `0xC2AEAC50`, 2 180 181
+ *   inputs): on the scalar leg a subnormal result, below `2^-126`, rounded once, which
+ *   follows FPSCR.FZ: with FZ set (as the Apollo510 Lite and Apollo330M Plus images
+ *   start) it is `+0`. On the Helium leg it is `+0` whatever FZ holds, because Helium
+ *   flushes subnormal results.
  *
  * FPSCR: the rounding mode is neither set nor read, and the results above are at
- * round-to-nearest; FZ flushes subnormal results as stated, and a subnormal input reads
- * as zero, whose result is the same `1.0f`; DN changes nothing, because NaN results are
+ * round-to-nearest; on the scalar leg FZ flushes subnormal results as stated, and a
+ * subnormal input reads as zero, whose result is the same `1.0f`; the Helium leg
+ * flushes regardless of FZ; DN changes nothing on either leg, because NaN results are
  * built from the input's bits. The cumulative exception flags are not part of the
  * contract: an exponential raises inexact, overflow and underflow by nature.
  *

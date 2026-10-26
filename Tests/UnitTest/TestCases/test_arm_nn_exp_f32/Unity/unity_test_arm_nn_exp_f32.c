@@ -35,3 +35,4 @@ void test_exp_f32_arg_error_arm_nn_exp_f32(void) { exp_f32_arg_error_arm_nn_exp_
 void test_exp_f32_in_place_arm_nn_exp_f32(void) { exp_f32_in_place_arm_nn_exp_f32(); }
 void test_exp_f32_guards_arm_nn_exp_f32(void) { exp_f32_guards_arm_nn_exp_f32(); }
 void test_exp_f32_fp_controls_arm_nn_exp_f32(void) { exp_f32_fp_controls_arm_nn_exp_f32(); }
+void test_exp_f32_tiers_arm_nn_exp_f32(void) { exp_f32_tiers_arm_nn_exp_f32(); }
