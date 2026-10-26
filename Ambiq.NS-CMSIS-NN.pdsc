@@ -202,6 +202,7 @@
         <file category="source" name="Source/BasicMathFunctions/arm_mul_scalar_s8.c"/>
         <file category="source" name="Source/BasicMathFunctions/arm_nn_abs_f16.c"/>
         <file category="source" name="Source/BasicMathFunctions/arm_nn_abs_f32.c"/>
+        <file category="source" name="Source/BasicMathFunctions/arm_nn_exp_f16.c"/>
         <file category="source" name="Source/BasicMathFunctions/arm_nn_exp_f32.c"/>
         <file category="source" name="Source/BasicMathFunctions/arm_nn_fill_f16.c"/>
         <file category="source" name="Source/BasicMathFunctions/arm_nn_fill_f32.c"/>

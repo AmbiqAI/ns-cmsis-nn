@@ -4397,6 +4397,17 @@ arm_cmsis_nn_status arm_elementwise_mul_broadcast_f16(const float16_t *input_1_d
 arm_cmsis_nn_status arm_nn_sqrt_f16(const float16_t *input, float16_t *output, int32_t block_size);
 
 /**
+ * @brief Elementwise exponential of a float16 tensor, `exp(x)`.
+ *
+ * @param[in]  input       Pointer to the input tensor.
+ * @param[out] output      Pointer to the output tensor; may alias @p input.
+ * @param[in]  block_size  Number of tensor elements.
+ *
+ * @return `ARM_CMSIS_NN_SUCCESS` on success or `ARM_CMSIS_NN_ARG_ERROR` on invalid arguments.
+ */
+arm_cmsis_nn_status arm_nn_exp_f16(const float16_t *input, float16_t *output, int32_t block_size);
+
+/**
  * @brief Elementwise reciprocal square root of a float16 tensor, `1 / sqrt(x)`.
  *
  * Same value path as arm_nn_sqrt_f16: widen to float32, evaluate `1.0f / sqrtf(x)`

@@ -68,6 +68,7 @@ if (ARM_NN_ENABLE_F16)
                       arm_reduce_min_tflite_f16.c
                       arm_reduce_sum_f16.c
                       arm_nn_sqrt_f16.c
+                      arm_nn_exp_f16.c
                       arm_rsqrt_f16.c)
 endif()
 target_sources(cmsis-nn PRIVATE ${SRC} ${SRC_FLT})

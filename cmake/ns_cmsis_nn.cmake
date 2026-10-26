@@ -183,6 +183,7 @@ function(_ns_cmsis_nn_group_def group out_subdir out_patterns out_extras)
                          "arm_reduce_min_tflite_f16.c"
                          "arm_reduce_sum_f16.c"
                          "arm_nn_sqrt_f16.c"
+                         "arm_nn_exp_f16.c"
                          "arm_rsqrt_f16.c")
     endif()
   elseif(group STREQUAL "comparison")
