@@ -38,3 +38,17 @@ void test_fully_connected_k33_k39_n5_f32(void) { fully_connected_k33_k39_n5_f32(
 void test_fully_connected_k39_n5_clamped_f32(void) { fully_connected_k39_n5_clamped_f32(); }
 
 void test_fully_connected_k31_n9_f32(void) { fully_connected_k31_n9_f32(); }
+
+void test_fully_connected_nan_input_f32(void) { fully_connected_nan_input_f32(); }
+
+void test_fully_connected_nan_weight_f32(void) { fully_connected_nan_weight_f32(); }
+
+void test_fully_connected_nan_bias_f32(void) { fully_connected_nan_bias_f32(); }
+
+void test_fully_connected_inf_times_zero_f32(void) { fully_connected_inf_times_zero_f32(); }
+
+void test_fully_connected_inf_minus_inf_f32(void) { fully_connected_inf_minus_inf_f32(); }
+
+void test_fully_connected_nan_row_one_class_f32(void) { fully_connected_nan_row_one_class_f32(); }
+
+void test_fully_connected_nan_propagation_macro_f32(void) { fully_connected_nan_propagation_macro_f32(); }
