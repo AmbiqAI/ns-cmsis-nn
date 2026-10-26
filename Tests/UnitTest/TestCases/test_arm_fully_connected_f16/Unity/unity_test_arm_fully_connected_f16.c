@@ -43,3 +43,17 @@ void test_fully_connected_packed_precise_contract_f16(void) { fully_connected_pa
 void test_fully_connected_packed_precise_bias_f16(void) { fully_connected_packed_precise_bias_f16(); }
 void test_fully_connected_packed_precise_nonfinite_f16(void) { fully_connected_packed_precise_nonfinite_f16(); }
 void test_fully_connected_packed_precise_invalid_f16(void) { fully_connected_packed_precise_invalid_f16(); }
+
+void test_fully_connected_nan_input_f16(void) { fully_connected_nan_input_f16(); }
+
+void test_fully_connected_nan_weight_f16(void) { fully_connected_nan_weight_f16(); }
+
+void test_fully_connected_nan_bias_f16(void) { fully_connected_nan_bias_f16(); }
+
+void test_fully_connected_inf_times_zero_f16(void) { fully_connected_inf_times_zero_f16(); }
+
+void test_fully_connected_inf_minus_inf_f16(void) { fully_connected_inf_minus_inf_f16(); }
+
+void test_fully_connected_nan_row_one_class_f16(void) { fully_connected_nan_row_one_class_f16(); }
+
+void test_fully_connected_nan_propagation_macro_f16(void) { fully_connected_nan_propagation_macro_f16(); }
