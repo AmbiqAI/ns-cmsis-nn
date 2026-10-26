@@ -1562,6 +1562,17 @@ arm_cmsis_nn_status arm_elementwise_mul_broadcast_f32(const float32_t *input_1_d
 arm_cmsis_nn_status arm_nn_sqrt_f32(const float32_t *input, float32_t *output, int32_t block_size);
 
 /**
+ * @brief Elementwise exponential, `exp(x)`.
+ *
+ * @param[in]  input       Pointer to the input vector.
+ * @param[out] output      Pointer to the output vector; may alias @p input.
+ * @param[in]  block_size  Number of elements to process.
+ *
+ * @return `ARM_CMSIS_NN_SUCCESS` on success or `ARM_CMSIS_NN_ARG_ERROR` on invalid arguments.
+ */
+arm_cmsis_nn_status arm_nn_exp_f32(const float32_t *input, float32_t *output, int32_t block_size);
+
+/**
  * @brief Elementwise reciprocal square root, `1 / sqrt(x)`.
  *
  * Same value path as arm_nn_sqrt_f32, including its FPSCR.FZ behaviour on subnormal

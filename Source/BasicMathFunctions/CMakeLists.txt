@@ -41,6 +41,7 @@ if (ARM_NN_ENABLE_F32)
                       arm_reduce_min_tflite_f32.c
                       arm_reduce_sum_f32.c
                       arm_nn_sqrt_f32.c
+                      arm_nn_exp_f32.c
                       arm_rsqrt_f32.c)
 endif()
 if (ARM_NN_ENABLE_F16)
