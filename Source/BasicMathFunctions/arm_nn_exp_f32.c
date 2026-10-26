@@ -19,6 +19,7 @@
  * -------------------------------------------------------------------- */
 
 #include "arm_nnfunctions.h"
+#include "Internal/arm_nn_exp_flt.h"
 
 #if ARM_NN_ENABLE_F32
 
@@ -33,10 +34,18 @@
 
 arm_cmsis_nn_status arm_nn_exp_f32(const float32_t *input, float32_t *output, int32_t block_size)
 {
-    (void)input;
-    (void)output;
-    (void)block_size;
-    return ARM_CMSIS_NN_NO_IMPL_ERROR;
+    if (!input || !output || block_size < 1)
+    {
+        return ARM_CMSIS_NN_ARG_ERROR;
+    }
+
+    // Each element is read before its output is written, so output may alias input.
+    for (int32_t i = 0; i < block_size; ++i)
+    {
+        output[i] = arm_nn_exp_scalar_f32(input[i]);
+    }
+
+    return ARM_CMSIS_NN_SUCCESS;
 }
 
 /**

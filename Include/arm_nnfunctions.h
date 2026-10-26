@@ -47,6 +47,9 @@
  *  float16-lane fast path (#830). */
 #define ARM_NN_HAS_DEPTHWISE_F16_ACC32 1
 
+/** arm_nn_exp_f32, the elementwise float32 exponential, is available. */
+#define ARM_NN_HAS_EXP_F32 1
+
 #include "arm_nn_math_types.h"
 #include "arm_nn_types.h"
 

@@ -1562,13 +1562,47 @@ arm_cmsis_nn_status arm_elementwise_mul_broadcast_f32(const float32_t *input_1_d
 arm_cmsis_nn_status arm_nn_sqrt_f32(const float32_t *input, float32_t *output, int32_t block_size);
 
 /**
- * @brief Elementwise exponential, `exp(x)`.
+ * @brief Elementwise exponential, `exp(x)`: the LiteRT `EXP` builtin on a float32 tensor.
+ *
+ * Every element is computed by one body, `arm_nn_exp_scalar_f32` in
+ * `Internal/arm_nn_exp_flt.h`: heliaML's `heliaml_reference_exp_f32` (helia-ml 4633a47c),
+ * a Cody-Waite reduction `x = n ln2 + r` and a degree-6 minimax polynomial in `r`
+ * evaluated in `fmaf`, scaled by `2^n` through the exponent bits. Its result is
+ * bit-identical to heliaML's on all 4 278 190 082 non-NaN float32 inputs, measured
+ * exhaustively, and does not depend on the optimisation level, on contraction or on the
+ * compiler (GCC or LLVM fast-math): every classification is on the bit pattern and the
+ * scaling leaves no float operation to reassociate.
+ *
+ * Accuracy: `|y - exp(x)| <= 2^-149 + 2.5e-7 * exp(x)` against a float64 exponential,
+ * which is helia-ml's `EXP_F32` (python/helia_ml/tolerance.py). heliaML measured it over
+ * every float32 argument this body computes, `[-103.97, 88.7228317]`: at most 1.09 ulp
+ * from the float64 exponential for a normal result, 0.93 of a subnormal step below the
+ * normal range. The identity above is what carries that measurement here.
+ *
+ * Results by input:
+ * - NaN: the same NaN with the quiet bit set, sign and payload kept.
+ * - `x < -103.97f`, `-Inf` included: `+0`.
+ * - `x > 88.7228317f`, `+Inf` included: `+Inf`. `0x42B17217` is the largest input with a
+ *   finite result.
+ * - `+0` and `-0`: exactly `1.0f`. A subnormal input gives `1.0f` too, on every leg.
+ * - `-103.97f <= x < -87.3366f` (bits `0xC2CFF0A4` down to `0xC2AEAC50`): a subnormal
+ *   result, below `2^-126`, rounded once. It follows FPSCR.FZ: with FZ set (as the
+ *   Apollo510 Lite and Apollo330M Plus images start) it is `+0`.
+ *
+ * FPSCR: the rounding mode is neither set nor read, and the results above are at
+ * round-to-nearest; FZ flushes subnormal results as stated, and a subnormal input reads
+ * as zero, whose result is the same `1.0f`; DN changes nothing, because NaN results are
+ * built from the input's bits. The cumulative exception flags are not part of the
+ * contract: an exponential raises inexact, overflow and underflow by nature.
+ *
+ * No scratch, no state: the call reads @p input and writes @p output only.
  *
  * @param[in]  input       Pointer to the input vector.
  * @param[out] output      Pointer to the output vector; may alias @p input.
  * @param[in]  block_size  Number of elements to process.
  *
- * @return `ARM_CMSIS_NN_SUCCESS` on success or `ARM_CMSIS_NN_ARG_ERROR` on invalid arguments.
+ * @return `ARM_CMSIS_NN_SUCCESS` on success, or `ARM_CMSIS_NN_ARG_ERROR` without writing
+ *         @p output when @p input or @p output is NULL or @p block_size is below 1.
  */
 arm_cmsis_nn_status arm_nn_exp_f32(const float32_t *input, float32_t *output, int32_t block_size);
 

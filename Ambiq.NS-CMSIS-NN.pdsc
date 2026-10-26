@@ -87,6 +87,7 @@
         <file category="header" name="Include/Internal/arm_nn_broadcast_walk.h"/>
         <file category="header" name="Include/Internal/arm_nn_compare_s32.h"/>
         <file category="header" name="Include/Internal/arm_nn_div_flt.h"/>
+        <file category="header" name="Include/Internal/arm_nn_exp_flt.h"/>
         <file category="header" name="Include/Internal/arm_nn_logical_common.h"/>
         <file category="header" name="Include/Internal/arm_nn_reduce_bool.h"/>
         <file category="header" name="Include/Internal/arm_nn_reduce_extrema_flt.h"/>
