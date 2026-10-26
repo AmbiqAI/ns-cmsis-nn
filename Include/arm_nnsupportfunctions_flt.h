@@ -524,6 +524,12 @@ void arm_nn_maxpool1d_k2s2_nhwc_f32(const float32_t *__RESTRICT x_nhwc,
  * @param[in]  row_address_offset Output row stride, expressed in elements.
  * @param[in]  activation_min     Lower clamp bound.
  * @param[in]  activation_max     Upper clamp bound.
+ * @note NaN (ARM_NN_HAS_MAT_MULT_FLT_NAN_PROPAGATION): every clamp site passes a NaN accumulator through on every
+ *       leg -- the Helium blocks with arm_nn_clamp_propagate_nan_mve_f32, the scalar rows by wrapping ARM_NN_CLAMP
+ *       in arm_nn_propagate_nan_f32 -- so a NaN operand, or an inf * 0 or inf - inf in a dot product, yields NaN at
+ *       that output. Only the NaN-ness is guaranteed, not the payload (Helium arithmetic returns the default NaN).
+ *       An infinite accumulator saturates to the activation bounds, and every other result keeps the bits of the
+ *       existing clamp on its own leg, the sign of zero included.
  * @return `ARM_CMSIS_NN_SUCCESS` on success or `ARM_CMSIS_NN_ARG_ERROR` on invalid arguments.
  */
 arm_cmsis_nn_status arm_nn_mat_mult_nt_t_f32(const float32_t *__RESTRICT lhs,
@@ -551,6 +557,12 @@ arm_cmsis_nn_status arm_nn_mat_mult_nt_t_f32(const float32_t *__RESTRICT lhs,
  * @param[in]  row_address_offset Output row stride, expressed in elements.
  * @param[in]  activation_min     Lower clamp bound.
  * @param[in]  activation_max     Upper clamp bound.
+ * @note NaN (ARM_NN_HAS_MAT_MULT_FLT_NAN_PROPAGATION): every clamp site passes a NaN accumulator through on every
+ *       leg -- the Helium blocks with arm_nn_clamp_propagate_nan_mve_f32, the scalar rows by wrapping ARM_NN_CLAMP
+ *       in arm_nn_propagate_nan_f32 -- so a NaN operand, or an inf * 0 or inf - inf in a dot product, yields NaN at
+ *       that output. Only the NaN-ness is guaranteed, not the payload (Helium arithmetic returns the default NaN).
+ *       An infinite accumulator saturates to the activation bounds, and every other result keeps the bits of the
+ *       existing clamp on its own leg, the sign of zero included.
  * @return `ARM_CMSIS_NN_SUCCESS` on success or `ARM_CMSIS_NN_ARG_ERROR` on invalid arguments.
  */
 arm_cmsis_nn_status arm_nn_mat_mult_nt_n_packed_f32(const float32_t *__RESTRICT lhs,
