@@ -55,8 +55,8 @@ static arm_nn_plan_status check_dims(const cmsis_nn_dims *dims)
     {
         return ARM_NN_PLAN_E_SHAPE;
     }
-    const int64_t count = (int64_t)dims->n * dims->h * dims->w * dims->c;
-    return count > INT32_MAX ? ARM_NN_PLAN_E_RANGE : ARM_NN_PLAN_OK;
+    const int64_t count = arm_nn_size_mul(arm_nn_size_mul(arm_nn_size_mul(dims->n, dims->h), dims->w), dims->c);
+    return count < 0 ? ARM_NN_PLAN_E_RANGE : ARM_NN_PLAN_OK;
 }
 
 #define PLAN_TRY(expr)                                                                                                 \

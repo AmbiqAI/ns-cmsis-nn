@@ -202,6 +202,34 @@ def _sources(root: Path) -> list[Path]:
     return sources
 
 
+def _default_cache_dir() -> Path:
+    """A per-user cache: the library is loaded with ctypes, so it must not live where another user can plant one."""
+    base = os.environ.get("XDG_CACHE_HOME")
+    if base:
+        return Path(base) / "ns_cmsis_nn_plan"
+    if sys.platform == "darwin":
+        return Path.home() / "Library" / "Caches" / "ns_cmsis_nn_plan"
+    return Path.home() / ".cache" / "ns_cmsis_nn_plan"
+
+
+def _prepare_cache_dir(cache: Path) -> None:
+    """Create ``cache`` private to this user, or refuse an existing one that is not (owned by someone else or
+    group/world writable), since whatever it holds will be executed in this process."""
+    if not cache.exists():
+        cache.parent.mkdir(parents=True, exist_ok=True)
+        try:
+            cache.mkdir(mode=0o700)
+        except FileExistsError:
+            pass
+    if os.name != "posix":
+        return
+    info = cache.stat()
+    if info.st_uid != os.getuid():
+        raise PlannerError(f"planner cache {cache} is owned by uid {info.st_uid}, not this user; pass cache_dir")
+    if info.st_mode & 0o022:
+        raise PlannerError(f"planner cache {cache} is group or world writable; pass cache_dir")
+
+
 def build_planner(root: Path, toolchain: str = "gcc", cc: Optional[str] = None,
                   cache_dir: Optional[Path] = None) -> Path:
     """Build (or reuse) the planner library of the checkout ``root`` for ``toolchain``; return its path.
@@ -232,8 +260,8 @@ def build_planner(root: Path, toolchain: str = "gcc", cc: Optional[str] = None,
         digest.update(str(path.relative_to(root)).encode())
         digest.update(path.read_bytes())
     suffix = ".dylib" if sys.platform == "darwin" else ".so"
-    cache = Path(cache_dir) if cache_dir else Path(tempfile.gettempdir()) / "ns_cmsis_nn_plan"
-    cache.mkdir(parents=True, exist_ok=True)
+    cache = Path(cache_dir) if cache_dir else _default_cache_dir()
+    _prepare_cache_dir(cache)
     library = cache / f"libns_cmsis_nn_plan_{toolchain}_{digest.hexdigest()[:16]}{suffix}"
     if library.is_file():
         return library

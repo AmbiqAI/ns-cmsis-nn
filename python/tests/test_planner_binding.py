@@ -62,6 +62,18 @@ def test_failed_build_leaves_nothing(tree, tmp_path):
     assert list((tmp_path / "cache").iterdir()) == []
 
 
+@pytest.mark.skipif(os.name != "posix", reason="POSIX ownership and mode checks")
+def test_cache_dir_must_be_private(tree, tmp_path):
+    shared = tmp_path / "shared"
+    shared.mkdir(mode=0o777)
+    os.chmod(shared, 0o777)
+    with pytest.raises(PlannerError, match="world writable"):
+        build_planner(tree, "gcc", cache_dir=shared)
+    created = tmp_path / "fresh" / "cache"
+    build_planner(tree, "gcc", cache_dir=created)
+    assert created.stat().st_mode & 0o077 == 0
+
+
 def test_build_refusals(tree, tmp_path):
     with pytest.raises(ValueError, match="toolchain"):
         build_planner(tree, "iar", cache_dir=tmp_path)
@@ -189,6 +201,8 @@ def test_packed_refusals(planner, target, filter_offset, shifts, status):
     (dict(stride=(0, 1)), "shape"),
     (dict(dilation=(1, 0)), "shape"),
     (dict(input_dims=(1, 65536, 65536, 16)), "range"),
+    (dict(input_dims=(16, 2**30, 2**30, 16)), "range"),  # element count wraps int64 to 2**64 == 0
+    (dict(output_dims=(1, 2**30, 2**30, 2**20 + 16)), "range"),  # wraps to a small positive count
 ])
 def test_layer_refusals(planner, change, status):
     layer = dict(DW_GRID[0], **change)
@@ -340,6 +354,7 @@ def test_dw_opt_plan_at_the_plane_boundary(planner):
     (dict(dilation=(2, 1)), "shape"),
     (dict(ctx_size=-1), "range"),
     (dict(input_dims=(1, 65536, 65536, 8)), "range"),
+    (dict(input_dims=(16, 2**30, 2**30, 16)), "range"),  # element count wraps int64
 ])
 def test_dw_opt_plan_refusals(planner, change, status):
     layer = dict(input_dims=(1, 10, 10, 8), filter_dims=(1, 3, 3, 8), output_dims=(1, 8, 8, 8), ctx_size=0)

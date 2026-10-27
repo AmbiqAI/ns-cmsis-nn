@@ -189,6 +189,8 @@ def test_null_arguments_are_refused(libs):
     (lambda p, i, f, o: setattr(p.padding, "h", -1), E_SHAPE),
     (lambda p, i, f, o: setattr(p.dilation, "h", 0), E_SHAPE),
     (lambda p, i, f, o: (setattr(i, "h", 65536), setattr(i, "w", 65536)), E_RANGE),  # element count past int32
+    (lambda p, i, f, o: (setattr(i, "n", 16), setattr(i, "h", 2**30), setattr(i, "w", 2**30), setattr(o, "n", 16)),
+     E_RANGE),  # element count wraps int64 to 0
 ])
 def test_invalid_depthwise_layers_are_refused(libs, change, status):
     params, i, f, o = dw_layer()
