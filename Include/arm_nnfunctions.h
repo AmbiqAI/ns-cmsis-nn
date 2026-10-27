@@ -47,7 +47,7 @@
  *  float16-lane fast path (#830). */
 #define ARM_NN_HAS_DEPTHWISE_F16_ACC32 1
 
-/** arm_nn_mat_mult_nt_t_f32 and arm_nn_mat_mult_nt_n_packed_f32 pass a NaN accumulator through on every leg. */
+/** The float32 and float16 matmul products (nt_t, nt_n_packed) pass a NaN accumulator through on every leg. */
 #define ARM_NN_HAS_MAT_MULT_FLT_NAN_PROPAGATION 1
 
 #include "arm_nn_math_types.h"

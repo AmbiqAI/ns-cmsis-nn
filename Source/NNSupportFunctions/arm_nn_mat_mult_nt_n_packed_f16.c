@@ -179,10 +179,10 @@ __STATIC_FORCEINLINE arm_cmsis_nn_status arm_nn_mat_mult_nt_n_packed_f16_body(co
                 vacc3 = vdupq_n_f16((float16_t)0.0f);
             }
 
-            vacc0 = arm_nn_clamp_mve_f16(vacc0, vmin, vmax);
-            vacc1 = arm_nn_clamp_mve_f16(vacc1, vmin, vmax);
-            vacc2 = arm_nn_clamp_mve_f16(vacc2, vmin, vmax);
-            vacc3 = arm_nn_clamp_mve_f16(vacc3, vmin, vmax);
+            vacc0 = arm_nn_clamp_propagate_nan_mve_f16(vacc0, vmin, vmax);
+            vacc1 = arm_nn_clamp_propagate_nan_mve_f16(vacc1, vmin, vmax);
+            vacc2 = arm_nn_clamp_propagate_nan_mve_f16(vacc2, vmin, vmax);
+            vacc3 = arm_nn_clamp_propagate_nan_mve_f16(vacc3, vmin, vmax);
 
             if (valid_cols == block_cols)
             {
@@ -249,7 +249,7 @@ __STATIC_FORCEINLINE arm_cmsis_nn_status arm_nn_mat_mult_nt_n_packed_f16_body(co
                 vacc = vdupq_n_f16((float16_t)0.0f);
             }
 
-            vacc = arm_nn_clamp_mve_f16(vacc, vmin, vmax);
+            vacc = arm_nn_clamp_propagate_nan_mve_f16(vacc, vmin, vmax);
             if (valid_cols == block_cols)
             {
                 vst1q(dst_row + c, vacc);
