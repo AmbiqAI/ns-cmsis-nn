@@ -51,6 +51,8 @@
     #endif
 
     #if !defined(ARM_MATH_MVEF) || defined(ARM_MATH_AUTOVECTORIZE)
+        #define ARM_NN_MAT_MULT_NT_T_F32_SCALAR_BLOCK_ROWS (4)
+
 __STATIC_INLINE float32_t dot_nt_t_f32_scalar(const float32_t *__RESTRICT lhs_row,
                                               const float32_t *__RESTRICT rhs_row,
                                               int32_t len)
@@ -224,6 +226,45 @@ arm_cmsis_nn_status arm_nn_mat_mult_nt_t_f32(const float32_t *__RESTRICT lhs,
         }
     #else
         int32_t c = 0;
+        /* Four output rows at once, each its own accumulation chain, so the
+         * four chains overlap in the pipeline instead of serialising on one
+         * accumulator's latency. Each row's sum is the same sequence of
+         * products from 0.0f, added to its bias at the end, that the row
+         * loop below computes, so every output keeps its bits. */
+        for (; c + ARM_NN_MAT_MULT_NT_T_F32_SCALAR_BLOCK_ROWS <= rhs_rows;
+             c += ARM_NN_MAT_MULT_NT_T_F32_SCALAR_BLOCK_ROWS)
+        {
+            const float32_t *rhs0 = rhs + (size_t)c * rhs_cols;
+            const float32_t *rhs1 = rhs0 + rhs_cols;
+            const float32_t *rhs2 = rhs1 + rhs_cols;
+            const float32_t *rhs3 = rhs2 + rhs_cols;
+            float32_t dot0 = 0.0f;
+            float32_t dot1 = 0.0f;
+            float32_t dot2 = 0.0f;
+            float32_t dot3 = 0.0f;
+
+            for (int32_t k = 0; k < rhs_cols; ++k)
+            {
+                const float32_t lhs_v = lhs_row[k];
+                dot0 += lhs_v * rhs0[k];
+                dot1 += lhs_v * rhs1[k];
+                dot2 += lhs_v * rhs2[k];
+                dot3 += lhs_v * rhs3[k];
+            }
+
+            float32_t acc0 = bias ? bias[c] : 0.0f;
+            float32_t acc1 = bias ? bias[c + 1] : 0.0f;
+            float32_t acc2 = bias ? bias[c + 2] : 0.0f;
+            float32_t acc3 = bias ? bias[c + 3] : 0.0f;
+            acc0 += dot0;
+            acc1 += dot1;
+            acc2 += dot2;
+            acc3 += dot3;
+            dst_row[c] = ARM_NN_CLAMP(acc0, activation_max, activation_min);
+            dst_row[c + 1] = ARM_NN_CLAMP(acc1, activation_max, activation_min);
+            dst_row[c + 2] = ARM_NN_CLAMP(acc2, activation_max, activation_min);
+            dst_row[c + 3] = ARM_NN_CLAMP(acc3, activation_max, activation_min);
+        }
     #endif
 
         for (; c < rhs_rows; ++c)

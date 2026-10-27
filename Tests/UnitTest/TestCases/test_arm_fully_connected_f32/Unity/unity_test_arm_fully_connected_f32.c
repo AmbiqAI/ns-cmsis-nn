@@ -38,3 +38,4 @@ void test_fully_connected_k33_k39_n5_f32(void) { fully_connected_k33_k39_n5_f32(
 void test_fully_connected_k39_n5_clamped_f32(void) { fully_connected_k39_n5_clamped_f32(); }
 
 void test_fully_connected_k31_n9_f32(void) { fully_connected_k31_n9_f32(); }
+void test_fully_connected_rows_match_single_rows_f32(void) { fully_connected_rows_match_single_rows_f32(); }

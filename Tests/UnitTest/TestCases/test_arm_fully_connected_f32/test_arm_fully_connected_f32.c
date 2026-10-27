@@ -8,6 +8,7 @@
  */
 
 #include <arm_nnfunctions.h>
+#include <float.h>
 #include <math.h>
 #include <string.h>
 #include <unity.h>
@@ -137,4 +138,99 @@ void fully_connected_k31_n9_f32(void)
 {
     fc_f32_case(1, 31, 9, 1, -1.0e4f, 1.0e4f);
     fc_f32_case(2, 31, 9, 0, -1.0e4f, 1.0e4f);
+}
+
+// Every output row of a product is the single-row product of that row: the rows a block computes
+// together (four scalar accumulation chains, the Helium gather and contiguous blocks) and the rows
+// the remainder loop computes one at a time are the same products summed in the same order from
+// 0.0f, then added to the bias. Values are not multiples of a power of two here, so a reordered sum
+// would show in the low bits. Where the compiler contracts a*b+c the same way in every loop (GCC's
+// -ffp-contract=fast, its default in GNU mode, and off, its default under -std=c11; verified on the
+// Cortex-M55 toolchain) the rows are bit for bit; Clang's default -ffp-contract=on fuses one loop
+// shape and not another, and then a row differs by the one rounding a fused multiply-add saves, which
+// is the only difference the tolerance admits (a reordered sum of these values is far outside it).
+// The shapes reach the scalar four-row block with a three-row remainder (n = 7), the Helium gather
+// block (k = 9) and the contiguous block (k = 37), and a bias both present and absent.
+static void fc_f32_rows_match_single_rows(int32_t k, int32_t n, int32_t use_bias)
+{
+    const cmsis_nn_context ctx = {NULL, 0};
+    const cmsis_nn_dims input_dims = {1, 1, 1, k};
+    const cmsis_nn_dims filter_dims = {k, 1, 1, n};
+    const cmsis_nn_dims bias_dims = {1, 1, 1, n};
+    const cmsis_nn_dims output_dims = {1, 1, 1, n};
+    const cmsis_nn_dims one_filter_dims = {k, 1, 1, 1};
+    const cmsis_nn_dims one_bias_dims = {1, 1, 1, 1};
+    const cmsis_nn_dims one_output_dims = {1, 1, 1, 1};
+    cmsis_nn_fc_params_f32 fc_params;
+    uint32_t whole[FC_MAX_N];
+    uint32_t single[FC_MAX_N];
+
+    TEST_ASSERT_TRUE(k <= FC_MAX_K && n <= FC_MAX_N);
+    memset(&fc_params, 0, sizeof(fc_params));
+    fc_params.activation.min = -FLT_MAX;
+    fc_params.activation.max = FLT_MAX;
+    fc_params.weight_format = ARM_NN_WEIGHT_FORMAT_STANDARD;
+    for (int32_t i = 0; i < k; ++i)
+    {
+        fc_x[i] = 0.37f * (float32_t)((int32_t)(fc_hash(i, 11) & 31u) - 16) + 0.013f;
+    }
+    for (int32_t i = 0; i < n * k; ++i)
+    {
+        fc_w[i] = 0.29f * (float32_t)((int32_t)(fc_hash(i, 13) & 31u) - 15) - 0.007f;
+    }
+    for (int32_t i = 0; i < n; ++i)
+    {
+        fc_bias[i] = 0.61f * (float32_t)((int32_t)(fc_hash(i, 17) & 15u) - 7);
+    }
+
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
+                      arm_fully_connected_f32(&ctx,
+                                              &fc_params,
+                                              &input_dims,
+                                              fc_x,
+                                              &filter_dims,
+                                              fc_w,
+                                              &bias_dims,
+                                              use_bias ? fc_bias : NULL,
+                                              &output_dims,
+                                              fc_y,
+                                              ARM_NN_LAYOUT_NHWC));
+    memcpy(whole, fc_y, (size_t)n * sizeof(uint32_t));
+    for (int32_t row = 0; row < n; ++row)
+    {
+        float32_t one;
+        TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
+                          arm_fully_connected_f32(&ctx,
+                                                  &fc_params,
+                                                  &input_dims,
+                                                  fc_x,
+                                                  &one_filter_dims,
+                                                  fc_w + (size_t)row * k,
+                                                  &one_bias_dims,
+                                                  use_bias ? fc_bias + row : NULL,
+                                                  &one_output_dims,
+                                                  &one,
+                                                  ARM_NN_LAYOUT_NHWC));
+        memcpy(&single[row], &one, sizeof(uint32_t));
+    }
+    for (int32_t row = 0; row < n; ++row)
+    {
+        float32_t expected;
+        float32_t got;
+        memcpy(&expected, &single[row], sizeof(expected));
+        memcpy(&got, &whole[row], sizeof(got));
+        TEST_ASSERT_FLOAT_WITHIN(fabsf(expected) * 1.0e-6f + 1.0e-6f, expected, got);
+    }
+#if defined(__GNUC__) && !defined(__clang__)
+    TEST_ASSERT_EQUAL_HEX32_ARRAY(single, whole, n);
+#endif
+}
+
+void fully_connected_rows_match_single_rows_f32(void)
+{
+    fc_f32_rows_match_single_rows(9, 7, 1);
+    fc_f32_rows_match_single_rows(9, 7, 0);
+    fc_f32_rows_match_single_rows(37, 7, 1);
+    fc_f32_rows_match_single_rows(64, 10, 1);
+    fc_f32_rows_match_single_rows(9, 4, 1);
 }
