@@ -1,5 +1,13 @@
 # Changelog
 
+## [7.47.1](https://github.com/AmbiqAI/ns-cmsis-nn/compare/v7.47.0...v7.47.1) (2026-10-27)
+
+
+### Bug Fixes
+
+* **ci:** refresh Python certificate trust after emSign incident ([#895](https://github.com/AmbiqAI/ns-cmsis-nn/issues/895)) ([fc15b5c](https://github.com/AmbiqAI/ns-cmsis-nn/commit/fc15b5cf8a87d19078d913295766c6858166c3c4)), closes [#893](https://github.com/AmbiqAI/ns-cmsis-nn/issues/893)
+* **ci:** use verified emSign remediation image ([#897](https://github.com/AmbiqAI/ns-cmsis-nn/issues/897)) ([a15e5b1](https://github.com/AmbiqAI/ns-cmsis-nn/commit/a15e5b14d2bce570917de764f55d9140b66fa108)), closes [#893](https://github.com/AmbiqAI/ns-cmsis-nn/issues/893)
+
 ## [7.47.0](https://github.com/AmbiqAI/ns-cmsis-nn/compare/v7.46.0...v7.47.0) (2026-10-18)
 
 
