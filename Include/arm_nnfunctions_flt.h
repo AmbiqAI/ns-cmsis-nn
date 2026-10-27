@@ -4397,13 +4397,45 @@ arm_cmsis_nn_status arm_elementwise_mul_broadcast_f16(const float16_t *input_1_d
 arm_cmsis_nn_status arm_nn_sqrt_f16(const float16_t *input, float16_t *output, int32_t block_size);
 
 /**
- * @brief Elementwise exponential of a float16 tensor, `exp(x)`.
+ * @brief Elementwise exponential of a float16 tensor, `exp(x)`: the LiteRT `EXP` builtin.
+ *
+ * The result is `(float16_t)` of arm_nn_exp_f32's scalar body, `arm_nn_exp_scalar_f32`,
+ * at the input widened to float32: one rounding, bit for bit, on all 65 536 binary16
+ * inputs on the scalar leg. Its accuracy is therefore arm_nn_exp_f32's (helia-ml's
+ * `EXP_F32`) followed by one rounding to binary16: every result is the binary16 nearest
+ * `exp(x)` or one of its two neighbours.
+ *
+ * Value path per leg: under `ARM_MATH_MVE_FLOAT16 && !ARM_MATH_AUTOVECTORIZE`, where
+ * arm_nn_exp_f32's Helium body is compiled, eight halves are widened to two float32
+ * vectors, run through that body and narrowed once, tail-predicated; every other build
+ * widens, evaluates and narrows one element at a time. On QEMU 11.0.0 (`mps3-an547`) the
+ * Helium leg equals the scalar leg on all 65 536 inputs, so no input is named here; the
+ * float32 lanes it flushes are below every binary16, and the narrowing kept the 891
+ * subnormal binary16 results (`x` from -9.71 down to -17.33). Silicon has not run it.
+ *
+ * Results by input:
+ * - NaN: the same NaN with the quiet bit set (bit 9), sign and payload kept, decided on
+ *   the binary16 bits before any widening.
+ * - `x >= 11.09375` (`0x498C`), `+Inf` included: `+Inf`. `0x498B` (11.0859375) is the
+ *   largest input with a finite result, 65248.
+ * - `x <= -17.34375`, `-Inf` included: `+0`. Results below `2^-14` are binary16
+ *   subnormals.
+ * - `+0`, `-0` and every subnormal input: exactly `1.0`.
+ *
+ * FPSCR: the results do not depend on FZ, FZ16 or DN (checked on QEMU over all 65 536
+ * inputs): a NaN is built from its bits, a float32 result FZ flushes is below every
+ * binary16, and a binary16 subnormal input widens to a normal float32. The rounding mode
+ * is neither set nor read, and the results are at round-to-nearest. The cumulative
+ * exception flags are not part of the contract.
+ *
+ * No scratch, no state: the call reads @p input and writes @p output only.
  *
  * @param[in]  input       Pointer to the input tensor.
  * @param[out] output      Pointer to the output tensor; may alias @p input.
  * @param[in]  block_size  Number of tensor elements.
  *
- * @return `ARM_CMSIS_NN_SUCCESS` on success or `ARM_CMSIS_NN_ARG_ERROR` on invalid arguments.
+ * @return `ARM_CMSIS_NN_SUCCESS` on success, or `ARM_CMSIS_NN_ARG_ERROR` without writing
+ *         @p output when @p input or @p output is NULL or @p block_size is below 1.
  */
 arm_cmsis_nn_status arm_nn_exp_f16(const float16_t *input, float16_t *output, int32_t block_size);
 

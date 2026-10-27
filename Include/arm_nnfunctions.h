@@ -50,6 +50,9 @@
 /** arm_nn_exp_f32, the elementwise float32 exponential, is available. */
 #define ARM_NN_HAS_EXP_F32 1
 
+/** arm_nn_exp_f16, the elementwise float16 exponential, is available. */
+#define ARM_NN_HAS_EXP_F16 1
+
 #include "arm_nn_math_types.h"
 #include "arm_nn_types.h"
 
