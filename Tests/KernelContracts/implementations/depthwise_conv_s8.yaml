@@ -1,0 +1,431 @@
+# SPDX-License-Identifier: LicenseRef-Ambiq-Apollo-SDK
+#
+# s8 depthwise convolution implementations. Schema and field rules: scripts/check_kernel_implementations.py.
+# Regenerate the export with `python3 scripts/check_kernel_implementations.py export`.
+#
+# arm_depthwise_conv_wrapper_s8() tries its routes in this order: to_conv (ARM_MATH_MVEI only), then, when
+# ch_mult == 1, N == 1 and arm_nn_dw_conv_opt_dilation_supported() holds, conv_3x3 (without ARM_MATH_MVEI only)
+# or opt, and generic for every other layer. arm_depthwise_conv_s8_opt() in turn tries planar before channelwise.
+
+family: depthwise_conv_s8
+
+implementations:
+  - id: depthwise_conv_s8
+    op: depthwise_conv
+    quantization: per_channel
+    dtypes: {input_data: int8, filter_data: int8, bias_data: int32, output_data: int8}
+    layout: {input_data: NHWC, filter_data: 1HWO, output_data: NHWC}
+    entry: arm_depthwise_conv_s8
+    routed_by:
+      wrapper: arm_depthwise_conv_wrapper_s8
+      route: dw_wrapper_s8:generic
+      requires: []
+      when: >-
+        no earlier route takes the layer: ch_mult != 1, N != 1, or a dilation that
+        arm_nn_dw_conv_opt_dilation_supported() rejects, and on ARM_MATH_MVEI builds not the to_conv shape
+    requires: []
+    varies_with: [toolchain]
+    buffers:
+      - name: ctx
+        param: ctx
+        size_query: none
+        units: bytes
+        align: 1
+        lifetime: call
+        optional: true
+        note: No scratch; ctx->buf may be NULL.
+    prepare: []
+    declines: []
+    since: 7.2.0
+    numerics:
+      reference: hct_ref:depthwise_conv_s8
+      claim: bit_exact
+      holds_with: ['!single_rounding']
+
+  - id: depthwise_conv_3x3_s8
+    op: depthwise_conv
+    quantization: per_channel
+    dtypes: {input_data: int8, filter_data: int8, bias_data: int32, output_data: int8}
+    layout: {input_data: NHWC, filter_data: 1HWO, output_data: NHWC}
+    entry: arm_depthwise_conv_3x3_s8
+    routed_by:
+      wrapper: arm_depthwise_conv_wrapper_s8
+      route: dw_wrapper_s8:conv_3x3
+      requires: ['!mvei']
+      when: >-
+        ch_mult == 1, N == 1, arm_nn_dw_conv_opt_dilation_supported(), a 3x3 filter, padding.w <= 1,
+        padding.h <= 1 and dilation 1 in both dimensions
+    requires: []
+    buffers:
+      - name: ctx
+        param: ctx
+        size_query: none
+        units: bytes
+        align: 1
+        lifetime: call
+        optional: true
+        note: No scratch; ctx->buf may be NULL.
+    prepare: []
+    declines: []
+    since: 7.2.0
+    numerics:
+      reference: hct_ref:depthwise_conv_s8
+      claim: bit_exact
+      holds_with: ['!single_rounding']
+
+  - id: depthwise_conv_s8_opt
+    op: depthwise_conv
+    quantization: per_channel
+    dtypes: {input_data: int8, filter_data: int8, bias_data: int32, output_data: int8}
+    layout: {input_data: NHWC, filter_data: 1HWO, output_data: NHWC}
+    entry: arm_depthwise_conv_s8_opt
+    routed_by:
+      wrapper: arm_depthwise_conv_wrapper_s8
+      route: dw_wrapper_s8:opt
+      requires: []
+      when: >-
+        ch_mult == 1, N == 1 and arm_nn_dw_conv_opt_dilation_supported(), and on builds without ARM_MATH_MVEI not
+        the conv_3x3 shape
+    requires: []
+    buffers:
+      - name: scratch
+        param: ctx
+        size_query:
+          symbol: arm_depthwise_conv_s8_opt_get_buffer_size
+          args: {input_dims: input_dims, filter_dims: filter_dims}
+        units: bytes
+        align: 2
+        lifetime: call
+        optional: true
+        note: >-
+          ctx->size is optional: 0 opts out of the size check, and also keeps the layer off the planar path.
+      - name: weight_sums
+        param: weight_sum_ctx
+        size_query:
+          symbol: arm_convolve_s8_get_weights_sum_size
+          args: {output_dims: output_dims}
+        units: bytes
+        align: 4
+        lifetime: prepared
+        optional: true
+        note: Read only on builds with ARM_MATH_DSP and ARM_MATH_MVEI; the sums carry the bias.
+    prepare:
+      - symbol: arm_depthwise_convolve_weight_sum
+        args:
+          vector_sum_buf: buffer:weight_sums
+          scratch_buf: null
+          rhs: filter_data
+          dw_conv_params: dw_conv_params
+          input_dims: input_dims
+          filter_dims: filter_dims
+          output_dims: output_dims
+          lhs_offset: dw_conv_params.input_offset
+          bias_data: bias_data
+    declines: []
+    since: 7.24.0
+    numerics:
+      reference: hct_ref:depthwise_conv_s8
+      claim: bit_exact
+      holds_with: ['!single_rounding']
+
+  - id: depthwise_conv_s8_opt_planar
+    op: depthwise_conv
+    quantization: per_channel
+    dtypes: {input_data: int8, filter_data: int8, bias_data: int32, output_data: int8}
+    layout: {input_data: NHWC, filter_data: 1HWO, output_data: NHWC}
+    entry: arm_depthwise_conv_s8_opt_planar
+    routed_by:
+      wrapper: arm_depthwise_conv_s8_opt
+      route: dw_opt_s8:planar
+      requires: [dsp, mvei]
+      when: >-
+        arm_depthwise_conv_s8_opt_planar_supported(), non-NULL ctx, weight_sum_ctx and both buf, and a non-zero
+        ctx->size that holds the plane; otherwise arm_depthwise_conv_s8_opt() runs channelwise
+    requires: [dsp, mvei]
+    eligibility:
+      predicate: arm_depthwise_conv_s8_opt_planar_supported
+      args: {dw_conv_params: dw_conv_params, input_dims: input_dims, filter_dims: filter_dims, output_dims: output_dims}
+      when: >-
+        batch 1, C_IN == C_OUT, positive channel, filter and output dimensions, stride 1, ch_mult 1, dilation.h 1,
+        1 <= dilation.w <= 128 / C, at most 32 channels, the widths the path is faster for, and a plane that fits the
+        scratch. The width thresholds may be retuned.
+    buffers:
+      - name: scratch
+        param: ctx
+        size_query:
+          symbol: arm_depthwise_conv_s8_opt_get_buffer_size
+          args: {input_dims: input_dims, filter_dims: filter_dims}
+        units: bytes
+        align: 1
+        lifetime: call
+        optional: false
+        note: >-
+          ctx->size must be set: the path declines when ctx->size cannot hold its plane, including ctx->size 0.
+      - name: weight_sums
+        param: weight_sum_ctx
+        size_query:
+          symbol: arm_convolve_s8_get_weights_sum_size
+          args: {output_dims: output_dims}
+        units: bytes
+        align: 4
+        lifetime: prepared
+        optional: false
+        note: The sums carry the bias; bias_dims and bias_data are unused.
+    prepare:
+      - symbol: arm_depthwise_convolve_weight_sum
+        args:
+          vector_sum_buf: buffer:weight_sums
+          scratch_buf: null
+          rhs: filter_data
+          dw_conv_params: dw_conv_params
+          input_dims: input_dims
+          filter_dims: filter_dims
+          output_dims: output_dims
+          lhs_offset: dw_conv_params.input_offset
+          bias_data: bias_data
+    declines:
+      - cause: build
+        when: >-
+          ARM_MATH_DSP or ARM_MATH_MVEI is not defined, once the argument checks pass: C_IN != C_OUT, dilation.h != 1,
+          dilation.w < 1, or a NULL ctx->buf with a non-zero size query return ARM_CMSIS_NN_ARG_ERROR on every build
+      - cause: layer
+        when: >-
+          arm_depthwise_conv_s8_opt_planar_supported() rejects the layer for a reason other than those argument checks
+      - cause: buffer
+        when: >-
+          ctx->size cannot hold the plane. A NULL weight_sum_ctx->buf is ARM_CMSIS_NN_ARG_ERROR instead, on builds
+          with ARM_MATH_DSP and ARM_MATH_MVEI
+    since: 7.37.0
+    numerics:
+      reference: hct_ref:depthwise_conv_s8
+      claim: bit_exact
+      holds_with: ['!single_rounding']
+
+  - id: depthwise_conv_s8_opt_channelwise
+    op: depthwise_conv
+    quantization: per_channel
+    dtypes: {input_data: int8, filter_data: int8, bias_data: int32, output_data: int8}
+    layout: {input_data: NHWC, filter_data: 1HWO, output_data: NHWC}
+    entry: arm_depthwise_conv_s8_opt_channelwise
+    routed_by:
+      wrapper: arm_depthwise_conv_s8_opt
+      route: dw_opt_s8:channelwise
+      requires: []
+      when: every layer the planar route does not take
+    requires: []
+    buffers:
+      - name: scratch
+        param: ctx
+        size_query:
+          symbol: arm_depthwise_conv_s8_opt_get_buffer_size
+          args: {input_dims: input_dims, filter_dims: filter_dims}
+        units: bytes
+        align: 2
+        lifetime: call
+        optional: true
+        note: ctx->size is optional; 0 opts out of the size check.
+      - name: weight_sums
+        param: weight_sum_ctx
+        size_query:
+          symbol: arm_convolve_s8_get_weights_sum_size
+          args: {output_dims: output_dims}
+        units: bytes
+        align: 4
+        lifetime: prepared
+        optional: true
+        note: Read only on builds with ARM_MATH_DSP and ARM_MATH_MVEI; the sums carry the bias.
+    prepare:
+      - symbol: arm_depthwise_convolve_weight_sum
+        args:
+          vector_sum_buf: buffer:weight_sums
+          scratch_buf: null
+          rhs: filter_data
+          dw_conv_params: dw_conv_params
+          input_dims: input_dims
+          filter_dims: filter_dims
+          output_dims: output_dims
+          lhs_offset: dw_conv_params.input_offset
+          bias_data: bias_data
+    declines: []
+    since: 7.37.0
+    numerics:
+      reference: hct_ref:depthwise_conv_s8
+      claim: bit_exact
+      holds_with: ['!single_rounding']
+
+  - id: depthwise_conv_s8_opt_3x3
+    op: depthwise_conv
+    quantization: per_channel
+    dtypes: {input_data: int8, filter_data: int8, bias_data: int32, output_data: int8}
+    layout: {input_data: NHWC, filter_data: 1HWO, output_data: NHWC}
+    entry: arm_depthwise_conv_s8_opt_3x3
+    routed_by: direct
+    requires: [mvei, '!autovectorize']
+    eligibility:
+      when: >-
+        filter 3x3, dilation 1, N 1, C_IN == C_OUT with 16 <= C <= 2048, stride 1 or 2 and padding 0 or 1 in each
+        dimension, input W >= 3 and H >= 1, output H >= 3 and W x H >= 16, every dimension at most 4096, each tensor at
+        most INT32_MAX elements, and (output W - 1) x stride.w - padding.w + 1 < input W. Layers outside it, or a
+        NO_IMPL return, run arm_depthwise_conv_s8_opt(). C 64 with stride.h 1 has the faster _c64_s1 entry.
+    buffers:
+      - name: scratch
+        param: ctx
+        size_query:
+          symbol: arm_depthwise_conv_s8_opt_3x3_get_buffer_size
+          args: {input_dims: input_dims}
+        units: bytes
+        align: 1
+        lifetime: call
+        optional: false
+        note: ctx->size must be at least the size query; the sizer is plain C and answers alike on every build.
+      - name: weight_sums
+        param: weight_sum_ctx
+        size_query:
+          symbol: arm_convolve_s8_get_weights_sum_size
+          args: {output_dims: output_dims}
+        units: bytes
+        align: 4
+        lifetime: prepared
+        optional: false
+        note: The sums carry the bias; bias_dims and bias_data are unused.
+    prepare:
+      - symbol: arm_depthwise_convolve_weight_sum
+        args:
+          vector_sum_buf: buffer:weight_sums
+          scratch_buf: null
+          rhs: filter_data
+          dw_conv_params: dw_conv_params
+          input_dims: input_dims
+          filter_dims: filter_dims
+          output_dims: output_dims
+          lhs_offset: dw_conv_params.input_offset
+          bias_data: bias_data
+    declines:
+      - cause: build
+        when: ARM_MATH_MVEI is not defined or ARM_MATH_AUTOVECTORIZE is defined
+      - cause: layer
+        when: the layer is outside the eligibility gate
+      - cause: buffer
+        when: ctx, weight_sum_ctx or either buf is NULL, or ctx->size is below the size query
+    since: 7.37.0
+    numerics:
+      reference: hct_ref:depthwise_conv_s8
+      claim: bit_exact
+      holds_with: ['!single_rounding']
+
+  - id: depthwise_conv_s8_opt_3x3_c64_s1
+    op: depthwise_conv
+    quantization: per_channel
+    dtypes: {input_data: int8, filter_data: int8, bias_data: int32, output_data: int8}
+    layout: {input_data: NHWC, filter_data: 1HWO, output_data: NHWC}
+    entry: arm_depthwise_conv_s8_opt_3x3_c64_s1
+    routed_by: direct
+    requires: [mvei, '!autovectorize']
+    eligibility:
+      when: the arm_depthwise_conv_s8_opt_3x3() gate with C_IN == 64 and stride.h == 1
+    buffers:
+      - name: scratch
+        param: ctx
+        size_query:
+          symbol: arm_depthwise_conv_s8_opt_3x3_get_buffer_size
+          args: {input_dims: input_dims}
+        units: bytes
+        align: 1
+        lifetime: call
+        optional: false
+        note: ctx->size must be at least the size query.
+      - name: weight_sums
+        param: weight_sum_ctx
+        size_query:
+          symbol: arm_convolve_s8_get_weights_sum_size
+          args: {output_dims: output_dims}
+        units: bytes
+        align: 4
+        lifetime: prepared
+        optional: false
+        note: The sums carry the bias; bias_dims and bias_data are unused.
+    prepare:
+      - symbol: arm_depthwise_convolve_weight_sum
+        args:
+          vector_sum_buf: buffer:weight_sums
+          scratch_buf: null
+          rhs: filter_data
+          dw_conv_params: dw_conv_params
+          input_dims: input_dims
+          filter_dims: filter_dims
+          output_dims: output_dims
+          lhs_offset: dw_conv_params.input_offset
+          bias_data: bias_data
+    declines:
+      - cause: build
+        when: ARM_MATH_MVEI is not defined or ARM_MATH_AUTOVECTORIZE is defined
+      - cause: layer
+        when: C_IN != 64, stride.h != 1, or the layer is outside the arm_depthwise_conv_s8_opt_3x3() gate
+      - cause: buffer
+        when: ctx, weight_sum_ctx or either buf is NULL, or ctx->size is below the size query
+    since: 7.37.0
+    numerics:
+      reference: hct_ref:depthwise_conv_s8
+      claim: bit_exact
+      holds_with: ['!single_rounding']
+
+  - id: depthwise_conv_s8_to_conv
+    op: depthwise_conv
+    quantization: per_channel
+    dtypes: {input_data: int8, filter_data: int8, bias_data: int32, output_data: int8}
+    layout: {input_data: NHWC, filter_data: 1HWO, output_data: NHWC}
+    entry: arm_depthwise_conv_wrapper_s8
+    routed_by:
+      wrapper: arm_depthwise_conv_wrapper_s8
+      route: dw_wrapper_s8:to_conv
+      requires: [mvei]
+      when: >-
+        input C == 1 and output C > CONVERT_DW_CONV_WITH_ONE_INPUT_CH_AND_OUTPUT_CH_ABOVE_THRESHOLD (8 on armclang,
+        1 otherwise). The wrapper transposes the filter into ctx->buf and calls arm_convolve_wrapper_s8().
+    requires: [mvei]
+    varies_with: [toolchain]
+    buffers:
+      - name: scratch
+        param: ctx
+        size_query:
+          symbol: arm_depthwise_conv_wrapper_s8_get_buffer_size
+          args:
+            dw_conv_params: dw_conv_params
+            input_dims: input_dims
+            filter_dims: filter_dims
+            output_dims: output_dims
+        units: bytes
+        align: 2
+        lifetime: call
+        optional: false
+        note: The convolution scratch followed by the transposed filter.
+      - name: weight_sums
+        param: weight_sum_ctx
+        size_query:
+          symbol: arm_convolve_s8_get_weights_sum_size
+          args: {output_dims: output_dims}
+        units: bytes
+        align: 4
+        lifetime: prepared
+        optional: false
+        note: >-
+          With C_IN == 1 the depthwise sums equal the convolution sums of the transposed filter, which the selected
+          convolution kernel reads.
+    prepare:
+      - symbol: arm_depthwise_convolve_weight_sum
+        args:
+          vector_sum_buf: buffer:weight_sums
+          scratch_buf: null
+          rhs: filter_data
+          dw_conv_params: dw_conv_params
+          input_dims: input_dims
+          filter_dims: filter_dims
+          output_dims: output_dims
+          lhs_offset: dw_conv_params.input_offset
+          bias_data: bias_data
+    declines: []
+    since: 7.24.0
+    numerics:
+      reference: hct_ref:depthwise_conv_s8
+      claim: bit_exact
+      holds_with: ['!single_rounding']
