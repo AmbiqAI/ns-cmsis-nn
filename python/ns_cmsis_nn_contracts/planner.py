@@ -451,14 +451,15 @@ class Planner:
         mult, shift = _int32_array(multipliers, "multipliers"), _int32_array(shifts, "shifts")
         plan = _Plan()
         status = self._lib.arm_nn_plan_fully_connected_per_channel_packed_s8(
-            self._target(target), _FcParams(0, filter_offset, 0, _Activation(-128, 127)),
+            self._target(target), _FcParams(0, _int32(filter_offset, "filter_offset"), 0, _Activation(-128, 127)),
             _PerChannelQuant(mult, shift), dims, plan)
         return self._result(status, plan, "arm_fully_connected_per_channel_packed_s8", None)
 
     def pool_s8(self, target: Target, *, max_pool: bool, input_dims, kernel_hw, output_dims, stride=(1, 1),
                 padding=(0, 0)) -> Plan:
         """kernel_hw, stride and padding are (h, w)."""
-        params = _PoolParams(_Tile(stride[1], stride[0]), _Tile(padding[1], padding[0]), _Activation(-128, 127))
+        (sh, sw), (ph, pw) = _pair(stride, "stride"), _pair(padding, "padding")
+        params = _PoolParams(_Tile(sw, sh), _Tile(pw, ph), _Activation(-128, 127))
         plan = _Plan()
         status = self._lib.arm_nn_plan_pool_s8(
             self._target(target), int(max_pool), params, _dims(input_dims, "input_dims"),
@@ -468,6 +469,8 @@ class Planner:
     def vector_sum_s8(self, data, *, cols: int, rows: int, lhs_offset: int, rhs_offset: int,
                       bias: Optional[Sequence[int]] = None) -> list[int]:
         """arm_vector_sum_s8: per row, bias + lhs_offset * sum(data + rhs_offset) (the library's own code)."""
+        cols, rows = _int32(cols, "cols"), _int32(rows, "rows")
+        lhs_offset, rhs_offset = _int32(lhs_offset, "lhs_offset"), _int32(rhs_offset, "rhs_offset")
         if cols < 1 or rows < 1:
             raise ValueError(f"cols and rows must be positive, got {cols} and {rows}")
         matrix, length = _int8_array(data, "data")

@@ -201,6 +201,33 @@ def test_invalid_depthwise_layers_are_refused(libs, change, status):
 TO_CONV, DW3X3, OPT, DW = range(4)
 
 
+# The selected kernel's own argument limits (ARM_CMSIS_NN_ARG_ERROR on the target) refuse a plan the route accepts.
+# (output - 1) * stride - padding is the generic kernel's first tap index, kept in int16_t; its values are uint16_t.
+@pytest.mark.parametrize("isa", [SCALAR, DSP, MVE])
+@pytest.mark.parametrize("layer, route, statuses", [
+    # 65536 channels route opt: the DSP channelwise kernel counts channels in uint16_t, and without DSP or MVE the
+    # entry runs arm_depthwise_conv_s8(), whose generic kernel takes uint16_t values; only MVE runs it.
+    (dict(c=65536, h=1, w=1, k=(1, 1)), OPT, {SCALAR: E_RANGE, DSP: E_RANGE, MVE: OK}),
+    (dict(c=65535, h=1, w=1, k=(1, 1)), OPT, {SCALAR: OK, DSP: OK, MVE: OK}),
+    # 257x257 taps pass uint16 as a count of channels but not as kw * kh.
+    (dict(c=8, h=257, w=257, k=(257, 257)), OPT, {SCALAR: OK, DSP: E_RANGE, MVE: OK}),
+    # Generic route (N = 2): a 32769-wide output puts the first tap index at 32768 on every build.
+    (dict(c=1, h=1, w=32769, k=(1, 1), n=2), DW, {SCALAR: E_RANGE, DSP: E_RANGE, MVE: E_RANGE}),
+    (dict(c=1, h=1, w=32768, k=(1, 1), n=2), DW, {SCALAR: OK, DSP: OK, MVE: OK}),
+    # Generic route past uint16_t in a channel count...
+    (dict(c=65536, h=1, w=1, k=(1, 1), n=2), DW, {SCALAR: E_RANGE, DSP: E_RANGE, MVE: E_RANGE}),
+    # ...unless ch_mult is a multiple of 4 with N = 1 and no dilation: that kernel has no uint16 values.
+    (dict(c=65536, ch_mult=4, h=1, w=1, k=(1, 1)), DW, {SCALAR: OK, DSP: OK, MVE: OK}),
+    (dict(c=65536, ch_mult=4, h=1, w=1, k=(1, 1), n=2), DW, {SCALAR: E_RANGE, DSP: E_RANGE, MVE: E_RANGE}),
+])
+def test_depthwise_plan_applies_the_selected_kernels_limits(libs, isa, layer, route, statuses):
+    params, i, f, o = dw_layer(**layer)
+    status, plan = plan_dw(libs[GCC], target(isa), params, i, f, o)
+    assert status == statuses[isa]
+    if status == OK:
+        assert plan.route == route
+
+
 @pytest.mark.parametrize("layer, gcc_routes, armclang_mve", [
     (dict(c=1, ch_mult=2), {SCALAR: DW, DSP: DW, MVE: TO_CONV}, DW),
     (dict(c=1, ch_mult=9), {SCALAR: DW, DSP: DW, MVE: TO_CONV}, TO_CONV),
@@ -347,6 +374,17 @@ def test_pooling_refusals(libs):
     assert plan_pool(lib, target(), 0, params, dims(1, 4, 4, 3), dims(1, 0, 2, 1), dims(1, 3, 3, 3))[0] == E_SHAPE
     bad_stride = PoolParams(Tile(0, 1), Tile(0, 0), Activation(-128, 127))
     assert plan_pool(lib, target(), 0, bad_stride, dims(1, 4, 4, 3), dims(1, 2, 2, 1), dims(1, 3, 3, 3))[0] == E_SHAPE
+    # Both kernels reject a window that misses the input: the second 1x1 window of a 1-wide input starts past it.
+    for max_pool in (0, 1):
+        assert plan_pool(lib, target(), max_pool, params, dims(1, 1, 1, 1), dims(1, 1, 1, 1), dims(1, 1, 2, 1))[0] \
+            == E_SHAPE
+        assert plan_pool(lib, target(), max_pool, params, dims(1, 1, 1, 1), dims(1, 1, 1, 1), dims(1, 2, 1, 1))[0] \
+            == E_SHAPE
+        assert plan_pool(lib, target(), max_pool, params, dims(1, 1, 1, 1), dims(1, 1, 1, 1), dims(1, 1, 1, 1))[0] \
+            == OK
+    # A padding wider than the window leaves the first window empty.
+    padded = PoolParams(Tile(1, 1), Tile(2, 0), Activation(-128, 127))
+    assert plan_pool(lib, target(), 0, padded, dims(1, 4, 4, 3), dims(1, 2, 2, 1), dims(1, 3, 3, 3))[0] == E_SHAPE
     # The DSP scratch is C * 4 bytes; a depth whose byte count passes int32 is the sizers' -1, reported as a range error.
     wide = (1 << 29) + 1
     assert plan_pool(lib, target(DSP), 0, params, dims(1, 1, 1, wide), dims(1, 1, 1, 1), dims(1, 1, 1, wide))[0] \
@@ -410,6 +448,15 @@ def test_depthwise_opt_plan_reports_the_route_and_scratch(libs, toolchain, isa, 
         assert plan.route_id == (b"dw_opt_s8:planar" if planar else b"dw_opt_s8:channelwise")
         assert plan.ctx_bytes == scratch and plan.prepared_bytes == 0
         assert plan.ctx_role == (CTX_SCRATCH if scratch else CTX_NONE)
+
+
+@pytest.mark.parametrize("isa, status", [(SCALAR, E_RANGE), (DSP, OK), (MVE, OK)])
+def test_depthwise_opt_scalar_channelwise_is_the_generic_kernel(libs, isa, status):
+    """Without DSP or MVE arm_depthwise_conv_s8_opt() runs arm_depthwise_conv_s8(), whose tap index is int16_t."""
+    params, i, f, o = dw_layer(c=1, h=1, w=32769, k=(1, 1))
+    assert plan_dw_opt(libs[GCC], target(isa), params, i, f, o, 0)[0] == status
+    params, i, f, o = dw_layer(c=1, h=1, w=32768, k=(1, 1))
+    assert plan_dw_opt(libs[GCC], target(isa), params, i, f, o, 0)[0] == OK
 
 
 @pytest.mark.parametrize("isa", [MVE, DSP])

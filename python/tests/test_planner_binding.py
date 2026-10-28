@@ -178,6 +178,29 @@ def test_packed_plan_matches_the_stream(planner):
         multipliers=[1 << 30] * 16, shifts=[-1] * 16)
 
 
+@pytest.mark.parametrize("kwargs, match", [
+    (dict(filter_offset=2**32), "filter_offset"),
+    (dict(filter_offset=1.0), "filter_offset"),
+])
+def test_packed_arguments_checked_before_the_call(planner, kwargs, match):
+    args = dict(filter_dims=(8, 1, 1, 4), filter_offset=0, multipliers=[1 << 30] * 4, shifts=[-1] * 4)
+    args.update(kwargs)
+    with pytest.raises(ValueError, match=match):
+        planner.fully_connected_per_channel_packed_s8(Target("mve"), **args)
+
+
+@pytest.mark.parametrize("kwargs, match", [
+    (dict(stride=(1, 2**32 + 1)), "stride"),
+    (dict(stride=(2,)), "stride"),
+    (dict(padding=(2**31, 0)), "padding"),
+])
+def test_pool_arguments_checked_before_the_call(planner, kwargs, match):
+    args = dict(max_pool=True, input_dims=(1, 8, 8, 16), kernel_hw=(2, 2), output_dims=(1, 4, 4, 16), stride=(2, 2))
+    args.update(kwargs)
+    with pytest.raises(ValueError, match=match):
+        planner.pool_s8(Target("mve"), **args)
+
+
 @pytest.mark.parametrize("target, filter_offset, shifts, status", [
     (Target("scalar"), 0, [-1] * 4, "unsupported"),
     (Target("dsp"), 0, [-1] * 4, "unsupported"),
@@ -203,6 +226,9 @@ def test_packed_refusals(planner, target, filter_offset, shifts, status):
     (dict(input_dims=(1, 65536, 65536, 16)), "range"),
     (dict(input_dims=(16, 2**30, 2**30, 16)), "range"),  # element count wraps int64 to 2**64 == 0
     (dict(output_dims=(1, 2**30, 2**30, 2**20 + 16)), "range"),  # wraps to a small positive count
+    # the generic kernel's int16_t first tap index: (output - 1) * stride - padding
+    (dict(input_dims=(2, 1, 32769, 1), filter_dims=(1, 1, 1, 1), output_dims=(2, 1, 32769, 1), padding=(0, 0)),
+     "range"),
 ])
 def test_layer_refusals(planner, change, status):
     layer = dict(DW_GRID[0], **change)
@@ -240,11 +266,18 @@ def test_vector_sum_matches_its_definition(planner, cols, rows, lhs_offset, rhs_
     (dict(data=[1, 2, 128], cols=3, rows=1), "int8"),
     (dict(data=[1, 2, 3], cols=3, rows=1, bias=[1, 2]), "bias"),
     (dict(data=[1, 2, 3], cols=3, rows=1, bias=[2**31]), "int32"),
+    (dict(data=[1, 2, 3], cols=2**32 + 3, rows=1), "cols"),
+    (dict(data=[1, 2, 3], cols=3, rows=2**32 + 1), "rows"),
+    (dict(data=[1, 2, 3], cols=3, rows=1, lhs_offset=2**32 + 1), "lhs_offset"),
+    (dict(data=[1, 2, 3], cols=3, rows=1, rhs_offset=2**32), "rhs_offset"),
+    (dict(data=[1, 2, 3], cols=3, rows=1, rhs_offset=True), "rhs_offset"),
 ])
 def test_vector_sum_refusals(planner, kwargs, match):
     kwargs.setdefault("bias", None)
+    kwargs.setdefault("lhs_offset", 0)
+    kwargs.setdefault("rhs_offset", 0)
     with pytest.raises(ValueError, match=match):
-        planner.vector_sum_s8(lhs_offset=0, rhs_offset=0, **kwargs)
+        planner.vector_sum_s8(**kwargs)
 
 
 @pytest.mark.parametrize("kwargs, error, match", [
@@ -347,6 +380,25 @@ def test_dw_opt_plan_at_the_plane_boundary(planner):
     assert planner.depthwise_conv_s8_opt(Target("mve"), ctx_size=1 << 20, **wide).route == "dw_opt_s8:channelwise"
     narrow = dict(input_dims=(1, 1, 464, 4), filter_dims=(1, 1, 1, 4), output_dims=(1, 1, 464, 4))
     assert planner.depthwise_conv_s8_opt(Target("mve"), ctx_size=1 << 20, **narrow).route == "dw_opt_s8:planar"
+
+
+def test_dsp_channelwise_counts_channels_in_uint16(planner):
+    layer = dict(input_dims=(1, 1, 1, 65536), filter_dims=(1, 1, 1, 65536), output_dims=(1, 1, 1, 65536))
+    with pytest.raises(PlanRefused) as refused:
+        planner.depthwise_conv_wrapper_s8(Target("dsp"), ch_mult=1, **layer)
+    assert refused.value.status == "range"
+    with pytest.raises(PlanRefused) as refused:
+        planner.depthwise_conv_s8_opt(Target("dsp"), ctx_size=0, **layer)
+    assert refused.value.status == "range"
+    assert planner.depthwise_conv_wrapper_s8(Target("mve"), ch_mult=1, **layer).kernel == "arm_depthwise_conv_s8_opt"
+
+
+def test_pool_window_must_overlap_the_input(planner):
+    for max_pool in (False, True):
+        with pytest.raises(PlanRefused) as refused:
+            planner.pool_s8(Target("mve"), max_pool=max_pool, input_dims=(1, 1, 1, 1), kernel_hw=(1, 1),
+                            output_dims=(1, 1, 2, 1))
+        assert refused.value.status == "shape"
 
 
 @pytest.mark.parametrize("change, status", [

@@ -14,6 +14,7 @@
 
 #include "Internal/arm_nn_compiler.h"
 #include "Internal/arm_nn_dispatch.h"
+#include "Internal/arm_nn_pool_window_common.h"
 #include "arm_nn_plan_internal.h"
 #include "arm_nnfunctions.h"
 #include "arm_nnsupportfunctions.h"
@@ -98,6 +99,50 @@ static arm_nn_plan_status check_dw_layer(const cmsis_nn_dw_conv_params *dw_conv_
     return ARM_NN_PLAN_OK;
 }
 
+/* The argument limits a kernel enforces beyond its wrapper's route selection (ARM_CMSIS_NN_ARG_ERROR on the target),
+   so a plan is written only for a layer the selected kernel runs. */
+
+/* arm_depthwise_conv_s8(): its ch_mult-by-4 kernel has no limits; the generic kernel takes every value as uint16_t
+   and keeps the first tap index in int16_t. */
+static arm_nn_plan_status check_dw_generic_limits(const cmsis_nn_dw_conv_params *dw_conv_params,
+                                                  const cmsis_nn_dims *input_dims,
+                                                  const cmsis_nn_dims *filter_dims,
+                                                  const cmsis_nn_dims *output_dims)
+{
+    if (dw_conv_params->ch_mult % 4 == 0 && input_dims->n == 1 && dw_conv_params->dilation.w == 1 &&
+        dw_conv_params->dilation.h == 1)
+    {
+        return ARM_NN_PLAN_OK;
+    }
+    if (arm_nn_depthwise_conv_s16_args_invalid(dw_conv_params, input_dims, filter_dims, output_dims) ||
+        arm_nn_depthwise_s16_tap_index_invalid(dw_conv_params, output_dims))
+    {
+        return ARM_NN_PLAN_E_RANGE;
+    }
+    return ARM_NN_PLAN_OK;
+}
+
+/* arm_depthwise_conv_s8_opt()'s channelwise path: the DSP kernel counts channels and taps in uint16_t; the scalar
+   build has no kernel of its own and runs arm_depthwise_conv_s8(). */
+static arm_nn_plan_status check_dw_opt_channelwise_limits(const arm_nn_plan_target *target,
+                                                          const cmsis_nn_dw_conv_params *dw_conv_params,
+                                                          const cmsis_nn_dims *input_dims,
+                                                          const cmsis_nn_dims *filter_dims,
+                                                          const cmsis_nn_dims *output_dims)
+{
+    switch (target->isa)
+    {
+    case ARM_NN_PLAN_ISA_MVE:
+        return ARM_NN_PLAN_OK;
+    case ARM_NN_PLAN_ISA_DSP:
+        return (input_dims->c > UINT16_MAX || (int64_t)filter_dims->w * filter_dims->h > UINT16_MAX)
+            ? ARM_NN_PLAN_E_RANGE
+            : ARM_NN_PLAN_OK;
+    default:
+        return check_dw_generic_limits(dw_conv_params, input_dims, filter_dims, output_dims);
+    }
+}
+
 /* A scratch-size query's answer: a negative one is the sizers' out-of-range sentinel. */
 static arm_nn_plan_status write_plan(arm_nn_plan_result *plan,
                                      const char *kernel,
@@ -169,8 +214,21 @@ arm_nn_plan_status arm_nn_plan_depthwise_conv_wrapper_s8(const arm_nn_plan_targe
         [ARM_NN_DW_CONV_S8_ROUTE_OPT] = "dw_wrapper_s8:opt",
         [ARM_NN_DW_CONV_S8_ROUTE_GENERIC] = "dw_wrapper_s8:generic",
     };
-    if (route < 0 || route > ARM_NN_DW_CONV_S8_ROUTE_GENERIC)
+    switch (route)
     {
+    case ARM_NN_DW_CONV_S8_ROUTE_OPT:
+        /* Within the wrapper's gate the planar path never declines, so a channelwise limit is the only refusal. */
+        PLAN_TRY(check_dw_opt_channelwise_limits(target, dw_conv_params, input_dims, filter_dims, output_dims));
+        break;
+    case ARM_NN_DW_CONV_S8_ROUTE_GENERIC:
+        PLAN_TRY(check_dw_generic_limits(dw_conv_params, input_dims, filter_dims, output_dims));
+        break;
+    case ARM_NN_DW_CONV_S8_ROUTE_TO_CONV:
+    case ARM_NN_DW_CONV_S8_ROUTE_3X3:
+        /* to_conv declines only an unsizable layer, which write_plan() reports; the selector already holds the 3x3
+           kernel's limits. */
+        break;
+    default:
         return ARM_NN_PLAN_E_UNSUPPORTED;
     }
     return write_plan(plan, kernels[route], route_ids[route], route, ctx_bytes, ARM_NN_PLAN_CTX_SCRATCH, 0);
@@ -234,17 +292,12 @@ arm_nn_plan_status arm_nn_plan_depthwise_conv_s8_opt(const arm_nn_plan_target *t
     {
         return ARM_NN_PLAN_E_UNSUPPORTED;
     }
-    /* The channelwise path rejects a declared ctx->size below its scratch; the DSP path also counts channels and taps
-       in uint16_t. */
+    /* The channelwise path rejects a declared ctx->size below its scratch, then applies its kernel's limits. */
     if (ctx_size != 0 && ctx_size < ctx_bytes)
     {
         return ARM_NN_PLAN_E_RANGE;
     }
-    if (target->isa == ARM_NN_PLAN_ISA_DSP &&
-        (input_dims->c > UINT16_MAX || (int64_t)filter_dims->w * filter_dims->h > UINT16_MAX))
-    {
-        return ARM_NN_PLAN_E_RANGE;
-    }
+    PLAN_TRY(check_dw_opt_channelwise_limits(target, dw_conv_params, input_dims, filter_dims, output_dims));
     return write_plan(plan,
                       "arm_depthwise_conv_s8_opt_channelwise",
                       "dw_opt_s8:channelwise",
@@ -357,6 +410,14 @@ arm_nn_plan_status arm_nn_plan_pool_s8(const arm_nn_plan_target *target,
     PLAN_TRY(check_dims(output_dims));
     PLAN_TRY(check_window(&pool_params->stride, &pool_params->padding, NULL));
     if (filter_dims->h < 1 || filter_dims->w < 1 || output_dims->c != input_dims->c || output_dims->n != input_dims->n)
+    {
+        return ARM_NN_PLAN_E_SHAPE;
+    }
+    /* Both kernels reject a window that misses the input or a window bound past int32_t. */
+    if (!arm_nn_pool_axis_valid(
+            output_dims->h, pool_params->stride.h, pool_params->padding.h, filter_dims->h, input_dims->h) ||
+        !arm_nn_pool_axis_valid(
+            output_dims->w, pool_params->stride.w, pool_params->padding.w, filter_dims->w, input_dims->w))
     {
         return ARM_NN_PLAN_E_SHAPE;
     }
