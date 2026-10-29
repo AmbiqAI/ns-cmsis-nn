@@ -1370,7 +1370,9 @@ arm_cmsis_nn_status arm_nn_mat_mult_nt_t_f16_acc16(const float16_t *__RESTRICT l
  *       optimization level on the gated toolchains, including the shipped -Ofast: on non-MVE builds the output
  *       clamp is the bit-classified scalar clamp of #380, and on MVE builds arm_nn_clamp_propagate_nan_mve_f16
  *       restores the NaN lanes that vmaxnmq/vminnmq suppress. Only the NaN-ness is guaranteed, not the payload.
- *       This holds for the `_acc16` and `_precise` entries too.
+ *       An infinite accumulator saturates to the activation bounds, and every other result keeps the bits of the
+ *       existing clamp on its own leg, the sign of zero included. This holds for the `_acc16` and `_precise`
+ *       entries too.
  *
  * @note Accumulation width per leg: the MVE leg accumulates blockwise (AmbiqAI/ns-cmsis-nn#586): one
  *       lane per output column, per-k, the bias opening the first block; every 32 k the float16

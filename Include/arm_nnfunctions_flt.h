@@ -3130,6 +3130,13 @@ arm_cmsis_nn_status arm_depthwise_conv_cin1_nhwc_f16(const cmsis_nn_context *ctx
  *
  * @note The one-input-channel route, accumulating as arm_depthwise_conv_f16_acc16() does; same build, gate and
  *       ctx conditions as arm_depthwise_conv_cin1_nhwc_f16.
+ *
+ * @note NaN (ARM_NN_HAS_MAT_MULT_FLT_NAN_PROPAGATION): where this entry's route runs a float matmul product
+ *       (on MVE builds, arm_nn_mat_mult_nt_n_packed_f16_acc16), the product's clamp passes a NaN accumulator
+ *       through on every leg: a NaN input, weight or bias, or an inf * 0 or inf - inf in the dot product, yields
+ *       NaN at that output. Only the NaN-ness is guaranteed, not the payload (Helium arithmetic returns the default
+ *       NaN). An infinite accumulator saturates to the activation bounds. Routes that clamp on their own keep their
+ *       documented behaviour.
  */
 arm_cmsis_nn_status arm_depthwise_conv_cin1_nhwc_f16_acc16(const cmsis_nn_context *ctx,
                                                            const cmsis_nn_dw_conv_params_f16 *dw_conv_params,
