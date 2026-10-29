@@ -4,13 +4,18 @@
 
 float32: inputs and their float64 exponential. float16: inputs and the binary16 nearest
 their exponential. Both references are exp(x) evaluated in 60-digit decimal arithmetic
-and rounded once, so the data depend on no libm and are the same on every host. --check
-regenerates in memory and exits 1 if a checked-in header differs.
+and rounded once, so the data depend on no libm and are the same on every host.
+
+Each input also carries the exact bits of the kernel's scalar body, from port_exp_f32
+below: the body's operations in exact rational arithmetic, each rounded once to float32
+as the C operation rounds. Those pin the body bit for bit, which the float64 bound
+cannot. --check regenerates in memory and exits 1 if a checked-in header differs.
 """
 import argparse
 import struct
 import sys
 from decimal import Decimal, getcontext
+from fractions import Fraction
 from pathlib import Path
 
 getcontext().prec = 60
@@ -82,6 +87,93 @@ def f32_inputs():
     return unique
 
 
+def round_f32(value):
+    """Bits of the float32 nearest to a rational, ties to even; subnormals kept, overflow to +inf."""
+    sign = 0x80000000 if value < 0 else 0
+    a = abs(value)
+    if a == 0:
+        return sign
+    exponent = a.numerator.bit_length() - a.denominator.bit_length()
+    if Fraction(2) ** exponent > a:
+        exponent -= 1
+    exponent = max(exponent, -126)
+    quantum = Fraction(2) ** (exponent - 23)
+    q = a / quantum
+    whole = q.numerator // q.denominator
+    rest = q - whole
+    if rest > Fraction(1, 2) or (rest == Fraction(1, 2) and whole % 2):
+        whole += 1
+    if whole == 1 << 24:
+        whole, exponent = 1 << 23, exponent + 1
+    if exponent > 127:
+        return sign | 0x7F800000
+    if whole < 1 << 23:
+        return sign | whole
+    return sign | ((exponent + 127) << 23) | (whole - (1 << 23))
+
+
+def exact_f32(bits):
+    """The finite float32 with these bits as an exact rational."""
+    magnitude = bits & 0x7FFFFFFF
+    exponent = magnitude >> 23
+    mantissa = magnitude & 0x7FFFFF
+    value = Fraction(mantissa, 1 << 23) * Fraction(2) ** -126 if exponent == 0 else \
+        Fraction((1 << 23) | mantissa, 1 << 23) * Fraction(2) ** (exponent - 127)
+    return -value if bits & 0x80000000 else value
+
+
+def literal_f32(text):
+    """A C float literal, rounded once from its decimal value as the compiler does."""
+    return exact_f32(round_f32(Fraction(Decimal(text))))
+
+
+def fmaf(a, b, c):
+    return exact_f32(round_f32(a * b + c))
+
+
+LOG2E = literal_f32("1.44269502")
+LN2_HI = literal_f32("0.693145752")
+LN2_LO = literal_f32("1.42860677e-06")
+COEFFICIENTS = [literal_f32(c) for c in ("0.00138427224", "0.00837495551", "0.0416680574", "0.166664213", "0.49999994")]
+
+
+def port_exp_f32(bits):
+    """Bits arm_nn_exp_scalar_f32 returns for the float32 with these bits, step for step."""
+    if (bits & 0x7FFFFFFF) > 0x7F800000:
+        return bits | 0x00400000
+    if bits > 0xC2CFF0A4:
+        return 0
+    if bits < 0x80000000 and bits > 0x42B17217:
+        return 0x7F800000
+    x = exact_f32(bits)
+    round_half = Fraction(-1, 2) if bits & 0x80000000 else Fraction(1, 2)
+    t = fmaf(x, LOG2E, round_half)
+    n = int(t)  # truncation toward zero, as the C cast
+    nf = Fraction(n)
+    r = fmaf(nf, -LN2_HI, x)
+    r = fmaf(nf, -LN2_LO, r)
+    c6, c5, c4, c3, c2 = COEFFICIENTS
+    p = fmaf(c6, r, c5)
+    for c in (c4, c3, c2, Fraction(1), Fraction(1)):
+        p = fmaf(p, r, c)
+    half = abs(n) // 2 * (1 if n >= 0 else -1)
+    scaled = (round_f32(p) + (half << 23)) & 0xFFFFFFFF
+    second = ((n - half + 127) << 23) & 0xFFFFFFFF
+    return round_f32(exact_f32(scaled) * exact_f32(second))
+
+
+def port_exp_f16(bits):
+    """Bits arm_nn_exp_f16 returns for the binary16 with these bits: NaN quieted, else the
+    body at the widened input rounded once to binary16."""
+    if (bits & 0x7FFF) > 0x7C00:
+        return bits | 0x0200
+    x = f16_value(bits)
+    y = port_exp_f32(f32_bits(x))  # binary16 widens to float32 exactly
+    if y == 0x7F800000:
+        return 0x7C00
+    return round_f16(Decimal(exact_f32(y).numerator) / Decimal(exact_f32(y).denominator))
+
+
 def rows(values, fmt, per_line):
     lines = []
     for start in range(0, len(values), per_line):
@@ -112,6 +204,9 @@ def f32_header():
     lines += rows(inputs, "0x{:08X}u", 8)
     lines += ["};", "", "static const uint64_t exp_f32_reference_bits[EXP_F32_CASES] = {"]
     lines += rows(references, "0x{:016X}ull", 4)
+    lines += ["};", "", "/* The exact bits of the scalar body, arm_nn_exp_scalar_f32, for each input. */",
+              "static const uint32_t exp_f32_exact_bits[EXP_F32_CASES] = {"]
+    lines += rows([port_exp_f32(bits) for bits in inputs], "0x{:08X}u", 8)
     lines += ["};", ""]
     return "\n".join(lines)
 
@@ -201,6 +296,9 @@ def f16_header():
     lines += rows(inputs, "0x{:04X}u", 10)
     lines += ["};", "", "static const uint16_t exp_f16_reference_bits[EXP_F16_CASES] = {"]
     lines += rows(references, "0x{:04X}u", 10)
+    lines += ["};", "", "/* The exact bits arm_nn_exp_f16 returns for each input. */",
+              "static const uint16_t exp_f16_exact_bits[EXP_F16_CASES] = {"]
+    lines += rows([port_exp_f16(bits) for bits in inputs], "0x{:04X}u", 10)
     lines += ["};", ""]
     return "\n".join(lines)
 

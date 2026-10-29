@@ -407,3 +407,52 @@ void exp_f32_tiers_arm_nn_exp_f32(void)
     TEST_ASSERT_EQUAL_UINT32(0, flushed);
     #endif
 }
+
+// True where the scalar FPU flushes a subnormal result (FPSCR.FZ, or a host's FTZ), probed
+// at run time; the Helium body is not consulted.
+static int exp_f32_scalar_fpu_flushes(void)
+{
+    volatile float32_t smallest_normal = 0x1.0p-126f;
+    volatile float32_t half = 0.5f;
+    return exp_f32_bits(smallest_normal * half) == 0;
+}
+
+/*
+ * Every generated input against the exact bits of the scalar body, which the generator
+ * computes from a port of it in exact arithmetic: the scalar body itself on every leg,
+ * and the entry, which may differ only by the Helium leg's flush of a subnormal result
+ * to +0. The float64 bound cannot see a one-ulp change in the body; this case can.
+ */
+void exp_f32_exact_bits_arm_nn_exp_f32(void)
+{
+    static float32_t input[EXP_F32_CASES];
+    static float32_t output[EXP_F32_CASES];
+    const int scalar_flushes = exp_f32_scalar_fpu_flushes();
+    char msg[64];
+
+    memcpy(input, exp_f32_input_bits, sizeof(input));
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, arm_nn_exp_f32(input, output, EXP_F32_CASES));
+    for (int32_t i = 0; i < EXP_F32_CASES; ++i)
+    {
+        const uint32_t expected = exp_f32_exact_bits[i];
+        const int subnormal = expected != 0 && expected < UINT32_C(0x00800000);
+        uint32_t entry_expected = expected;
+
+        snprintf(msg, sizeof(msg), "input 0x%08lx", (unsigned long)exp_f32_input_bits[i]);
+        TEST_ASSERT_EQUAL_HEX32_MESSAGE(subnormal && scalar_flushes ? 0 : expected,
+                                        exp_f32_scalar_reference(exp_f32_input_bits[i]),
+                                        msg);
+    #if defined(ARM_NN_EXP_MVE_F32)
+        if (subnormal)
+        {
+            entry_expected = 0;
+        }
+    #else
+        if (subnormal && scalar_flushes)
+        {
+            entry_expected = 0;
+        }
+    #endif
+        TEST_ASSERT_EQUAL_HEX32_MESSAGE(entry_expected, exp_f32_bits(output[i]), msg);
+    }
+}

@@ -280,3 +280,14 @@ void exp_f16_fp_controls_arm_nn_exp_f16(void)
     }
 #endif
 }
+
+// Every generated input against the exact bits arm_nn_exp_f16 returns, which the generator
+// computes from a port of the scalar body in exact arithmetic, rounded once to binary16.
+void exp_f16_exact_bits_arm_nn_exp_f16(void)
+{
+    static uint16_t output[EXP_F16_CASES];
+
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
+                      arm_nn_exp_f16((const float16_t *)exp_f16_input_bits, (float16_t *)output, EXP_F16_CASES));
+    TEST_ASSERT_EQUAL_HEX16_ARRAY(exp_f16_exact_bits, output, EXP_F16_CASES);
+}

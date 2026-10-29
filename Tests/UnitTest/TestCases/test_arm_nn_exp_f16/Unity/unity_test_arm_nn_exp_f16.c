@@ -36,3 +36,4 @@ void test_exp_f16_arg_error_arm_nn_exp_f16(void) { exp_f16_arg_error_arm_nn_exp_
 void test_exp_f16_in_place_arm_nn_exp_f16(void) { exp_f16_in_place_arm_nn_exp_f16(); }
 void test_exp_f16_guards_arm_nn_exp_f16(void) { exp_f16_guards_arm_nn_exp_f16(); }
 void test_exp_f16_fp_controls_arm_nn_exp_f16(void) { exp_f16_fp_controls_arm_nn_exp_f16(); }
+void test_exp_f16_exact_bits_arm_nn_exp_f16(void) { exp_f16_exact_bits_arm_nn_exp_f16(); }
