@@ -156,6 +156,7 @@ function(_ns_cmsis_nn_group_def group out_subdir out_patterns out_extras)
                          "arm_reduce_sum_f32.c"
                          "arm_nn_sqrt_f32.c"
                          "arm_nn_exp_f32.c"
+                         "arm_topk_v2_f32.c"
                          "arm_rsqrt_f32.c")
     endif()
     if(ARM_NN_ENABLE_F16)
@@ -184,6 +185,7 @@ function(_ns_cmsis_nn_group_def group out_subdir out_patterns out_extras)
                          "arm_reduce_sum_f16.c"
                          "arm_nn_sqrt_f16.c"
                          "arm_nn_exp_f16.c"
+                         "arm_topk_v2_f16.c"
                          "arm_rsqrt_f16.c")
     endif()
   elseif(group STREQUAL "comparison")

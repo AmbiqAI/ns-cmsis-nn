@@ -2585,6 +2585,23 @@ arm_argmax_f32(const float32_t *input_data, const cmsis_nn_dims *input_dims, int
 
 /**
  * @ingroup Reduction
+ * @brief Selects the k largest elements of each innermost line of a f32 tensor (LiteRT TOPK_V2).
+ *
+ * @param[in] input_data Input tensor, NHWC.
+ * @param[in] input_dims Four NHWC extents; the innermost, c, is reduced.
+ * @param[in] k Number of elements selected per line, in [0,c].
+ * @param[out] output_values The selected elements' bits, k per line.
+ * @param[out] output_indices The selected elements' indices in [0,c), k per line.
+ * @return ARM_CMSIS_NN_SUCCESS or ARM_CMSIS_NN_ARG_ERROR.
+ */
+arm_cmsis_nn_status arm_topk_v2_f32(const float32_t *input_data,
+                                    const cmsis_nn_dims *input_dims,
+                                    int32_t k,
+                                    float32_t *output_values,
+                                    int32_t *output_indices);
+
+/**
+ * @ingroup Reduction
  * @brief Reduces a f32 NHWC tensor to its maximum along a binary axis mask.
  *
  * Values are selected without floating-point arithmetic, accumulation or conversion.
@@ -5120,6 +5137,23 @@ arm_argmin_f16(const float16_t *input_data, const cmsis_nn_dims *input_dims, int
  */
 arm_cmsis_nn_status
 arm_argmax_f16(const float16_t *input_data, const cmsis_nn_dims *input_dims, int32_t axis, int32_t *output_data);
+
+/**
+ * @ingroup Reduction
+ * @brief Selects the k largest elements of each innermost line of a f16 tensor (LiteRT TOPK_V2).
+ *
+ * @param[in] input_data Input tensor, NHWC.
+ * @param[in] input_dims Four NHWC extents; the innermost, c, is reduced.
+ * @param[in] k Number of elements selected per line, in [0,c].
+ * @param[out] output_values The selected elements' bits, k per line.
+ * @param[out] output_indices The selected elements' indices in [0,c), k per line.
+ * @return ARM_CMSIS_NN_SUCCESS or ARM_CMSIS_NN_ARG_ERROR.
+ */
+arm_cmsis_nn_status arm_topk_v2_f16(const float16_t *input_data,
+                                    const cmsis_nn_dims *input_dims,
+                                    int32_t k,
+                                    float16_t *output_values,
+                                    int32_t *output_indices);
 
 /**
  * @ingroup Reduction

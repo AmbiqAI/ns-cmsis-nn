@@ -28,6 +28,7 @@ SUITE_SETS = {
         "test_arm_reduce_min_tflite_f16", "test_arm_prelu_f32", "test_arm_dequantize_f16_bits_f32",
         "test_arm_elementwise_squared_difference_f32", "test_arm_depthwise_conv_f16",
         "test_arm_nn_exp_f32", "test_arm_nn_exp_f16",
+        "test_arm_topk_v2_f32", "test_arm_topk_v2_f16",
     ),
 }
 
