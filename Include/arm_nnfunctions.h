@@ -53,6 +53,12 @@
 /** arm_nn_exp_f16, the elementwise float16 exponential, is available. */
 #define ARM_NN_HAS_EXP_F16 1
 
+/** arm_topk_v2_f32, the LiteRT TOPK_V2 builtin over the innermost axis, is available. */
+#define ARM_NN_HAS_TOPK_V2_F32 1
+
+/** arm_topk_v2_f16, the LiteRT TOPK_V2 builtin over the innermost axis, is available. */
+#define ARM_NN_HAS_TOPK_V2_F16 1
+
 #include "arm_nn_math_types.h"
 #include "arm_nn_types.h"
 

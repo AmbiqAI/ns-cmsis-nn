@@ -7,7 +7,7 @@
  * See LICENSE (root) or LICENSES/LicenseRef-Ambiq-Apollo-SDK.txt for the full text.
  */
 
-#include "arm_nnfunctions.h"
+#include "Internal/arm_nn_topk_flt.h"
 
 #if ARM_NN_ENABLE_F32
 
@@ -18,12 +18,7 @@ arm_cmsis_nn_status arm_topk_v2_f32(const float32_t *input_data,
                                     float32_t *output_values,
                                     int32_t *output_indices)
 {
-    (void)input_data;
-    (void)input_dims;
-    (void)k;
-    (void)output_values;
-    (void)output_indices;
-    return ARM_CMSIS_NN_NO_IMPL_ERROR;
+    return arm_nn_topk(input_data, input_dims, k, output_values, output_indices, 4);
 }
 
 #endif

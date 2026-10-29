@@ -2587,6 +2587,38 @@ arm_argmax_f32(const float32_t *input_data, const cmsis_nn_dims *input_dims, int
  * @ingroup Reduction
  * @brief Selects the k largest elements of each innermost line of a f32 tensor (LiteRT TOPK_V2).
  *
+ * The LiteRT TOPK_V2 builtin over the innermost axis. The input is contiguous NHWC; each of
+ * the n * h * w lines of c elements yields its first k elements in the order below, and line
+ * r writes elements [r * k, (r + 1) * k) of both outputs. Logical ranks and output metadata
+ * are the caller's responsibility.
+ *
+ * Order: descending by value; equal values by ascending index, so +0 and -0 are equal and
+ * keep their index order; every NaN, whatever its sign, payload or signalling bit, after
+ * every number, -inf included; NaNs among themselves by ascending index. With k = 1 the index
+ * is arm_argmax_f32's over axis 3 on every input, an all-NaN line included (index 0).
+ *
+ * This order is the one ai_edge_litert 2.2.0's TOPK_V2 was observed to keep on eight-wide
+ * float32 rows at k = 1, 3 and 8 (all equal, ties at and across the k-th place, both zeros,
+ * NaNs first, in the middle and in the majority, -inf rows), indices and value bits alike;
+ * that observation is the compatibility this entry keeps.
+ *
+ * Each value written is the input's bits at the selected index, copied, never computed:
+ * -0 stays -0 and a NaN keeps its sign and payload, signalling ones unquieted. Selection uses
+ * integer keys on the raw bits (the arg reductions' arm_nn_arg_key); no floating-point
+ * instruction touches the data, so the result is independent of FPSCR (rounding, FZ, FZ16,
+ * DN), raises no cumulative exception flag, and does not depend on the optimiser.
+ *
+ * Arguments: NULL input_dims, any negative extent, k < 0, k > c, or an input, value or index
+ * byte count above INT32_MAX return ARM_CMSIS_NN_ARG_ERROR. When n * h * w * k is 0 (k = 0
+ * or a zero extent) the call returns ARM_CMSIS_NN_SUCCESS, writes nothing and accepts NULL
+ * data pointers; otherwise a NULL input_data, output_values or output_indices is
+ * ARM_CMSIS_NN_ARG_ERROR. Every detected error precedes the first write. The outputs must
+ * not overlap the input, each other or the metadata; if they do, the result is unspecified.
+ *
+ * No scratch and no state: each line is an insertion into the caller's outputs in index
+ * order, which hold the line's best so far, O(c * k) work per line. The body is one scalar
+ * loop on every backend; there is no Helium path.
+ *
  * @param[in] input_data Input tensor, NHWC.
  * @param[in] input_dims Four NHWC extents; the innermost, c, is reduced.
  * @param[in] k Number of elements selected per line, in [0,c].
@@ -5141,6 +5173,36 @@ arm_argmax_f16(const float16_t *input_data, const cmsis_nn_dims *input_dims, int
 /**
  * @ingroup Reduction
  * @brief Selects the k largest elements of each innermost line of a f16 tensor (LiteRT TOPK_V2).
+ *
+ * The LiteRT TOPK_V2 builtin over the innermost axis. The input is contiguous NHWC; each of
+ * the n * h * w lines of c elements yields its first k elements in the order below, and line
+ * r writes elements [r * k, (r + 1) * k) of both outputs. Logical ranks and output metadata
+ * are the caller's responsibility.
+ *
+ * Order: descending by value; equal values by ascending index, so +0 and -0 are equal and
+ * keep their index order; every NaN, whatever its sign, payload or signalling bit, after
+ * every number, -inf included; NaNs among themselves by ascending index. With k = 1 the index
+ * is arm_argmax_f16's over axis 3 on every input, an all-NaN line included (index 0).
+ *
+ * The order is arm_topk_v2_f32's, on binary16 bits; LiteRT has no float16 TOPK_V2 to
+ * compare with.
+ *
+ * Each value written is the input's bits at the selected index, copied, never computed:
+ * -0 stays -0 and a NaN keeps its sign and payload, signalling ones unquieted. Selection uses
+ * integer keys on the raw bits (the arg reductions' arm_nn_arg_key); no floating-point
+ * instruction touches the data, so the result is independent of FPSCR (rounding, FZ, FZ16,
+ * DN), raises no cumulative exception flag, and does not depend on the optimiser.
+ *
+ * Arguments: NULL input_dims, any negative extent, k < 0, k > c, or an input, value or index
+ * byte count above INT32_MAX return ARM_CMSIS_NN_ARG_ERROR. When n * h * w * k is 0 (k = 0
+ * or a zero extent) the call returns ARM_CMSIS_NN_SUCCESS, writes nothing and accepts NULL
+ * data pointers; otherwise a NULL input_data, output_values or output_indices is
+ * ARM_CMSIS_NN_ARG_ERROR. Every detected error precedes the first write. The outputs must
+ * not overlap the input, each other or the metadata; if they do, the result is unspecified.
+ *
+ * No scratch and no state: each line is an insertion into the caller's outputs in index
+ * order, which hold the line's best so far, O(c * k) work per line. The body is one scalar
+ * loop on every backend; there is no Helium path.
  *
  * @param[in] input_data Input tensor, NHWC.
  * @param[in] input_dims Four NHWC extents; the innermost, c, is reduced.

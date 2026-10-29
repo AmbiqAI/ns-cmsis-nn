@@ -95,6 +95,7 @@
         <file category="header" name="Include/Internal/arm_nn_rsub_scalar.h"/>
         <file category="header" name="Include/Internal/arm_nn_s4_decode.h"/>
         <file category="header" name="Include/Internal/arm_nn_sqrt_flt.h"/>
+        <file category="header" name="Include/Internal/arm_nn_topk_flt.h"/>
         <file category="header" name="Include/Internal/arm_minmax_f16_common.h"/>
         <file category="header" name="Include/Internal/arm_minmax_f32_common.h"/>
         <file category="header" name="Include/Internal/arm_resize_nearest_neighbor_common.h"/>
