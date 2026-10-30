@@ -524,6 +524,12 @@ void arm_nn_maxpool1d_k2s2_nhwc_f32(const float32_t *__RESTRICT x_nhwc,
  * @param[in]  row_address_offset Output row stride, expressed in elements.
  * @param[in]  activation_min     Lower clamp bound.
  * @param[in]  activation_max     Upper clamp bound.
+ * @note NaN (ARM_NN_HAS_MAT_MULT_FLT_NAN_PROPAGATION): every clamp site passes a NaN accumulator through on every
+ *       leg -- the Helium blocks with arm_nn_clamp_propagate_nan_mve_f32, the scalar rows by wrapping ARM_NN_CLAMP
+ *       in arm_nn_propagate_nan_f32 -- so a NaN operand, or an inf * 0 or inf - inf in a dot product, yields NaN at
+ *       that output. Only the NaN-ness is guaranteed, not the payload (Helium arithmetic returns the default NaN).
+ *       An infinite accumulator saturates to the activation bounds, and every other result keeps the bits of the
+ *       existing clamp on its own leg, the sign of zero included.
  * @return `ARM_CMSIS_NN_SUCCESS` on success or `ARM_CMSIS_NN_ARG_ERROR` on invalid arguments.
  */
 arm_cmsis_nn_status arm_nn_mat_mult_nt_t_f32(const float32_t *__RESTRICT lhs,
@@ -551,6 +557,12 @@ arm_cmsis_nn_status arm_nn_mat_mult_nt_t_f32(const float32_t *__RESTRICT lhs,
  * @param[in]  row_address_offset Output row stride, expressed in elements.
  * @param[in]  activation_min     Lower clamp bound.
  * @param[in]  activation_max     Upper clamp bound.
+ * @note NaN (ARM_NN_HAS_MAT_MULT_FLT_NAN_PROPAGATION): every clamp site passes a NaN accumulator through on every
+ *       leg -- the Helium blocks with arm_nn_clamp_propagate_nan_mve_f32, the scalar rows by wrapping ARM_NN_CLAMP
+ *       in arm_nn_propagate_nan_f32 -- so a NaN operand, or an inf * 0 or inf - inf in a dot product, yields NaN at
+ *       that output. Only the NaN-ness is guaranteed, not the payload (Helium arithmetic returns the default NaN).
+ *       An infinite accumulator saturates to the activation bounds, and every other result keeps the bits of the
+ *       existing clamp on its own leg, the sign of zero included.
  * @return `ARM_CMSIS_NN_SUCCESS` on success or `ARM_CMSIS_NN_ARG_ERROR` on invalid arguments.
  */
 arm_cmsis_nn_status arm_nn_mat_mult_nt_n_packed_f32(const float32_t *__RESTRICT lhs,
@@ -1289,6 +1301,14 @@ void arm_nn_maxpool1d_k2s2_nhwc_f16(const float16_t *__RESTRICT x_nhwc,
  * arm_nn_mat_mult_nt_t_f16_acc16 keeps the float16 lanes and float16 reduction throughout. The scalar leg (non-MVE
  * builds and ARM_MATH_AUTOVECTORIZE) accumulates bias and every product in float32 and rounds to float16 once before
  * the clamp (AmbiqAI/ns-cmsis-nn#449, #457).
+ *
+ * @note NaN (ARM_NN_HAS_MAT_MULT_FLT_NAN_PROPAGATION): on every leg, in this entry and its `_acc16` twin, every
+ *       clamp site passes a NaN accumulator through -- the Helium blocks with arm_nn_clamp_propagate_nan_mve_f16,
+ *       the contiguous rows' min-then-max clamp with the same integer-domain NaN restore, the float16 rows by
+ *       wrapping arm_nn_clamp_f16h in arm_nn_propagate_nan_f16h -- so a NaN operand, or an inf * 0 or inf - inf in
+ *       a dot product, yields NaN at that output. Only the NaN-ness is guaranteed, not the payload (Helium
+ *       arithmetic returns the default NaN). An infinite accumulator saturates to the activation bounds, and every
+ *       other result keeps the bits of the existing clamp on its own leg, the sign of zero included.
  */
 arm_cmsis_nn_status arm_nn_mat_mult_nt_t_f16(const float16_t *__RESTRICT lhs,
                                              const float16_t *__RESTRICT rhs,
@@ -1345,11 +1365,14 @@ arm_cmsis_nn_status arm_nn_mat_mult_nt_t_f16_acc16(const float16_t *__RESTRICT l
  * @param[in]  activation_max     Upper clamp bound.
  * @return `ARM_CMSIS_NN_SUCCESS` on success or `ARM_CMSIS_NN_ARG_ERROR` on invalid arguments.
  *
- * @note On non-MVE builds the output clamp is the bit-classified scalar clamp of #380, so a NaN accumulator
- *       (a NaN in @p lhs, @p rhs_packed or @p bias) propagates to @p dst at every optimization level
- *       on the gated toolchains,
- *       including the shipped -Ofast. On MVE builds the clamp is vmaxnmq/vminnmq with no NaN restore, so a
- *       NaN resolves to a clamp bound there instead.
+ * @note NaN (ARM_NN_HAS_MAT_MULT_FLT_NAN_PROPAGATION): a NaN accumulator (a NaN in @p lhs, @p rhs_packed or
+ *       @p bias, or an inf * 0 or inf - inf in a dot product) propagates to @p dst on every leg and at every
+ *       optimization level on the gated toolchains, including the shipped -Ofast: on non-MVE builds the output
+ *       clamp is the bit-classified scalar clamp of #380, and on MVE builds arm_nn_clamp_propagate_nan_mve_f16
+ *       restores the NaN lanes that vmaxnmq/vminnmq suppress. Only the NaN-ness is guaranteed, not the payload.
+ *       An infinite accumulator saturates to the activation bounds, and every other result keeps the bits of the
+ *       existing clamp on its own leg, the sign of zero included. This holds for the `_acc16` and `_precise`
+ *       entries too.
  *
  * @note Accumulation width per leg: the MVE leg accumulates blockwise (AmbiqAI/ns-cmsis-nn#586): one
  *       lane per output column, per-k, the bias opening the first block; every 32 k the float16
@@ -1394,7 +1417,7 @@ arm_cmsis_nn_status arm_nn_mat_mult_nt_n_packed_f16(const float16_t *__RESTRICT 
  * float32 accumulation rule. This order is not bit-equivalent to the standard or legacy packed entries, and
  * no universal absolute-error bound is implied. Float16 products/partials can overflow for finite inputs;
  * shorter partials do not make this an overflow-free float32 dot product. As with the legacy packed entry,
- * the scalar clamp propagates NaN, while the MVE maxNum/minNum clamp resolves NaN to a bound.
+ * a NaN accumulator propagates on every leg (ARM_NN_HAS_MAT_MULT_FLT_NAN_PROPAGATION).
  */
 arm_cmsis_nn_status arm_nn_mat_mult_nt_n_packed_f16_precise(const float16_t *__RESTRICT lhs,
                                                             const float16_t *__RESTRICT rhs_packed,

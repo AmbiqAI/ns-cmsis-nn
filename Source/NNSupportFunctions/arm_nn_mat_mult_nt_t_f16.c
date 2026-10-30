@@ -200,10 +200,14 @@ __attribute__((noinline)) static void mat_mult_nt_t_f16_contig_rows(const float1
         acc2 += (_Float16)bias[2];
         acc3 += (_Float16)bias[3];
     }
-    dst[0] = (float16_t)arm_nn_clamp_f16h(acc0, (_Float16)activation_max, (_Float16)activation_min);
-    dst[1] = (float16_t)arm_nn_clamp_f16h(acc1, (_Float16)activation_max, (_Float16)activation_min);
-    dst[2] = (float16_t)arm_nn_clamp_f16h(acc2, (_Float16)activation_max, (_Float16)activation_min);
-    dst[3] = (float16_t)arm_nn_clamp_f16h(acc3, (_Float16)activation_max, (_Float16)activation_min);
+    dst[0] = (float16_t)arm_nn_propagate_nan_f16h(
+        acc0, arm_nn_clamp_f16h(acc0, (_Float16)activation_max, (_Float16)activation_min));
+    dst[1] = (float16_t)arm_nn_propagate_nan_f16h(
+        acc1, arm_nn_clamp_f16h(acc1, (_Float16)activation_max, (_Float16)activation_min));
+    dst[2] = (float16_t)arm_nn_propagate_nan_f16h(
+        acc2, arm_nn_clamp_f16h(acc2, (_Float16)activation_max, (_Float16)activation_min));
+    dst[3] = (float16_t)arm_nn_propagate_nan_f16h(
+        acc3, arm_nn_clamp_f16h(acc3, (_Float16)activation_max, (_Float16)activation_min));
 }
 
 /* One block of four row dot products: `full` unpredicated vector steps, then `tail` (0..7) predicated elements, into
@@ -290,8 +294,12 @@ __STATIC_FORCEINLINE void mat_mult_nt_t_f16_contig_store_fold(float32x4_t acc0,
         total = vaddq(arm_nn_vcvtbq_f32_f16(vbias), total);
     }
     float16x8_t out = arm_nn_vcvtbq_f16_f32(vdupq_n_f16((float16_t)0.0f), total);
+    const float16x8_t acc = out;
     out = vminnmq(out, vdupq_n_f16(activation_max));
     out = vmaxnmq(out, vdupq_n_f16(activation_min));
+    /* vminnm/vmaxnm suppress a NaN: restore the NaN lanes, classified on their integer bits as in
+     * arm_nn_clamp_propagate_nan_mve_f16, keeping this clamp's min-then-max order for every other lane. */
+    out = vpselq(acc, out, vcmphiq_n_u16(vshlq_n_u16(vreinterpretq_u16_f16(acc), 1), 0xF800));
     vstrhq_u32((uint16_t *)dst, vreinterpretq_u32_f16(out));
 }
 
@@ -450,8 +458,8 @@ __STATIC_FORCEINLINE arm_cmsis_nn_status arm_nn_mat_mult_nt_t_f16_body(const flo
                         vacc_hi = vfmaq(vacc_hi, vrhs_hi, lhs_v);
                     }
 
-                    vacc_lo = arm_nn_clamp_mve_f16(vacc_lo, vmin, vmax);
-                    vacc_hi = arm_nn_clamp_mve_f16(vacc_hi, vmin, vmax);
+                    vacc_lo = arm_nn_clamp_propagate_nan_mve_f16(vacc_lo, vmin, vmax);
+                    vacc_hi = arm_nn_clamp_propagate_nan_mve_f16(vacc_hi, vmin, vmax);
                     vst1q(dst_row + c, vacc_lo);
                     vst1q(dst_row + c + ARM_NN_MAT_MULT_NT_T_F16_MVE_BLOCK_ROWS, vacc_hi);
                 }
@@ -469,7 +477,7 @@ __STATIC_FORCEINLINE arm_cmsis_nn_status arm_nn_mat_mult_nt_t_f16_body(const flo
                     vacc = vfmaq(vacc, vrhs, lhs_row[k]);
                 }
 
-                vacc = arm_nn_clamp_mve_f16(vacc, vmin, vmax);
+                vacc = arm_nn_clamp_propagate_nan_mve_f16(vacc, vmin, vmax);
                 vst1q(dst_row + c, vacc);
             }
 
@@ -489,7 +497,7 @@ __STATIC_FORCEINLINE arm_cmsis_nn_status arm_nn_mat_mult_nt_t_f16_body(const flo
                         vacc = vfmaq(vacc, vrhs, lhs_row[k]);
                     }
 
-                    vacc = arm_nn_clamp_mve_f16(vacc, vmin, vmax);
+                    vacc = arm_nn_clamp_propagate_nan_mve_f16(vacc, vmin, vmax);
                     vst1q_p(dst_row + c, vacc, p);
                 }
             }
@@ -519,7 +527,8 @@ __STATIC_FORCEINLINE arm_cmsis_nn_status arm_nn_mat_mult_nt_t_f16_body(const flo
             _Float16 acc = (_Float16)acc32;
     #endif
 
-            dst_row[c] = (float16_t)arm_nn_clamp_f16h(acc, (_Float16)activation_max, (_Float16)activation_min);
+            dst_row[c] = (float16_t)arm_nn_propagate_nan_f16h(
+                acc, arm_nn_clamp_f16h(acc, (_Float16)activation_max, (_Float16)activation_min));
         }
     }
 

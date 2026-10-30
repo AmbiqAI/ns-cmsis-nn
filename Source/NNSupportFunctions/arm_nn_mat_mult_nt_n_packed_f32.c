@@ -112,10 +112,10 @@ arm_cmsis_nn_status arm_nn_mat_mult_nt_n_packed_f32(const float32_t *__RESTRICT 
                 vacc3 = vfmaq(vacc3, vrhs, lhs_row3[k]);
             }
 
-            vacc0 = arm_nn_clamp_mve_f32(vacc0, vmin, vmax);
-            vacc1 = arm_nn_clamp_mve_f32(vacc1, vmin, vmax);
-            vacc2 = arm_nn_clamp_mve_f32(vacc2, vmin, vmax);
-            vacc3 = arm_nn_clamp_mve_f32(vacc3, vmin, vmax);
+            vacc0 = arm_nn_clamp_propagate_nan_mve_f32(vacc0, vmin, vmax);
+            vacc1 = arm_nn_clamp_propagate_nan_mve_f32(vacc1, vmin, vmax);
+            vacc2 = arm_nn_clamp_propagate_nan_mve_f32(vacc2, vmin, vmax);
+            vacc3 = arm_nn_clamp_propagate_nan_mve_f32(vacc3, vmin, vmax);
 
             if (valid_cols == block_cols)
             {
@@ -158,7 +158,7 @@ arm_cmsis_nn_status arm_nn_mat_mult_nt_n_packed_f32(const float32_t *__RESTRICT 
                 vacc = vfmaq(vacc, vrhs, lhs_row[k]);
             }
 
-            vacc = arm_nn_clamp_mve_f32(vacc, vmin, vmax);
+            vacc = arm_nn_clamp_propagate_nan_mve_f32(vacc, vmin, vmax);
             if (valid_cols == block_cols)
             {
                 vst1q(dst_row + c, vacc);
@@ -175,7 +175,7 @@ arm_cmsis_nn_status arm_nn_mat_mult_nt_n_packed_f32(const float32_t *__RESTRICT 
                 {
                     acc += lhs_row[k] * rhs_block[(size_t)k * block_cols + lane];
                 }
-                dst_row[c + lane] = ARM_NN_CLAMP(acc, activation_max, activation_min);
+                dst_row[c + lane] = arm_nn_propagate_nan_f32(acc, ARM_NN_CLAMP(acc, activation_max, activation_min));
             }
     #endif
         }
