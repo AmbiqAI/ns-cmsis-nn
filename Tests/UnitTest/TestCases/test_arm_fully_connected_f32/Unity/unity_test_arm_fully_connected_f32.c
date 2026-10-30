@@ -54,3 +54,7 @@ void test_fully_connected_inf_minus_inf_f32(void) { fully_connected_inf_minus_in
 void test_fully_connected_nan_row_one_class_f32(void) { fully_connected_nan_row_one_class_f32(); }
 
 void test_fully_connected_nan_propagation_macro_f32(void) { fully_connected_nan_propagation_macro_f32(); }
+
+void test_fully_connected_nan_block_rows_f32(void) { fully_connected_nan_block_rows_f32(); }
+
+void test_fully_connected_nan_remainder_row_f32(void) { fully_connected_nan_remainder_row_f32(); }

@@ -590,3 +590,135 @@ void fully_connected_nan_propagation_macro_f32(void)
     TEST_FAIL_MESSAGE("ARM_NN_HAS_MAT_MULT_FLT_NAN_PROPAGATION is not defined to 1");
 #endif
 }
+
+// The NaN rule through the scalar four-row block and its remainder rows. On the scalar leg N = 8 is two blocks of
+// four rows, and a NaN weight in rows 0 and 5 puts a NaN accumulator in the first chain of one block and the second
+// of the other; N = 7 is one block and three remainder rows, and a NaN weight in row 6 puts it in the remainder
+// loop's last row. On the Helium leg the same shapes run the gather blocks and the single-row dot. Each runs under
+// the identity bounds and under [0, 6]. Every NaN-sourced output is NaN. Every other output keeps the bits of a
+// clean run of the same shape, and lies within the single-row comparison's tolerance of its row's own one-row
+// product; on the scalar leg under GCC, where the declaration of arm_nn_mat_mult_nt_t_f32 states that the block's
+// rows are the single-row product bit for bit, it keeps that product's bits too. Values are not dyadic, so an
+// output computed in another order would show in the low bits.
+#define FC_NAN_BLOCK_K 9
+
+static void fc_nan_block_case(int32_t n, const int32_t *nan_rows, int32_t n_nan, float32_t act_min, float32_t act_max)
+{
+    volatile uint32_t nan_bits = 0x7FC00000u;
+    const float32_t nan_v = fc_nan_from_bits(&nan_bits);
+    const int32_t k = FC_NAN_BLOCK_K;
+    const cmsis_nn_context ctx = {NULL, 0};
+    const cmsis_nn_dims input_dims = {1, 1, 1, k};
+    const cmsis_nn_dims filter_dims = {k, 1, 1, n};
+    const cmsis_nn_dims bias_dims = {1, 1, 1, n};
+    const cmsis_nn_dims output_dims = {1, 1, 1, n};
+    const cmsis_nn_dims one_filter_dims = {k, 1, 1, 1};
+    const cmsis_nn_dims one_bias_dims = {1, 1, 1, 1};
+    const cmsis_nn_dims one_output_dims = {1, 1, 1, 1};
+    cmsis_nn_fc_params_f32 fc_params;
+    uint32_t clean[FC_MAX_N];
+    uint32_t single[FC_MAX_N];
+    int32_t is_nan_row[FC_MAX_N];
+
+    TEST_ASSERT_TRUE(n <= FC_MAX_N);
+    memset(&fc_params, 0, sizeof(fc_params));
+    fc_params.activation.min = act_min;
+    fc_params.activation.max = act_max;
+    fc_params.weight_format = ARM_NN_WEIGHT_FORMAT_STANDARD;
+    for (int32_t i = 0; i < k; ++i)
+    {
+        fc_x[i] = 0.37f * (float32_t)((int32_t)(fc_hash(i, 23) & 31u) - 16) + 0.013f;
+    }
+    for (int32_t i = 0; i < n * k; ++i)
+    {
+        fc_w[i] = 0.29f * (float32_t)((int32_t)(fc_hash(i, 29) & 31u) - 15) - 0.007f;
+    }
+    for (int32_t i = 0; i < n; ++i)
+    {
+        fc_bias[i] = 0.61f * (float32_t)((int32_t)(fc_hash(i, 31) & 15u) - 7);
+        is_nan_row[i] = 0;
+    }
+
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
+                      arm_fully_connected_f32(&ctx,
+                                              &fc_params,
+                                              &input_dims,
+                                              fc_x,
+                                              &filter_dims,
+                                              fc_w,
+                                              &bias_dims,
+                                              fc_bias,
+                                              &output_dims,
+                                              fc_y,
+                                              ARM_NN_LAYOUT_NHWC));
+    memcpy(clean, fc_y, (size_t)n * sizeof(uint32_t));
+    for (int32_t row = 0; row < n; ++row)
+    {
+        float32_t one;
+        TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
+                          arm_fully_connected_f32(&ctx,
+                                                  &fc_params,
+                                                  &input_dims,
+                                                  fc_x,
+                                                  &one_filter_dims,
+                                                  fc_w + (size_t)row * k,
+                                                  &one_bias_dims,
+                                                  fc_bias + row,
+                                                  &one_output_dims,
+                                                  &one,
+                                                  ARM_NN_LAYOUT_NHWC));
+        memcpy(&single[row], &one, sizeof(uint32_t));
+    }
+
+    for (int32_t j = 0; j < n_nan; ++j)
+    {
+        fc_w[nan_rows[j] * k + k / 2] = nan_v;
+        is_nan_row[nan_rows[j]] = 1;
+    }
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
+                      arm_fully_connected_f32(&ctx,
+                                              &fc_params,
+                                              &input_dims,
+                                              fc_x,
+                                              &filter_dims,
+                                              fc_w,
+                                              &bias_dims,
+                                              fc_bias,
+                                              &output_dims,
+                                              fc_y,
+                                              ARM_NN_LAYOUT_NHWC));
+
+    for (int32_t row = 0; row < n; ++row)
+    {
+        char msg[64];
+        snprintf(msg, sizeof(msg), "N = %d, row %d", (int)n, (int)row);
+        if (is_nan_row[row])
+        {
+            TEST_ASSERT_TRUE_MESSAGE(fc_nan_is_nan(fc_y[row]), msg);
+            continue;
+        }
+        float32_t expected;
+        memcpy(&expected, &single[row], sizeof(expected));
+        TEST_ASSERT_EQUAL_HEX32_MESSAGE(clean[row], fc_nan_bits(fc_y[row]), msg);
+        TEST_ASSERT_FLOAT_WITHIN_MESSAGE(fabsf(expected) * 1.0e-6f + 1.0e-6f, expected, fc_y[row], msg);
+#if defined(__GNUC__) && !defined(__clang__) && (!defined(ARM_MATH_MVEF) || defined(ARM_MATH_AUTOVECTORIZE))
+        TEST_ASSERT_EQUAL_HEX32_MESSAGE(single[row], fc_nan_bits(fc_y[row]), msg);
+#endif
+    }
+}
+
+// A NaN accumulator in a block row: N = 8, NaN in rows 0 and 5.
+void fully_connected_nan_block_rows_f32(void)
+{
+    const int32_t rows[2] = {0, 5};
+    fc_nan_block_case(8, rows, 2, -FLT_MAX, FLT_MAX);
+    fc_nan_block_case(8, rows, 2, 0.0f, 6.0f);
+}
+
+// A NaN accumulator in a remainder row: N = 7, NaN in row 6.
+void fully_connected_nan_remainder_row_f32(void)
+{
+    const int32_t rows[1] = {6};
+    fc_nan_block_case(7, rows, 1, -FLT_MAX, FLT_MAX);
+    fc_nan_block_case(7, rows, 1, 0.0f, 6.0f);
+}
