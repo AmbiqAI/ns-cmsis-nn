@@ -18,8 +18,8 @@
  * Target :  Arm(R) M-Profile Architecture
  * -------------------------------------------------------------------- */
 
-#include "arm_nnfunctions.h"
 #include "Internal/arm_nn_exp_flt.h"
+#include "arm_nnfunctions.h"
 
 #if ARM_NN_ENABLE_F32
 

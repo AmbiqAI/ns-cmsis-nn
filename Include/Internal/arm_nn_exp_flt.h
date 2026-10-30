@@ -83,9 +83,9 @@ __STATIC_FORCEINLINE float32_t arm_nn_exp_from_bits_f32(uint32_t bits)
     return value;
 }
 
-/** Bits of -103.97f: a negative input whose bits exceed this is below the zero threshold. */
+    /** Bits of -103.97f: a negative input whose bits exceed this is below the zero threshold. */
     #define ARM_NN_EXP_F32_ZERO_BITS UINT32_C(0xC2CFF0A4)
-/** Bits of 88.7228317f: a positive input whose bits exceed this overflows. */
+    /** Bits of 88.7228317f: a positive input whose bits exceed this overflows. */
     #define ARM_NN_EXP_F32_INF_BITS UINT32_C(0x42B17217)
 
 __STATIC_FORCEINLINE float32_t arm_nn_exp_scalar_f32(float32_t x)
