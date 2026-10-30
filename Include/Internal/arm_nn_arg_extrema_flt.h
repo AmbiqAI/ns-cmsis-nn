@@ -115,9 +115,20 @@ static inline arm_cmsis_nn_status arm_nn_arg_extrema(const void *input_data,
     /* outer: the extents before the axis; inner: those after it; the output
      * holds one index per (outer, inner) line. A zero extent gives an empty
      * array whatever the other extents are; otherwise the input's byte count
-     * and the output's (four bytes an index) are bounded by INT32_MAX. The
-     * products are taken in 64 bits, so no extent can wrap them, and nothing
-     * here divides. */
+     * and the output's (four bytes an index) are bounded by INT32_MAX. Two
+     * int32 extents multiply below 2^62 in 64 bits, but three or four can
+     * wrap it (2^30 x 2^30 x 16 reads as 0). So the extents are first taken
+     * in two pairs: where neither pair is zero, every extent is at least 1
+     * and the element count is at least either pair, so a pair above
+     * INT32_MAX is refused here, and every product below then stays under
+     * 2^62 and cannot wrap. A zero pair leaves the empty array to the
+     * products, which a zero factor keeps exact. Nothing here divides. */
+    const uint64_t pair_nh = (uint64_t)n * (uint64_t)h;
+    const uint64_t pair_wc = (uint64_t)w * (uint64_t)c;
+    if (pair_nh && pair_wc && (pair_nh > (uint64_t)INT32_MAX || pair_wc > (uint64_t)INT32_MAX))
+    {
+        return ARM_CMSIS_NN_ARG_ERROR;
+    }
     const uint64_t outer64 = (uint64_t)(axis > 0 ? n : 1) * (uint64_t)(axis > 1 ? h : 1) * (uint64_t)(axis > 2 ? w : 1);
     const uint64_t inner64 = (uint64_t)(axis < 1 ? h : 1) * (uint64_t)(axis < 2 ? w : 1) * (uint64_t)(axis < 3 ? c : 1);
     const uint64_t output_count = outer64 * inner64;

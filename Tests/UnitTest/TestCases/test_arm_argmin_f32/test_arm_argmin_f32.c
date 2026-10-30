@@ -30,4 +30,20 @@ static void ae_extent_wrap(void)
         for (int i = 0; i < AE_CAP + 2 * AE_GUARD; ++i)
             TEST_ASSERT_EQUAL_INT32(AE_SENTINEL, ae_output[i]);
     }
+    /* Here the output count, 2^62, does not wrap, but the input's element count
+     * (2^64) and the output's byte count (2^64) both do, so a wrapped bound
+     * would admit 2^62 writes. Refused as well. (A case that can only fail by
+     * writing out of bounds, so it follows the fix.) */
+    const cmsis_nn_dims writes = {big, big, 4, 4};
+    for (int i = 0; i < AE_CAP + 2 * AE_GUARD; ++i)
+        ae_output[i] = AE_SENTINEL;
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR, AE_KERNEL(ae_storage, &writes, 3, ae_output + AE_GUARD));
+    for (int i = 0; i < AE_CAP + 2 * AE_GUARD; ++i)
+        TEST_ASSERT_EQUAL_INT32(AE_SENTINEL, ae_output[i]);
+    /* A zero extent still makes an empty array whatever the others are, with
+     * the zero last as well as first: success, nothing read or written. */
+    const cmsis_nn_dims zero_last = {1, INT32_MAX, INT32_MAX, 0};
+    const cmsis_nn_dims zero_first = {0, INT32_MAX, INT32_MAX, 1};
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, AE_KERNEL(NULL, &zero_last, 0, NULL));
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, AE_KERNEL(NULL, &zero_first, 3, NULL));
 }
