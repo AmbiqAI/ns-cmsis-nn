@@ -1675,6 +1675,10 @@ arm_cmsis_nn_status arm_rsqrt_f32(const float32_t *input, float32_t *output, int
  *       guaranteed, not the payload (Helium arithmetic returns the default NaN). An infinite accumulator saturates
  *       to the activation bounds.
  *
+ * @note Contraction (float32, `ARM_NN_WEIGHT_FORMAT_STANDARD` weights): whether an output is bit for bit the
+ *       product of its one weight row depends on the leg and on the compiler's contraction of `a * b + c`; under
+ *       GCC on the scalar leg it is, and the contraction note of arm_nn_mat_mult_nt_t_f32 states the rest.
+ *
  * @return `ARM_CMSIS_NN_SUCCESS` on success or `ARM_CMSIS_NN_ARG_ERROR` on invalid arguments.
  */
 arm_cmsis_nn_status arm_fully_connected_nhwc_f32(const cmsis_nn_context *ctx,
@@ -1709,6 +1713,10 @@ arm_cmsis_nn_status arm_fully_connected_nhwc_f32(const cmsis_nn_context *ctx,
  *       or bias, or an inf * 0 or inf - inf in the dot product, yields NaN at that output. Only the NaN-ness is
  *       guaranteed, not the payload (Helium arithmetic returns the default NaN). An infinite accumulator saturates
  *       to the activation bounds.
+ *
+ * @note Contraction (float32, `ARM_NN_WEIGHT_FORMAT_STANDARD` weights): whether an output is bit for bit the
+ *       product of its one weight row depends on the leg and on the compiler's contraction of `a * b + c`; under
+ *       GCC on the scalar leg it is, and the contraction note of arm_nn_mat_mult_nt_t_f32 states the rest.
  *
  * @return `ARM_CMSIS_NN_SUCCESS` on success or `ARM_CMSIS_NN_ARG_ERROR` on invalid arguments.
  */

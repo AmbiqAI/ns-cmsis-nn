@@ -141,17 +141,18 @@ void fully_connected_k31_n9_f32(void)
     fc_f32_case(2, 31, 9, 0, -1.0e4f, 1.0e4f);
 }
 
-// Every output row of a product is the single-row product of that row: the rows a block computes
-// together (four scalar accumulation chains, the Helium gather and contiguous blocks) and the rows
-// the remainder loop computes one at a time are the same products summed in the same order from
-// 0.0f, then added to the bias. Values are not multiples of a power of two here, so a reordered sum
-// would show in the low bits. Where the compiler contracts a*b+c the same way in every loop (GCC's
-// -ffp-contract=fast, its default in GNU mode, and off, its default under -std=c11; verified on the
-// Cortex-M55 toolchain) the rows are bit for bit; Clang's default -ffp-contract=on fuses one loop
-// shape and not another, and then a row differs by the one rounding a fused multiply-add saves, which
-// is the only difference the tolerance admits (a reordered sum of these values is far outside it).
-// The shapes reach the scalar four-row block with a three-row remainder (n = 7), the Helium gather
-// block (k = 9) and the contiguous block (k = 37), and a bias both present and absent.
+// The rows a product computes together against each row's own one-row product. On the scalar leg a row of the
+// four-row block is the same products summed in the same order from 0.0f, then added to the bias, as the row loop
+// computes the remainder rows and a one-row product, and the contraction note of arm_nn_mat_mult_nt_t_f32 states
+// what that gives: "Under GCC the rows are bit for bit the single-row product", and "under a compiler that contracts
+// one loop and not the other (Clang's default -ffp-contract=on may), a row may differ from the single-row product by
+// one rounding of one contraction". The tolerance admits that rounding on every compiler; the bit comparison is the
+// note's GCC sentence and runs on the scalar leg only, because on the Helium leg the gather and contiguous blocks and
+// the single-row dot sum in different orders (the note's last sentence), which on these shapes the tolerance also
+// admits. Values are not multiples of a power of two here, so a reordered sum would show in the low bits. The shapes
+// reach the scalar four-row block with a three-row remainder (n = 7), one block alone (n = 4) and two blocks with a
+// two-row remainder (n = 10); the Helium gather block (k = 9) and the contiguous block (k = 37 and 64); and a bias
+// both present and absent.
 static void fc_f32_rows_match_single_rows(int32_t k, int32_t n, int32_t use_bias)
 {
     const cmsis_nn_context ctx = {NULL, 0};
@@ -222,7 +223,7 @@ static void fc_f32_rows_match_single_rows(int32_t k, int32_t n, int32_t use_bias
         memcpy(&got, &whole[row], sizeof(got));
         TEST_ASSERT_FLOAT_WITHIN(fabsf(expected) * 1.0e-6f + 1.0e-6f, expected, got);
     }
-#if defined(__GNUC__) && !defined(__clang__)
+#if defined(__GNUC__) && !defined(__clang__) && (!defined(ARM_MATH_MVEF) || defined(ARM_MATH_AUTOVECTORIZE))
     TEST_ASSERT_EQUAL_HEX32_ARRAY(single, whole, n);
 #endif
 }

@@ -530,6 +530,17 @@ void arm_nn_maxpool1d_k2s2_nhwc_f32(const float32_t *__RESTRICT x_nhwc,
  *       that output. Only the NaN-ness is guaranteed, not the payload (Helium arithmetic returns the default NaN).
  *       An infinite accumulator saturates to the activation bounds, and every other result keeps the bits of the
  *       existing clamp on its own leg, the sign of zero included.
+ * @note Contraction (this float32 entry only; the float16 entries that copy this documentation have no such block):
+ *       on the scalar leg (builds without Helium float and ARM_MATH_AUTOVECTORIZE) four output rows are computed in
+ *       one pass, each row its own accumulation chain over the same products in the same order from 0.0f, added to
+ *       its bias at the end, as the row loop computes the remaining rows and a one-row product. Under GCC the rows
+ *       are bit for bit the single-row product: at `-std=c11` below `-Ofast`, and at `-O0` and `-O1`, neither loop
+ *       contracts `a * b + c` (GCC's ISO C modes default to `-ffp-contract=off`), and in its GNU modes at `-O2`,
+ *       `-O3` and `-Os`, and at `-Ofast` in any mode, both loops contract it (Arm GNU 14.2.1 for Cortex-M55 and
+ *       Cortex-M4, read from the disassembly).
+ *       Under a compiler that contracts one loop and not the other (Clang's default `-ffp-contract=on` may), a row
+ *       may differ from the single-row product by one rounding of one contraction. On the Helium leg the blocks and
+ *       the single-row dot sum in different orders, so its rows are not the single-row product bit for bit.
  * @return `ARM_CMSIS_NN_SUCCESS` on success or `ARM_CMSIS_NN_ARG_ERROR` on invalid arguments.
  */
 arm_cmsis_nn_status arm_nn_mat_mult_nt_t_f32(const float32_t *__RESTRICT lhs,

@@ -230,7 +230,9 @@ arm_cmsis_nn_status arm_nn_mat_mult_nt_t_f32(const float32_t *__RESTRICT lhs,
          * four chains overlap in the pipeline instead of serialising on one
          * accumulator's latency. Each row's sum is the same sequence of
          * products from 0.0f, added to its bias at the end, that the row
-         * loop below computes, so every output keeps its bits. */
+         * loop below computes, so under GCC every output keeps its bits; the
+         * declaration's contraction note states the compilers where a row
+         * may differ by one rounding of one contraction. */
         for (; c + ARM_NN_MAT_MULT_NT_T_F32_SCALAR_BLOCK_ROWS <= rhs_rows;
              c += ARM_NN_MAT_MULT_NT_T_F32_SCALAR_BLOCK_ROWS)
         {
