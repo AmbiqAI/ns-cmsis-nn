@@ -23,3 +23,4 @@ void test_arm_argmin_f32_patterns(void) { ae_patterns(); }
 void test_arm_argmin_f32_empty(void) { ae_empty(); }
 void test_arm_argmin_f32_invalid(void) { ae_invalid(); }
 void test_arm_argmin_f32_fp_controls(void) { ae_fp_controls(); }
+void test_arm_argmin_f32_extent_wrap(void) { ae_extent_wrap(); }
