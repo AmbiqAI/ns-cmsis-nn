@@ -59,6 +59,9 @@
 /** arm_topk_v2_f16, the LiteRT TOPK_V2 builtin over the innermost axis, is available. */
 #define ARM_NN_HAS_TOPK_V2_F16 1
 
+/** The float32 and float16 matmul products (nt_t, nt_n_packed) pass a NaN accumulator through on every leg. */
+#define ARM_NN_HAS_MAT_MULT_FLT_NAN_PROPAGATION 1
+
 #include "arm_nn_math_types.h"
 #include "arm_nn_types.h"
 

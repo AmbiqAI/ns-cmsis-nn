@@ -67,12 +67,13 @@ extern "C" {
  * scratch: at least 4-byte aligned for float32_t and at least 2-byte aligned for float16_t.
  *
  * @note Accumulation and NaN, per leg (AmbiqAI/ns-cmsis-nn#448). Every route accumulates the bias and every tap in
- *       float32 on every leg. A NaN input tap or weight does not propagate: the `ch_mult == 1` direct kernel's MVE
- *       leg clamps it to the activation minimum (`vmaxnm` / `vminnm`); the MVE to-convolution route (input
- *       channels 1, output channels 8 or more, ctx supplied) clamps it to the activation minimum
- *       (`arm_nn_clamp_mve_f32`); its scalar leg and the `ch_mult > 1` generic kernel clamp it to the activation
- *       maximum (`ARM_NN_CLAMP`). That is the pre-#448 behavior of these routes; unifying it with the float16
- *       scalar leg under the #334 promise is a separate issue.
+ *       float32 on every leg. On the direct and generic kernels a NaN input tap or weight does not propagate: the
+ *       `ch_mult == 1` direct kernel's MVE leg clamps it to the activation minimum (`vmaxnm` / `vminnm`); its
+ *       scalar leg and the `ch_mult > 1` generic kernel clamp it to the activation maximum (`ARM_NN_CLAMP`). That
+ *       is the pre-#448 behavior of these routes; unifying it with the float16 scalar leg under the #334 promise is
+ *       a separate issue. The MVE to-convolution route (input channels 1, output channels 8 or more, ctx supplied)
+ *       runs a float matmul product, whose clamp passes a NaN accumulator through to that output
+ *       (ARM_NN_HAS_MAT_MULT_FLT_NAN_PROPAGATION).
  *
  * @return `ARM_CMSIS_NN_SUCCESS` on success or `ARM_CMSIS_NN_ARG_ERROR` on invalid arguments.
  */
@@ -107,12 +108,13 @@ arm_cmsis_nn_status arm_depthwise_nhwc_conv_f32(const cmsis_nn_context *ctx,
  * scratch: at least 4-byte aligned for float32_t and at least 2-byte aligned for float16_t.
  *
  * @note Accumulation and NaN, per leg (AmbiqAI/ns-cmsis-nn#448). Every route accumulates the bias and every tap in
- *       float32 on every leg. A NaN input tap or weight does not propagate: the `ch_mult == 1` direct kernel's MVE
- *       leg clamps it to the activation minimum (`vmaxnm` / `vminnm`); the MVE to-convolution route (input
- *       channels 1, output channels 8 or more, ctx supplied) clamps it to the activation minimum
- *       (`arm_nn_clamp_mve_f32`); its scalar leg and the `ch_mult > 1` generic kernel clamp it to the activation
- *       maximum (`ARM_NN_CLAMP`). That is the pre-#448 behavior of these routes; unifying it with the float16
- *       scalar leg under the #334 promise is a separate issue.
+ *       float32 on every leg. On the direct and generic kernels a NaN input tap or weight does not propagate: the
+ *       `ch_mult == 1` direct kernel's MVE leg clamps it to the activation minimum (`vmaxnm` / `vminnm`); its
+ *       scalar leg and the `ch_mult > 1` generic kernel clamp it to the activation maximum (`ARM_NN_CLAMP`). That
+ *       is the pre-#448 behavior of these routes; unifying it with the float16 scalar leg under the #334 promise is
+ *       a separate issue. The MVE to-convolution route (input channels 1, output channels 8 or more, ctx supplied)
+ *       runs a float matmul product, whose clamp passes a NaN accumulator through to that output
+ *       (ARM_NN_HAS_MAT_MULT_FLT_NAN_PROPAGATION).
  *
  * @return `ARM_CMSIS_NN_SUCCESS` on success or `ARM_CMSIS_NN_ARG_ERROR` on invalid arguments.
  */
@@ -146,12 +148,13 @@ arm_cmsis_nn_status arm_depthwise_conv_f32(const cmsis_nn_context *ctx,
  * scratch: at least 4-byte aligned for float32_t and at least 2-byte aligned for float16_t.
  *
  * @note Accumulation and NaN, per leg (AmbiqAI/ns-cmsis-nn#448). Every route accumulates the bias and every tap in
- *       float32 on every leg. A NaN input tap or weight does not propagate: the `ch_mult == 1` direct kernel's MVE
- *       leg clamps it to the activation minimum (`vmaxnm` / `vminnm`); the MVE to-convolution route (input
- *       channels 1, output channels 8 or more, ctx supplied) clamps it to the activation minimum
- *       (`arm_nn_clamp_mve_f32`); its scalar leg and the `ch_mult > 1` generic kernel clamp it to the activation
- *       maximum (`ARM_NN_CLAMP`). That is the pre-#448 behavior of these routes; unifying it with the float16
- *       scalar leg under the #334 promise is a separate issue.
+ *       float32 on every leg. On the direct and generic kernels a NaN input tap or weight does not propagate: the
+ *       `ch_mult == 1` direct kernel's MVE leg clamps it to the activation minimum (`vmaxnm` / `vminnm`); its
+ *       scalar leg and the `ch_mult > 1` generic kernel clamp it to the activation maximum (`ARM_NN_CLAMP`). That
+ *       is the pre-#448 behavior of these routes; unifying it with the float16 scalar leg under the #334 promise is
+ *       a separate issue. The MVE to-convolution route (input channels 1, output channels 8 or more, ctx supplied)
+ *       runs a float matmul product, whose clamp passes a NaN accumulator through to that output
+ *       (ARM_NN_HAS_MAT_MULT_FLT_NAN_PROPAGATION).
  *
  * @return `ARM_CMSIS_NN_SUCCESS` on success or `ARM_CMSIS_NN_ARG_ERROR` on invalid arguments.
  */
@@ -239,6 +242,14 @@ int32_t arm_depthwise_conv_wrapper_f32_get_buffer_size(const cmsis_nn_dw_conv_pa
  *       interprets @p filter_data as an already prepacked `NTxN` RHS buffer
  *       instead of the standard public filter layout.
  *
+ * @note NaN (ARM_NN_HAS_MAT_MULT_FLT_NAN_PROPAGATION): where this entry's route runs a float matmul product
+ *       (arm_nn_mat_mult_nt_t_f32 or arm_nn_mat_mult_nt_n_packed_f32, or for float16 their `_f16` and `_f16_acc16`
+ *       twins), the product's clamp passes a NaN
+ *       accumulator through on every leg: a NaN input, weight or bias, or an inf * 0 or inf - inf in the dot
+ *       product, yields NaN at that output. Only the NaN-ness is guaranteed, not the payload (Helium arithmetic
+ *       returns the default NaN). An infinite accumulator saturates to the activation bounds. Routes that clamp on
+ *       their own keep their documented behaviour.
+ *
  * @return `ARM_CMSIS_NN_SUCCESS` on success or `ARM_CMSIS_NN_ARG_ERROR` on invalid arguments.
  */
 arm_cmsis_nn_status arm_convolve_nhwc_f32(const cmsis_nn_context *ctx,
@@ -273,6 +284,14 @@ arm_cmsis_nn_status arm_convolve_nhwc_f32(const cmsis_nn_context *ctx,
  *       interprets @p filter_data as an already prepacked `NTxN` RHS buffer
  *       instead of the standard public filter layout.
  *
+ * @note NaN (ARM_NN_HAS_MAT_MULT_FLT_NAN_PROPAGATION): where this entry's route runs a float matmul product
+ *       (arm_nn_mat_mult_nt_t_f32 or arm_nn_mat_mult_nt_n_packed_f32, or for float16 their `_f16` and `_f16_acc16`
+ *       twins), the product's clamp passes a NaN
+ *       accumulator through on every leg: a NaN input, weight or bias, or an inf * 0 or inf - inf in the dot
+ *       product, yields NaN at that output. Only the NaN-ness is guaranteed, not the payload (Helium arithmetic
+ *       returns the default NaN). An infinite accumulator saturates to the activation bounds. Routes that clamp on
+ *       their own keep their documented behaviour.
+ *
  * @return `ARM_CMSIS_NN_SUCCESS` on success or `ARM_CMSIS_NN_ARG_ERROR` on invalid arguments.
  */
 arm_cmsis_nn_status arm_convolve_f32(const cmsis_nn_context *ctx,
@@ -301,6 +320,14 @@ arm_cmsis_nn_status arm_convolve_f32(const cmsis_nn_context *ctx,
  * @param[in]     output_dims Output tensor dimensions. Format: [N, H, W, C_OUT].
  * @param[out]    output_data Pointer to the output tensor data.
  *
+ * @note NaN (ARM_NN_HAS_MAT_MULT_FLT_NAN_PROPAGATION): where this entry's route runs a float matmul product
+ *       (arm_nn_mat_mult_nt_t_f32 or arm_nn_mat_mult_nt_n_packed_f32, or for float16 their `_f16` and `_f16_acc16`
+ *       twins), the product's clamp passes a NaN
+ *       accumulator through on every leg: a NaN input, weight or bias, or an inf * 0 or inf - inf in the dot
+ *       product, yields NaN at that output. Only the NaN-ness is guaranteed, not the payload (Helium arithmetic
+ *       returns the default NaN). An infinite accumulator saturates to the activation bounds. Routes that clamp on
+ *       their own keep their documented behaviour.
+ *
  * @return `ARM_CMSIS_NN_SUCCESS` on success or `ARM_CMSIS_NN_ARG_ERROR` on invalid arguments.
  */
 arm_cmsis_nn_status arm_convolve_wrapper_f32(const cmsis_nn_context *ctx,
@@ -327,6 +354,14 @@ arm_cmsis_nn_status arm_convolve_wrapper_f32(const cmsis_nn_context *ctx,
  * @param[in]     bias_data   Optional bias tensor data.
  * @param[in]     output_dims Output tensor dimensions. Format: [N, H, W, C_OUT].
  * @param[out]    output_data Pointer to the output tensor data.
+ *
+ * @note NaN (ARM_NN_HAS_MAT_MULT_FLT_NAN_PROPAGATION): where this entry's route runs a float matmul product
+ *       (arm_nn_mat_mult_nt_t_f32 or arm_nn_mat_mult_nt_n_packed_f32, or for float16 their `_f16` and `_f16_acc16`
+ *       twins), the product's clamp passes a NaN
+ *       accumulator through on every leg: a NaN input, weight or bias, or an inf * 0 or inf - inf in the dot
+ *       product, yields NaN at that output. Only the NaN-ness is guaranteed, not the payload (Helium arithmetic
+ *       returns the default NaN). An infinite accumulator saturates to the activation bounds. Routes that clamp on
+ *       their own keep their documented behaviour.
  *
  * @return `ARM_CMSIS_NN_SUCCESS` on success or `ARM_CMSIS_NN_ARG_ERROR` on invalid arguments.
  */
@@ -399,6 +434,14 @@ arm_cmsis_nn_status arm_convolve_1x1_nhwc_packed_f32(const cmsis_nn_context *ctx
  *       convolution paths interpret @p filter_data as an already prepacked
  *       `NTxN` RHS buffer instead of the standard public filter layout.
  *
+ * @note NaN (ARM_NN_HAS_MAT_MULT_FLT_NAN_PROPAGATION): where this entry's route runs a float matmul product
+ *       (arm_nn_mat_mult_nt_t_f32 or arm_nn_mat_mult_nt_n_packed_f32, or for float16 their `_f16` and `_f16_acc16`
+ *       twins), the product's clamp passes a NaN
+ *       accumulator through on every leg: a NaN input, weight or bias, or an inf * 0 or inf - inf in the dot
+ *       product, yields NaN at that output. Only the NaN-ness is guaranteed, not the payload (Helium arithmetic
+ *       returns the default NaN). An infinite accumulator saturates to the activation bounds. Routes that clamp on
+ *       their own keep their documented behaviour.
+ *
  * @return `ARM_CMSIS_NN_SUCCESS` on success or `ARM_CMSIS_NN_ARG_ERROR` on invalid arguments.
  */
 arm_cmsis_nn_status arm_convolve_1x1_f32(const cmsis_nn_context *ctx,
@@ -442,6 +485,14 @@ arm_cmsis_nn_status arm_convolve_1x1_f32(const cmsis_nn_context *ctx,
  *       channels), and through a strided kernel otherwise. The float16 entries
  *       also do so from 80 taps when 4 to 7 output channels remain in the last
  *       8-channel block.
+ *
+ * @note NaN (ARM_NN_HAS_MAT_MULT_FLT_NAN_PROPAGATION): where this entry's route runs a float matmul product
+ *       (arm_nn_mat_mult_nt_t_f32 or arm_nn_mat_mult_nt_n_packed_f32, or for float16 their `_f16` and `_f16_acc16`
+ *       twins), the product's clamp passes a NaN
+ *       accumulator through on every leg: a NaN input, weight or bias, or an inf * 0 or inf - inf in the dot
+ *       product, yields NaN at that output. Only the NaN-ness is guaranteed, not the payload (Helium arithmetic
+ *       returns the default NaN). An infinite accumulator saturates to the activation bounds. Routes that clamp on
+ *       their own keep their documented behaviour.
  *
  * @return `ARM_CMSIS_NN_SUCCESS` on success or `ARM_CMSIS_NN_ARG_ERROR` on invalid arguments.
  */
@@ -526,6 +577,14 @@ arm_cmsis_nn_status arm_convolve_1_x_n_nhwc_packed_f32(const cmsis_nn_context *c
  *       channels), and through a strided kernel otherwise. The float16 entries
  *       also do so from 80 taps when 4 to 7 output channels remain in the last
  *       8-channel block.
+ *
+ * @note NaN (ARM_NN_HAS_MAT_MULT_FLT_NAN_PROPAGATION): where this entry's route runs a float matmul product
+ *       (arm_nn_mat_mult_nt_t_f32 or arm_nn_mat_mult_nt_n_packed_f32, or for float16 their `_f16` and `_f16_acc16`
+ *       twins), the product's clamp passes a NaN
+ *       accumulator through on every leg: a NaN input, weight or bias, or an inf * 0 or inf - inf in the dot
+ *       product, yields NaN at that output. Only the NaN-ness is guaranteed, not the payload (Helium arithmetic
+ *       returns the default NaN). An infinite accumulator saturates to the activation bounds. Routes that clamp on
+ *       their own keep their documented behaviour.
  *
  * @return `ARM_CMSIS_NN_SUCCESS` on success or `ARM_CMSIS_NN_ARG_ERROR` on invalid arguments.
  */
@@ -795,6 +854,14 @@ arm_cmsis_nn_status arm_convolve_small_c_nhwc_f32(const cmsis_nn_context *ctx,
  * @param[in]      bias_data      Bias data pointer, or NULL for no bias. Data type: float32
  * @param[in]      output_dims    Output tensor dimensions. Format: [N, H, W, C_OUT]
  * @param[out]     output_data    Output data pointer. Data type: float32
+ *
+ * @note NaN (ARM_NN_HAS_MAT_MULT_FLT_NAN_PROPAGATION): where this entry's route runs a float matmul product
+ *       (arm_nn_mat_mult_nt_t_f32 or arm_nn_mat_mult_nt_n_packed_f32, or for float16 their `_f16` and `_f16_acc16`
+ *       twins), the product's clamp passes a NaN
+ *       accumulator through on every leg: a NaN input, weight or bias, or an inf * 0 or inf - inf in the dot
+ *       product, yields NaN at that output. Only the NaN-ness is guaranteed, not the payload (Helium arithmetic
+ *       returns the default NaN). An infinite accumulator saturates to the activation bounds. Routes that clamp on
+ *       their own keep their documented behaviour.
  *
  * @return     The function returns one of the following
  *                <code>ARM_CMSIS_NN_ARG_ERROR</code> - conv_params, a dimension or a data pointer other than
@@ -1654,6 +1721,17 @@ arm_cmsis_nn_status arm_rsqrt_f32(const float32_t *input, float32_t *output, int
  * @param[in]     output_dims Output tensor dimensions.
  * @param[out]    output      Pointer to the output tensor data.
  *
+ * @note NaN (ARM_NN_HAS_MAT_MULT_FLT_NAN_PROPAGATION): the layer runs arm_nn_mat_mult_nt_t_f32, or
+ *       arm_nn_mat_mult_nt_n_packed_f32 for `ARM_NN_WEIGHT_FORMAT_NT_N_PACKED` weights (for float16, their `_f16`
+ *       and `_f16_acc16` twins), whose clamp passes a NaN accumulator through on every leg: a NaN input, weight
+ *       or bias, or an inf * 0 or inf - inf in the dot product, yields NaN at that output. Only the NaN-ness is
+ *       guaranteed, not the payload (Helium arithmetic returns the default NaN). An infinite accumulator saturates
+ *       to the activation bounds.
+ *
+ * @note Contraction (float32, `ARM_NN_WEIGHT_FORMAT_STANDARD` weights): whether an output is bit for bit the
+ *       product of its one weight row depends on the leg and on the compiler's contraction of `a * b + c`; under
+ *       GCC on the scalar leg it is, and the contraction note of arm_nn_mat_mult_nt_t_f32 states the rest.
+ *
  * @return `ARM_CMSIS_NN_SUCCESS` on success or `ARM_CMSIS_NN_ARG_ERROR` on invalid arguments.
  */
 arm_cmsis_nn_status arm_fully_connected_nhwc_f32(const cmsis_nn_context *ctx,
@@ -1681,6 +1759,17 @@ arm_cmsis_nn_status arm_fully_connected_nhwc_f32(const cmsis_nn_context *ctx,
  * @param[in]     output_dims Output tensor dimensions.
  * @param[out]    output      Pointer to the output tensor data.
  * @param[in]     layout      Tensor layout selector. Current float APIs require `ARM_NN_LAYOUT_NHWC`.
+ *
+ * @note NaN (ARM_NN_HAS_MAT_MULT_FLT_NAN_PROPAGATION): the layer runs arm_nn_mat_mult_nt_t_f32, or
+ *       arm_nn_mat_mult_nt_n_packed_f32 for `ARM_NN_WEIGHT_FORMAT_NT_N_PACKED` weights (for float16, their `_f16`
+ *       and `_f16_acc16` twins), whose clamp passes a NaN accumulator through on every leg: a NaN input, weight
+ *       or bias, or an inf * 0 or inf - inf in the dot product, yields NaN at that output. Only the NaN-ness is
+ *       guaranteed, not the payload (Helium arithmetic returns the default NaN). An infinite accumulator saturates
+ *       to the activation bounds.
+ *
+ * @note Contraction (float32, `ARM_NN_WEIGHT_FORMAT_STANDARD` weights): whether an output is bit for bit the
+ *       product of its one weight row depends on the leg and on the compiler's contraction of `a * b + c`; under
+ *       GCC on the scalar leg it is, and the contraction note of arm_nn_mat_mult_nt_t_f32 states the rest.
  *
  * @return `ARM_CMSIS_NN_SUCCESS` on success or `ARM_CMSIS_NN_ARG_ERROR` on invalid arguments.
  */
@@ -2088,6 +2177,14 @@ arm_cmsis_nn_status arm_resize_nearest_neighbor_f32(const cmsis_nn_context *ctx,
  *                               and consecutive batch matrices are stored back to back at that stride.
  * @param[in]     output_dims    Output tensor dimensions.
  * @param[out]    output         Pointer to the output tensor.
+ *
+ * @note NaN (ARM_NN_HAS_MAT_MULT_FLT_NAN_PROPAGATION): without adjoint flags the product runs
+ *       arm_nn_mat_mult_nt_t_f32, or arm_nn_mat_mult_nt_n_packed_f32 for a packed rhs (for float16, their `_f16`
+ *       twins), whose clamp passes a NaN accumulator through on every leg: a NaN operand, or an inf * 0 or
+ *       inf - inf in the dot product, yields NaN at that output. Only the NaN-ness is guaranteed, not the payload
+ *       (Helium arithmetic returns the default NaN). An infinite accumulator saturates to the activation bounds. The
+ *       adjoint routes clamp on their own with `ARM_NN_CLAMP` (float16: `arm_nn_clamp_f16h`), which resolves a NaN
+ *       to the activation maximum.
  *
  * @return `ARM_CMSIS_NN_SUCCESS` on success or `ARM_CMSIS_NN_ARG_ERROR` on invalid arguments.
  */
@@ -3143,6 +3240,13 @@ arm_cmsis_nn_status arm_depthwise_conv_cin1_nhwc_f16(const cmsis_nn_context *ctx
  *
  * @note The one-input-channel route, accumulating as arm_depthwise_conv_f16_acc16() does; same build, gate and
  *       ctx conditions as arm_depthwise_conv_cin1_nhwc_f16.
+ *
+ * @note NaN (ARM_NN_HAS_MAT_MULT_FLT_NAN_PROPAGATION): where this entry's route runs a float matmul product
+ *       (on MVE builds, arm_nn_mat_mult_nt_n_packed_f16_acc16), the product's clamp passes a NaN accumulator
+ *       through on every leg: a NaN input, weight or bias, or an inf * 0 or inf - inf in the dot product, yields
+ *       NaN at that output. Only the NaN-ness is guaranteed, not the payload (Helium arithmetic returns the default
+ *       NaN). An infinite accumulator saturates to the activation bounds. Routes that clamp on their own keep their
+ *       documented behaviour.
  */
 arm_cmsis_nn_status arm_depthwise_conv_cin1_nhwc_f16_acc16(const cmsis_nn_context *ctx,
                                                            const cmsis_nn_dw_conv_params_f16 *dw_conv_params,

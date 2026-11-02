@@ -51,6 +51,8 @@
     #endif
 
     #if !defined(ARM_MATH_MVEF) || defined(ARM_MATH_AUTOVECTORIZE)
+        #define ARM_NN_MAT_MULT_NT_T_F32_SCALAR_BLOCK_ROWS (4)
+
 __STATIC_INLINE float32_t dot_nt_t_f32_scalar(const float32_t *__RESTRICT lhs_row,
                                               const float32_t *__RESTRICT rhs_row,
                                               int32_t len)
@@ -133,10 +135,10 @@ __attribute__((noinline)) static void mat_mult_nt_t_f32_contig_rows(const float3
         acc2 += bias[2];
         acc3 += bias[3];
     }
-    dst[0] = ARM_NN_CLAMP(acc0, activation_max, activation_min);
-    dst[1] = ARM_NN_CLAMP(acc1, activation_max, activation_min);
-    dst[2] = ARM_NN_CLAMP(acc2, activation_max, activation_min);
-    dst[3] = ARM_NN_CLAMP(acc3, activation_max, activation_min);
+    dst[0] = arm_nn_propagate_nan_f32(acc0, ARM_NN_CLAMP(acc0, activation_max, activation_min));
+    dst[1] = arm_nn_propagate_nan_f32(acc1, ARM_NN_CLAMP(acc1, activation_max, activation_min));
+    dst[2] = arm_nn_propagate_nan_f32(acc2, ARM_NN_CLAMP(acc2, activation_max, activation_min));
+    dst[3] = arm_nn_propagate_nan_f32(acc3, ARM_NN_CLAMP(acc3, activation_max, activation_min));
 }
     #endif
 
@@ -202,8 +204,8 @@ arm_cmsis_nn_status arm_nn_mat_mult_nt_t_f32(const float32_t *__RESTRICT lhs,
                 vacc_hi = vfmaq(vacc_hi, vrhs_hi, lhs_v);
             }
 
-            vacc_lo = arm_nn_clamp_mve_f32(vacc_lo, vmin, vmax);
-            vacc_hi = arm_nn_clamp_mve_f32(vacc_hi, vmin, vmax);
+            vacc_lo = arm_nn_clamp_propagate_nan_mve_f32(vacc_lo, vmin, vmax);
+            vacc_hi = arm_nn_clamp_propagate_nan_mve_f32(vacc_hi, vmin, vmax);
             vst1q(dst_row + c, vacc_lo);
             vst1q(dst_row + c + ARM_NN_MAT_MULT_NT_T_F32_MVE_BLOCK_ROWS, vacc_hi);
         }
@@ -219,11 +221,52 @@ arm_cmsis_nn_status arm_nn_mat_mult_nt_t_f32(const float32_t *__RESTRICT lhs,
                 vacc = vfmaq(vacc, vrhs, lhs_row[k]);
             }
 
-            vacc = arm_nn_clamp_mve_f32(vacc, vmin, vmax);
+            vacc = arm_nn_clamp_propagate_nan_mve_f32(vacc, vmin, vmax);
             vst1q(dst_row + c, vacc);
         }
     #else
         int32_t c = 0;
+        /* Four output rows at once, each its own accumulation chain, so the
+         * four chains overlap in the pipeline instead of serialising on one
+         * accumulator's latency. Each row's sum is the same sequence of
+         * products from 0.0f, added to its bias at the end, that the row
+         * loop below computes, so under GCC every output keeps its bits; the
+         * declaration's contraction note states the compilers where a row
+         * may differ by one rounding of one contraction. */
+        for (; c + ARM_NN_MAT_MULT_NT_T_F32_SCALAR_BLOCK_ROWS <= rhs_rows;
+             c += ARM_NN_MAT_MULT_NT_T_F32_SCALAR_BLOCK_ROWS)
+        {
+            const float32_t *rhs0 = rhs + (size_t)c * rhs_cols;
+            const float32_t *rhs1 = rhs0 + rhs_cols;
+            const float32_t *rhs2 = rhs1 + rhs_cols;
+            const float32_t *rhs3 = rhs2 + rhs_cols;
+            float32_t dot0 = 0.0f;
+            float32_t dot1 = 0.0f;
+            float32_t dot2 = 0.0f;
+            float32_t dot3 = 0.0f;
+
+            for (int32_t k = 0; k < rhs_cols; ++k)
+            {
+                const float32_t lhs_v = lhs_row[k];
+                dot0 += lhs_v * rhs0[k];
+                dot1 += lhs_v * rhs1[k];
+                dot2 += lhs_v * rhs2[k];
+                dot3 += lhs_v * rhs3[k];
+            }
+
+            float32_t acc0 = bias ? bias[c] : 0.0f;
+            float32_t acc1 = bias ? bias[c + 1] : 0.0f;
+            float32_t acc2 = bias ? bias[c + 2] : 0.0f;
+            float32_t acc3 = bias ? bias[c + 3] : 0.0f;
+            acc0 += dot0;
+            acc1 += dot1;
+            acc2 += dot2;
+            acc3 += dot3;
+            dst_row[c] = arm_nn_propagate_nan_f32(acc0, ARM_NN_CLAMP(acc0, activation_max, activation_min));
+            dst_row[c + 1] = arm_nn_propagate_nan_f32(acc1, ARM_NN_CLAMP(acc1, activation_max, activation_min));
+            dst_row[c + 2] = arm_nn_propagate_nan_f32(acc2, ARM_NN_CLAMP(acc2, activation_max, activation_min));
+            dst_row[c + 3] = arm_nn_propagate_nan_f32(acc3, ARM_NN_CLAMP(acc3, activation_max, activation_min));
+        }
     #endif
 
         for (; c < rhs_rows; ++c)
@@ -236,7 +279,7 @@ arm_cmsis_nn_status arm_nn_mat_mult_nt_t_f32(const float32_t *__RESTRICT lhs,
     #else
             acc += dot_nt_t_f32_scalar(lhs_row, rhs_row, rhs_cols);
     #endif
-            dst_row[c] = ARM_NN_CLAMP(acc, activation_max, activation_min);
+            dst_row[c] = arm_nn_propagate_nan_f32(acc, ARM_NN_CLAMP(acc, activation_max, activation_min));
         }
     }
 
