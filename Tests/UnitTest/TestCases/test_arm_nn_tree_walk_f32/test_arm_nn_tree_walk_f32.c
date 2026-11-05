@@ -120,6 +120,7 @@ static int32_t tw_walk_one(const cmsis_nn_tree_node_f32 *nodes, int32_t node_cou
 /* A writer packs into this record: its layout is the ABI, so the layout is a case. */
 static void tw_record_layout(void)
 {
+    TEST_ASSERT_EQUAL_INT(1, ARM_NN_HAS_TREE_WALK_F32);
     TEST_ASSERT_EQUAL_size_t(12, sizeof(cmsis_nn_tree_node_f32));
     TEST_ASSERT_EQUAL_size_t(0, offsetof(cmsis_nn_tree_node_f32, threshold));
     TEST_ASSERT_EQUAL_size_t(4, offsetof(cmsis_nn_tree_node_f32, feature));
