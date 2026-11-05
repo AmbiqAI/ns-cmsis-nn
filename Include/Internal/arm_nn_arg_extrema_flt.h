@@ -43,12 +43,15 @@ static inline uint32_t arm_nn_arg_key(uint32_t bits, uint32_t sign, uint32_t los
 
 /* One reduced line of binary32 encodings, `stride` elements apart: the
  * first extremum's index, the first non-NaN value always replacing the
- * starting key and an all-NaN line keeping index 0. */
+ * starting key and an all-NaN line keeping index 0. `line` is the float32_t
+ * pointer the entry took plus a whole number of elements, so it keeps the
+ * alignment the entry's contract requires; the cast through void * says so
+ * to -Wcast-align and proves nothing more. */
 static inline int32_t arm_nn_arg_line_32(const uint8_t *line, size_t stride, size_t reduction, bool maximum)
 {
     const uint32_t sign = UINT32_C(0x80000000);
     const uint32_t lose = maximum ? 0 : UINT32_MAX;
-    const arm_nn_arg_bits32_t *element = (const arm_nn_arg_bits32_t *)line;
+    const arm_nn_arg_bits32_t *element = (const arm_nn_arg_bits32_t *)(const void *)line;
     uint32_t best_key = lose;
     int32_t best_index = 0;
     for (size_t k = 0; k < reduction; ++k)
@@ -61,12 +64,12 @@ static inline int32_t arm_nn_arg_line_32(const uint8_t *line, size_t stride, siz
     return best_index;
 }
 
-/* The binary16 twin of arm_nn_arg_line_32. */
+/* The binary16 twin of arm_nn_arg_line_32, `line` keeping a float16_t's alignment. */
 static inline int32_t arm_nn_arg_line_16(const uint8_t *line, size_t stride, size_t reduction, bool maximum)
 {
     const uint32_t sign = UINT32_C(0x8000);
     const uint32_t lose = maximum ? 0 : UINT32_MAX;
-    const arm_nn_arg_bits16_t *element = (const arm_nn_arg_bits16_t *)line;
+    const arm_nn_arg_bits16_t *element = (const arm_nn_arg_bits16_t *)(const void *)line;
     uint32_t best_key = lose;
     int32_t best_index = 0;
     for (size_t k = 0; k < reduction; ++k)
