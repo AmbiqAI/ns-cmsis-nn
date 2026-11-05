@@ -2758,7 +2758,7 @@ arm_cmsis_nn_status arm_topk_v2_f32(const float32_t *input_data,
  * leaf_count. The walk checks the path it takes and no other, so a table's other defects are a
  * validator's to find. An error or a FAILURE in tree t leaves the leaves of trees 0..t-1 written and
  * leaf_ids[t] onward untouched; in the first tree, nothing is written. leaf_ids must not overlap input
- * or the table; if it does, the result is unspecified.
+ * or the table; if it does, the behaviour is undefined.
  *
  * No scratch, no state, no Helium path: the walk is compares and dependent loads, one scalar loop on
  * every backend.
@@ -2769,7 +2769,8 @@ arm_cmsis_nn_status arm_topk_v2_f32(const float32_t *input_data,
  * step budget returns ARM_CMSIS_NN_FAILURE where the port returns its argument error.
  *
  * cmsis_nn_tree_node_f32 is an ABI from this version on: heliaAOT's HELIAML_TREE_WALK packs into this
- * record, 12 bytes with threshold at 0, feature at 4, left at 6, right at 8 and two bytes of padding.
+ * record, 12 bytes with threshold at 0, feature at 4, left at 6, right at 8 and two bytes of padding, which a writer
+ * stores as zero and the walk never reads.
  *
  * @param[in] input The row, table->feature_count values.
  * @param[in] table The packed table.

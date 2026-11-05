@@ -351,7 +351,8 @@ typedef struct
     /** Most features in a row: bit 15 of the feature field is the NaN route. */
     #define ARM_NN_TREE_MAX_FEATURES (32767)
 
-/** One split of a tree table: 12 bytes, threshold at 0, feature at 4, left at 6, right at 8, two bytes of padding. */
+/** One split of a tree table: 12 bytes, threshold at 0, feature at 4, left at 6, right at 8, two bytes of padding a
+ * writer stores as zero. */
 typedef struct
 {
     float32_t threshold; /**< A row goes left at or below this, compared as floats. */
