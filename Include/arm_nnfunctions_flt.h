@@ -2731,6 +2731,57 @@ arm_cmsis_nn_status arm_topk_v2_f32(const float32_t *input_data,
 
 /**
  * @ingroup Reduction
+ * @brief Walks a packed table of trees for one float32 row and writes the leaf each tree reaches.
+ *
+ * For each tree t, in order, the walk starts at split roots[t]. At a split it reads
+ * v = input[feature & 0x7FFF]. A NaN goes left when bit 15 of feature is set and right when it is
+ * clear; any other v goes left iff v <= threshold, one rule, a float32 compare. A negative child ends
+ * the walk with leaf_ids[t] = -child - 1; a child >= 0 is the next split.
+ *
+ * The NaN test is on the float's bits, (bits & 0x7FFFFFFF) > 0x7F800000, so the route is independent
+ * of FPSCR and of -ffinite-math-only, and every NaN, quiet or signalling, of either sign, routes alike.
+ * Infinities are not special: they are compared as floats, so +inf goes right of every finite threshold
+ * and -inf goes left of it. The two zeros compare equal. Thresholds are expected finite; a writer's
+ * validator holds that, and the walk does not check it.
+ *
+ * Limits, and why each: node_count 1..32767 (a child field is int16_t); leaf_count 1..32768 (the leaf
+ * code -(leaf + 1) of an int16_t reaches -32768); tree_count 1..65535 (the uint16_t tree counter of the
+ * forest this was ported from); feature_count 1..32767 (bit 15 of the feature field is the NaN route).
+ * Trees need not be disjoint: two roots may name one split.
+ *
+ * Step budget: a tree of node_count splits cannot need more than node_count steps, so a walk that
+ * takes node_count + 1 has met a split twice. It returns ARM_CMSIS_NN_FAILURE rather than loop.
+ *
+ * ARM_CMSIS_NN_ARG_ERROR, before the first write: a NULL input, table, table->nodes, table->roots or
+ * leaf_ids; a count outside its range; a root >= node_count. ARM_CMSIS_NN_ARG_ERROR during a walk, on
+ * the path that row takes: a feature >= feature_count, a split child >= node_count or a leaf >=
+ * leaf_count. The walk checks the path it takes and no other, so a table's other defects are a
+ * validator's to find. An error or a FAILURE in tree t leaves the leaves of trees 0..t-1 written and
+ * leaf_ids[t] onward untouched; in the first tree, nothing is written. leaf_ids must not overlap input
+ * or the table; if it does, the behaviour is undefined.
+ *
+ * No scratch, no state, no Helium path: the walk is compares and dependent loads, one scalar loop on
+ * every backend.
+ *
+ * This is a port of heliaML's heliaml_tree_traverse_f32 with its strict argument removed, so the one
+ * rule is the <= above and a writer normalises a strict library's thresholds. Two more departures, each
+ * neutral to the leaves of a well-formed table: the NaN test is on the bits rather than isnan, and the
+ * step budget returns ARM_CMSIS_NN_FAILURE where the port returns its argument error.
+ *
+ * cmsis_nn_tree_node_f32 is an ABI from this version on: heliaAOT's HELIAML_TREE_WALK packs into this
+ * record, 12 bytes with threshold at 0, feature at 4, left at 6, right at 8 and two bytes of padding, which a writer
+ * stores as zero and the walk never reads.
+ *
+ * @param[in] input The row, table->feature_count values.
+ * @param[in] table The packed table.
+ * @param[out] leaf_ids The leaf of each tree in tree order, table->tree_count values.
+ * @return ARM_CMSIS_NN_SUCCESS, ARM_CMSIS_NN_ARG_ERROR or ARM_CMSIS_NN_FAILURE.
+ */
+arm_cmsis_nn_status
+arm_nn_tree_walk_f32(const float32_t *input, const cmsis_nn_tree_table_f32 *table, int32_t *leaf_ids);
+
+/**
+ * @ingroup Reduction
  * @brief Reduces a f32 NHWC tensor to its maximum along a binary axis mask.
  *
  * Values are selected without floating-point arithmetic, accumulation or conversion.
