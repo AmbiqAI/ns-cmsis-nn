@@ -23,6 +23,14 @@
 #define TW_MOST_TREES 65535
 #define TW_MOST_FEATURES 32767
 
+/* The tables at the limits are over a megabyte, more than the Corstone-300 FVP's DTCM .bss: they sit in its SRAM, which
+ * startup does not clear, so each case fills what it reads. */
+#if defined(USING_FVP_CORSTONE_300)
+    #define TW_LARGE_SECTION __attribute__((section(".bss.NoInit")))
+#else
+    #define TW_LARGE_SECTION
+#endif
+
 #define TW_POSITIVE_INF UINT32_C(0x7F800000)
 #define TW_NEGATIVE_INF UINT32_C(0xFF800000)
 
@@ -279,8 +287,8 @@ static void tw_signed_zeros(void)
  */
 static void tw_most_nodes_leaves_features(void)
 {
-    static cmsis_nn_tree_node_f32 nodes[TW_MOST_NODES];
-    static float32_t row[TW_MOST_FEATURES];
+    static cmsis_nn_tree_node_f32 nodes[TW_MOST_NODES] TW_LARGE_SECTION;
+    static float32_t row[TW_MOST_FEATURES] TW_LARGE_SECTION;
     const uint32_t root = 0;
     const uint16_t feature = TW_MOST_FEATURES - 1;
     cmsis_nn_tree_table_f32 table;
@@ -328,8 +336,8 @@ static void tw_most_nodes_leaves_features(void)
  */
 static void tw_most_trees(void)
 {
-    static uint32_t roots[TW_MOST_TREES];
-    static int32_t leaf_ids[TW_MOST_TREES + TW_GUARD];
+    static uint32_t roots[TW_MOST_TREES] TW_LARGE_SECTION;
+    static int32_t leaf_ids[TW_MOST_TREES + TW_GUARD] TW_LARGE_SECTION;
     const cmsis_nn_tree_node_f32 nodes[3] = {
         tw_node(0.0f, 0u, -1, -2),
         tw_node(5.0f, 0u, -3, -4),
