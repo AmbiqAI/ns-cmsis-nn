@@ -338,6 +338,39 @@ typedef struct
         *hidden_state; /**< Optional in/out persistent hidden state [hidden_size] for streaming (batch_size == 1). */
 } cmsis_nn_gru_context_f32;
 
+    /** Bit 15 of cmsis_nn_tree_node_f32.feature: a NaN in this split's feature goes left. */
+    #define ARM_NN_TREE_NODE_MISSING_LEFT ((uint16_t)0x8000u)
+    /** Bits 0-14 of cmsis_nn_tree_node_f32.feature: the feature's index. */
+    #define ARM_NN_TREE_NODE_FEATURE_MASK ((uint16_t)0x7FFFu)
+    /** Most splits in a table: a child field is int16_t. */
+    #define ARM_NN_TREE_MAX_NODES (32767)
+    /** Most leaves in a table: the leaf code -(leaf + 1) of an int16_t reaches -32768. */
+    #define ARM_NN_TREE_MAX_LEAVES (32768)
+    /** Most trees in a table: the uint16_t tree counter of the forest the walk was ported from. */
+    #define ARM_NN_TREE_MAX_TREES (65535)
+    /** Most features in a row: bit 15 of the feature field is the NaN route. */
+    #define ARM_NN_TREE_MAX_FEATURES (32767)
+
+/** One split of a tree table: 12 bytes, threshold at 0, feature at 4, left at 6, right at 8, two bytes of padding. */
+typedef struct
+{
+    float32_t threshold; /**< A row goes left at or below this, compared as floats. */
+    uint16_t feature;    /**< Bits 0-14 the feature; bit 15 set: a NaN goes left. */
+    int16_t left;        /**< >= 0 a split index; < 0 the leaf code -(leaf + 1). */
+    int16_t right;       /**< >= 0 a split index; < 0 the leaf code -(leaf + 1). */
+} cmsis_nn_tree_node_f32;
+
+/** A packed table of trees for arm_nn_tree_walk_f32. */
+typedef struct
+{
+    const cmsis_nn_tree_node_f32 *nodes; /**< node_count records. */
+    const uint32_t *roots;               /**< tree_count split indices. */
+    int32_t node_count;                  /**< 1..ARM_NN_TREE_MAX_NODES. */
+    int32_t leaf_count;                  /**< 1..ARM_NN_TREE_MAX_LEAVES. */
+    int32_t tree_count;                  /**< 1..ARM_NN_TREE_MAX_TREES. */
+    int32_t feature_count;               /**< 1..ARM_NN_TREE_MAX_FEATURES. */
+} cmsis_nn_tree_table_f32;
+
 #endif
 
 #if ARM_NN_ENABLE_F16

@@ -2731,6 +2731,18 @@ arm_cmsis_nn_status arm_topk_v2_f32(const float32_t *input_data,
 
 /**
  * @ingroup Reduction
+ * @brief Walks a packed table of trees for one float32 row and writes the leaf each tree reaches.
+ *
+ * @param[in] input The row, table->feature_count values.
+ * @param[in] table The packed table.
+ * @param[out] leaf_ids The leaf of each tree in tree order, table->tree_count values.
+ * @return ARM_CMSIS_NN_SUCCESS, ARM_CMSIS_NN_ARG_ERROR or ARM_CMSIS_NN_FAILURE.
+ */
+arm_cmsis_nn_status
+arm_nn_tree_walk_f32(const float32_t *input, const cmsis_nn_tree_table_f32 *table, int32_t *leaf_ids);
+
+/**
+ * @ingroup Reduction
  * @brief Reduces a f32 NHWC tensor to its maximum along a binary axis mask.
  *
  * Values are selected without floating-point arithmetic, accumulation or conversion.
