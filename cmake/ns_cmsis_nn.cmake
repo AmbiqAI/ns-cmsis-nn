@@ -262,6 +262,7 @@ function(_ns_cmsis_nn_group_def group out_subdir out_patterns out_extras)
     if(ARM_NN_ENABLE_F32)
       list(APPEND extras "arm_batch_norm_f32.c"
                          "arm_get_buffer_size_f32.c"
+                         "arm_layer_norm_f32.c"
                          "arm_nn_conv1d_k3_f32.c"
                          "arm_nn_conv1d_k3_packed_f32.c"
                          "arm_nn_conv1d_k5_f32.c"

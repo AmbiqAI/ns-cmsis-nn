@@ -180,6 +180,17 @@ You can also invoke the refactored RSQRT generator directly:
 ./RefactoredTestGen/generate_rsqrt_s16_test_data.py
 ```
 
+### Layer normalization
+
+`arm_layer_norm_s8` / `_s16` have no TFLM counterpart (TFLite has no layer-norm operator). The integer algorithm is
+defined by `layer_norm_reference.py`, which the kernels match bit for bit on every path, and the same file holds the
+export-time parameter computation (`export_params`). The test data of `test_arm_layer_norm_s8` / `_s16` / `_f32`
+comes from it:
+
+```
+python3 generate_layer_norm_data.py
+```
+
 ### Tests depending on TFLM interpreter
 
 If TFL and TFLM reference kernels differ, CMSIS-NN aims to be bit-exact to TFLM reference kernels. Hence those operators depends on tflite_micro interpreter.

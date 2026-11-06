@@ -69,6 +69,7 @@
         <file category="header" name="Include/arm_nn_types.h"/>
         <file category="header" name="Include/arm_nnfunctions.h"/>
         <file category="header" name="Include/arm_nnsupportfunctions.h"/>
+        <file category="header" name="Include/Internal/arm_nn_layer_norm.h"/>
         <file category="header" name="Include/Internal/arm_nn_vector_sum_s8_mve.h"/>
         <file category="header" name="Include/arm_nn_tables.h"/>
         <file category="header" name="Include/arm_nn_math_types.h"/>
@@ -366,6 +367,9 @@
         <file category="source" name="Source/NNSupportFunctions/arm_batch_norm_f32.c"/>
         <file category="source" name="Source/NNSupportFunctions/arm_get_buffer_size_f16.c"/>
         <file category="source" name="Source/NNSupportFunctions/arm_get_buffer_size_f32.c"/>
+        <file category="source" name="Source/NNSupportFunctions/arm_layer_norm_f32.c"/>
+        <file category="source" name="Source/NNSupportFunctions/arm_layer_norm_s16.c"/>
+        <file category="source" name="Source/NNSupportFunctions/arm_layer_norm_s8.c"/>
         <file category="source" name="Source/NNSupportFunctions/arm_nn_conv1d_k3_f16.c"/>
         <file category="source" name="Source/NNSupportFunctions/arm_nn_conv1d_k3_f32.c"/>
         <file category="source" name="Source/NNSupportFunctions/arm_nn_conv1d_k3_packed_f16.c"/>
@@ -518,6 +522,7 @@
         <file category="header" name="Include/arm_nn_types.h"/>
         <file category="header" name="Include/arm_nnfunctions.h"/>
         <file category="header" name="Include/arm_nnsupportfunctions.h"/>
+        <file category="header" name="Include/Internal/arm_nn_layer_norm.h"/>
         <file category="header" name="Include/Internal/arm_nn_vector_sum_s8_mve.h"/>
         <file category="header" name="Include/arm_nn_tables.h"/>
         <file category="header" name="Include/arm_nn_math_types.h"/>

@@ -1923,6 +1923,32 @@ arm_cmsis_nn_status arm_pad_f32(const float32_t *input,
  */
 
 /**
+ * @brief Float32 layer normalization over the innermost dimension.
+ *
+ * y = (x - mean) / sqrt(var + epsilon) * gamma[c] + beta[c] for each of @p rows rows of @p row_size values, with
+ * the biased variance (divided by @p row_size), as PyTorch's layer_norm. The statistics take two passes (mean,
+ * then the mean of (x - mean)^2); the scalar and MVE paths sum in different orders, so they agree to rounding,
+ * not bit for bit.
+ *
+ * @param[in]  rows       Number of rows, >= 0
+ * @param[in]  row_size   Values per row (the normalized dimension), >= 1
+ * @param[in]  epsilon    Added to the variance; finite and >= 0
+ * @param[in]  input      Input, [rows, row_size]
+ * @param[in]  gamma      Per-element scale, @p row_size values, or NULL for 1
+ * @param[in]  beta       Per-element shift, @p row_size values, or NULL for 0
+ * @param[out] output     Output, [rows, row_size]; may alias @p input
+ *
+ * @return `ARM_CMSIS_NN_SUCCESS` on success or `ARM_CMSIS_NN_ARG_ERROR` on invalid arguments.
+ */
+arm_cmsis_nn_status arm_layer_norm_f32(const int32_t rows,
+                                       const int32_t row_size,
+                                       const float32_t epsilon,
+                                       const float32_t *input,
+                                       const float32_t *gamma,
+                                       const float32_t *beta,
+                                       float32_t *output);
+
+/**
  * @brief Apply batch normalization.
  *
  * Computes `output = input * scale[c] + bias[c]` for every element of channel `c`, with @p scale and @p bias

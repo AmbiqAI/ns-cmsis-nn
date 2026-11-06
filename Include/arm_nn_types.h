@@ -173,6 +173,14 @@ typedef struct
     int32_t max; /**< Max value used to clamp the result */
 } cmsis_nn_activation;
 
+/** CMSIS-NN object for the integer layer-norm parameters (arm_layer_norm_s8 / arm_layer_norm_s16) */
+typedef struct
+{
+    int64_t epsilon;                /**< round(row_size^2 * eps / input_scale^2), in [0, 2^62 - 2^60 - 1] */
+    int32_t output_shift;           /**< Fraction bits of gamma * z + bias, rounded off at the end, [1, 31] */
+    cmsis_nn_activation activation; /**< Output clamp */
+} cmsis_nn_layer_norm_params;
+
 /** CMSIS-NN object for the convolution layer parameters */
 typedef struct
 {

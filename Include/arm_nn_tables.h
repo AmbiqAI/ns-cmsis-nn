@@ -38,5 +38,6 @@
  */
 
 extern const uint16_t sigmoid_table_uint16[256];
+extern const uint32_t layer_norm_inv_sqrt_seed[24];
 
 #endif /*  ARM_NN_TABLES_H */

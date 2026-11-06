@@ -7984,6 +7984,77 @@ arm_cmsis_nn_status arm_reduce_min_s16(const int16_t *input_data,
                                        int16_t *output_data,
                                        const cmsis_nn_dims *output_dims);
 /**
+ * @defgroup Normalization Normalization Functions
+ *
+ */
+
+/**
+ * @brief Integer layer normalization of int8 rows over the innermost dimension.
+ *
+ * Normalizes each of @p rows rows of @p row_size values and applies a per-element affine transform:
+ * y = (x - mean) / sqrt(var + eps) * gamma[c] + beta[c], quantized. The input scale and zero point cancel out of
+ * the normalization; they reach the kernel only through @p params->epsilon. Everything else is folded into
+ * per-element parameters at export time (Tests/UnitTest/layer_norm_reference.py, export_params()), with
+ * P = the smallest exponent such that |gamma[c]| / output_scale < 2^P for every c:
+ *
+ * - params->epsilon = round(row_size^2 * eps / input_scale^2)
+ * - params->output_shift = 20 - P, in [1, 31]
+ * - gamma[c] = round(gamma_real[c] / output_scale * 2^(31 - P))
+ * - bias[c] = round(beta_real[c] / output_scale * 2^output_shift) + (output_zero_point << output_shift),
+ *   |bias[c]| < 2^30
+ *
+ * The result is defined bit for bit by the integer algorithm in that file (see Internal/arm_nn_layer_norm.h),
+ * which this function matches on every path (scalar, DSP, MVE) and in either requantization rounding mode.
+ * Against float64 layer norm it is within one output step and exact for most values.
+ *
+ * @param[in]   params        Epsilon term, output shift and output activation range
+ * @param[in]   rows          Number of rows, >= 0
+ * @param[in]   row_size      Values per row (the normalized dimension), [1, ARM_NN_LAYER_NORM_MAX_ROW_SIZE_S8]
+ * @param[in]   input         Input, [rows, row_size]
+ * @param[in]   gamma         Per-element Q31 scale, @p row_size values
+ * @param[in]   bias          Per-element bias, @p row_size values
+ * @param[out]  output        Output, [rows, row_size]; may alias @p input
+ *
+ * @return     <code>ARM_CMSIS_NN_SUCCESS</code>, or <code>ARM_CMSIS_NN_ARG_ERROR</code> for a null pointer or an
+ *             argument out of range
+ *
+ * @details    Cost per row: one pass for the statistics (16 values per MVE instruction), an integer inverse square
+ *             root (about 40 cycles), and one pass for the output (seven MVE instructions per four values).
+ */
+arm_cmsis_nn_status arm_layer_norm_s8(const cmsis_nn_layer_norm_params *params,
+                                      const int32_t rows,
+                                      const int32_t row_size,
+                                      const int8_t *input,
+                                      const int32_t *gamma,
+                                      const int32_t *bias,
+                                      int8_t *output);
+
+/**
+ * @brief Integer layer normalization of int16 rows over the innermost dimension.
+ *
+ * As arm_layer_norm_s8(), for int16 input and output. @p row_size is in
+ * [1, ARM_NN_LAYER_NORM_MAX_ROW_SIZE_S16]; the sum of squares is accumulated in int64.
+ *
+ * @param[in]   params        Epsilon term, output shift and output activation range
+ * @param[in]   rows          Number of rows, >= 0
+ * @param[in]   row_size      Values per row (the normalized dimension)
+ * @param[in]   input         Input, [rows, row_size]
+ * @param[in]   gamma         Per-element Q31 scale, @p row_size values (see arm_layer_norm_s8())
+ * @param[in]   bias          Per-element bias, @p row_size values (see arm_layer_norm_s8())
+ * @param[out]  output        Output, [rows, row_size]; may alias @p input
+ *
+ * @return     <code>ARM_CMSIS_NN_SUCCESS</code>, or <code>ARM_CMSIS_NN_ARG_ERROR</code> for a null pointer or an
+ *             argument out of range
+ */
+arm_cmsis_nn_status arm_layer_norm_s16(const cmsis_nn_layer_norm_params *params,
+                                       const int32_t rows,
+                                       const int32_t row_size,
+                                       const int16_t *input,
+                                       const int32_t *gamma,
+                                       const int32_t *bias,
+                                       int16_t *output);
+
+/**
  * @defgroup Quantization Quantization Functions:
  *
  */
