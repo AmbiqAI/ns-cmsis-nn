@@ -27,50 +27,6 @@
  * @{
  */
 
-/* Sum and sum of squares of one row; exact in int32 for row_size <= ARM_NN_LAYER_NORM_MAX_ROW_SIZE_S8. */
-static void layer_norm_row_stats_s8(const int8_t *x, const int32_t n, int32_t *sum_out, int32_t *sumsq_out)
-{
-    int32_t sum = 0;
-    int32_t sumsq = 0;
-    int32_t i = 0;
-#if defined(ARM_MATH_MVEI) && !defined(ARM_MATH_AUTOVECTORIZE)
-    for (; i <= n - 16; i += 16)
-    {
-        const int8x16_t v = vld1q_s8(x + i);
-        sum = vaddvaq_s8(sum, v);
-        sumsq = vmladavaq_s8(sumsq, v, v);
-    }
-    if (i < n)
-    {
-        const int8x16_t v = vldrbq_z_s8(x + i, vctp8q((uint32_t)(n - i))); /* inactive lanes load 0 */
-        sum = vaddvaq_s8(sum, v);
-        sumsq = vmladavaq_s8(sumsq, v, v);
-    }
-#else
-    #if defined(ARM_MATH_DSP)
-    const int8_t *ptr = x;
-    for (; i <= n - 4; i += 4)
-    {
-        const int32_t word = arm_nn_read_s8x4_ia(&ptr);
-        const int32_t even = (int32_t)SXTB16((uint32_t)word);
-        const int32_t odd = (int32_t)SXTB16_RORn((uint32_t)word, 8);
-        sumsq = (int32_t)SMLAD((uint32_t)even, (uint32_t)even, (uint32_t)sumsq);
-        sumsq = (int32_t)SMLAD((uint32_t)odd, (uint32_t)odd, (uint32_t)sumsq);
-        sum = (int32_t)SMLAD((uint32_t)even, 0x00010001U, (uint32_t)sum);
-        sum = (int32_t)SMLAD((uint32_t)odd, 0x00010001U, (uint32_t)sum);
-    }
-    #endif
-    for (; i < n; i++)
-    {
-        const int32_t v = x[i];
-        sum += v;
-        sumsq += v * v;
-    }
-#endif
-    *sum_out = sum;
-    *sumsq_out = sumsq;
-}
-
 #if defined(ARM_MATH_MVEI) && !defined(ARM_MATH_AUTOVECTORIZE)
 /* Four outputs, before the clamp: rshr(qrdmulh(qrdmulh(N' * x - S', m), gamma) + bias, output_shift). */
 __STATIC_FORCEINLINE int32x4_t layer_norm_out_mve(const int32x4_t x,
@@ -127,7 +83,7 @@ arm_cmsis_nn_status arm_layer_norm_s8(const cmsis_nn_layer_norm_params *params,
 
         int32_t sum;
         int32_t sumsq;
-        layer_norm_row_stats_s8(x, n, &sum, &sumsq);
+        arm_nn_layer_norm_row_stats_s8(x, n, &sum, &sumsq);
         int32_t m;
         int32_t lshift;
         arm_nn_layer_norm_row_multiplier(

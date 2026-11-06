@@ -8030,6 +8030,49 @@ arm_cmsis_nn_status arm_layer_norm_s8(const cmsis_nn_layer_norm_params *params,
                                       int8_t *output);
 
 /**
+ * @brief Faster integer layer normalization of int8 rows: the affine step runs on eight 16-bit lanes.
+ *
+ * Computes what arm_layer_norm_s8() computes, with the normalized value z narrowed to int16 and gamma and bias in
+ * int16, so the per-element affine step (multiply by gamma, add bias, round, clamp) handles eight values per MVE
+ * instruction instead of four. About 18% fewer MVE instructions per value. The result is not bit-exact with
+ * arm_layer_norm_s8(): against float64 layer norm it is within one output step, and exact on about 97-99% of
+ * values at realistic row lengths (arm_layer_norm_s8() is exact on nearly all).
+ *
+ * The export (Tests/UnitTest/layer_norm_reference.py, export_params_fast()) sets, with F = params->norm_frac_bits
+ * = 15 - bit_length(isqrt(row_size - 1)) and P the smallest exponent such that |gamma[c]| / output_scale < 2^P
+ * for every c, raised so that the output shift is at most 7 and every bias fits in int16:
+ *
+ * - params->epsilon = round(row_size^2 * eps / input_scale^2)
+ * - params->output_shift = F - P, in [1, 7]
+ * - gamma[c] = round(gamma_real[c] / output_scale * 2^(15 - P))
+ * - bias[c] = round(beta_real[c] / output_scale * 2^output_shift) + (output_zero_point << output_shift)
+ *
+ * Per row, z = qrdmulh((N << L) * x - (S << L), m) as in arm_layer_norm_s8() but with F fraction bits
+ * (arm_nn_layer_norm_row_multiplier_frac()), saturated to int16; then per element
+ * y = clamp(rshr(sat16(qrdmulh16(z, gamma[c]) + bias[c]), output_shift)), with qrdmulh16(a, b) the VQRDMULH.S16
+ * rounding (a * b + 2^14) >> 15. The output shift of at most 7 makes the saturations equivalent to the clamp. The
+ * scalar, DSP and MVE paths match layer_norm_int_fast() in the reference bit for bit.
+ *
+ * @param[in]   params        Epsilon term, normalized fraction bits, output shift and output activation range
+ * @param[in]   rows          Number of rows, >= 0
+ * @param[in]   row_size      Values per row (the normalized dimension), [1, ARM_NN_LAYER_NORM_MAX_ROW_SIZE_S8]
+ * @param[in]   input         Input, [rows, row_size]
+ * @param[in]   gamma         Per-element Q15 scale, @p row_size values
+ * @param[in]   bias          Per-element bias, @p row_size values
+ * @param[out]  output        Output, [rows, row_size]; may alias @p input
+ *
+ * @return     <code>ARM_CMSIS_NN_SUCCESS</code>, or <code>ARM_CMSIS_NN_ARG_ERROR</code> for a null pointer or an
+ *             argument out of range
+ */
+arm_cmsis_nn_status arm_layer_norm_s8_fast(const cmsis_nn_layer_norm_fast_params *params,
+                                           const int32_t rows,
+                                           const int32_t row_size,
+                                           const int8_t *input,
+                                           const int16_t *gamma,
+                                           const int16_t *bias,
+                                           int8_t *output);
+
+/**
  * @brief Integer layer normalization of int16 rows over the innermost dimension.
  *
  * As arm_layer_norm_s8(), for int16 input and output. @p row_size is in

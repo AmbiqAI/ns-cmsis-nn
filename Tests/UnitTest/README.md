@@ -182,10 +182,11 @@ You can also invoke the refactored RSQRT generator directly:
 
 ### Layer normalization
 
-`arm_layer_norm_s8` / `_s16` have no TFLM counterpart (TFLite has no layer-norm operator). The integer algorithm is
-defined by `layer_norm_reference.py`, which the kernels match bit for bit on every path, and the same file holds the
-export-time parameter computation (`export_params`). The test data of `test_arm_layer_norm_s8` / `_s16` / `_f32`
-comes from it:
+`arm_layer_norm_s8` / `_s8_fast` / `_s16` have no TFLM counterpart (TFLite has no layer-norm operator). The integer
+algorithms are defined by `layer_norm_reference.py` (`layer_norm_int`, and `layer_norm_int_fast` for the 16-bit-lane
+`arm_layer_norm_s8_fast`), which the kernels match bit for bit on every path, and the same file holds the export-time
+parameter computation (`export_params`, `export_params_fast`). The test data of `test_arm_layer_norm_s8` /
+`_s8_fast` / `_s16` / `_f32` comes from it:
 
 ```
 python3 generate_layer_norm_data.py

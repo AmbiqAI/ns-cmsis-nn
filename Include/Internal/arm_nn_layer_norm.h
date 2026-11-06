@@ -44,21 +44,27 @@ extern "C" {
 /** Largest epsilon term: keeps D below 2^62 for every supported row. */
 #define ARM_NN_LAYER_NORM_MAX_EPSILON ((int64_t)((1ULL << 62) - (1ULL << 60) - 1ULL))
 
+/** Range of norm_frac_bits for arm_layer_norm_s8_fast. The export picks 15 - bit_length(isqrt(N - 1)), the most
+ *  fraction bits that keep |z| <= sqrt(N - 1) * 2^bits in int16: 15 for N = 1, 6 for N = 65536. */
+#define ARM_NN_LAYER_NORM_FAST_MIN_FRAC_BITS (6)
+#define ARM_NN_LAYER_NORM_FAST_MAX_FRAC_BITS (15)
+
 /**
- * @brief           Row multiplier for integer layer norm.
- * @param[in]       d       N^2 * (variance + eps) of the row, in [0, 2^62)
- * @param[out]      mult    Q31 multiplier, in [0, INT32_MAX]
- * @param[out]      lshift  Left shift, in [0, 20]
+ * @brief           Row multiplier for integer layer norm, for z with @p frac_bits fraction bits.
+ * @param[in]       d          N^2 * (variance + eps) of the row, in [0, 2^62)
+ * @param[in]       frac_bits  Fraction bits of z, in [1, 20]
+ * @param[out]      mult       Q31 multiplier, in [0, INT32_MAX]
+ * @param[out]      lshift     Left shift, in [0, frac_bits]
  *
- * 2^ARM_NN_LAYER_NORM_FRAC_BITS / sqrt(d) ~= *mult * 2^(*lshift) / 2^31, relative error below 2^-20.
- * d is normalized by an even shift to dn = d * 4^a in [2^60, 2^62); x = dn >> 30 is X = dn / 2^60 as Q30.
- * Y ~= 1/sqrt(X) as Q31 starts from layer_norm_inv_sqrt_seed and takes three truncating Newton steps
- * Y <- Y * (3 - X * Y^2) / 2, so 2^20 / sqrt(d) = Y * 2^(a - 10) / 2^31. A negative exponent a - 10 is folded into
- * Y with a rounding shift (Y keeps at least 21 significant bits), so the per-element path needs no shift after
- * its multiply. Integer only, about 40 cycles. d == 0 (a constant row with epsilon 0) gives a zero multiplier,
- * so the row normalizes to 0.
+ * 2^frac_bits / sqrt(d) ~= *mult * 2^(*lshift) / 2^31. d is normalized by an even shift to dn = d * 4^a in
+ * [2^60, 2^62); x = dn >> 30 is X = dn / 2^60 as Q30. Y ~= 1/sqrt(X) as Q31 starts from layer_norm_inv_sqrt_seed and
+ * takes three truncating Newton steps Y <- Y * (3 - X * Y^2) / 2, so 2^frac_bits / sqrt(d) =
+ * Y * 2^(frac_bits + a - 30) / 2^31. A negative exponent is folded into Y with a rounding shift, so the per-element
+ * path needs no shift after its multiply. Integer only, about 40 cycles. d == 0 (a constant row with epsilon 0)
+ * gives a zero multiplier, so the row normalizes to 0.
  */
-__STATIC_FORCEINLINE void arm_nn_layer_norm_row_multiplier(const uint64_t d, int32_t *mult, int32_t *lshift)
+__STATIC_FORCEINLINE void
+arm_nn_layer_norm_row_multiplier_frac(const uint64_t d, const int32_t frac_bits, int32_t *mult, int32_t *lshift)
 {
     if (d == 0)
     {
@@ -84,7 +90,7 @@ __STATIC_FORCEINLINE void arm_nn_layer_norm_row_multiplier(const uint64_t d, int
     {
         y = INT32_MAX;
     }
-    const int32_t shift = ARM_NN_LAYER_NORM_FRAC_BITS + a - 30;
+    const int32_t shift = frac_bits + a - 30;
     if (shift < 0)
     {
         y = (uint32_t)(((uint64_t)y + (1ULL << (-shift - 1))) >> -shift);
@@ -97,10 +103,77 @@ __STATIC_FORCEINLINE void arm_nn_layer_norm_row_multiplier(const uint64_t d, int
     *mult = (int32_t)y;
 }
 
+/**
+ * @brief           Row multiplier for arm_layer_norm_s8 / arm_layer_norm_s16: z with ARM_NN_LAYER_NORM_FRAC_BITS (20)
+ *                  fraction bits.
+ * @param[in]       d       N^2 * (variance + eps) of the row, in [0, 2^62)
+ * @param[out]      mult    Q31 multiplier, in [0, INT32_MAX]
+ * @param[out]      lshift  Left shift, in [0, 20]
+ *
+ * See arm_nn_layer_norm_row_multiplier_frac(). With 20 fraction bits the relative error is below 2^-20 and the
+ * multiplier keeps at least 21 significant bits.
+ */
+__STATIC_FORCEINLINE void arm_nn_layer_norm_row_multiplier(const uint64_t d, int32_t *mult, int32_t *lshift)
+{
+    arm_nn_layer_norm_row_multiplier_frac(d, ARM_NN_LAYER_NORM_FRAC_BITS, mult, lshift);
+}
+
+/** Sum and sum of squares of one int8 row; exact in int32 for n <= ARM_NN_LAYER_NORM_MAX_ROW_SIZE_S8. */
+__STATIC_FORCEINLINE void
+arm_nn_layer_norm_row_stats_s8(const int8_t *x, const int32_t n, int32_t *sum_out, int32_t *sumsq_out)
+{
+    int32_t sum = 0;
+    int32_t sumsq = 0;
+    int32_t i = 0;
+#if defined(ARM_MATH_MVEI) && !defined(ARM_MATH_AUTOVECTORIZE)
+    for (; i <= n - 16; i += 16)
+    {
+        const int8x16_t v = vld1q_s8(x + i);
+        sum = vaddvaq_s8(sum, v);
+        sumsq = vmladavaq_s8(sumsq, v, v);
+    }
+    if (i < n)
+    {
+        const int8x16_t v = vldrbq_z_s8(x + i, vctp8q((uint32_t)(n - i))); /* inactive lanes load 0 */
+        sum = vaddvaq_s8(sum, v);
+        sumsq = vmladavaq_s8(sumsq, v, v);
+    }
+#else
+    #if defined(ARM_MATH_DSP)
+    const int8_t *ptr = x;
+    for (; i <= n - 4; i += 4)
+    {
+        const int32_t word = arm_nn_read_s8x4_ia(&ptr);
+        const int32_t even = (int32_t)SXTB16((uint32_t)word);
+        const int32_t odd = (int32_t)SXTB16_RORn((uint32_t)word, 8);
+        sumsq = (int32_t)SMLAD((uint32_t)even, (uint32_t)even, (uint32_t)sumsq);
+        sumsq = (int32_t)SMLAD((uint32_t)odd, (uint32_t)odd, (uint32_t)sumsq);
+        sum = (int32_t)SMLAD((uint32_t)even, 0x00010001U, (uint32_t)sum);
+        sum = (int32_t)SMLAD((uint32_t)odd, 0x00010001U, (uint32_t)sum);
+    }
+    #endif
+    for (; i < n; i++)
+    {
+        const int32_t v = x[i];
+        sum += v;
+        sumsq += v * v;
+    }
+#endif
+    *sum_out = sum;
+    *sumsq_out = sumsq;
+}
+
 /** VQRDMULH.S32 on scalars: round-half-up (a * b) / 2^31 (the operands are never both INT32_MIN). */
 __STATIC_FORCEINLINE int32_t arm_nn_layer_norm_qrdmulh(const int32_t a, const int32_t b)
 {
     return (int32_t)(((int64_t)a * b + (1LL << 30)) >> 31);
+}
+
+/** VQRDMULH.S16 on scalars: round-half-up (a * b) / 2^15, saturated to int16. */
+__STATIC_FORCEINLINE int16_t arm_nn_layer_norm_qrdmulh_s16(const int16_t a, const int16_t b)
+{
+    const int32_t v = ((int32_t)a * b + (1 << 14)) >> 15;
+    return (int16_t)(v > INT16_MAX ? INT16_MAX : v);
 }
 
 /** VRSHL.S32 by -shift on a scalar: round-half-up v / 2^shift, shift in [1, 31]. */

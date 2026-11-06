@@ -181,6 +181,15 @@ typedef struct
     cmsis_nn_activation activation; /**< Output clamp */
 } cmsis_nn_layer_norm_params;
 
+/** CMSIS-NN object for the parameters of arm_layer_norm_s8_fast (16-bit affine step) */
+typedef struct
+{
+    int64_t epsilon;                /**< round(row_size^2 * eps / input_scale^2), in [0, 2^62 - 2^60 - 1] */
+    int32_t norm_frac_bits;         /**< Fraction bits of the int16 normalized value, [6, 15] */
+    int32_t output_shift;           /**< Fraction bits of gamma * z + bias, rounded off at the end, [1, 7] */
+    cmsis_nn_activation activation; /**< Output clamp, within [-128, 127] */
+} cmsis_nn_layer_norm_fast_params;
+
 /** CMSIS-NN object for the convolution layer parameters */
 typedef struct
 {

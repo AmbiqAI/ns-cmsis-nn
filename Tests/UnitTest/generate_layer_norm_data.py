@@ -5,7 +5,7 @@
 # Licensed under the Ambiq Apollo SDK License.
 # See LICENSE (root) or LICENSES/LicenseRef-Ambiq-Apollo-SDK.txt for the full text.
 #
-"""Generate the test data of test_arm_layer_norm_s8 / _s16 / _f32 from layer_norm_reference.py.
+"""Generate the test data of test_arm_layer_norm_s8 / _s8_fast / _s16 / _f32 from layer_norm_reference.py.
 
     python3 Tests/UnitTest/generate_layer_norm_data.py
 
@@ -111,6 +111,63 @@ def gen_int(dtype: str) -> str:
     return "".join(parts)
 
 
+# arm_layer_norm_s8_fast: (rows, row_size, epsilon, gamma kind, output range scale). Row sizes cover every tail
+# length of the 8-lane output (0-7) and the norm_frac_bits steps; a small output range saturates the accumulator.
+FAST_CASES = [
+    (2, 1, 1e-5, "random", 1.0),
+    (3, 3, 1e-5, "random", 1.0),
+    (3, 5, 1e-5, "random", 1.0),
+    (2, 10, 1e-5, "random", 1.0),
+    (4, 16, 1e-5, "random", 1.0),
+    (4, 17, 0.0, "random", 1.0),
+    (2, 22, 1e-5, "random", 0.25),
+    (3, 31, 1e-5, "identity", 1.0),
+    (2, 64, 1e-3, "random", 1.0),
+    (3, 100, 1e-5, "random", 1.0),
+    (2, 257, 1.0, "random", 1.0),
+    (1, 768, 1e-5, "random", 1.0),
+    (1, 1002, 1e-5, "random", 0.5),
+]
+
+
+def gen_s8_fast() -> str:
+    rng = np.random.default_rng(20261108)
+    parts, table = [LICENSE, "#pragma once\n#include <stdint.h>\n\n"], []
+    for i, (rows, n, eps, gamma_kind, out_range) in enumerate(FAST_CASES):
+        x = _rows("s8", rows, n, rng)
+        if gamma_kind == "identity":
+            gamma, beta = None, None
+        else:
+            gamma = rng.normal(1.0, 0.5, n)
+            gamma[rng.random(n) < 0.25] *= -1
+            gamma[::11] = 0.0
+            beta = rng.normal(0.0, 0.5, n)
+        in_scale = float(rng.uniform(0.005, 0.05))
+        out_scale = float(rng.uniform(3.0, 6.0)) * out_range / 127
+        out_zp = int(rng.integers(-20, 20))
+        p = R.export_params_fast(gamma, beta, eps, in_scale, out_scale, out_zp, n)
+        y = R.layer_norm_int_fast(x, p)
+        tag = f"ln_s8_fast_{i}"
+        parts += [
+            _c_array("int8_t", f"{tag}_input", x),
+            _c_array("int16_t", f"{tag}_gamma", p.gamma),
+            _c_array("int16_t", f"{tag}_bias", p.bias),
+            _c_array("int8_t", f"{tag}_expected", y),
+            "\n",
+        ]
+        table.append(f"    {{{rows}, {n}, {p.epsilon}LL, {p.norm_frac_bits}, {p.output_shift}, {p.act_min}, "
+                     f"{p.act_max}, {tag}_input, {tag}_gamma, {tag}_bias, {tag}_expected}},\n")
+    parts += [
+        "typedef struct\n{\n    int32_t rows;\n    int32_t row_size;\n    int64_t epsilon;\n"
+        "    int32_t norm_frac_bits;\n    int32_t output_shift;\n    int32_t act_min;\n    int32_t act_max;\n"
+        "    const int8_t *input;\n    const int16_t *gamma;\n    const int16_t *bias;\n    const int8_t *expected;\n"
+        "} layer_norm_s8_fast_case;\n\n",
+        "static const layer_norm_s8_fast_case layer_norm_s8_fast_cases[] = {\n", *table, "};\n",
+        f"#define LAYER_NORM_S8_FAST_NUM_CASES {len(table)}\n",
+    ]
+    return "".join(parts)
+
+
 def gen_f32() -> str:
     rng = np.random.default_rng(20261107)
     parts, table = [LICENSE, "#pragma once\n#include <stddef.h>\n#include <stdint.h>\n\n"], []
@@ -148,6 +205,9 @@ def main() -> None:
         d = CASES_DIR / f"test_arm_layer_norm_{dtype}"
         d.mkdir(exist_ok=True)
         (d / f"layer_norm_{dtype}_data.h").write_text(gen_int(dtype))
+    d = CASES_DIR / "test_arm_layer_norm_s8_fast"
+    d.mkdir(exist_ok=True)
+    (d / "layer_norm_s8_fast_data.h").write_text(gen_s8_fast())
     d = CASES_DIR / "test_arm_layer_norm_f32"
     d.mkdir(exist_ok=True)
     (d / "layer_norm_f32_data.h").write_text(gen_f32())
