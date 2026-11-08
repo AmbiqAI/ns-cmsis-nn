@@ -23,8 +23,8 @@
  * Description:  Wrapper API to select appropriate depthwise conv API based
  *               on dimensions.
  *
- * $Date:        17 January 2025
- * $Revision:    V.2.2.1
+ * $Date:        8 November 2026
+ * $Revision:    V.2.3.0
  *
  * Target :  Arm(R) M-Profile Architecture
  *
@@ -160,6 +160,44 @@ arm_cmsis_nn_status arm_depthwise_conv_wrapper_s8(const cmsis_nn_context *ctx,
         else
 #endif
         {
+#if defined(ARM_MATH_MVEI)
+            // The direct 3x3 entries apply their full gate, including ctx->size against
+            // arm_depthwise_conv_s8_opt_3x3_get_buffer_size(), and decline with ARM_CMSIS_NN_NO_IMPL_ERROR without
+            // writing the output, so arm_depthwise_conv_s8_opt() below stays the fallback. They take the same
+            // weight sums as arm_depthwise_conv_s8_opt() and their output is identical to it.
+            if (filter_dims->w == 3 && filter_dims->h == 3)
+            {
+                const bool c64_s1 = input_dims->c == 64 && dw_conv_params->stride.h == 1;
+                status = c64_s1 ? arm_depthwise_conv_s8_opt_3x3_c64_s1(ctx,
+                                                                       weight_sum_ctx,
+                                                                       dw_conv_params,
+                                                                       quant_params,
+                                                                       input_dims,
+                                                                       input,
+                                                                       filter_dims,
+                                                                       filter,
+                                                                       bias_dims,
+                                                                       bias,
+                                                                       output_dims,
+                                                                       output)
+                                : arm_depthwise_conv_s8_opt_3x3(ctx,
+                                                                weight_sum_ctx,
+                                                                dw_conv_params,
+                                                                quant_params,
+                                                                input_dims,
+                                                                input,
+                                                                filter_dims,
+                                                                filter,
+                                                                bias_dims,
+                                                                bias,
+                                                                output_dims,
+                                                                output);
+                if (status != ARM_CMSIS_NN_NO_IMPL_ERROR)
+                {
+                    return status;
+                }
+            }
+#endif
             status = arm_depthwise_conv_s8_opt(ctx,
                                                weight_sum_ctx,
                                                dw_conv_params,
