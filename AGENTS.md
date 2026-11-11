@@ -91,6 +91,17 @@ Public float declarations go in `Include/arm_nnfunctions_flt.h` — the f32
 section and f16 section are separate `#if ARM_NN_ENABLE_*` blocks; put each
 declaration in the right one.
 
+After adding or changing any public prototype or its `@param` tags, run
+`python3 scripts/check_kernel_contract.py export` and commit
+`Tests/KernelContracts/kernel_contracts.json`: helia-core-tester reads that
+export instead of the headers, and the `kernel_contract` CI job and the
+`kernel-contract-fresh` pre-commit hook fail on a stale copy.
+Then run `python3 scripts/check_kernel_implementations.py export` and commit
+`Tests/KernelContracts/kernel_implementations.json`: it carries the sha256 of
+the signature export. When a change touches an implementation listed in
+`Tests/KernelContracts/implementations/*.yaml` (its routing, sizer, buffers,
+preparation or NO_IMPL conditions), update that YAML in the same change.
+
 **Naming — a new public float kernel must not take a bare CMSIS-DSP verb
 name** (`arm_add_f32`, `arm_sqrt_f32`, `arm_mean_f32`, ...) — CMSIS-DSP owns
 those, and a same-named export is a silent link-order collision, not a
@@ -144,9 +155,9 @@ count so the MVE tail-predication path is exercised.
 - clang-format via `scripts/check_clang_format_changed.sh` — that script is
   the authority on the required clang-format version and covered paths
   (clang-format 18.x, matching the `.pre-commit-config.yaml` pin of 18.1.8,
-  over `Include`, `Source`, and `Tests/UnitTest/Corstone-300` -- the
-  pre-commit hook matches the version but only covers `Source` and
-  `Include`); install it
+  over `Include`, `Planner`, `Source`, and `Tests/UnitTest/Corstone-300` --
+  the pre-commit hook matches the version but only covers `Source`,
+  `Include` and `Planner`); install it
   with `pip install clang-format==18.1.8` and, if another version is first
   on PATH, point `CLANG_FORMAT_BIN` at it.
 - `python3 scripts/check_pdsc.py` after any manifest change.

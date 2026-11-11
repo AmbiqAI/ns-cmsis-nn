@@ -175,6 +175,7 @@ while IFS= read -r file; do
 done < <(
   git diff --name-only --diff-filter=d "${BASE_REF}" "${HEAD_REF}" -- \
     Include \
+    Planner \
     Source \
     Tests/UnitTest/Corstone-300 |
   grep -E '\.(c|cc|cpp|h|hpp)$' |

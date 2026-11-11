@@ -82,6 +82,10 @@ ALLOWED: dict[str, str] = {
     "scripts/check_publish_pack_tooling_checkout.sh": "comment describing the historical recovery build it guards",
     "scripts/tests/test_check_pdsc.py": "synthetic fixtures that hardcode both sides of a version comparison",
     "scripts/tests/test_check_stale_version_refs.py": "synthetic fixtures that hardcode both sides of a version comparison",
+    "Tests/KernelContracts/kernel_implementations.json": "per-implementation `since` releases; library_version is bumped by release-please's json updater and checked by check_kernel_implementations.py",
+    "Tests/KernelContracts/implementations/depthwise_conv_s8.yaml": "per-implementation `since` releases",
+    "Tests/KernelContracts/implementations/fully_connected_s8.yaml": "per-implementation `since` releases",
+    "Tests/KernelContracts/implementations/pooling_s8.yaml": "per-implementation `since` releases",
 }
 
 failures: list[str] = []

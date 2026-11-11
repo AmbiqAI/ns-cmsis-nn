@@ -59,7 +59,7 @@ repos:
     rev: v18.1.8
     hooks:
       - id: clang-format
-        files: ^(Source|Include)/.*\.(c|h)$
+        files: ^(Source|Include|Planner)/.*\.(c|h)$
         # Byte-identical to Arm upstream and rejected by 18; reformatting them
         # would conflict on every sync (see AmbiqAI/ns-cmsis-nn#394).
         exclude: |
@@ -82,14 +82,36 @@ repos:
         files: ^(Source|Include)/.*\.(c|h)$
 
       # The public headers' @param tags are the kernel contract the tester
-      # reads (#526). The check needs all four headers at once because copy
-      # directives cross files, so it ignores the staged filename list and
-      # runs whenever any of them is touched.
+      # reads (#526). The check needs every public functions header at once
+      # because copy directives cross files, so it ignores the staged filename
+      # list and runs whenever any of them is touched; the script discovers
+      # them with the same arm_nn*functions*.h pattern this regex spells.
       - id: doxygen-params
         name: public header @param tags are complete and direction-correct
         entry: scripts/check_doxygen_params.py
         language: script
-        files: ^Include/arm_nn(support)?functions(_flt)?\.h$
+        files: ^Include/arm_nn[^/]*functions[^/]*\.h$
+        pass_filenames: false
+
+      # The exported kernel contract must match the headers it was generated
+      # from; regenerate with `python3 scripts/check_kernel_contract.py export`.
+      - id: kernel-contract-fresh
+        name: Tests/KernelContracts/kernel_contracts.json matches the public headers
+        entry: scripts/check_kernel_contract.py
+        language: script
+        files: ^(Include/arm_nn[^/]*functions[^/]*\.h|Tests/KernelContracts/kernel_contracts\.json)$
+        pass_filenames: false
+
+      # The implementation manifest is generated from the authored YAML and
+      # bound to the signature export by its hash, so it goes stale when
+      # either changes; regenerate with
+      # `python3 scripts/check_kernel_implementations.py export`.
+      - id: kernel-implementations-fresh
+        name: Tests/KernelContracts/kernel_implementations.json matches its sources
+        entry: scripts/check_kernel_implementations.py
+        language: python
+        additional_dependencies: [pyyaml==6.0.3]
+        files: ^(Include/arm_nn[^/]*functions[^/]*\.h|Include/arm_nn_types\.h|Planner/include/arm_nn_plan\.h|Tests/KernelContracts/.*|scripts/check_kernel_(implementations|contract)\.py|python/ns_cmsis_nn_contracts/vocabulary\.py)$
         pass_filenames: false
 
       - id: todo-needs-issue
