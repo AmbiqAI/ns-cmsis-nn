@@ -514,6 +514,34 @@ def test_depthwise_opt_dsp_counter_limits(libs):
     assert plan_dw_opt(lib, target(DSP), params, i, f, o, 0)[0] == OK
 
 
+@pytest.mark.parametrize("toolchain", [GCC, ARMCLANG])
+@pytest.mark.parametrize("isa, autovectorize", [(SCALAR, 0), (DSP, 0), (MVE, 0), (MVE, 1)])
+@pytest.mark.parametrize("n", [1, 2, 5])
+def test_depthwise_opt_channelwise_batches(libs, toolchain, isa, autovectorize, n):
+    """The DSP and MVE channelwise kernels compute batch 0 only (#903); scalar runs arm_depthwise_conv_s8()."""
+    lib = libs[toolchain]
+    tgt = target(isa, autovectorize, toolchain=toolchain)
+    for layer in (dict(c=8, h=1, w=1, k=(1, 1), n=n), dict(**PLANAR_3X3, n=n)):
+        params, i, f, o = dw_layer(**layer)
+        for ctx_size in (0, 1 << 20):
+            status, plan = plan_dw_opt(lib, tgt, params, i, f, o, ctx_size)
+            if n != 1 and isa != SCALAR:
+                assert status == E_UNSUPPORTED, (layer, ctx_size)
+                continue
+            assert status == OK, (layer, ctx_size)
+            plane = planar_bytes(lib, params, i, f, o)
+            planar = isa == MVE and ctx_size > 0 and 0 <= plane <= opt_scratch(lib, MVE, i, f)
+            assert plan.route == (PLANAR if planar else CHANNELWISE)
+
+
+@pytest.mark.parametrize("isa, autovectorize", [(SCALAR, 0), (DSP, 0), (MVE, 0), (MVE, 1)])
+def test_depthwise_wrapper_sends_batches_to_the_generic_kernel(libs, isa, autovectorize):
+    """The wrapper takes its opt route only for N == 1, so the channelwise batch limit never reaches it."""
+    params, i, f, o = dw_layer(c=8, h=1, w=1, k=(1, 1), n=2)
+    status, plan = plan_dw(libs[GCC], target(isa, autovectorize), params, i, f, o)
+    assert status == OK and plan.route == DW
+
+
 @pytest.mark.parametrize("change, status", [
     (lambda p, i, f, o: (setattr(p, "ch_mult", 2), setattr(o, "c", 16), setattr(f, "c", 16)), E_SHAPE),
     (lambda p, i, f, o: setattr(p.dilation, "h", 2), E_SHAPE),

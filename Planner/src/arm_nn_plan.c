@@ -122,14 +122,19 @@ static arm_nn_plan_status check_dw_generic_limits(const cmsis_nn_dw_conv_params 
     return ARM_NN_PLAN_OK;
 }
 
-/* arm_depthwise_conv_s8_opt()'s channelwise path: the DSP kernel counts channels and taps in uint16_t; the scalar
-   build has no kernel of its own and runs arm_depthwise_conv_s8(). */
+/* arm_depthwise_conv_s8_opt()'s channelwise path: the DSP and MVE kernels compute batch 0 only and still return
+   ARM_CMSIS_NN_SUCCESS (#903), and the DSP kernel counts channels and taps in uint16_t; the scalar build has no kernel
+   of its own and runs arm_depthwise_conv_s8(), which loops over batches. */
 static arm_nn_plan_status check_dw_opt_channelwise_limits(const arm_nn_plan_target *target,
                                                           const cmsis_nn_dw_conv_params *dw_conv_params,
                                                           const cmsis_nn_dims *input_dims,
                                                           const cmsis_nn_dims *filter_dims,
                                                           const cmsis_nn_dims *output_dims)
 {
+    if (target->isa != ARM_NN_PLAN_ISA_SCALAR && input_dims->n != 1)
+    {
+        return ARM_NN_PLAN_E_UNSUPPORTED;
+    }
     switch (target->isa)
     {
     case ARM_NN_PLAN_ISA_MVE:

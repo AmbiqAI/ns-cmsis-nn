@@ -382,6 +382,21 @@ def test_dw_opt_plan_at_the_plane_boundary(planner):
     assert planner.depthwise_conv_s8_opt(Target("mve"), ctx_size=1 << 20, **narrow).route == "dw_opt_s8:planar"
 
 
+@pytest.mark.parametrize("target", TARGETS, ids=str)
+def test_dw_opt_plan_batches(planner, target):
+    """The review's layer: DSP and MVE channelwise would write 8 of 16 outputs; scalar runs the batched generic
+    kernel (#903)."""
+    layer = dict(input_dims=(2, 1, 1, 8), filter_dims=(1, 1, 1, 8), output_dims=(2, 1, 1, 8), ctx_size=0)
+    if target.isa == "scalar":
+        assert planner.depthwise_conv_s8_opt(target, **layer).route == "dw_opt_s8:channelwise"
+    else:
+        with pytest.raises(PlanRefused) as refused:
+            planner.depthwise_conv_s8_opt(target, **layer)
+        assert refused.value.status == "unsupported"
+    single = dict(layer, input_dims=(1, 1, 1, 8), output_dims=(1, 1, 1, 8))
+    assert planner.depthwise_conv_s8_opt(target, **single).route == "dw_opt_s8:channelwise"
+
+
 def test_dsp_channelwise_counts_channels_in_uint16(planner):
     layer = dict(input_dims=(1, 1, 1, 65536), filter_dims=(1, 1, 1, 65536), output_dims=(1, 1, 1, 65536))
     with pytest.raises(PlanRefused) as refused:
@@ -407,6 +422,9 @@ def test_pool_window_must_overlap_the_input(planner):
     (dict(ctx_size=-1), "range"),
     (dict(input_dims=(1, 65536, 65536, 8)), "range"),
     (dict(input_dims=(16, 2**30, 2**30, 16)), "range"),  # element count wraps int64
+    # The DSP and MVE channelwise kernels compute only batch 0 (#903).
+    (dict(input_dims=(2, 1, 1, 8), filter_dims=(1, 1, 1, 8), output_dims=(2, 1, 1, 8)), "unsupported"),
+    (dict(input_dims=(2, 10, 10, 8), output_dims=(2, 8, 8, 8), ctx_size=1 << 20), "unsupported"),
 ])
 def test_dw_opt_plan_refusals(planner, change, status):
     layer = dict(input_dims=(1, 10, 10, 8), filter_dims=(1, 3, 3, 8), output_dims=(1, 8, 8, 8), ctx_size=0)

@@ -374,7 +374,8 @@ class Planner:
                               ch_mult: int = 1, stride=(1, 1), padding=(0, 0), dilation=(1, 1)) -> Plan:
         """The path arm_depthwise_conv_s8_opt() runs for a call whose ctx->size is ``ctx_size`` and whose ctx->buf and
         weight_sum_ctx->buf are set (dw_opt_s8:planar or dw_opt_s8:channelwise). stride, padding and dilation are
-        (h, w). A call the entry rejects, such as a non-zero ctx_size below the channelwise scratch, is refused."""
+        (h, w). A call the entry rejects, such as a non-zero ctx_size below the channelwise scratch, is refused, as is
+        N != 1 on a DSP or MVE target, where the channelwise kernel computes only the first batch."""
         params = _dw_params(ch_mult, stride, padding, dilation)
         plan = _Plan()
         status = self._lib.arm_nn_plan_depthwise_conv_s8_opt(

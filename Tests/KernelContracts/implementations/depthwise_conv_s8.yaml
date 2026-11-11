@@ -252,6 +252,10 @@ implementations:
       reference: hct_ref:depthwise_conv_s8
       claim: bit_exact
       holds_with: ['!single_rounding']
+    note: >-
+      On builds with ARM_MATH_DSP the kernel computes batch 0 only and still returns ARM_CMSIS_NN_SUCCESS for
+      N != 1 (#903); the planner refuses that layer. Without ARM_MATH_DSP it runs arm_depthwise_conv_s8(), which
+      takes any N.
 
   - id: depthwise_conv_s8_opt_3x3
     op: depthwise_conv
