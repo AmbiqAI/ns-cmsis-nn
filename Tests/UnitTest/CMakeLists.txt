@@ -62,12 +62,23 @@ endif()
 
 # Build the functions to be tested.
 set(CMSIS_NN_TEST_LIBRARY "" CACHE FILEPATH "Prebuilt library for cross-toolchain execution.")
+set(CMSIS_NN_TEST_ARMCLANG_ROOT "" CACHE PATH "ACfE root for a GNU harness executing an Arm-compiled archive.")
+if(CMSIS_NN_TEST_ARMCLANG_ROOT AND NOT CMSIS_NN_TEST_LIBRARY)
+    message(FATAL_ERROR "CMSIS_NN_TEST_ARMCLANG_ROOT requires CMSIS_NN_TEST_LIBRARY.")
+endif()
 if(CMSIS_NN_TEST_LIBRARY)
     add_library(cmsis-nn STATIC IMPORTED)
     set_target_properties(cmsis-nn PROPERTIES IMPORTED_LOCATION "${CMSIS_NN_TEST_LIBRARY}")
     target_include_directories(cmsis-nn INTERFACE ${CMAKE_CURRENT_SOURCE_DIR}/../../Include)
     include(${CMAKE_CURRENT_SOURCE_DIR}/../../cmake/ns_cmsis_nn_configuration.cmake)
     _ns_cmsis_nn_float_definitions(cmsis-nn INTERFACE "${ARM_NN_ENABLE_F32}" "${ARM_NN_ENABLE_F16}")
+    if(CMSIS_NN_TEST_ARMCLANG_ROOT)
+        include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/armclang_runtime.cmake)
+        cmsis_nn_link_armclang_test_runtime(cmsis-nn "${CMSIS_NN_TEST_ARMCLANG_ROOT}")
+    else()
+        # The archive and the float suites call libm (floorf, roundf); source builds get it from the library target.
+        target_link_libraries(cmsis-nn INTERFACE m)
+    endif()
 else()
     add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/../.. cmsis-nn)
 endif()
@@ -300,6 +311,8 @@ if(ARM_NN_ENABLE_F32)
     add_subdirectory(TestCases/test_arm_argmax_f32)
     add_subdirectory(TestCases/test_arm_reduce_max_f32)
     add_subdirectory(TestCases/test_arm_reduce_min_f32)
+    add_subdirectory(TestCases/test_arm_reduce_max_tflite_f32)
+    add_subdirectory(TestCases/test_arm_reduce_min_tflite_f32)
     add_subdirectory(TestCases/test_arm_reduce_sum_f32)
     add_subdirectory(TestCases/test_arm_reshape_f32)
     add_subdirectory(TestCases/test_arm_resize_nearest_neighbor_f32)
@@ -346,6 +359,8 @@ if(ARM_NN_ENABLE_F16)
     add_subdirectory(TestCases/test_arm_argmax_f16)
     add_subdirectory(TestCases/test_arm_reduce_max_f16)
     add_subdirectory(TestCases/test_arm_reduce_min_f16)
+    add_subdirectory(TestCases/test_arm_reduce_max_tflite_f16)
+    add_subdirectory(TestCases/test_arm_reduce_min_tflite_f16)
     add_subdirectory(TestCases/test_arm_reduce_sum_f16)
     add_subdirectory(TestCases/test_arm_reshape_f16)
     add_subdirectory(TestCases/test_arm_resize_nearest_neighbor_f16)
@@ -380,7 +395,7 @@ if(NOT BUILD_CMSIS_NN_UNIT_TESTS_FOR_FVP_BASED_CORSTONE_300 AND NOT CMAKE_CROSSC
     add_subdirectory(TestCases/vector_svdf_pointer_probe)
 endif()
 
-# The standalone integer probes restore shift-base checks for their own kernel objects.
+# The standalone integer probes build their own kernel objects with shift-base checks, whatever the library flags.
 # Cross toolchains need not provide the host sanitizer runtimes.
 # No test_arm directory prefix: unittest_targets.py reserves that for Unity suites.
 if(NOT BUILD_CMSIS_NN_UNIT_TESTS_FOR_FVP_BASED_CORSTONE_300
@@ -390,6 +405,7 @@ if(NOT BUILD_CMSIS_NN_UNIT_TESTS_FOR_FVP_BASED_CORSTONE_300
     add_subdirectory(TestCases/hard_swish_compat_probe)
     add_subdirectory(TestCases/softmax_shift_probe)
     add_subdirectory(TestCases/resize_bilinear_wide_probe)
+    add_subdirectory(TestCases/transpose_skipped_rows_probe)
 endif()
 
 find_package(Python3 COMPONENTS Interpreter REQUIRED)

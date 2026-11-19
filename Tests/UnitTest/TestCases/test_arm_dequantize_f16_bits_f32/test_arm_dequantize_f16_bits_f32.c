@@ -15,18 +15,12 @@
 #include "unity.h"
 #include "../Utils/mpu_guard.h"
 
-/* The kernel's path, as arm_nnsupportfunctions.h selects it. The vector conversion returns the default NaN for every
-   NaN; the scalar conversion, which the vector path also uses where the assembler needs the #427 workaround, and
-   the integer path keep a NaN's sign and payload and quiet it. */
+/* The kernel's path, as arm_nnsupportfunctions.h selects it. Every path keeps a NaN's sign and payload and quiets
+   it: the vector path rebuilds NaN lanes from the input bits after its conversion, whatever FPSCR holds (#871). */
 #if defined(ARM_NN_DEQUANTIZE_F16_MVE)
     #define DQ_VECTOR_PATH (1)
 #else
     #define DQ_VECTOR_PATH (0)
-#endif
-#if DQ_VECTOR_PATH && !defined(ARM_NN_VCVT_F16_SCALAR_FORM)
-    #define DQ_DEFAULT_NAN (1)
-#else
-    #define DQ_DEFAULT_NAN (0)
 #endif
 #if defined(__ARM_FP) && defined(__ARM_ARCH_PROFILE) && (__ARM_ARCH_PROFILE == 'M')
     #define DQ_HAS_FPSCR (1)
@@ -47,7 +41,7 @@ static uint32_t dq_reference(const uint32_t h)
         {
             return sign | 0x7F800000u;
         }
-        return DQ_DEFAULT_NAN ? 0x7FC00000u : (sign | 0x7FC00000u | (mant << 13));
+        return sign | 0x7FC00000u | (mant << 13);
     }
     const float magnitude = exp == 0 ? ldexpf((float)mant, -24) : ldexpf((float)(1024u + mant), exp - 25);
     uint32_t bits;
@@ -97,7 +91,7 @@ static uint32_t dq_hardware(const uint32_t h)
    between even and odd indexes (other partners in the two-halves-per-word path), and a read past the input is a
    sanitizer error on the host, which runs the integer path. The output has a guard word on both sides. With FPSCR
    modes set, a finite half must still convert exactly and an exponent-31 half as the path's instruction converts
-   it under those modes. */
+   it under those modes, except a NaN on the vector path, which is rebuilt from its bits. */
 static void dq_sweep(const int at_end, const uint32_t modes)
 {
     static uint16_t buffer[1024];
@@ -128,7 +122,7 @@ static void dq_sweep(const int at_end, const uint32_t modes)
         status = arm_dequantize_f16_bits_f32(in, out + 1, n);
         for (int32_t i = 0; i < n; i++)
         {
-            if (modes != 0u && (in[i] & 0x7C00u) == 0x7C00u)
+            if (modes != 0u && (in[i] & 0x7C00u) == 0x7C00u && !(DQ_VECTOR_PATH && (in[i] & 0x3FFu) != 0u))
             {
                 expected[i] = dq_hardware(in[i]);
             }

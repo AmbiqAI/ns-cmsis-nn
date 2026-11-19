@@ -18,7 +18,7 @@ arm_cmsis_nn_status arm_reduce_max_f16(const float16_t *input_data,
                                        float16_t *output_data,
                                        const cmsis_nn_dims *output_dims)
 {
-    return arm_nn_extrema_run(input_data, input_dims, axis_dims, output_data, output_dims, 2, true);
+    return arm_nn_extrema_run(input_data, input_dims, axis_dims, output_data, output_dims, 2, true, false);
 }
 
 #endif

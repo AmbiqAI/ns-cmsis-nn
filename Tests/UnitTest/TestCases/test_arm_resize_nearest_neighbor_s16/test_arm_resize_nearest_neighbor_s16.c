@@ -281,3 +281,7 @@ void resize_nn_batch_channels_s16_arm_resize_nearest_neighbor_s16(void)
     }
     free(scratch_buffer);
 }
+
+#define RESIZE_NN_ROUND_TYPE int16_t
+#define RESIZE_NN_ROUND_FUNC arm_resize_nearest_neighbor_s16
+#include "../Utils/resize_nearest_neighbor_rounding.h"

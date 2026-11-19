@@ -75,7 +75,8 @@ __STATIC_INLINE bool arm_conv_nhwc_use_small_c_f32(const cmsis_nn_conv_params_f3
                                                    const cmsis_nn_dims *filter_dims,
                                                    const cmsis_nn_dims *output_dims)
 {
-    return arm_nn_conv_f32_is_small_c(input_dims, output_dims) &&
+    return (arm_nn_conv_f32_is_small_c(input_dims, output_dims) ||
+            arm_nn_conv_f32_is_small_c_3x3(input_dims, filter_dims, output_dims)) &&
         arm_nn_conv_f32_small_c_coords_ok(&conv_params->stride,
                                           &conv_params->padding,
                                           &conv_params->dilation,
@@ -221,7 +222,7 @@ typedef struct
     uint32x4_t out_offsets; /* lane * output_c */
 } arm_conv_small_c_f32;
 
-/* Direct kernel for fewer input channels than one vector: lanes are output x positions, weights are scalars,
+/* Direct kernel for small input-channel counts: lanes are output x positions, weights are scalars,
  * OC_GROUP output channels accumulate at once. Interior lane groups
  * (every tap in range) load unpredicated -- contiguous for input_c == 1 with stride 1/2/4, gathered otherwise --
  * and store unpredicated; edge and tail groups compare in_x against input_w once per tap column. */

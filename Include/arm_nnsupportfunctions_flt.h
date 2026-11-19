@@ -682,21 +682,34 @@ __STATIC_INLINE int32_t arm_nn_softmax_floor_to_int_f16(float16_t x)
 }
 
 /**
- * @brief Compute `2^n` as a float16 by building the exponent field directly.
+ * @brief Compute the power-of-two scale for the scalar float16 exp approximation.
  *
- * @param[in] n Integer exponent. Clamped to the normal float16 exponent range `[-14, 15]`.
+ * Keep the scale in float32 until the approximation is rounded to float16. Rounding
+ * the scale first would lose subnormal results when the fractional factor lifts a
+ * value above the float16 underflow threshold. The upper clamp is unchanged.
+ *
+ * @param[in] n Integer exponent. Clamped to `[-126, 15]`.
+ * @return `2^n` as a float32 intermediate.
+ */
+__STATIC_INLINE float32_t arm_nn_softmax_exp2i_wide_f16(int32_t n)
+{
+    union
+    {
+        uint32_t u;
+        float32_t f;
+    } scale;
+    n = ARM_NN_CLAMP(n, 15, -126);
+    scale.u = (uint32_t)(n + 127) << 23;
+    return scale.f;
+}
+
+/**
+ * @brief Compute `2^n` rounded to float16.
+ *
+ * @param[in] n Integer exponent. Clamped above at 15; small results round to subnormal or zero.
  * @return `2^n` as a float16.
  */
-__STATIC_INLINE float16_t arm_nn_softmax_exp2i_f16(int32_t n)
-{
-    const int32_t float16_min_normal_exponent = -14;
-    const int32_t float16_max_finite_exponent = 15;
-    const int32_t float16_exponent_bias = 15;
-    const int32_t float16_mantissa_bits = 10;
-
-    n = ARM_NN_CLAMP(n, float16_max_finite_exponent, float16_min_normal_exponent);
-    return arm_nn_softmax_fp16_from_bits((uint16_t)((n + float16_exponent_bias) << float16_mantissa_bits));
-}
+__STATIC_INLINE float16_t arm_nn_softmax_exp2i_f16(int32_t n) { return (float16_t)arm_nn_softmax_exp2i_wide_f16(n); }
 
 /**
  * @brief Taylor/Estrin exp approximation for float16 softmax helpers.
@@ -731,13 +744,13 @@ __STATIC_INLINE float16_t arm_nn_softmax_exp_taylor_f16(float16_t x)
     const float32_t t3 = (1.0f / 720.0f);
 
     const float32_t poly = t0 + t1 * r2 + t2 * r4 + t3 * r6;
-    return (float16_t)(poly * (float32_t)arm_nn_softmax_exp2i_f16(n));
+    return (float16_t)(poly * arm_nn_softmax_exp2i_wide_f16(n));
 }
 
 /**
  * @brief LUT-based exp approximation for float16 softmax helpers.
  *
- * Splits `x * log2(e)` into an integer part handled by arm_nn_softmax_exp2i_f16() and a fractional part
+ * Splits `x * log2(e)` into an integer part handled by arm_nn_softmax_exp2i_wide_f16() and a fractional part
  * interpolated linearly from `arm_nn_exp2_lut_f16`, using float32 intermediates.
  *
  * @param[in] x Exponent argument. Clamped to `[-80, 80]` before evaluation.
@@ -758,6 +771,12 @@ __STATIC_INLINE float16_t arm_nn_softmax_exp_lut_f16(float16_t x)
     const int32_t n = arm_nn_softmax_floor_to_int_f16((float16_t)t);
     const float32_t f = t - (float32_t)n;
     const float32_t idx_f = f * exp2_lut_segments;
+    #if defined(__clang__) && defined(__ARM_FEATURE_MVE) && (__ARM_FEATURE_MVE & 2)
+    /* Prevent Clang's incorrect MVE fixed-point conversion fold
+     * (llvm-project#226591), without disabling auto-vectorization. */
+    const float32_t bounded_idx = ARM_NN_CLAMP(idx_f, (float32_t)exp2_lut_max_index, 0.0f);
+    const int32_t idx = (int32_t)bounded_idx;
+    #else
     int32_t idx = (int32_t)idx_f;
 
     if (idx < 0)
@@ -768,11 +787,12 @@ __STATIC_INLINE float16_t arm_nn_softmax_exp_lut_f16(float16_t x)
     {
         idx = exp2_lut_max_index;
     }
+    #endif
 
     const float32_t frac = idx_f - (float32_t)idx;
     const float32_t y0 = (float32_t)arm_nn_softmax_fp16_from_bits(arm_nn_exp2_lut_f16[idx]);
     const float32_t y1 = (float32_t)arm_nn_softmax_fp16_from_bits(arm_nn_exp2_lut_f16[idx + 1]);
-    return (float16_t)((y0 + (y1 - y0) * frac) * (float32_t)arm_nn_softmax_exp2i_f16(n));
+    return (float16_t)((y0 + (y1 - y0) * frac) * arm_nn_softmax_exp2i_wide_f16(n));
 }
 
 /**
@@ -1553,7 +1573,7 @@ arm_cmsis_nn_status arm_nn_gru_step_f32(const float32_t *data_in,
 
 /** Lanes of the float16 small-C kernel: the route takes fewer input channels than this. */
 #define ARM_NN_CONV_SMALL_C_F16_LANES (8)
-/** Lanes of the float32 small-C kernel: the route takes fewer input channels than this. */
+/** Lanes of the float32 small-C kernel; the general gate takes fewer input channels. */
 #define ARM_NN_CONV_SMALL_C_F32_LANES (4)
 
 /**
@@ -1825,6 +1845,22 @@ __STATIC_INLINE bool arm_nn_conv_f32_is_small_c(const cmsis_nn_dims *input_dims,
 {
     return input_dims->c > 0 && input_dims->c < ARM_NN_CONV_SMALL_C_F32_LANES && output_dims->c > 0 &&
         output_dims->w > 0;
+}
+
+/**
+ * @brief Additional float32 small-C region: 3x3 filters, four input channels and up to 8 output channels.
+ * @note Requires at least one full four-column output tile.
+ * @param[in] input_dims  Input dimensions [N, H, W, C_IN]
+ * @param[in] filter_dims Filter dimensions [C_OUT, HK, WK, C_IN]
+ * @param[in] output_dims Output dimensions [N, H, W, C_OUT]
+ * @return true if the shape uses the small-C route, subject to its coordinate bounds
+ */
+__STATIC_INLINE bool arm_nn_conv_f32_is_small_c_3x3(const cmsis_nn_dims *input_dims,
+                                                    const cmsis_nn_dims *filter_dims,
+                                                    const cmsis_nn_dims *output_dims)
+{
+    return input_dims->c == 4 && filter_dims->h == 3 && filter_dims->w == 3 && output_dims->c > 0 &&
+        output_dims->c <= 8 && output_dims->w >= ARM_NN_CONV_SMALL_C_F32_LANES;
 }
 
 /**

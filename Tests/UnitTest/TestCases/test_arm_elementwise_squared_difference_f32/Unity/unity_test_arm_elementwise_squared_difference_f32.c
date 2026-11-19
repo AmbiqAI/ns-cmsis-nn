@@ -42,4 +42,6 @@ void tearDown(void)
 }
 void test_squared_difference_f32_values(void) { squared_difference_f32_values(); }
 void test_squared_difference_f32_alias(void) { squared_difference_f32_alias(); }
+void test_squared_difference_f32_flush_to_zero(void) { squared_difference_f32_flush_to_zero(); }
+void test_squared_difference_f32_threshold(void) { squared_difference_f32_threshold(); }
 void test_squared_difference_f32_arg_error(void) { squared_difference_f32_arg_error(); }

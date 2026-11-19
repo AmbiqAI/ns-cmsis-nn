@@ -342,3 +342,28 @@ Please include:
 - Target CPU and toolchain
 - The minimal failing command / CMake invocation
 - The full error output
+
+## Rebuilding after the emSign CA incident
+
+The devcontainer pins uv 0.13.5 and certifi 2026.10.23 and bootstraps pip
+26.2.2 from the hash-verified wheel in the
+[Python security notice](https://discuss.python.org/t/information-for-python-users-regarding-emudhra-emsign-ca-certificate-security-incident/109576).
+Rebuild existing containers without cached layers so Debian's `ca-certificates`
+and Python tools are refreshed:
+
+```sh
+docker build --pull --no-cache -f .devcontainer/Dockerfile -t ns-cmsis-nn-ci:local .
+```
+
+The digest-pinned base is Python 3.10.22 on Bookworm; its bundled `ensurepip`
+still seeds pip 23.0.1. The unit-test setup therefore repairs pip and certifi
+in both new and reused `cmsis_nn_venv` environments before installing test
+requirements. Use Python 3.10 or newer for this setup. Other manually created
+virtual environments need the same verified bootstrap; updating the container's
+global pip does not update them.
+
+Published image builds also disable layer reuse. A source change does not
+replace existing containers or published image digests: maintainers must build
+and publish replacement images and update CI consumers pinned to old digests.
+Track that rollout in [#893](https://github.com/AmbiqAI/ns-cmsis-nn/issues/893).
+TLS certificate verification must remain enabled throughout bootstrap and use.

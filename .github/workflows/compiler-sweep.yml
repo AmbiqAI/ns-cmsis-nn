@@ -1,0 +1,171 @@
+name: Weekly compiler sweep
+
+# Full helia-core-tester suites against libraries built by more than one
+# compiler (AmbiqAI/ns-cmsis-nn#340). The PR path executes only a targeted
+# subset on the pinned ATfE (toolchain-matrix-strict-link.yml); this run
+# executes every generated case, weekly, and does not gate pull requests or
+# releases. A red run opens or updates one rolling issue.
+#
+# Each cell builds the library with one compiler and links it into the
+# tester's own pinned GNU harness, so only the library compiler varies
+# (scripts/ci/compiler_sweep_cell.sh). Cases are regenerated per cell from
+# the same seed and tester commit; the step summary records a fingerprint of
+# each cell's cases so cells can be compared.
+#
+# Arm Compiler for Embedded is not a cell yet: its license is activated once
+# per run by the strict-link armclang job, and sharing that here is separate
+# work. It runs in the local sweep recorded on #340.
+
+on:
+  schedule:
+    # Sunday, off-peak UTC; an odd minute avoids the top-of-hour cron rush.
+    - cron: '43 6 * * 0'
+  workflow_dispatch:
+  # A change to the sweep itself runs it once on its pull request.
+  pull_request:
+    paths:
+      - .github/workflows/compiler-sweep.yml
+      - .github/workflows/resolve-ci-image.yml
+      - scripts/ci/compiler_sweep_cell.sh
+      - scripts/ci/rolling_status_issue.sh
+      - scripts/build_staticlib.sh
+      - scripts/fetch_toolchain.sh
+      - ci/toolchains/atfe.json
+      - ci/toolchains/atfe-latest.json
+
+concurrency:
+  group: compiler-sweep-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+  packages: read
+
+jobs:
+  resolve-container-image:
+    uses: ./.github/workflows/resolve-ci-image.yml
+
+  cell:
+    name: ${{ matrix.compiler }} / ${{ matrix.cpu }} / ${{ matrix.suite }}
+    needs: resolve-container-image
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    container:
+      image: ${{ needs.resolve-container-image.outputs.container_image }}
+    defaults:
+      run:
+        shell: bash
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          # Pinned ATfE: what the shipped ATfE assets are built with.
+          - { compiler: atfe-pinned, toolchain: atfe, manifest: ci/toolchains/atfe.json, cpu: cortex-m55, suite: float }
+          - { compiler: atfe-pinned, toolchain: atfe, manifest: ci/toolchains/atfe.json, cpu: cortex-m55, suite: int }
+          - { compiler: atfe-pinned, toolchain: atfe, manifest: ci/toolchains/atfe.json, cpu: cortex-m4, suite: float }
+          - { compiler: atfe-pinned, toolchain: atfe, manifest: ci/toolchains/atfe.json, cpu: cortex-m4, suite: int }
+          # Newest ATfE: LLVM codegen drift before it reaches the pin.
+          - { compiler: atfe-latest, toolchain: atfe, manifest: ci/toolchains/atfe-latest.json, cpu: cortex-m55, suite: float }
+          - { compiler: atfe-latest, toolchain: atfe, manifest: ci/toolchains/atfe-latest.json, cpu: cortex-m55, suite: int }
+          - { compiler: atfe-latest, toolchain: atfe, manifest: ci/toolchains/atfe-latest.json, cpu: cortex-m4, suite: float }
+          - { compiler: atfe-latest, toolchain: atfe, manifest: ci/toolchains/atfe-latest.json, cpu: cortex-m4, suite: int }
+          # GCC floor and newest, the ends of the supported range.
+          - { compiler: gcc-13.2.Rel1, toolchain: gcc, gcc_release: 13.2.Rel1, cpu: cortex-m55, suite: float }
+          - { compiler: gcc-13.2.Rel1, toolchain: gcc, gcc_release: 13.2.Rel1, cpu: cortex-m55, suite: int }
+          - { compiler: gcc-15.3.Rel1, toolchain: gcc, gcc_release: 15.3.Rel1, cpu: cortex-m55, suite: float }
+          - { compiler: gcc-15.3.Rel1, toolchain: gcc, gcc_release: 15.3.Rel1, cpu: cortex-m55, suite: int }
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+        with:
+          submodules: recursive
+
+      - name: Mark workspace as a safe git directory
+        run: git config --global --add safe.directory "$GITHUB_WORKSPACE"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+        with:
+          enable-cache: true
+
+      - name: Cache helia-core-tester downloads
+        uses: actions/cache@v6
+        with:
+          path: Tests/helia-core-tester/artifacts/downloads
+          key: helia-core-tester-downloads-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('Tests/helia-core-tester/scripts/setup_ci.sh', 'Tests/helia-core-tester/helia_core_tester/scripts/setup_dependencies.py') }}
+          restore-keys: |
+            helia-core-tester-downloads-${{ runner.os }}-${{ runner.arch }}-
+
+      - name: Setup helia-core-tester build dependencies
+        run: |
+          cd Tests/helia-core-tester
+          # Same bounded sync and retry as helia-core-tester.yml (#644).
+          timeout -k 10 180 uv sync --python 3.11 || {
+            echo "uv sync failed or timed out (exit $?); retrying once"
+            timeout -k 10 180 uv sync --python 3.11
+          }
+          ./scripts/setup_ci.sh
+
+      - name: Fetch ATfE toolchain
+        id: fetch_toolchain
+        if: matrix.toolchain == 'atfe'
+        run: |
+          bash scripts/fetch_toolchain.sh \
+            --manifest "${{ matrix.manifest }}" \
+            --platform linux-x86_64 \
+            --outdir "${RUNNER_TEMP}/toolchains"
+
+      - name: Install GCC library compiler
+        if: matrix.toolchain == 'gcc'
+        uses: carlosperate/arm-none-eabi-gcc-action@v1
+        with:
+          release: ${{ matrix.gcc_release }}
+
+      - name: Run sweep cell
+        env:
+          TOOLCHAIN_ROOT: ${{ steps.fetch_toolchain.outputs.toolchain_root }}
+          # Fails the cell unless the library compiler reports this version.
+          EXPECT_VERSION: ${{ matrix.toolchain == 'gcc' && matrix.gcc_release || steps.fetch_toolchain.outputs.toolchain_version }}
+        run: |
+          echo "### ${{ matrix.compiler }} / ${{ matrix.cpu }} / ${{ matrix.suite }}" >> "$GITHUB_STEP_SUMMARY"
+          bash scripts/ci/compiler_sweep_cell.sh \
+            --toolchain "${{ matrix.toolchain }}" \
+            --toolchain-root "${TOOLCHAIN_ROOT:-}" \
+            --expect-version "$EXPECT_VERSION" \
+            --cpu "${{ matrix.cpu }}" \
+            --suite "${{ matrix.suite }}" \
+            --outdir "${RUNNER_TEMP}/cell"
+
+      - name: Upload tester report
+        if: ${{ always() }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: compiler-sweep-${{ matrix.compiler }}-${{ matrix.cpu }}-${{ matrix.suite }}
+          path: Tests/helia-core-tester/artifacts/reports
+          if-no-files-found: warn
+
+  report:
+    # Only runs on main report status; pull-request and branch runs leave the issue alone.
+    if: always() && github.event_name != 'pull_request' && github.ref == 'refs/heads/main'
+    needs: cell
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      issues: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Create, update, or close the rolling sweep issue
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          bash scripts/ci/rolling_status_issue.sh \
+            --title 'Weekly compiler sweep failing on main' \
+            --label compiler-sweep \
+            --label-description 'Rolling weekly compiler-sweep status issue' \
+            --what 'Weekly compiler sweep' \
+            --run-url "$RUN_URL" \
+            "compiler sweep cells=${{ needs.cell.result }}"

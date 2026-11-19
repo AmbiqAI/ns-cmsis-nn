@@ -52,3 +52,6 @@
  }
 
  void test_dequantize_negative_size_arm_dequantize_s8_f32(void) { dequantize_s8_f32_rejects_negative_size(); }
+
+void test_dequantize_s8_f32_tails(void) { dequantize_s8_f32_tails(); }
+void test_dequantize_s8_f32_protected_tails(void) { dequantize_s8_f32_protected_tails(); }

@@ -1,8 +1,8 @@
 # SPDX-FileCopyrightText: 2026 Ambiq
 # SPDX-License-Identifier: LicenseRef-Ambiq-Apollo-SDK
 
-# Instrument the actual kernel as well as the inline helpers. The library's
-# global shift-base exclusion must not hide this compatibility regression.
+# Instrument the actual kernel as well as the inline helpers, so a library
+# build without shift-base checks cannot hide this compatibility regression.
 add_executable(test_arm_hard_swish_compat_probe
     hard_swish_compat_probe.c
     ${CMAKE_CURRENT_SOURCE_DIR}/../../../../Source/ActivationFunctions/arm_hard_swish_compat_s8.c)

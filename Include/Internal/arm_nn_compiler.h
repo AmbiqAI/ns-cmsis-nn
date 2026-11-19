@@ -194,8 +194,10 @@ extern "C++" {
 // as __GNUC__ is defined by non-GCC compilers as well
 
 /* Common intrinsics for all architectures */
+// A clang without ACLE (a host build) has no __clz: <arm_acle.h> is included only for Arm targets above, so it takes
+// the __GNUC__ inline below instead.
 #if (defined(__ARMCC_VERSION) && (__ARMCC_VERSION >= 6010050)) || defined(__ICCARM__) ||                               \
-    (defined(__clang__) && !defined(__ARMCC_VERSION))
+    (defined(__clang__) && !defined(__ARMCC_VERSION) && (defined(__ARM_ARCH) || defined(__ARM_ACLE)))
     #define CLZ __clz
 #elif defined(__GNUC__)
 /**

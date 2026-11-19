@@ -174,10 +174,28 @@ static inline uint32_t arm_nn_extrema_key(uint32_t bits, uint32_t sign)
     return bits & sign ? (~bits & (sign | (sign - 1))) : (bits ^ sign);
 }
 
-static inline uint32_t
-arm_nn_extrema_select(uint32_t acc, uint32_t value, uint32_t sign, uint32_t inf, uint32_t nan, bool maximum)
+// The start value: -/+Inf, or with tflite the most negative/positive finite value, as TFLM's ReduceGeneric starts
+// from numeric_limits<T>::lowest()/max(). Refs #870.
+static inline uint32_t arm_nn_extrema_identity(uint32_t sign, uint32_t inf, bool maximum, bool tflite)
 {
-    if ((value & (sign - 1)) > inf || (acc & (sign - 1)) > inf)
+    const uint32_t magnitude = tflite ? inf - 1u : inf;
+    return maximum ? magnitude | sign : magnitude;
+}
+
+// A NaN gives the canonical NaN, or with tflite never replaces the running value (in > current is false).
+static inline uint32_t arm_nn_extrema_select(uint32_t acc,
+                                             uint32_t value,
+                                             uint32_t sign,
+                                             uint32_t inf,
+                                             uint32_t nan,
+                                             bool maximum,
+                                             bool tflite)
+{
+    if ((value & (sign - 1)) > inf)
+    {
+        return tflite ? acc : nan;
+    }
+    if ((acc & (sign - 1)) > inf)
     {
         return nan;
     }
@@ -193,9 +211,10 @@ static inline void arm_nn_extrema_scalar(const uint8_t *input,
                                          uint32_t sign,
                                          uint32_t inf,
                                          uint32_t nan,
-                                         bool maximum)
+                                         bool maximum,
+                                         bool tflite)
 {
-    const uint32_t identity = maximum ? inf | sign : inf;
+    const uint32_t identity = arm_nn_extrema_identity(sign, inf, maximum, tflite);
     if (plan->contiguous)
     {
         for (int32_t row = 0; row < plan->outer; ++row)
@@ -206,8 +225,8 @@ static inline void arm_nn_extrema_scalar(const uint8_t *input,
                 for (int32_t r = 0; r < plan->reduction; ++r)
                 {
                     const int32_t offset = (r * plan->inner + c) * size;
-                    acc =
-                        arm_nn_extrema_select(acc, arm_nn_extrema_load(input + offset, size), sign, inf, nan, maximum);
+                    acc = arm_nn_extrema_select(
+                        acc, arm_nn_extrema_load(input + offset, size), sign, inf, nan, maximum, tflite);
                 }
                 arm_nn_extrema_store(output + c * size, acc, size);
             }
@@ -234,7 +253,7 @@ static inline void arm_nn_extrema_scalar(const uint8_t *input,
                         const int32_t offset =
                             base + n * plan->step[0] + h * plan->step[1] + w * plan->step[2] + c * plan->step[3];
                         acc = arm_nn_extrema_select(
-                            acc, arm_nn_extrema_load(input + offset * size, size), sign, inf, nan, maximum);
+                            acc, arm_nn_extrema_load(input + offset * size, size), sign, inf, nan, maximum, tflite);
                     }
         arm_nn_extrema_store(output + i * size, acc, size);
     }
@@ -248,10 +267,16 @@ static inline uint32x4_t arm_nn_extrema_key_f32(uint32x4_t value)
     return vpselq(sign, key, vcmpeqq_n_u32(vandq(value, vdupq_n_u32(0x7fffffffu)), 0));
 }
 
-static inline void
-arm_nn_extrema_mve_f32(const float32_t *input, float32_t *output, const arm_nn_extrema_plan *plan, bool maximum)
+// The MVE paths load integer lanes. From a float load, LLVM rewrites the zero test as an MVE VCMP.F32/F16,
+// which treats subnormals as zero (F32 always, F16 under FPSCR.FZ16). Refs #853.
+// With tflite a NaN lane keeps the running value and never raises the NaN result. Refs #870.
+static inline void arm_nn_extrema_mve_f32(const uint32_t *input,
+                                          uint32_t *output,
+                                          const arm_nn_extrema_plan *plan,
+                                          bool maximum,
+                                          bool tflite)
 {
-    const uint32_t identity = maximum ? (0x7f800000u | 0x80000000u) : 0x7f800000u;
+    const uint32_t identity = arm_nn_extrema_identity(0x80000000u, 0x7f800000u, maximum, tflite);
     if (plan->inner == 1)
     {
         const uint32_t seed = arm_nn_extrema_key(identity, 0x80000000u);
@@ -262,9 +287,11 @@ arm_nn_extrema_mve_f32(const float32_t *input, float32_t *output, const arm_nn_e
             for (int32_t r = 0; r < plan->reduction; r += 4)
             {
                 const mve_pred16_t p = vctp32q((uint32_t)(plan->reduction - r));
-                const uint32x4_t value = vreinterpretq_u32_f32(vld1q_z(input + r, p));
-                any_nan |= vcmphiq_n_u32(vandq(value, vdupq_n_u32(0x7fffffffu)), 0x7f800000u) & p;
-                const uint32x4_t key = vpselq(arm_nn_extrema_key_f32(value), vdupq_n_u32(seed), p);
+                const uint32x4_t value = vld1q_z(input + r, p);
+                const mve_pred16_t is_nan = vcmphiq_n_u32(vandq(value, vdupq_n_u32(0x7fffffffu)), 0x7f800000u) & p;
+                const mve_pred16_t live = tflite ? (mve_pred16_t)(p & ~is_nan) : p;
+                any_nan |= tflite ? 0 : is_nan;
+                const uint32x4_t key = vpselq(arm_nn_extrema_key_f32(value), vdupq_n_u32(seed), live);
                 best = maximum ? vmaxq(best, key) : vminq(best, key);
             }
             const uint32_t key = maximum ? vmaxvq_u32(seed, best) : vminvq_u32(seed, best);
@@ -301,15 +328,20 @@ arm_nn_extrema_mve_f32(const float32_t *input, float32_t *output, const arm_nn_e
             mve_pred16_t any_nan = 0;
             for (int32_t r = 0; r < plan->reduction; ++r)
             {
-                const uint32x4_t value = vreinterpretq_u32_f32(vld1q_z(input + r * plan->inner + c, p));
+                const uint32x4_t value = vld1q_z(input + r * plan->inner + c, p);
                 const uint32x4_t key = arm_nn_extrema_key_f32(value);
-                any_nan |= vcmphiq_n_u32(vandq(value, vdupq_n_u32(0x7fffffffu)), 0x7f800000u) & p;
-                const mve_pred16_t better = maximum ? vcmphiq(key, best_key) : vcmphiq(best_key, key);
+                const mve_pred16_t is_nan = vcmphiq_n_u32(vandq(value, vdupq_n_u32(0x7fffffffu)), 0x7f800000u) & p;
+                any_nan |= tflite ? 0 : is_nan;
+                mve_pred16_t better = maximum ? vcmphiq(key, best_key) : vcmphiq(best_key, key);
+                if (tflite)
+                {
+                    better &= (mve_pred16_t)~is_nan;
+                }
                 best = vpselq(value, best, better);
                 best_key = vpselq(key, best_key, better);
             }
             best = vpselq(vdupq_n_u32(0x7fc00000u), best, any_nan);
-            vstrwq_p(output + c, vreinterpretq_f32_u32(best), p);
+            vstrwq_p(output + c, best, p);
         }
         input += plan->reduction * plan->inner;
         output += plan->inner;
@@ -325,10 +357,13 @@ static inline uint16x8_t arm_nn_extrema_key_f16(uint16x8_t value)
     return vpselq(sign, key, vcmpeqq_n_u16(vandq(value, vdupq_n_u16(0x7fffu)), 0));
 }
 
-static inline void
-arm_nn_extrema_mve_f16(const float16_t *input, float16_t *output, const arm_nn_extrema_plan *plan, bool maximum)
+static inline void arm_nn_extrema_mve_f16(const uint16_t *input,
+                                          uint16_t *output,
+                                          const arm_nn_extrema_plan *plan,
+                                          bool maximum,
+                                          bool tflite)
 {
-    const uint32_t identity = maximum ? (0x7c00u | 0x8000u) : 0x7c00u;
+    const uint32_t identity = arm_nn_extrema_identity(0x8000u, 0x7c00u, maximum, tflite);
     if (plan->inner == 1)
     {
         const uint32_t seed = arm_nn_extrema_key(identity, 0x8000u);
@@ -339,9 +374,11 @@ arm_nn_extrema_mve_f16(const float16_t *input, float16_t *output, const arm_nn_e
             for (int32_t r = 0; r < plan->reduction; r += 8)
             {
                 const mve_pred16_t p = vctp16q((uint32_t)(plan->reduction - r));
-                const uint16x8_t value = vreinterpretq_u16_f16(vld1q_z(input + r, p));
-                any_nan |= vcmphiq_n_u16(vandq(value, vdupq_n_u16(0x7fffu)), 0x7c00u) & p;
-                const uint16x8_t key = vpselq(arm_nn_extrema_key_f16(value), vdupq_n_u16(seed), p);
+                const uint16x8_t value = vld1q_z(input + r, p);
+                const mve_pred16_t is_nan = vcmphiq_n_u16(vandq(value, vdupq_n_u16(0x7fffu)), 0x7c00u) & p;
+                const mve_pred16_t live = tflite ? (mve_pred16_t)(p & ~is_nan) : p;
+                any_nan |= tflite ? 0 : is_nan;
+                const uint16x8_t key = vpselq(arm_nn_extrema_key_f16(value), vdupq_n_u16(seed), live);
                 best = maximum ? vmaxq(best, key) : vminq(best, key);
             }
             const uint32_t key = maximum ? vmaxvq_u16(seed, best) : vminvq_u16(seed, best);
@@ -378,15 +415,20 @@ arm_nn_extrema_mve_f16(const float16_t *input, float16_t *output, const arm_nn_e
             mve_pred16_t any_nan = 0;
             for (int32_t r = 0; r < plan->reduction; ++r)
             {
-                const uint16x8_t value = vreinterpretq_u16_f16(vld1q_z(input + r * plan->inner + c, p));
+                const uint16x8_t value = vld1q_z(input + r * plan->inner + c, p);
                 const uint16x8_t key = arm_nn_extrema_key_f16(value);
-                any_nan |= vcmphiq_n_u16(vandq(value, vdupq_n_u16(0x7fffu)), 0x7c00u) & p;
-                const mve_pred16_t better = maximum ? vcmphiq(key, best_key) : vcmphiq(best_key, key);
+                const mve_pred16_t is_nan = vcmphiq_n_u16(vandq(value, vdupq_n_u16(0x7fffu)), 0x7c00u) & p;
+                any_nan |= tflite ? 0 : is_nan;
+                mve_pred16_t better = maximum ? vcmphiq(key, best_key) : vcmphiq(best_key, key);
+                if (tflite)
+                {
+                    better &= (mve_pred16_t)~is_nan;
+                }
                 best = vpselq(value, best, better);
                 best_key = vpselq(key, best_key, better);
             }
             best = vpselq(vdupq_n_u16(0x7e00u), best, any_nan);
-            vstrhq_p(output + c, vreinterpretq_f16_u16(best), p);
+            vstrhq_p(output + c, best, p);
         }
         input += plan->reduction * plan->inner;
         output += plan->inner;
@@ -400,7 +442,8 @@ static inline arm_cmsis_nn_status arm_nn_extrema_run(const void *input,
                                                      void *output,
                                                      const cmsis_nn_dims *output_dims,
                                                      int32_t size,
-                                                     bool maximum)
+                                                     bool maximum,
+                                                     bool tflite)
 {
     arm_nn_extrema_plan plan = {0};
     if (!arm_nn_extrema_prepare(input, input_dims, axis_dims, output, output_dims, size, &plan))
@@ -414,11 +457,23 @@ static inline arm_cmsis_nn_status arm_nn_extrema_run(const void *input,
     const uint32_t sign = size == 2 ? 0x8000u : 0x80000000u;
     const uint32_t inf = size == 2 ? 0x7c00u : 0x7f800000u;
     const uint32_t nan = size == 2 ? 0x7e00u : 0x7fc00000u;
+    const uint32_t identity = arm_nn_extrema_identity(sign, inf, maximum, tflite);
     if (!plan.input_count)
     {
         for (int32_t i = 0; i < plan.output_count; ++i)
         {
-            arm_nn_extrema_store((uint8_t *)output + i * size, maximum ? inf | sign : inf, size);
+            arm_nn_extrema_store((uint8_t *)output + i * size, identity, size);
+        }
+    }
+    else if (plan.copy && tflite)
+    {
+        // TFLM folds each element into the start value even when no axis is reduced
+        for (int32_t i = 0; i < plan.input_count; ++i)
+        {
+            const uint32_t value = arm_nn_extrema_load((const uint8_t *)input + i * size, size);
+            arm_nn_extrema_store((uint8_t *)output + i * size,
+                                 arm_nn_extrema_select(identity, value, sign, inf, nan, maximum, true),
+                                 size);
         }
     }
     else if (plan.copy)
@@ -430,18 +485,18 @@ static inline arm_cmsis_nn_status arm_nn_extrema_run(const void *input,
     #if ARM_NN_ENABLE_F32 && defined(ARM_MATH_MVEF) && !defined(ARM_MATH_AUTOVECTORIZE)
         if (size == 4 && plan.contiguous)
         {
-            arm_nn_extrema_mve_f32(input, output, &plan, maximum);
+            arm_nn_extrema_mve_f32(input, output, &plan, maximum, tflite);
             return ARM_CMSIS_NN_SUCCESS;
         }
     #endif
     #if ARM_NN_ENABLE_F16 && defined(ARM_MATH_MVE_FLOAT16) && !defined(ARM_MATH_AUTOVECTORIZE)
         if (size == 2 && plan.contiguous)
         {
-            arm_nn_extrema_mve_f16(input, output, &plan, maximum);
+            arm_nn_extrema_mve_f16(input, output, &plan, maximum, tflite);
             return ARM_CMSIS_NN_SUCCESS;
         }
     #endif
-        arm_nn_extrema_scalar(input, output, &plan, size, sign, inf, nan, maximum);
+        arm_nn_extrema_scalar(input, output, &plan, size, sign, inf, nan, maximum, tflite);
     }
     return ARM_CMSIS_NN_SUCCESS;
 }

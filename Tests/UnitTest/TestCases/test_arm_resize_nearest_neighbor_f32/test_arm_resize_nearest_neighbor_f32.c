@@ -354,3 +354,7 @@ void resize_nearest_neighbor_f32_buffer_size(void)
     const cmsis_nn_dims huge_product = {1, INT32_MAX / 2, INT32_MAX / 2, 1};
     TEST_ASSERT_EQUAL_INT32(-1, arm_resize_nearest_neighbor_f32_get_buffer_size(&huge_product));
 }
+
+#define RESIZE_NN_ROUND_TYPE float32_t
+#define RESIZE_NN_ROUND_FUNC arm_resize_nearest_neighbor_f32
+#include "../Utils/resize_nearest_neighbor_rounding.h"

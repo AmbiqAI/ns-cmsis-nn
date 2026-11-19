@@ -184,7 +184,9 @@ arm_cmsis_nn_status arm_depthwise_conv_wrapper_f32(const cmsis_nn_context *ctx,
  *       `filter_dims->h * filter_dims->w * sizeof(float16_t)` bytes. The query reserves that for every such layer;
  *       one an exact-shape specialization takes first runs without it, so the size is an
  *       upper bound there. Every other layer -- the `ch_mult == 1` direct kernel and the generic kernel -- runs
- *       without scratch and the query returns 0 (AmbiqAI/ns-cmsis-nn#448, #625).
+ *       without scratch and the query returns 0 (AmbiqAI/ns-cmsis-nn#448, #625). For `_f16` the convolution route
+ *       serves the `_acc16` entries; the default entries' one-input-channel kernel reads none of this ctx but takes
+ *       the route only when ctx holds it, and otherwise runs the generic kernel (#830).
  *
  * @return Required buffer size in bytes, or 0 when no scratch buffer is needed.
  */
@@ -731,7 +733,7 @@ arm_cmsis_nn_status arm_convolve_1d_k3_nhwc_packed_f32(const cmsis_nn_context *c
                                                        float32_t *output_data);
 
 /**
- * @brief Basic float32 direct convolution for fewer input channels than one vector.
+ * @brief Basic float32 direct convolution for small input-channel counts.
  *
  * The small-C route of arm_convolve_f32() and arm_convolve_f16(), as a direct entry. Lanes are output x positions and
  * weights are scalars.
@@ -755,10 +757,14 @@ arm_cmsis_nn_status arm_convolve_1d_k3_nhwc_packed_f32(const cmsis_nn_context *c
  *                <code>ARM_CMSIS_NN_SUCCESS</code> - Successful operation
  *
  * @details
- *    - Gate: arm_nn_conv_f32_is_small_c for float32, arm_nn_conv_f16_is_small_c for float16. Either filter
- *      format; the format changes only the weight stride inside one kernel. No scratch.
+ *    - Gate: arm_nn_conv_f32_is_small_c or arm_nn_conv_f32_is_small_c_3x3 for float32, subject to
+ *      arm_nn_conv_f32_small_c_coords_ok; arm_nn_conv_f16_is_small_c for float16. Either filter format;
+ *      the format changes only the weight stride inside one kernel. No scratch. The additional float32
+ *      region uses 3x3 filters, four input channels, at most eight output channels and at least four output columns.
  *    - arm_convolve_small_c_nhwc_f16() takes the same arguments and return codes. It accumulates in float32, the
- *      kernel both arm_convolve_f16() and arm_convolve_f16_acc16() run on this route.
+ *      kernel both arm_convolve_f16() and arm_convolve_f16_acc16() run on this route. For 3x3 filters,
+ *      2..3 input channels and output height/width >= 32, it caches two channels of weights in a fixed
+ *      216-byte stack buffer. Other admitted shapes use the uncached kernel. Neither path needs caller scratch.
  */
 arm_cmsis_nn_status arm_convolve_small_c_nhwc_f32(const cmsis_nn_context *ctx,
                                                   const cmsis_nn_conv_params_f32 *conv_params,
@@ -1033,6 +1039,12 @@ arm_cmsis_nn_status arm_nn_activation_f32(const float32_t *input,
  * onto the input (TensorFlow Lite semantics): each alpha dimension must equal
  * the matching input dimension or 1.
  *
+ * With FPSCR.FZ clear, subnormal inputs, alphas and products are exact: the MVE path, whose arithmetic flushes them
+ * whatever FPSCR.FZ holds, redoes such lanes on the scalar FPU (#873), so it matches the scalar path bit for bit,
+ * NaN payloads aside, under either FPSCR.FZ with round-to-nearest (MVE always rounds to nearest; the scalar path
+ * follows FPSCR.RMode). An ARM_MATH_AUTOVECTORIZE build runs the C loop instead, which the
+ * compiler may vectorize into the flushing MVE instructions.
+ *
  * @param[in]  input_dims   Input tensor dimensions. Must equal output_dims.
  * @param[in]  input        Pointer to the input tensor.
  * @param[in]  alpha_dims   Alpha tensor dimensions.
@@ -1171,11 +1183,18 @@ arm_cmsis_nn_status arm_elementwise_sub_f32(const float32_t *input_1_vect,
  * multiplication. No activation clamp, broadcasting or scratch is used. NaNs
  * propagate (payload unspecified); infinite differences yield positive infinity.
  * Overflow yields positive infinity under round-to-nearest. Scalar arithmetic
- * follows the active floating-point controls.
- * MVE arithmetic uses round-to-nearest and flushes FP32 subnormal operands and
- * results to signed zero regardless of FPSCR.FZ (StandardFPSCRValue). Automatic
- * vectorization may mix these behaviors; set scalar round-to-nearest and FZ=1
- * when consistent flushing is required. Equal finite operands produce positive zero.
+ * follows the active floating-point controls. MVE arithmetic uses
+ * round-to-nearest and flushes FP32 subnormal operands and results regardless
+ * of FPSCR (StandardFPSCRValue); with FPSCR.FZ clear, the MVE path redoes the
+ * lanes whose square it flushed on the scalar FPU. At round-to-nearest the MVE
+ * path therefore gives the scalar path's result with FZ set or clear,
+ * subnormal squares included; under another rounding mode only redone lanes
+ * follow it. With FZ clear, an in-place call checks every block, and a call
+ * with a separate output that meets a nonzero difference below 2^-63 makes a
+ * second, block-by-block pass. Automatic vectorization
+ * (ARM_MATH_AUTOVECTORIZE) has no redo and may mix flushed vector lanes with
+ * scalar tails; set scalar round-to-nearest and FZ=1 when consistent results
+ * are required there. Equal finite operands produce positive zero.
  *
  * Buffers must be naturally aligned and hold block_size elements. Output may
  * exactly equal either input; other partial overlaps are unsupported. Null
@@ -1326,13 +1345,30 @@ arm_cmsis_nn_status arm_elementwise_mul_f32(const float32_t *input_1_vect,
 /**
  * @ingroup StridedSlice
  * @brief Strided slice for float32 data (pure copy, TensorFlow Lite compatible).
+ *
+ * Reads element i of input axis a at begin_dims[a] + i * stride_dims[a], for i from 0 to output_dims[a] - 1, and
+ * writes the elements contiguously in N, H, W, C order: output_dims->n * h * w * c elements in all. Every argument
+ * is per input axis, in input axis order [N, H, W, C], after the caller pads a lower-rank slice to 4-D.
+ *
+ * output_dims holds the number of elements to read on each input axis. That is the output tensor's shape only when
+ * no axis is removed: for an axis that TFLite's shrink_axis_mask removes, or any slice whose output rank is below
+ * the input rank, pass 1 at that axis's position, not the output tensor's shape padded to 4-D. TFLM's
+ * strided_slice::StridedSliceStartForAxis() and StridedSliceEndForAxis() give the per-axis begin and end the counts
+ * follow from. Example: input [2, 3, 4] sliced x[:, 1, :] (shrink axis 1) is input_dims {1, 2, 3, 4}, begin_dims
+ * {0, 0, 1, 0}, stride_dims {1, 1, 1, 1} and output_dims {1, 2, 1, 4}; the output tensor's padded shape
+ * {1, 1, 2, 4} would read rows 1 and 2 of batch 0 instead, and still return ARM_CMSIS_NN_SUCCESS.
+ *
+ * Every visited index must lie inside input_dims, and the output buffer must hold the elements read; neither is
+ * checked. An empty slice (a count of 0 on some axis) is rejected, so the caller skips it before the call.
+ *
  * @param[in]  input_data   Pointer to input tensor.
  * @param[out] output_data  Pointer to output tensor.
- * @param[in]  input_dims   Input tensor dimensions.
- * @param[in]  begin_dims   Begin dimensions for slicing.
- * @param[in]  stride_dims  Stride dimensions for slicing.
- * @param[in]  output_dims  Output tensor dimensions.
- * @return     ARM_CMSIS_NN_SUCCESS on success.
+ * @param[in]  input_dims   Input tensor dimensions, each at least 1.
+ * @param[in]  begin_dims   Index of the first element read on each input axis.
+ * @param[in]  stride_dims  Step between elements read on each input axis, nonzero; negative walks backwards.
+ * @param[in]  output_dims  Number of elements to read on each input axis, each at least 1 (see above).
+ * @return     ARM_CMSIS_NN_SUCCESS, or ARM_CMSIS_NN_ARG_ERROR when a pointer is NULL, an input_dims or output_dims
+ *             value is less than 1, or a stride_dims value is 0.
  */
 arm_cmsis_nn_status arm_strided_slice_f32(const float32_t *input_data,
                                           float32_t *output_data,
@@ -2386,12 +2422,19 @@ int32_t arm_gru_unidirectional_f32_temp1_get_buffer_size(const cmsis_nn_gru_para
 /**
  * @brief Softmax using the float-native API signature.
  *
+ * Each row is normalized independently, and input values never affect the return status at any
+ * optimization or floating-point mode. In a row that also holds a finite entry, a -Inf entry gets a
+ * small probability that is not guaranteed to be exactly 0 (the scalar exponential clamps its
+ * argument). A row holding NaN or +Inf, or only -Inf entries, yields unspecified output values for
+ * that row; every other row is still computed.
+ *
  * @param[in]  input    Pointer to the input matrix stored as @p num_rows rows of @p row_size values.
  * @param[in]  num_rows Number of rows in the input matrix.
  * @param[in]  row_size Number of columns per row.
  * @param[out] output   Pointer to the output matrix.
  *
- * @return `ARM_CMSIS_NN_SUCCESS` on success or `ARM_CMSIS_NN_ARG_ERROR` on invalid arguments.
+ * @return `ARM_CMSIS_NN_SUCCESS` on success or `ARM_CMSIS_NN_ARG_ERROR` on invalid arguments
+ *         (NULL pointer, @p num_rows < 1 or @p row_size < 1); on error nothing is written.
  */
 arm_cmsis_nn_status arm_softmax_f32(const float32_t *input, int32_t num_rows, int32_t row_size, float32_t *output);
 
@@ -2557,6 +2600,58 @@ arm_cmsis_nn_status arm_reduce_min_f32(const float32_t *input_data,
 
 /**
  * @ingroup Reduction
+ * @brief Reduces a f32 NHWC tensor to its maximum along a binary axis mask, with TFLite REDUCE_MAX results.
+ *
+ * Bit-exact with TFLM's reference_ops::ReduceGeneric with init = numeric_limits<float>::lowest() and the reducer
+ * `in > current ? in : current`, for every input: the reduction starts from -FLT_MAX (0xff7fffff), a NaN never
+ * replaces the running value (so a window of NaNs, or of -Inf only, gives the start value), an empty
+ * reduced domain gives the start value, and a zero mask folds each element into the start value rather than
+ * copying it. Otherwise as @ref arm_reduce_max_f32, values are selected without floating-point arithmetic,
+ * equal numeric values retain the first input in row-major order including zero signs, and scalar and MVE
+ * paths agree independently of FP controls. The arguments and their checks are those of
+ * @ref arm_reduce_max_f32. Refs #870.
+ *
+ * @param[in] input_data Input tensor.
+ * @param[in] input_dims Four NHWC extents.
+ * @param[in] axis_dims Four binary reduction flags.
+ * @param[out] output_data Output tensor.
+ * @param[in] output_dims NHWC output shape with reduced axes retained as 1.
+ * @return ARM_CMSIS_NN_SUCCESS or ARM_CMSIS_NN_ARG_ERROR before any output write.
+ */
+arm_cmsis_nn_status arm_reduce_max_tflite_f32(const float32_t *input_data,
+                                              const cmsis_nn_dims *input_dims,
+                                              const cmsis_nn_dims *axis_dims,
+                                              float32_t *output_data,
+                                              const cmsis_nn_dims *output_dims);
+
+/**
+ * @ingroup Reduction
+ * @brief Reduces a f32 NHWC tensor to its minimum along a binary axis mask, with TFLite REDUCE_MIN results.
+ *
+ * Bit-exact with TFLM's reference_ops::ReduceGeneric with init = numeric_limits<float>::max() and the reducer
+ * `in < current ? in : current`, for every input: the reduction starts from +FLT_MAX (0x7f7fffff), a NaN never
+ * replaces the running value (so a window of NaNs, or of +Inf only, gives the start value), an empty
+ * reduced domain gives the start value, and a zero mask folds each element into the start value rather than
+ * copying it. Otherwise as @ref arm_reduce_min_f32, values are selected without floating-point arithmetic,
+ * equal numeric values retain the first input in row-major order including zero signs, and scalar and MVE
+ * paths agree independently of FP controls. The arguments and their checks are those of
+ * @ref arm_reduce_min_f32. Refs #870.
+ *
+ * @param[in] input_data Input tensor.
+ * @param[in] input_dims Four NHWC extents.
+ * @param[in] axis_dims Four binary reduction flags.
+ * @param[out] output_data Output tensor.
+ * @param[in] output_dims NHWC output shape with reduced axes retained as 1.
+ * @return ARM_CMSIS_NN_SUCCESS or ARM_CMSIS_NN_ARG_ERROR before any output write.
+ */
+arm_cmsis_nn_status arm_reduce_min_tflite_f32(const float32_t *input_data,
+                                              const cmsis_nn_dims *input_dims,
+                                              const cmsis_nn_dims *axis_dims,
+                                              float32_t *output_data,
+                                              const cmsis_nn_dims *output_dims);
+
+/**
+ * @ingroup Reduction
  * @brief Computes the mean of a float32 tensor along the specified axes.
  *
  * Values are accumulated and divided once in float32; unlike the float16
@@ -2719,26 +2814,22 @@ arm_cmsis_nn_status arm_gather_nd_f32(const float32_t *params_data,
 /**
  * @copydoc arm_depthwise_nhwc_conv_f32
  *
- * @note Accumulation and NaN, per leg (AmbiqAI/ns-cmsis-nn#448). MVE leg: the `ch_mult == 1` direct kernel
- *       (lanes are channels, taps row by row) uses blockwise float16 accumulation (AmbiqAI/ns-cmsis-nn#586, superseding
- * #446's float16-lane choice for the MVE legs): in the kernel's own tap order an accumulator lane sums at most 32 taps
- * in float16 (the bias, where the kernel starts from it, opens the first block), then the partial is widened exactly
- * and added into a float32 accumulator; the float32 sum rounds to float16 once, before the clamp. An accumulator of at
- * most 32 taps gives exactly the float16-lane result. The `_acc16` entry keeps float16 lanes throughout. It clamps a
- * NaN to the activation minimum (`vmaxnm` / `vminnm`). Scalar leg (non-MVE builds and ARM_MATH_AUTOVECTORIZE): the
- *       direct kernel accumulates in float32 and rounds to float16 once at the store (#449), and a NaN propagates
- *       through `arm_nn_clamp_scalar_f16` -- unlike the float32 scalar leg, which clamps it to a bound. The MVE
- *       to-convolution route (input channels 1, output channels 8 or more, ctx supplied) goes through
- *       arm_nn_mat_mult_nt_n_packed_f16, with the same blockwise rule over every tap, padded ones included, and clamps
- * a NaN to the activation minimum (`arm_nn_clamp_mve_f16`). The `ch_mult > 1` generic kernel accumulates in float16
- * with the same blockwise rule on MVE builds, as written: each tap is a scalar float16 `acc + a * b` in tap order.
- * Whether that is fused is the compiler's choice (GCC contracts it in GNU C modes or with -ffast-math, clang by
- * default; -ffp-contract=off stops both), and under -ffast-math (the library's -Ofast) a compiler may vectorize a
- * kernel row of a window of at most 32 taps and reorder its sum, as for the short dots of arm_convolve_f16(); the fold
- * over a longer window keeps tap order, while the `_acc16` entries, which have no fold, may have a long row reordered
- * at any window size (AmbiqAI/ns-cmsis-nn#693). On the scalar legs it accumulates in float32, bias
- * included, and rounds to float16 once (#645), the same on both entries. It clamps a NaN to the activation maximum
- * (`arm_nn_clamp_f16h`) on every leg. Unifying these under the #334 promise is a separate issue.
+ * @note Accumulation and NaN, per leg (AmbiqAI/ns-cmsis-nn#448, #830). Every leg accumulates every in-range tap in
+ *       float32, starting from the bias, in tap order (ky, then kx), and rounds the sum to float16 once, before the
+ *       clamp. A product of two halves is exact in float32, so an output differs from the exactly rounded sum only by
+ *       the float32 rounding of its partial sums; where those are exact it is that sum rounded to float16. The routes
+ *       are the `ch_mult == 1` direct kernel, on MVE float builds (ARM_MATH_MVE_FLOAT16 without
+ *       ARM_MATH_AUTOVECTORIZE) the one-input-channel kernel when ctx holds what that route requires, and the generic
+ *       kernel; none reads scratch. The exact-shape kernels (1D-k3, 2x5) and the to-convolution route serve only the
+ *       `_acc16` entry. On MVE float builds these routes widen halves to float32 exactly whatever FPSCR.FZ16 holds, so
+ *       with FZ16 set a float16 subnormal input still counts where the `_acc16` entry's float16 arithmetic flushes it;
+ *       the float16 clamp still flushes a subnormal result under FZ16. No float32 partial of halves is subnormal.
+ *       Under -ffast-math (the library's -Ofast) a compiler may reorder a scalar float32 sum, which can change a
+ *       result only where a partial sum is inexact. NaN: on MVE builds the direct and one-input-channel kernels clamp
+ *       it to the activation minimum (`vmaxnm` / `vminnm`) and the generic kernel to the maximum
+ *       (`arm_nn_clamp_f16h`), so a 2x5 layer with ch_mult > 1, which took the 2x5 kernel before #830, now clamps it
+ *       to the maximum; on the scalar legs the direct kernel propagates it (`arm_nn_clamp_scalar_f16`) and the
+ *       generic kernel clamps it to the maximum. Unifying these under the #334 promise is a separate issue.
  */
 arm_cmsis_nn_status arm_depthwise_nhwc_conv_f16(const cmsis_nn_context *ctx,
                                                 const cmsis_nn_dw_conv_params_f16 *dw_conv_params,
@@ -2754,10 +2845,14 @@ arm_cmsis_nn_status arm_depthwise_nhwc_conv_f16(const cmsis_nn_context *ctx,
 /**
  * @copydoc arm_depthwise_nhwc_conv_f16
  *
- * @note Float16-lane entry (AmbiqAI/ns-cmsis-nn#586): the MVE legs run with no blockwise fold, exactly as
- *       arm_depthwise_nhwc_conv_f16 did before #586 (float16 accumulator lanes wherever it used them), for callers
- *       that trade accuracy on long reductions for speed. Same arguments, scratch buffer (and sizer), return codes and
- * scalar leg as arm_depthwise_nhwc_conv_f16.
+ * @note Float16-lane entry, the fast path (AmbiqAI/ns-cmsis-nn#586, #830): on MVE float builds every route
+ *       accumulates in float16 lanes from the bias with no fold, as arm_depthwise_nhwc_conv_f16 did before #586,
+ *       for callers that trade accuracy for speed. On windows of at most 32 taps that is also what the default entry
+ *       gave before #830. Under -ffast-math (the library's -Ofast) a compiler may vectorize a kernel row of the
+ *       generic kernel and reorder its float16 sum at any window size (AmbiqAI/ns-cmsis-nn#693). Its scalar legs
+ *       accumulate in float32 as the default entry's do, but take the exact-shape kernels too, whose 2x5 loop orders
+ *       taps column by column and clamps before rounding. Same arguments, scratch buffer (and sizer) and return codes
+ *       as arm_depthwise_nhwc_conv_f16.
  */
 arm_cmsis_nn_status arm_depthwise_nhwc_conv_f16_acc16(const cmsis_nn_context *ctx,
                                                       const cmsis_nn_dw_conv_params_f16 *dw_conv_params,
@@ -2826,8 +2921,8 @@ arm_cmsis_nn_status arm_depthwise_conv_generic_nhwc_f16_acc16(const cmsis_nn_con
 /**
  * @copydoc arm_depthwise_conv_generic_nhwc_f16
  *
- * @note The conv1d k3 route. Gate: arm_nn_dw_f16_is_1d_k3. The kernel accumulates the same way for both
- *       accumulation variants of the router.
+ * @note The conv1d k3 route. Gate: arm_nn_dw_f16_is_1d_k3. On MVE float builds this entry gives the router's
+ *       float32 result for the layer; the float16-lane k3 kernel is arm_depthwise_conv_1d_k3_nhwc_f16_acc16 (#830).
  */
 arm_cmsis_nn_status arm_depthwise_conv_1d_k3_nhwc_f16(const cmsis_nn_context *ctx,
                                                       const cmsis_nn_dw_conv_params_f16 *dw_conv_params,
@@ -2843,8 +2938,24 @@ arm_cmsis_nn_status arm_depthwise_conv_1d_k3_nhwc_f16(const cmsis_nn_context *ct
 /**
  * @copydoc arm_depthwise_conv_generic_nhwc_f16
  *
- * @note The 2x5 route. Gate: arm_nn_dw_f16_is_2x5. The kernel accumulates the same way for both accumulation
- *       variants of the router.
+ * @note The conv1d k3 route, accumulating as arm_depthwise_conv_f16_acc16() does. Gate: arm_nn_dw_f16_is_1d_k3.
+ */
+arm_cmsis_nn_status arm_depthwise_conv_1d_k3_nhwc_f16_acc16(const cmsis_nn_context *ctx,
+                                                            const cmsis_nn_dw_conv_params_f16 *dw_conv_params,
+                                                            const cmsis_nn_dims *input_dims,
+                                                            const float16_t *input,
+                                                            const cmsis_nn_dims *filter_dims,
+                                                            const float16_t *kernel,
+                                                            const cmsis_nn_dims *bias_dims,
+                                                            const float16_t *bias,
+                                                            const cmsis_nn_dims *output_dims,
+                                                            float16_t *output);
+
+/**
+ * @copydoc arm_depthwise_conv_generic_nhwc_f16
+ *
+ * @note The 2x5 route. Gate: arm_nn_dw_f16_is_2x5. On MVE float builds this entry gives the router's float32 result
+ *       for the layer; the float16-lane 2x5 kernel is arm_depthwise_conv_2x5_nhwc_f16_acc16 (#830).
  */
 arm_cmsis_nn_status arm_depthwise_conv_2x5_nhwc_f16(const cmsis_nn_context *ctx,
                                                     const cmsis_nn_dw_conv_params_f16 *dw_conv_params,
@@ -2856,6 +2967,22 @@ arm_cmsis_nn_status arm_depthwise_conv_2x5_nhwc_f16(const cmsis_nn_context *ctx,
                                                     const float16_t *bias,
                                                     const cmsis_nn_dims *output_dims,
                                                     float16_t *output);
+
+/**
+ * @copydoc arm_depthwise_conv_generic_nhwc_f16
+ *
+ * @note The 2x5 route, accumulating as arm_depthwise_conv_f16_acc16() does. Gate: arm_nn_dw_f16_is_2x5.
+ */
+arm_cmsis_nn_status arm_depthwise_conv_2x5_nhwc_f16_acc16(const cmsis_nn_context *ctx,
+                                                          const cmsis_nn_dw_conv_params_f16 *dw_conv_params,
+                                                          const cmsis_nn_dims *input_dims,
+                                                          const float16_t *input,
+                                                          const cmsis_nn_dims *filter_dims,
+                                                          const float16_t *kernel,
+                                                          const cmsis_nn_dims *bias_dims,
+                                                          const float16_t *bias,
+                                                          const cmsis_nn_dims *output_dims,
+                                                          float16_t *output);
 
 /**
  * @copydoc arm_depthwise_conv_generic_nhwc_f16
@@ -2895,7 +3022,8 @@ arm_cmsis_nn_status arm_depthwise_conv_direct_nhwc_f16_acc16(const cmsis_nn_cont
  * @note The one-input-channel route, on MVE float builds (ARM_MATH_MVE_FLOAT16 without ARM_MATH_AUTOVECTORIZE;
  *       <code>ARM_CMSIS_NN_NO_IMPL_ERROR</code> elsewhere). Gate: arm_nn_dw_f16_is_cin1. ctx must hold at least
  *       arm_nn_dw_f16_cin1_min_ctx_size bytes (the packed filter and one patch row), 2-byte aligned;
- * <code>ARM_CMSIS_NN_ARG_ERROR</code> otherwise (the router falls back to the generic route instead).
+ * <code>ARM_CMSIS_NN_ARG_ERROR</code> otherwise (the router falls back to the generic route instead). This
+ *       entry's float32 kernel reads none of that ctx; the `_acc16` entry packs the filter into it (#830).
  */
 arm_cmsis_nn_status arm_depthwise_conv_cin1_nhwc_f16(const cmsis_nn_context *ctx,
                                                      const cmsis_nn_dw_conv_params_f16 *dw_conv_params,
@@ -2928,26 +3056,22 @@ arm_cmsis_nn_status arm_depthwise_conv_cin1_nhwc_f16_acc16(const cmsis_nn_contex
 /**
  * @copydoc arm_depthwise_conv_f32
  *
- * @note Accumulation and NaN, per leg (AmbiqAI/ns-cmsis-nn#448). MVE leg: the `ch_mult == 1` direct kernel
- *       (lanes are channels, taps row by row) uses blockwise float16 accumulation (AmbiqAI/ns-cmsis-nn#586, superseding
- * #446's float16-lane choice for the MVE legs): in the kernel's own tap order an accumulator lane sums at most 32 taps
- * in float16 (the bias, where the kernel starts from it, opens the first block), then the partial is widened exactly
- * and added into a float32 accumulator; the float32 sum rounds to float16 once, before the clamp. An accumulator of at
- * most 32 taps gives exactly the float16-lane result. The `_acc16` entry keeps float16 lanes throughout. It clamps a
- * NaN to the activation minimum (`vmaxnm` / `vminnm`). Scalar leg (non-MVE builds and ARM_MATH_AUTOVECTORIZE): the
- *       direct kernel accumulates in float32 and rounds to float16 once at the store (#449), and a NaN propagates
- *       through `arm_nn_clamp_scalar_f16` -- unlike the float32 scalar leg, which clamps it to a bound. The MVE
- *       to-convolution route (input channels 1, output channels 8 or more, ctx supplied) goes through
- *       arm_nn_mat_mult_nt_n_packed_f16, with the same blockwise rule over every tap, padded ones included, and clamps
- * a NaN to the activation minimum (`arm_nn_clamp_mve_f16`). The `ch_mult > 1` generic kernel accumulates in float16
- * with the same blockwise rule on MVE builds, as written: each tap is a scalar float16 `acc + a * b` in tap order.
- * Whether that is fused is the compiler's choice (GCC contracts it in GNU C modes or with -ffast-math, clang by
- * default; -ffp-contract=off stops both), and under -ffast-math (the library's -Ofast) a compiler may vectorize a
- * kernel row of a window of at most 32 taps and reorder its sum, as for the short dots of arm_convolve_f16(); the fold
- * over a longer window keeps tap order, while the `_acc16` entries, which have no fold, may have a long row reordered
- * at any window size (AmbiqAI/ns-cmsis-nn#693). On the scalar legs it accumulates in float32, bias
- * included, and rounds to float16 once (#645), the same on both entries. It clamps a NaN to the activation maximum
- * (`arm_nn_clamp_f16h`) on every leg. Unifying these under the #334 promise is a separate issue.
+ * @note Accumulation and NaN, per leg (AmbiqAI/ns-cmsis-nn#448, #830). Every leg accumulates every in-range tap in
+ *       float32, starting from the bias, in tap order (ky, then kx), and rounds the sum to float16 once, before the
+ *       clamp. A product of two halves is exact in float32, so an output differs from the exactly rounded sum only by
+ *       the float32 rounding of its partial sums; where those are exact it is that sum rounded to float16. The routes
+ *       are the `ch_mult == 1` direct kernel, on MVE float builds (ARM_MATH_MVE_FLOAT16 without
+ *       ARM_MATH_AUTOVECTORIZE) the one-input-channel kernel when ctx holds what that route requires, and the generic
+ *       kernel; none reads scratch. The exact-shape kernels (1D-k3, 2x5) and the to-convolution route serve only the
+ *       `_acc16` entry. On MVE float builds these routes widen halves to float32 exactly whatever FPSCR.FZ16 holds, so
+ *       with FZ16 set a float16 subnormal input still counts where the `_acc16` entry's float16 arithmetic flushes it;
+ *       the float16 clamp still flushes a subnormal result under FZ16. No float32 partial of halves is subnormal.
+ *       Under -ffast-math (the library's -Ofast) a compiler may reorder a scalar float32 sum, which can change a
+ *       result only where a partial sum is inexact. NaN: on MVE builds the direct and one-input-channel kernels clamp
+ *       it to the activation minimum (`vmaxnm` / `vminnm`) and the generic kernel to the maximum
+ *       (`arm_nn_clamp_f16h`), so a 2x5 layer with ch_mult > 1, which took the 2x5 kernel before #830, now clamps it
+ *       to the maximum; on the scalar legs the direct kernel propagates it (`arm_nn_clamp_scalar_f16`) and the
+ *       generic kernel clamps it to the maximum. Unifying these under the #334 promise is a separate issue.
  */
 arm_cmsis_nn_status arm_depthwise_conv_f16(const cmsis_nn_context *ctx,
                                            const cmsis_nn_dw_conv_params_f16 *dw_conv_params,
@@ -2964,10 +3088,14 @@ arm_cmsis_nn_status arm_depthwise_conv_f16(const cmsis_nn_context *ctx,
 /**
  * @copydoc arm_depthwise_conv_f16
  *
- * @note Float16-lane entry (AmbiqAI/ns-cmsis-nn#586): the MVE legs run with no blockwise fold, exactly as
- *       arm_depthwise_conv_f16 did before #586 (float16 accumulator lanes wherever it used them), for callers
- *       that trade accuracy on long reductions for speed. Same arguments, scratch buffer (and sizer), return codes and
- * scalar leg as arm_depthwise_conv_f16.
+ * @note Float16-lane entry, the fast path (AmbiqAI/ns-cmsis-nn#586, #830): on MVE float builds every route
+ *       accumulates in float16 lanes from the bias with no fold, as arm_depthwise_conv_f16 did before #586,
+ *       for callers that trade accuracy for speed. On windows of at most 32 taps that is also what the default entry
+ *       gave before #830. Under -ffast-math (the library's -Ofast) a compiler may vectorize a kernel row of the
+ *       generic kernel and reorder its float16 sum at any window size (AmbiqAI/ns-cmsis-nn#693). Its scalar legs
+ *       accumulate in float32 as the default entry's do, but take the exact-shape kernels too, whose 2x5 loop orders
+ *       taps column by column and clamps before rounding. Same arguments, scratch buffer (and sizer) and return codes
+ *       as arm_depthwise_conv_f16.
  */
 arm_cmsis_nn_status arm_depthwise_conv_f16_acc16(const cmsis_nn_context *ctx,
                                                  const cmsis_nn_dw_conv_params_f16 *dw_conv_params,
@@ -2984,26 +3112,22 @@ arm_cmsis_nn_status arm_depthwise_conv_f16_acc16(const cmsis_nn_context *ctx,
 /**
  * @copydoc arm_depthwise_conv_wrapper_f32
  *
- * @note Accumulation and NaN, per leg (AmbiqAI/ns-cmsis-nn#448). MVE leg: the `ch_mult == 1` direct kernel
- *       (lanes are channels, taps row by row) uses blockwise float16 accumulation (AmbiqAI/ns-cmsis-nn#586, superseding
- * #446's float16-lane choice for the MVE legs): in the kernel's own tap order an accumulator lane sums at most 32 taps
- * in float16 (the bias, where the kernel starts from it, opens the first block), then the partial is widened exactly
- * and added into a float32 accumulator; the float32 sum rounds to float16 once, before the clamp. An accumulator of at
- * most 32 taps gives exactly the float16-lane result. The `_acc16` entry keeps float16 lanes throughout. It clamps a
- * NaN to the activation minimum (`vmaxnm` / `vminnm`). Scalar leg (non-MVE builds and ARM_MATH_AUTOVECTORIZE): the
- *       direct kernel accumulates in float32 and rounds to float16 once at the store (#449), and a NaN propagates
- *       through `arm_nn_clamp_scalar_f16` -- unlike the float32 scalar leg, which clamps it to a bound. The MVE
- *       to-convolution route (input channels 1, output channels 8 or more, ctx supplied) goes through
- *       arm_nn_mat_mult_nt_n_packed_f16, with the same blockwise rule over every tap, padded ones included, and clamps
- * a NaN to the activation minimum (`arm_nn_clamp_mve_f16`). The `ch_mult > 1` generic kernel accumulates in float16
- * with the same blockwise rule on MVE builds, as written: each tap is a scalar float16 `acc + a * b` in tap order.
- * Whether that is fused is the compiler's choice (GCC contracts it in GNU C modes or with -ffast-math, clang by
- * default; -ffp-contract=off stops both), and under -ffast-math (the library's -Ofast) a compiler may vectorize a
- * kernel row of a window of at most 32 taps and reorder its sum, as for the short dots of arm_convolve_f16(); the fold
- * over a longer window keeps tap order, while the `_acc16` entries, which have no fold, may have a long row reordered
- * at any window size (AmbiqAI/ns-cmsis-nn#693). On the scalar legs it accumulates in float32, bias
- * included, and rounds to float16 once (#645), the same on both entries. It clamps a NaN to the activation maximum
- * (`arm_nn_clamp_f16h`) on every leg. Unifying these under the #334 promise is a separate issue.
+ * @note Accumulation and NaN, per leg (AmbiqAI/ns-cmsis-nn#448, #830). Every leg accumulates every in-range tap in
+ *       float32, starting from the bias, in tap order (ky, then kx), and rounds the sum to float16 once, before the
+ *       clamp. A product of two halves is exact in float32, so an output differs from the exactly rounded sum only by
+ *       the float32 rounding of its partial sums; where those are exact it is that sum rounded to float16. The routes
+ *       are the `ch_mult == 1` direct kernel, on MVE float builds (ARM_MATH_MVE_FLOAT16 without
+ *       ARM_MATH_AUTOVECTORIZE) the one-input-channel kernel when ctx holds what that route requires, and the generic
+ *       kernel; none reads scratch. The exact-shape kernels (1D-k3, 2x5) and the to-convolution route serve only the
+ *       `_acc16` entry. On MVE float builds these routes widen halves to float32 exactly whatever FPSCR.FZ16 holds, so
+ *       with FZ16 set a float16 subnormal input still counts where the `_acc16` entry's float16 arithmetic flushes it;
+ *       the float16 clamp still flushes a subnormal result under FZ16. No float32 partial of halves is subnormal.
+ *       Under -ffast-math (the library's -Ofast) a compiler may reorder a scalar float32 sum, which can change a
+ *       result only where a partial sum is inexact. NaN: on MVE builds the direct and one-input-channel kernels clamp
+ *       it to the activation minimum (`vmaxnm` / `vminnm`) and the generic kernel to the maximum
+ *       (`arm_nn_clamp_f16h`), so a 2x5 layer with ch_mult > 1, which took the 2x5 kernel before #830, now clamps it
+ *       to the maximum; on the scalar legs the direct kernel propagates it (`arm_nn_clamp_scalar_f16`) and the
+ *       generic kernel clamps it to the maximum. Unifying these under the #334 promise is a separate issue.
  */
 arm_cmsis_nn_status arm_depthwise_conv_wrapper_f16(const cmsis_nn_context *ctx,
                                                    const cmsis_nn_dw_conv_params_f16 *dw_conv_params,
@@ -3019,10 +3143,14 @@ arm_cmsis_nn_status arm_depthwise_conv_wrapper_f16(const cmsis_nn_context *ctx,
 /**
  * @copydoc arm_depthwise_conv_wrapper_f16
  *
- * @note Float16-lane entry (AmbiqAI/ns-cmsis-nn#586): the MVE legs run with no blockwise fold, exactly as
- *       arm_depthwise_conv_wrapper_f16 did before #586 (float16 accumulator lanes wherever it used them), for callers
- *       that trade accuracy on long reductions for speed. Same arguments, scratch buffer (and sizer), return codes and
- * scalar leg as arm_depthwise_conv_wrapper_f16.
+ * @note Float16-lane entry, the fast path (AmbiqAI/ns-cmsis-nn#586, #830): on MVE float builds every route
+ *       accumulates in float16 lanes from the bias with no fold, as arm_depthwise_conv_wrapper_f16 did before #586,
+ *       for callers that trade accuracy for speed. On windows of at most 32 taps that is also what the default entry
+ *       gave before #830. Under -ffast-math (the library's -Ofast) a compiler may vectorize a kernel row of the
+ *       generic kernel and reorder its float16 sum at any window size (AmbiqAI/ns-cmsis-nn#693). Its scalar legs
+ *       accumulate in float32 as the default entry's do, but take the exact-shape kernels too, whose 2x5 loop orders
+ *       taps column by column and clamps before rounding. Same arguments, scratch buffer (and sizer) and return codes
+ *       as arm_depthwise_conv_wrapper_f16.
  */
 arm_cmsis_nn_status arm_depthwise_conv_wrapper_f16_acc16(const cmsis_nn_context *ctx,
                                                          const cmsis_nn_dw_conv_params_f16 *dw_conv_params,
@@ -3983,7 +4111,20 @@ arm_cmsis_nn_status arm_nn_activation_f16(const float16_t *input,
                                           float16_t act_param);
 
 /**
- * @copydoc arm_prelu_f32
+ * @brief Parametric ReLU for float16 data.
+ *
+ * Computes output = input >= 0 ? input : input * alpha, with alpha broadcast
+ * onto the input (TensorFlow Lite semantics): each alpha dimension must equal
+ * the matching input dimension or 1.
+ *
+ * @param[in]  input_dims   Input tensor dimensions. Must equal output_dims.
+ * @param[in]  input        Pointer to the input tensor.
+ * @param[in]  alpha_dims   Alpha tensor dimensions.
+ * @param[in]  alpha        Pointer to the alpha (slope) tensor.
+ * @param[in]  output_dims  Output tensor dimensions.
+ * @param[out] output       Pointer to the output tensor.
+ *
+ * @return `ARM_CMSIS_NN_SUCCESS` on success or `ARM_CMSIS_NN_ARG_ERROR` on invalid arguments.
  */
 arm_cmsis_nn_status arm_prelu_f16(const cmsis_nn_dims *input_dims,
                                   const float16_t *input,
@@ -4158,7 +4299,7 @@ arm_cmsis_nn_status arm_nn_fill_f16(float16_t value, float16_t *output, int32_t 
  * Gives what the hardware half-to-single conversion gives for each element: with FPSCR.AHP clear, finite
  * values, subnormals (normal in float32), +/-0 and +/-Inf convert exactly. No accumulation, no rounding.
  * Implemented by arm_dequantize_f16_bits_f32(), whose documentation gives the NaN and FPSCR behavior of each path
- * (on the MVE vector path every NaN becomes the default NaN). Input and output must not overlap. Serves the
+ * (a NaN keeps its sign and payload). Input and output must not overlap. Serves the
  * f16-weights DEQUANTIZE op (`kws_float_fp16_weights`).
  *
  * @param[in]  input       Pointer to the float16 input vector.
@@ -5089,6 +5230,58 @@ arm_cmsis_nn_status arm_reduce_min_f16(const float16_t *input_data,
                                        const cmsis_nn_dims *axis_dims,
                                        float16_t *output_data,
                                        const cmsis_nn_dims *output_dims);
+
+/**
+ * @ingroup Reduction
+ * @brief Reduces a f16 NHWC tensor to its maximum along a binary axis mask, with TFLite REDUCE_MAX results.
+ *
+ * Bit-exact with TFLM's reference_ops::ReduceGeneric with init = the lowest finite half and the reducer
+ * `in > current ? in : current`, for every input: the reduction starts from -65504 (0xfbff), a NaN never
+ * replaces the running value (so a window of NaNs, or of -Inf only, gives the start value), an empty
+ * reduced domain gives the start value, and a zero mask folds each element into the start value rather than
+ * copying it. Otherwise as @ref arm_reduce_max_f16, values are selected without floating-point arithmetic,
+ * equal numeric values retain the first input in row-major order including zero signs, and scalar and MVE
+ * paths agree independently of FP controls. The arguments and their checks are those of
+ * @ref arm_reduce_max_f16. Refs #870.
+ *
+ * @param[in] input_data Input tensor.
+ * @param[in] input_dims Four NHWC extents.
+ * @param[in] axis_dims Four binary reduction flags.
+ * @param[out] output_data Output tensor.
+ * @param[in] output_dims NHWC output shape with reduced axes retained as 1.
+ * @return ARM_CMSIS_NN_SUCCESS or ARM_CMSIS_NN_ARG_ERROR before any output write.
+ */
+arm_cmsis_nn_status arm_reduce_max_tflite_f16(const float16_t *input_data,
+                                              const cmsis_nn_dims *input_dims,
+                                              const cmsis_nn_dims *axis_dims,
+                                              float16_t *output_data,
+                                              const cmsis_nn_dims *output_dims);
+
+/**
+ * @ingroup Reduction
+ * @brief Reduces a f16 NHWC tensor to its minimum along a binary axis mask, with TFLite REDUCE_MIN results.
+ *
+ * Bit-exact with TFLM's reference_ops::ReduceGeneric with init = the largest finite half and the reducer
+ * `in < current ? in : current`, for every input: the reduction starts from +65504 (0x7bff), a NaN never
+ * replaces the running value (so a window of NaNs, or of +Inf only, gives the start value), an empty
+ * reduced domain gives the start value, and a zero mask folds each element into the start value rather than
+ * copying it. Otherwise as @ref arm_reduce_min_f16, values are selected without floating-point arithmetic,
+ * equal numeric values retain the first input in row-major order including zero signs, and scalar and MVE
+ * paths agree independently of FP controls. The arguments and their checks are those of
+ * @ref arm_reduce_min_f16. Refs #870.
+ *
+ * @param[in] input_data Input tensor.
+ * @param[in] input_dims Four NHWC extents.
+ * @param[in] axis_dims Four binary reduction flags.
+ * @param[out] output_data Output tensor.
+ * @param[in] output_dims NHWC output shape with reduced axes retained as 1.
+ * @return ARM_CMSIS_NN_SUCCESS or ARM_CMSIS_NN_ARG_ERROR before any output write.
+ */
+arm_cmsis_nn_status arm_reduce_min_tflite_f16(const float16_t *input_data,
+                                              const cmsis_nn_dims *input_dims,
+                                              const cmsis_nn_dims *axis_dims,
+                                              float16_t *output_data,
+                                              const cmsis_nn_dims *output_dims);
 
 /**
  * @ingroup Reduction

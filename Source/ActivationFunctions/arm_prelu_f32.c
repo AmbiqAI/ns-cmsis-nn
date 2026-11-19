@@ -32,6 +32,41 @@
  * @{
  */
 
+    #if defined(ARM_MATH_MVEF) && !defined(ARM_MATH_AUTOVECTORIZE)
+/*
+ * MVE f32 compares and multiplies treat a subnormal as zero whatever FPSCR.FZ holds, so a lane with a negative,
+ * nonzero x is redone on the scalar FPU when x is subnormal (the compare sees -0), or when alpha is nonzero and it
+ * or the product is zero or subnormal. The other lanes are exact as they are; a zero alpha with a normal x gives an
+ * exact zero. The lanes are tested as integers loaded as integers: from a float load, LLVM turns the bit tests into
+ * the same flushing compares. Refs #853, #873.
+ */
+static inline mve_pred16_t arm_prelu_redo_f32(const uint32x4_t x, const uint32x4_t a, const float32x4_t product)
+{
+    const uint32x4_t exponent = vdupq_n_u32(0x7F800000u);
+    const mve_pred16_t tiny_alpha_or_product =
+        vcmpeqq_n_u32(vandq(a, exponent), 0) | vcmpeqq_n_u32(vandq(vreinterpretq_u32_f32(product), exponent), 0);
+    const mve_pred16_t flushed =
+        vcmpeqq_n_u32(vandq(x, exponent), 0) | (tiny_alpha_or_product & vcmpneq_n_u32(vshlq_n_u32(a, 1), 0));
+    return flushed & vcmpltq_n_s32(vreinterpretq_s32_u32(x), 0) & vcmpneq_n_u32(vshlq_n_u32(x, 1), 0);
+}
+
+// The scalar FPU's x >= 0 ? x : x * a, compare included so FPSCR.FZ acts as on the scalar path, kept out of reach
+// of the vectorizer
+static inline float32_t arm_prelu_scalar_f32(const float32_t x, const float32_t a)
+{
+    float32_t r;
+    __asm("vmul.f32 %0, %1, %2\n\t"
+          "vcmp.f32 %1, #0\n\t"
+          "vmrs APSR_nzcv, fpscr\n\t"
+          "it ge\n\t"
+          "vmovge.f32 %0, %1"
+          : "=&t"(r)
+          : "t"(x), "t"(a)
+          : "cc");
+    return r;
+}
+    #endif
+
 // out[i] = input[i] >= 0 ? input[i] : input[i] * alpha[i]
 static void arm_prelu_vec_f32(const float32_t *input, const float32_t *alpha, float32_t *output, int32_t flat_size)
 {
@@ -39,11 +74,27 @@ static void arm_prelu_vec_f32(const float32_t *input, const float32_t *alpha, fl
     for (int32_t i = 0; i < flat_size; i += 4)
     {
         const mve_pred16_t p = vctp32q((uint32_t)(flat_size - i));
-        const float32x4_t vx = vld1q_z(&input[i], p);
-        const float32x4_t va = vld1q_z(&alpha[i], p);
-        const float32x4_t vneg = vmulq(vx, va);
+        const uint32x4_t xb = vld1q_z((const uint32_t *)&input[i], p);
+        const uint32x4_t ab = vld1q_z((const uint32_t *)&alpha[i], p);
+        const float32x4_t vx = vreinterpretq_f32_u32(xb);
+        const float32x4_t vneg = vmulq(vx, vreinterpretq_f32_u32(ab));
         const mve_pred16_t pos = vcmpgeq_n_f32(vx, 0.0f);
         vst1q_p(&output[i], vpselq(vx, vneg, pos), p);
+        const mve_pred16_t redo = arm_prelu_redo_f32(xb, ab, vneg) & p;
+        if (redo)
+        {
+            // From the loaded lanes: output may be input or alpha, already overwritten by the store above
+            float32_t xs[4], as[4];
+            vst1q(xs, vx);
+            vst1q(as, vreinterpretq_f32_u32(ab));
+            for (int32_t j = 0; j < 4; ++j)
+            {
+                if (redo & (1u << (4 * j)))
+                {
+                    output[i + j] = arm_prelu_scalar_f32(xs[j], as[j]);
+                }
+            }
+        }
     }
     #else
     for (int32_t i = 0; i < flat_size; ++i)
@@ -59,14 +110,32 @@ static void
 arm_prelu_alpha_scalar_f32(const float32_t *input, float32_t alpha_value, float32_t *output, int32_t flat_size)
 {
     #if defined(ARM_MATH_MVEF) && !defined(ARM_MATH_AUTOVECTORIZE)
-    const float32x4_t va = vdupq_n_f32(alpha_value);
+    uint32_t alpha_bits;
+    memcpy(&alpha_bits, &alpha_value, sizeof(alpha_bits));
+    const uint32x4_t ab = vdupq_n_u32(alpha_bits);
+    const float32x4_t va = vreinterpretq_f32_u32(ab);
     for (int32_t i = 0; i < flat_size; i += 4)
     {
         const mve_pred16_t p = vctp32q((uint32_t)(flat_size - i));
-        const float32x4_t vx = vld1q_z(&input[i], p);
+        const uint32x4_t xb = vld1q_z((const uint32_t *)&input[i], p);
+        const float32x4_t vx = vreinterpretq_f32_u32(xb);
         const float32x4_t vneg = vmulq(vx, va);
         const mve_pred16_t pos = vcmpgeq_n_f32(vx, 0.0f);
         vst1q_p(&output[i], vpselq(vx, vneg, pos), p);
+        const mve_pred16_t redo = arm_prelu_redo_f32(xb, ab, vneg) & p;
+        if (redo)
+        {
+            // From the loaded lanes: output may be input, already overwritten by the store above
+            float32_t xs[4];
+            vst1q(xs, vx);
+            for (int32_t j = 0; j < 4; ++j)
+            {
+                if (redo & (1u << (4 * j)))
+                {
+                    output[i + j] = arm_prelu_scalar_f32(xs[j], alpha_value);
+                }
+            }
+        }
     }
     #else
     for (int32_t i = 0; i < flat_size; ++i)
@@ -141,7 +210,7 @@ arm_cmsis_nn_status arm_prelu_f32(const cmsis_nn_dims *input_dims,
         return ARM_CMSIS_NN_SUCCESS;
     }
 
-    // 4) General broadcast: scalar walk with clamped alpha indices
+    // 4) General broadcast: one alpha row (al_c == in_c) or value (al_c == 1) per pixel, clamped alpha indices
     {
         int32_t out_idx = 0;
         for (int32_t n = 0; n < in_n; n++)
@@ -154,13 +223,15 @@ arm_cmsis_nn_status arm_prelu_f32(const cmsis_nn_dims *input_dims,
                 {
                     const int32_t a_w = (al_w == 1) ? 0 : w;
                     const int32_t a_base = ((a_n * al_h + a_h) * al_w + a_w) * al_c;
-                    for (int32_t c = 0; c < in_c; c++)
+                    if (al_c == 1)
                     {
-                        const float32_t x = input[out_idx];
-                        const float32_t a = alpha[a_base + ((al_c == 1) ? 0 : c)];
-                        output[out_idx] = (x >= 0.0f) ? x : x * a;
-                        out_idx++;
+                        arm_prelu_alpha_scalar_f32(&input[out_idx], alpha[a_base], &output[out_idx], in_c);
                     }
+                    else
+                    {
+                        arm_prelu_vec_f32(&input[out_idx], &alpha[a_base], &output[out_idx], in_c);
+                    }
+                    out_idx += in_c;
                 }
             }
         }

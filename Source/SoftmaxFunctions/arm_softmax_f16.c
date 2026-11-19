@@ -119,15 +119,11 @@ arm_cmsis_nn_status arm_softmax_f16(const float16_t *input, int32_t rows, int32_
     #endif
 
         /*
-         * For any finite row, subtracting the row max guarantees at least one
-         * exponent term is exp(0) = 1, so the accumulated sum should stay >= 1.
-         * Treat non-positive sums as invalid input rather than silently
-         * normalizing a degenerate row.
+         * No status check on sum. A row with a finite entry has sum >= 1 (its max contributes
+         * exp(0)); a row holding NaN or +Inf, or only -Inf, can have a NaN sum, and finite-math
+         * modes may resolve a NaN compare either way, so the status would vary by toolchain.
+         * Such a row is left unspecified. Refs #854.
          */
-        if (sum <= 0.0f)
-        {
-            return ARM_CMSIS_NN_ARG_ERROR;
-        }
 
         /* Normalize */
         const _Float16 inv_sum = (_Float16)(1.0f / sum);

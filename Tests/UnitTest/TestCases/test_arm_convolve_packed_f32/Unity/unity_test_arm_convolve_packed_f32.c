@@ -62,3 +62,5 @@ void test_convolve_route_predicates_f32(void) { convolve_route_predicates_f32();
 
 void test_convolve_argument_domains_f32(void) { convolve_argument_domains_f32(); }
 void test_convolve_clipped_windows_f32(void) { convolve_clipped_windows_f32(); }
+
+void test_convolve_four_channel_f32(void) { convolve_four_channel_f32(); }
