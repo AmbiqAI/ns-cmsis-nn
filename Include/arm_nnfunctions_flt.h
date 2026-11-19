@@ -816,15 +816,14 @@ arm_cmsis_nn_status arm_convolve_small_c_nhwc_f32(const cmsis_nn_context *ctx,
  * @param[out]     output_data    Output data pointer. Data type: float32
  *
  * @return     The function returns one of the following
- *                <code>ARM_CMSIS_NN_ARG_ERROR</code> - conv_params, a dimension or a data pointer other than
- *                                                      bias_data is NULL,
- *                                                      or ctx, ctx->buf is NULL or ctx->size is below one patch row
+ *                <code>ARM_CMSIS_NN_ARG_ERROR</code> - invalid arguments, unequal input and filter depth,
+ *                                                      or insufficient scratch for a patch row
  *                <code>ARM_CMSIS_NN_NO_IMPL_ERROR</code> - the filter format is not the entry's; nothing is written
  *                <code>ARM_CMSIS_NN_SUCCESS</code> - Successful operation
  *
  * @details
- *    - Valid for any NHWC layer. The router takes it when arm_nn_conv_flt_is_patch_gemm holds and ctx
- *      holds one patch row; unlike the router, the entry does not fall back to the direct route.
+ *    - Requires one group. The router selects this entry when arm_nn_conv_flt_is_patch_gemm holds
+ *      and ctx holds one patch row. This entry requires scratch for every nonempty layer.
  *    - The _ohwi_ entry takes ARM_NN_WEIGHT_FORMAT_STANDARD filters and the _packed_ entry
  *      ARM_NN_WEIGHT_FORMAT_NT_N_PACKED filters; each returns <code>ARM_CMSIS_NN_NO_IMPL_ERROR</code> for the other
  *      format, so that an image links only the kernel for its format.
@@ -867,7 +866,7 @@ arm_cmsis_nn_status arm_convolve_patch_gemm_nhwc_packed_f32(const cmsis_nn_conte
  * @param[in]      conv_params    Convolution parameters: stride, padding, dilation, activation and weight_format
  * @param[in]      input_dims     Input (activation) tensor dimensions. Format: [N, H, W, C_IN]
  * @param[in]      input_data     Input (activation) data pointer. Data type: float32
- * @param[in]      filter_dims    Filter tensor dimensions. Format: [C_OUT, HK, WK, C_IN / groups]
+ * @param[in]      filter_dims    Filter tensor dimensions. Format: [C_OUT, HK, WK, filter depth]
  * @param[in]      filter_data    Filter data pointer, in the format the entry names. Data type: float32
  * @param[in]      bias_dims      Bias tensor dimensions. Format: [C_OUT]. Unused
  * @param[in]      bias_data      Bias data pointer, or NULL for no bias. Data type: float32
@@ -881,13 +880,14 @@ arm_cmsis_nn_status arm_convolve_patch_gemm_nhwc_packed_f32(const cmsis_nn_conte
  *                <code>ARM_CMSIS_NN_SUCCESS</code> - Successful operation
  *
  * @details
- *    - No scratch. For float32 OHWI, groups = input_dims->c / filter_dims->c and must divide C_OUT.
- *      Packed filters require groups = 1.
+ *    - No scratch. Filter depth equals C_IN unless the entry supports grouped OHWI filters.
+ *      arm_convolve_direct_nhwc_ohwi_f32() accepts filter depth C_IN / groups when groups divides C_OUT.
+ *      All packed entries require one group.
  *    - The _ohwi_ entry takes ARM_NN_WEIGHT_FORMAT_STANDARD filters and the _packed_ entry
  *      ARM_NN_WEIGHT_FORMAT_NT_N_PACKED filters; each returns <code>ARM_CMSIS_NN_NO_IMPL_ERROR</code> for the other
  *      format, so that an image links only the kernel for its format.
- *    - The float16 entries of the same name take the same arguments and return codes;
- *      the _f16 entry accumulates as arm_convolve_f16() does and the _f16_acc16 entry as
+ *    - Float16 entries use the full input depth unless their individual contract specifies grouped support.
+ *      The _f16 entry accumulates as arm_convolve_f16() does and the _f16_acc16 entry as
  *      arm_convolve_f16_acc16() does.
  */
 arm_cmsis_nn_status arm_convolve_direct_nhwc_ohwi_f32(const cmsis_nn_context *ctx,
