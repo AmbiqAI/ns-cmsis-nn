@@ -186,6 +186,32 @@ void convolve_grouped_direct_f16(void)
                           NULL, &cp, &empty_in, input, &filter, weights, NULL, NULL, &empty_out, output));
 }
 
+void convolve_grouped_fast_small_rows_f16(void)
+{
+    const cmsis_nn_dims filter = {4, 1, 1, 2};
+    const float16_t weights[] = {1, 0, 0, 1, 1, 0, 0, 1};
+    cmsis_nn_conv_params_f16 cp;
+    conv_f16_params(&cp, 0, 0, 0);
+    for (int32_t width = 1; width <= 3; width += 2)
+    {
+        const cmsis_nn_dims dims = {2, 2, width, 4};
+        const int32_t elements = dims.n * dims.h * dims.w * dims.c;
+        float16_t input[48], output[48] = {0};
+        for (int32_t i = 0; i < elements; ++i)
+        {
+            input[i] = (float16_t)(i + 1);
+        }
+        const arm_cmsis_nn_status status =
+            arm_convolve_f16_fast_small_kernel(NULL, &cp, &dims, input, &filter, weights, NULL, NULL, &dims, output);
+#if defined(ARM_MATH_MVE_FLOAT16) && !defined(ARM_MATH_AUTOVECTORIZE)
+        TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, status);
+        TEST_ASSERT_EQUAL_MEMORY(input, output, (size_t)elements * sizeof(float16_t));
+#else
+        TEST_ASSERT_EQUAL(ARM_CMSIS_NN_NO_IMPL_ERROR, status);
+#endif
+    }
+}
+
 void convolve_grouped_f16(void)
 {
     const cmsis_nn_dims in = {.n = 1, .h = 5, .w = 5, .c = 16};

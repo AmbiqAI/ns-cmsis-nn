@@ -291,16 +291,13 @@ arm_cmsis_nn_status arm_convolve_f16_fast_small_kernel(const cmsis_nn_context *c
                     /* Last output column of the row advances to the next row. */
                     {
                         const float16x8_t in = vldrhq_gather_shifted_offset_z(input_data_pr, offset_src, p);
-                        if (i_out_y + 1 < output_y)
-                        {
-                            input_data_pr += row_step;
-                        }
                         const float32_t acc32 = arm_convolve_f16_widened_dot(weight, in) + bias_val;
                         _Float16 acc = (_Float16)acc32;
                         acc = arm_convolve_f16_clamp_mve_compatible(acc, act_min, act_max);
                         *out_c = (float16_t)acc;
                         if (i_out_y + 1 < output_y)
                         {
+                            input_data_pr += row_step;
                             out_c += output_ch;
                         }
                     }
