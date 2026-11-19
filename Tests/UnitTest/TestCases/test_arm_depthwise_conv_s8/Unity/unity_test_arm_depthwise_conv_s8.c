@@ -71,3 +71,6 @@ void test_single_in_many_out_ch(void) {
     single_in_many_out_ch();
 }
 
+void test_tall_input_arm_depthwise_conv_s8(void) { tall_input_arm_depthwise_conv_s8(); }
+
+void test_wide_input_arm_depthwise_conv_s8(void) { wide_input_arm_depthwise_conv_s8(); }

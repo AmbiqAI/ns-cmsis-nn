@@ -2444,3 +2444,127 @@ void wrapper_vertical_padding_1_x_n_arm_convolve_s4(void)
     free(ref_ctx.buf);
 }
 
+/*
+ * 262,152 filter columns (#771): the counters of the leftover-output loop on builds without MVE no longer wrap at
+ * 65,536 column pairs or quads. One output pixel; the full sum is about 174,766, scaled to about 21, while a count cut
+ * at 65,536 pairs or quads gives about half or almost nothing. Checked against a direct sum. The buffers sit in SRAM on
+ * the Corstone-300 FVP.
+ */
+#if defined(USING_FVP_CORSTONE_300)
+    #define WIDE_S4_SECTION __attribute__((section(".bss.NoInit")))
+#else
+    #define WIDE_S4_SECTION
+#endif
+#define WIDE_S4_CH 32769
+#define WIDE_S4_KW 8
+#define WIDE_S4_COLS (WIDE_S4_KW * WIDE_S4_CH)
+static int8_t wide_s4_input[WIDE_S4_COLS] WIDE_S4_SECTION;
+static int8_t wide_s4_filter[(WIDE_S4_COLS + 1) / 2] WIDE_S4_SECTION;
+static int16_t wide_s4_buffer[2 * WIDE_S4_COLS + 64] WIDE_S4_SECTION;
+
+void wide_columns_arm_convolve_s4(void)
+{
+    int32_t expected_acc = 3;
+    for (int32_t i = 0; i < WIDE_S4_COLS; i++)
+    {
+        /* The same pattern as the weights, so every column adds 0 or 1 and a truncated count gives a smaller sum */
+        wide_s4_input[i] = (int8_t)(i % 3 - 1);
+    }
+    for (int32_t i = 0; i < WIDE_S4_COLS; i += 2)
+    {
+        const int8_t lo = (int8_t)(i % 3 - 1), hi = (int8_t)((i + 1) % 3 - 1);
+        wide_s4_filter[i / 2] = (int8_t)((lo & 0xF) | ((hi & 0xF) << 4));
+        expected_acc += lo * wide_s4_input[i] + (i + 1 < WIDE_S4_COLS ? hi * wide_s4_input[i + 1] : 0);
+    }
+    int32_t bias[1] = {3};
+    int32_t mult[1] = {1 << 30};
+    int32_t shift[1] = {-12};
+    int8_t output[1];
+    const cmsis_nn_per_channel_quant_params quant = {mult, shift};
+    const cmsis_nn_dims input_dims = {1, 1, WIDE_S4_KW, WIDE_S4_CH}, filter_dims = {1, 1, WIDE_S4_KW, WIDE_S4_CH};
+    const cmsis_nn_dims bias_dims = {1, 1, 1, 1}, output_dims = {1, 1, 1, 1};
+    const cmsis_nn_conv_params params = {.input_offset = 0,
+                                         .output_offset = 0,
+                                         .stride = {1, 1},
+                                         .padding = {0, 0},
+                                         .dilation = {1, 1},
+                                         .activation = {-128, 127}};
+    const int32_t buffer_size = arm_convolve_s4_get_buffer_size(&input_dims, &filter_dims);
+    TEST_ASSERT_TRUE(buffer_size >= 0 && buffer_size <= (int32_t)sizeof(wide_s4_buffer));
+    const cmsis_nn_context ctx = {wide_s4_buffer, buffer_size};
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
+                      arm_convolve_s4(&ctx,
+                                      &params,
+                                      &quant,
+                                      &input_dims,
+                                      wide_s4_input,
+                                      &filter_dims,
+                                      wide_s4_filter,
+                                      &bias_dims,
+                                      bias,
+                                      &output_dims,
+                                      output));
+    int32_t expected = arm_nn_requantize(expected_acc, mult[0], shift[0]);
+    expected = ARM_NN_MIN(ARM_NN_MAX(expected, -128), 127);
+    TEST_ASSERT_EQUAL_INT8(expected, output[0]);
+}
+
+/*
+ * A C_IN the kernel cannot hold (#771): 65,537, which its uint16_t copy cut to 1. It is rejected before any data is
+ * read. The wide buffers above hold the shape, so a missing check reads no further than they reach.
+ */
+void arg_errors_arm_convolve_s4(void)
+{
+    int32_t bias[1] = {0};
+    int32_t mult[1] = {1 << 30};
+    int32_t shift[1] = {0};
+    int8_t output[1];
+    const cmsis_nn_per_channel_quant_params quant = {mult, shift};
+    const cmsis_nn_conv_params params = {.input_offset = 0,
+                                         .output_offset = 0,
+                                         .stride = {1, 1},
+                                         .padding = {0, 0},
+                                         .dilation = {1, 1},
+                                         .activation = {-128, 127}};
+    const cmsis_nn_context ctx = {wide_s4_buffer, (int32_t)sizeof(wide_s4_buffer)};
+    const cmsis_nn_dims bias_dims = {1, 1, 1, 1}, output_dims = {1, 1, 1, 1};
+
+    const cmsis_nn_dims wide_dims = {1, 1, 1, 65537};
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR,
+                      arm_convolve_s4(&ctx,
+                                      &params,
+                                      &quant,
+                                      &wide_dims,
+                                      wide_s4_input,
+                                      &wide_dims,
+                                      wide_s4_filter,
+                                      &bias_dims,
+                                      bias,
+                                      &output_dims,
+                                      output));
+
+    /* A NULL buffer, and a negative padding, on a 1x1 layer that otherwise runs */
+    const cmsis_nn_dims unit_dims = {1, 1, 1, 1};
+    const cmsis_nn_context null_ctx = {NULL, 0};
+    cmsis_nn_conv_params padded = params;
+    padded.padding.w = -1;
+    const cmsis_nn_context *const bad_ctx[2] = {&null_ctx, &ctx};
+    const cmsis_nn_conv_params *const bad_params[2] = {&params, &padded};
+    for (int32_t c = 0; c < 2; c++)
+    {
+        output[0] = 0x5A;
+        TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR,
+                          arm_convolve_s4(bad_ctx[c],
+                                          bad_params[c],
+                                          &quant,
+                                          &unit_dims,
+                                          wide_s4_input,
+                                          &unit_dims,
+                                          wide_s4_filter,
+                                          &bias_dims,
+                                          bias,
+                                          &output_dims,
+                                          output));
+        TEST_ASSERT_EQUAL_HEX8(0x5A, (uint8_t)output[0]);
+    }
+}

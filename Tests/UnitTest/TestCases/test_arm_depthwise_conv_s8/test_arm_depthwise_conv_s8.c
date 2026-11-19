@@ -923,3 +923,141 @@ void single_in_many_out_ch(void)
     TEST_ASSERT_EQUAL(expected, result);
     TEST_ASSERT_TRUE(validate(output, depthwise_single_in_many_out_ch_output_ref, output_ref_size));
 }
+
+/*
+ * The kernel keeps the first tap index of an output, stride * output row - padding, as int16_t (#786). A 3x1 filter
+ * with padding 1 over 32,769 rows reaches index 32,767 and runs, checked against an int32 reference; one row more
+ * would wrap it and is an argument error with the output untouched. The buffers hold the taller layer too.
+ */
+#define TALL_ROWS 32769
+#define TALL_CH 4
+#if defined(USING_FVP_CORSTONE_300)
+    #define TALL_SECTION __attribute__((section(".bss.NoInit")))
+#else
+    #define TALL_SECTION
+#endif
+static int8_t tall_input[(TALL_ROWS + 1) * TALL_CH] TALL_SECTION;
+static int8_t tall_output[(TALL_ROWS + 1) * TALL_CH] TALL_SECTION;
+static int16_t tall_scratch[2048];
+
+static int8_t tall_input_at(int32_t y, int32_t c) { return (int8_t)((y * 7 + c * 3) % 21 - 10); }
+
+static void tall_check(const int32_t *bias, const int32_t *mult, const int32_t *shift)
+{
+    for (int32_t y = 0; y < TALL_ROWS; y++)
+    {
+        for (int32_t c = 0; c < TALL_CH; c++)
+        {
+            int32_t acc = bias[c];
+            for (int32_t ky = 0; ky < 3; ky++)
+            {
+                const int32_t iy = y + ky - 1;
+                if (iy >= 0 && iy < TALL_ROWS)
+                {
+                    acc += (ky + 1) * tall_input_at(iy, c);
+                }
+            }
+            int32_t expected = arm_nn_requantize(acc, mult[c], shift[c]);
+            expected = ARM_NN_MAX(expected, -128);
+            expected = ARM_NN_MIN(expected, 127);
+            TEST_ASSERT_EQUAL_INT8(expected, tall_output[y * TALL_CH + c]);
+        }
+    }
+}
+
+void tall_input_arm_depthwise_conv_s8(void)
+{
+    static int8_t filter[3 * TALL_CH];
+    for (int32_t i = 0; i < 3 * TALL_CH; i++)
+    {
+        filter[i] = (int8_t)(i / TALL_CH + 1);
+    }
+    for (int32_t y = 0; y < TALL_ROWS; y++)
+    {
+        for (int32_t c = 0; c < TALL_CH; c++)
+        {
+            tall_input[y * TALL_CH + c] = tall_input_at(y, c);
+        }
+    }
+    int32_t bias[TALL_CH] = {5, -3, 0, 7};
+    int32_t mult[TALL_CH] = {1 << 30, 1 << 30, 1 << 30, 1 << 30};
+    int32_t shift[TALL_CH] = {0, 0, 0, 0};
+    const cmsis_nn_per_channel_quant_params quant = {mult, shift};
+    const cmsis_nn_dims input_dims = {1, TALL_ROWS, 1, TALL_CH}, filter_dims = {1, 3, 1, TALL_CH};
+    const cmsis_nn_dims bias_dims = {1, 1, 1, TALL_CH}, output_dims = {1, TALL_ROWS, 1, TALL_CH};
+    const cmsis_nn_dw_conv_params params = {.input_offset = 0,
+                                            .output_offset = 0,
+                                            .ch_mult = 1,
+                                            .stride = {1, 1},
+                                            .padding = {0, 1},
+                                            .dilation = {1, 1},
+                                            .activation = {-128, 127}};
+    const cmsis_nn_context ctx = {tall_scratch, (int32_t)sizeof(tall_scratch)};
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
+                      arm_depthwise_conv_s8(&ctx,
+                                            &params,
+                                            &quant,
+                                            &input_dims,
+                                            tall_input,
+                                            &filter_dims,
+                                            filter,
+                                            &bias_dims,
+                                            bias,
+                                            &output_dims,
+                                            tall_output));
+    tall_check(bias, mult, shift);
+
+    const cmsis_nn_dims taller_dims = {1, TALL_ROWS + 1, 1, TALL_CH};
+    memset(tall_output, 0x5A, sizeof(tall_output));
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR,
+                      arm_depthwise_conv_s8(&ctx,
+                                            &params,
+                                            &quant,
+                                            &taller_dims,
+                                            tall_input,
+                                            &filter_dims,
+                                            filter,
+                                            &bias_dims,
+                                            bias,
+                                            &taller_dims,
+                                            tall_output));
+    TEST_ASSERT_EQUAL_HEX8(0x5A, (uint8_t)tall_output[0]);
+}
+
+/*
+ * The generic kernel takes its dimensions as uint16_t (#786): an input 65,536 wide, which it would take as 0, is an
+ * argument error with the output untouched. A 1x3 filter gives one output, so the first tap index stays in range and
+ * only the 16-bit rule rejects it; the tall buffers above hold the layer.
+ */
+void wide_input_arm_depthwise_conv_s8(void)
+{
+    static const int8_t filter[3] = {1, 2, 3};
+    int32_t bias[1] = {0};
+    int32_t mult[1] = {1 << 30};
+    int32_t shift[1] = {0};
+    const cmsis_nn_per_channel_quant_params quant = {mult, shift};
+    const cmsis_nn_dims input_dims = {1, 1, 65536, 1}, filter_dims = {1, 1, 3, 1};
+    const cmsis_nn_dims bias_dims = {1, 1, 1, 1}, output_dims = {1, 1, 1, 1};
+    const cmsis_nn_dw_conv_params params = {.input_offset = 0,
+                                            .output_offset = 0,
+                                            .ch_mult = 1,
+                                            .stride = {1, 1},
+                                            .padding = {0, 0},
+                                            .dilation = {1, 1},
+                                            .activation = {-128, 127}};
+    const cmsis_nn_context ctx = {tall_scratch, (int32_t)sizeof(tall_scratch)};
+    memset(tall_output, 0x5A, sizeof(tall_output));
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR,
+                      arm_depthwise_conv_s8(&ctx,
+                                            &params,
+                                            &quant,
+                                            &input_dims,
+                                            tall_input,
+                                            &filter_dims,
+                                            filter,
+                                            &bias_dims,
+                                            bias,
+                                            &output_dims,
+                                            tall_output));
+    TEST_ASSERT_EQUAL_HEX8(0x5A, (uint8_t)tall_output[0]);
+}

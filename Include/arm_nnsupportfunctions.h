@@ -421,6 +421,11 @@ __STATIC_FORCEINLINE int32_t GetNearestNeighbor(const int input_value,
                                                 const bool align_corners,
                                                 const bool half_pixel_centers)
 {
+#if defined(__clang__)
+    /* Index selection needs the rounded float32 scale before multiplication.
+     * Reassociating the division into this product can select a different pixel. */
+    #pragma clang fp contract(off) reassociate(off)
+#endif
     const float scaled = ((float)input_value + offset) * scale;
     int32_t output_value = align_corners ? (int32_t)roundf(scaled) : (int32_t)floorf(scaled);
 
@@ -1737,11 +1742,12 @@ int32_t arm_nn_convolve_s8_args_invalid(const cmsis_nn_conv_params *conv_params,
                                         const cmsis_nn_dims *output_dims);
 
 /**
- * @brief Whether the generic kernel of arm_depthwise_conv_s16() and the DSP path of arm_depthwise_conv_fast_s16()
- *        could wrap the first tap index of an output, stride * output index - padding, which they keep as int16_t
- *        (the MVE kernel keeps it as int32_t): it stays in
- *        [-INT16_MAX, INT16_MAX] when padding and stride are in [0, INT16_MAX] and (output size - 1) * stride -
- *        padding is at most INT16_MAX, in W and in H. See AmbiqAI/ns-cmsis-nn#727.
+ * @brief Whether the generic kernels of arm_depthwise_conv_s16(), arm_depthwise_conv_s8() and
+ *        arm_depthwise_conv_s4() and the DSP path of arm_depthwise_conv_fast_s16() could wrap the first tap index of
+ *        an output, stride * output index - padding, which they keep as int16_t (the s16 MVE kernel keeps it as
+ *        int32_t): it stays in [-INT16_MAX, INT16_MAX] when padding and stride are in [0, INT16_MAX] and
+ *        (output size - 1) * stride - padding is at most INT16_MAX, in W and in H. See AmbiqAI/ns-cmsis-nn#727 and
+ *        #786.
  *
  * @param[in]      dw_conv_params  Depthwise convolution parameters
  * @param[in]      output_dims     Output tensor dimensions. Format: [N, H, W, C_OUT]
@@ -1813,8 +1819,9 @@ __STATIC_FORCEINLINE int32_t arm_nn_depthwise_conv_s16_index_invalid(const cmsis
 
 /**
  * @brief Whether the generic kernel of arm_depthwise_conv_s16() cannot take a layer that
- *        arm_nn_depthwise_conv_s16_index_invalid() accepts: it takes every dimension, ch_mult, padding, stride and
- *        dilation as uint16_t, so each must be in [0, UINT16_MAX]. See AmbiqAI/ns-cmsis-nn#707.
+ *        arm_nn_depthwise_conv_s16_index_invalid() accepts, or the generic kernel of arm_depthwise_conv_s8() cannot
+ *        take a layer: they take every dimension, ch_mult, padding, stride and dilation as uint16_t, so each must be
+ *        in [0, UINT16_MAX]. See AmbiqAI/ns-cmsis-nn#707 and #786.
  *
  * @param[in]      dw_conv_params  Depthwise convolution parameters
  * @param[in]      input_dims      Input tensor dimensions. Format: [N, H, W, C_IN]
@@ -3106,10 +3113,10 @@ __STATIC_FORCEINLINE int32x4_t arm_doubling_high_mult_mve(const int32x4_t m1, co
  */
 __STATIC_FORCEINLINE int32x4_t arm_divide_by_power_of_two_mve(const int32x4_t dividend, const int32_t exponent)
 {
-    const int32x4_t shift = vdupq_n_s32(-exponent);
-    const int32x4_t fixup = vshrq_n_s32(vandq_s32(dividend, shift), 31);
+    /* Scalar-operand VRSHL keeps the shift out of a Q register; only the fixup mask needs one. */
+    const int32x4_t fixup = vshrq_n_s32(vandq_s32(dividend, vdupq_n_s32(-exponent)), 31);
     const int32x4_t fixed_up_dividend = vqaddq_s32(dividend, fixup);
-    return vrshlq_s32(fixed_up_dividend, shift);
+    return vrshlq_n_s32(fixed_up_dividend, -exponent);
 }
 
 /**
@@ -3166,8 +3173,39 @@ __STATIC_FORCEINLINE int32x4_t arm_requantize_mve(const int32x4_t val, const int
 
     return result;
     #else
+    return arm_divide_by_power_of_two_mve(arm_doubling_high_mult_mve(vshlq_r_s32(val, LEFT_SHIFT(shift)), multiplier),
+                                          RIGHT_SHIFT(shift));
+    #endif
+}
+
+/**
+ * @brief           Requantize a given vector that still needs a left shift applied first.
+ * @param[in]       val             Vector to be requantized
+ * @param[in]       pre_left_shift  Extra left shift to apply to val, folded into the internal one
+ * @param[in]       multiplier      multiplier
+ * @param[in]       shift           shift
+ *
+ * @return          Same result as applying vshlq_r_s32(val, pre_left_shift) before arm_requantize_mve,
+ *                  but with one VSHL instead of two. Both shift counts must be >= 0 and sum to <= 31.
+ *
+ */
+__STATIC_FORCEINLINE int32x4_t arm_requantize_shifted_mve(const int32x4_t val,
+                                                          const int32_t pre_left_shift,
+                                                          const int32_t multiplier,
+                                                          const int32_t shift)
+{
+    #ifdef CMSIS_NN_USE_SINGLE_ROUNDING
+    const int right_shift = ARM_NN_MIN(-1, shift);
+    const int left_shift = shift - right_shift;
+
+    int32x4_t result = vqdmulhq_n_s32(vshlq_r_s32(val, left_shift + pre_left_shift), multiplier);
+    result = vrshlq_n_s32(result, right_shift);
+
+    return result;
+    #else
     return arm_divide_by_power_of_two_mve(
-        arm_doubling_high_mult_mve(vshlq_s32(val, vdupq_n_s32(LEFT_SHIFT(shift))), multiplier), RIGHT_SHIFT(shift));
+        arm_doubling_high_mult_mve(vshlq_r_s32(val, LEFT_SHIFT(shift) + pre_left_shift), multiplier),
+        RIGHT_SHIFT(shift));
     #endif
 }
 
@@ -3293,7 +3331,8 @@ __STATIC_FORCEINLINE int32x4_t arm_requantize_mve_pred(const int32x4_t val,
     const int32x4_t left_shift_dup = vdupq_x_n_s32(left_shift, p);
     const int32x4_t right_shift_dup = vdupq_x_n_s32(right_shift, p);
 
-    int32x4_t result = vqrdmulhq_m_n_s32(v_zero, vshlq_m_s32(v_zero, val, left_shift_dup, p), multiplier, p);
+    /* Truncate here: vrshl below performs the single rounding step. */
+    int32x4_t result = vqdmulhq_m_n_s32(v_zero, vshlq_m_s32(v_zero, val, left_shift_dup, p), multiplier, p);
     result = vrshlq_m_s32(v_zero, result, right_shift_dup, p);
 
     return result;
@@ -3418,8 +3457,8 @@ __STATIC_FORCEINLINE int8x16_t arm_narrow_mve_from_int32x4x4_to_int8x16(int32x4_
  * @param[in]       output_dims     Output tensor dimensions, NHWC
  * @param[out]      output          Output data pointer
  *
- * @return          false, with no output written, when the filter has MAX_COL_COUNT or more taps. The caller
- *                  then runs its own path.
+ * @return          false, with no output written, when the filter has zero or MAX_COL_COUNT or more taps, or
+ *                  the input width or height is zero. The caller then runs its own path.
  */
 bool arm_nn_depthwise_conv_s16_mve(const cmsis_nn_dw_conv_params *dw_conv_params,
                                    const cmsis_nn_per_channel_quant_params *quant_params,
@@ -4066,6 +4105,26 @@ __STATIC_FORCEINLINE uint32_t arm_nn_f16_bits_to_f32_bits(const uint32_t h)
 }
 #endif
 
+#if defined(ARM_NN_DEQUANTIZE_F16_MVE)
+/**
+ * @brief Widen four binary16 bit patterns, one in the low half of each lane, to binary32 bits. The vector VCVTB
+ *        gives the default NaN for every NaN, so NaN lanes are rebuilt from the input as the scalar paths give
+ *        them: sign and payload kept, quiet bit set, whatever FPSCR.DN holds.
+ *
+ * @param[in]  h  The binary16 bits, zero-extended to 32 bits per lane.
+ *
+ * @return     The binary32 bits.
+ */
+__STATIC_FORCEINLINE uint32x4_t arm_nn_vcvtbq_f32_f16_bits(const uint32x4_t h)
+{
+    const uint32x4_t converted = vreinterpretq_u32_f32(arm_nn_vcvtbq_f32_f16(vreinterpretq_f16_u32(h)));
+    /* h << 13 puts the payload in bits 22..0; the constant covers the exponent and the quiet bit */
+    const uint32x4_t nan =
+        vorrq(vorrq(vshlq_n_u32(h, 13), vdupq_n_u32(0x7FC00000u)), vandq(vshlq_n_u32(h, 16), vdupq_n_u32(0x80000000u)));
+    return vpselq(nan, converted, vcmphiq_n_u32(vandq(h, vdupq_n_u32(0x7FFFu)), 0x7C00u));
+}
+#endif
+
 /**
  * @brief The body of arm_dequantize_f16_bits_f32() without its argument checks, inline so that a caller with a
  *        small or constant size pays no call. Each element gives what the path's hardware half-to-single conversion
@@ -4087,14 +4146,14 @@ __STATIC_FORCEINLINE void arm_nn_dequantize_f16_bits_f32(const uint16_t *input, 
     float *out = output;
     for (int32_t n = block_size >> 2; n > 0; n--)
     {
-        vst1q(out, arm_nn_vcvtbq_f32_f16(vreinterpretq_f16_u32(vldrhq_u32(in))));
+        vst1q(out, vreinterpretq_f32_u32(arm_nn_vcvtbq_f32_f16_bits(vldrhq_u32(in))));
         in += 4;
         out += 4;
     }
     if ((block_size & 3) != 0)
     {
         const mve_pred16_t p = vctp32q((uint32_t)(block_size & 3));
-        vst1q_p(out, arm_nn_vcvtbq_f32_f16(vreinterpretq_f16_u32(vldrhq_z_u32(in, p))), p);
+        vst1q_p(out, vreinterpretq_f32_u32(arm_nn_vcvtbq_f32_f16_bits(vldrhq_z_u32(in, p))), p);
     }
 #elif defined(ARM_NN_DEQUANTIZE_F16_FPU)
     int32_t i = 0;

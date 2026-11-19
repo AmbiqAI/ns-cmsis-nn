@@ -3,6 +3,15 @@
  */
 #include <stddef.h>
 #include <stdint.h>
+#include "wrap_shim.h"
+// Model only the scalar bit-copy introduced by unsigned accumulation.
+constexpr void *probe_bits_memcpy(int32_t *out, const uint32_t *in, size_t n)
+{
+    if (n != sizeof(*out)) throw "unsupported bit-copy size";
+    *out = __builtin_bit_cast(int32_t, *in);
+    return out;
+}
+#define memcpy probe_bits_memcpy
 #define ARM_NN_MAX(a, b) ((a) > (b) ? (a) : (b))
 #define ARM_NN_MIN(a, b) ((a) < (b) ? (a) : (b))
 #define ARM_MATH_AUTOVECTORIZE 1

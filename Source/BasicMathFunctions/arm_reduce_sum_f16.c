@@ -19,6 +19,7 @@
  *
  * -------------------------------------------------------------------- */
 
+#include "Internal/arm_nn_fp_control.h"
 #include "arm_nnfunctions.h"
 #include "arm_nnsupportfunctions.h"
 
@@ -306,8 +307,7 @@ arm_cmsis_nn_status arm_reduce_sum_f16(const float16_t *input_data,
         if (bounded)
         {
     #if defined(ARM_MATH_MVE_FLOAT16) && defined(ARM_MATH_MVEF) && !defined(ARM_MATH_AUTOVECTORIZE)
-            uint32_t fpscr;
-            __ASM volatile("vmrs %0, fpscr" : "=r"(fpscr));
+            const arm_nn_fp_control_t fpscr = arm_nn_get_fp_control();
             // FPSCR.AHP selects alternative-half conversions at run time; keep those on the existing path. Refs #484.
             if (!(fpscr & (1u << 26)))
             {
@@ -325,9 +325,8 @@ arm_cmsis_nn_status arm_reduce_sum_f16(const float16_t *input_data,
                 return ARM_CMSIS_NN_SUCCESS;
             }
     #else
-        #if defined(__ARM_FP) && (__ARM_FP & 4)
-            uint32_t fpscr;
-            __ASM volatile("vmrs %0, fpscr" : "=r"(fpscr));
+        #if defined(ARM_NN_FP_CONTROL_AVAILABLE)
+            const arm_nn_fp_control_t fpscr = arm_nn_get_fp_control();
             if (!(fpscr & (1u << 26)))
         #endif
             {

@@ -29,6 +29,10 @@
 // depthwise kernel's taps are scalar multiply-adds that match the fused emulation only where the compiler contracts
 // them, as the library's builds do, and the shapes here keep its rows short of where GCC -Ofast vectorizes them.
 //
+// The default depthwise entry is the exception (#830): on MVE it accumulates every in-range tap in float32 from the
+// bias, in (ky, kx) order, and rounds once, so it is checked against that sum on every output and no longer agrees
+// with `_acc16` on short windows. A product of two halves is exact in float32, so only the float32 additions round.
+//
 // Two lane shapes are emulated. A lane kernel keeps one output per vector lane and adds one tap per step, the bias
 // starting the first partial. A reduction kernel spreads one output's taps over the eight lanes of a vector
 // (channel c to lane c % 8, each vector step one tap per lane, or T for the k=3 / k=5 conv1d kernels), counts its
@@ -1412,7 +1416,7 @@ void ba_conv_direct_edges(void)
 }
 
 /* ---------------------------------------------------------------------------------------------------------------- */
-/* Depthwise: ch_mult == 1 direct kernel, ch_mult > 1 generic kernel, one-channel to-conv route                    */
+/* Depthwise: ch_mult == 1 direct kernel, ch_mult > 1 generic kernel, one-channel route (to-conv on _acc16)         */
 /* ---------------------------------------------------------------------------------------------------------------- */
 
 typedef struct
@@ -1473,6 +1477,51 @@ static float16_t ba_dw_ref(const void *vctx, int32_t idx, int32_t block)
     ba_dw c = *(const ba_dw *)vctx;
     ba_dw_taps_of(&c, idx);
     return ba_emu_lane(&c, ba_dw_lane_tap, c.n, &ba_bias[c.oc], block);
+}
+
+// The default entry from #830: the in-range taps (its one-input-channel route skips the padding too), in (ky, kx)
+// order, added in float32 to the bias, rounded once.
+static float16_t ba_dw_ref32(const void *vctx, int32_t idx, int32_t block)
+{
+    (void)block;
+    ba_dw c = *(const ba_dw *)vctx;
+    c.zero_taps = false;
+    ba_dw_taps_of(&c, idx);
+    float32_t acc = (float32_t)ba_bias[c.oc];
+    for (int32_t t = 0; t < c.n; ++t)
+    {
+        float16_t x;
+        float16_t w;
+        ba_dw_lane_tap(&c, t, &x, &w);
+        acc = ba_add32(acc, (float32_t)x * (float32_t)w);
+    }
+    return ba_round_f16((double)acc);
+}
+
+// On MVE the default entry against ba_dw_ref32 on every output and _acc16 against the float16 chain, as
+// ba_expect_taps checks _acc16. Scalar legs accumulate in float32 on both entries, which must then agree everywhere.
+static void ba_expect_dw(const char *what, int32_t n, const ba_dw *c, int32_t k_taps)
+{
+    char label[80];
+    if (!BA_MVE)
+    {
+        ba_expect_same(what, n);
+        return;
+    }
+    ba_checksum = 2166136261u;
+    snprintf(label, sizeof(label), "%s acc16", what);
+    const int32_t bad16 =
+        ba_check(label, ba_out16, n, ba_dw_ref, c, BA_NONE, ba_dw_taps, k_taps, BA_EXACT_SHORT, BA_EXACT_SHORT);
+    const uint32_t sum16 = ba_checksum;
+    snprintf(label, sizeof(label), "%s acc32", what);
+    const int32_t bad = ba_check(label, ba_out, n, ba_dw_ref32, c, BA_NONE, ba_dw_taps, k_taps, true, true);
+    printf("CASE %s n=%ld acc32_mismatch=%ld acc16_mismatch=%ld acc16_cksum=%08lx\n",
+           what,
+           (long)n,
+           (long)bad,
+           (long)bad16,
+           (unsigned long)sum16);
+    ba_failures += (bad != 0) + (bad16 != 0);
 }
 
 static void ba_dw_case(int32_t hw, int32_t k, int32_t in_c, int32_t mult, bool with_ctx)
@@ -1545,7 +1594,7 @@ static void ba_dw_case(int32_t hw, int32_t k, int32_t in_c, int32_t mult, bool w
     c.mult = mult;
     c.zero_taps = BA_MVE && with_ctx && in_c == 1 && out_c >= 8;
     snprintf(what, sizeof(what), "dw k%ld c%ld x%ld", (long)k, (long)in_c, (long)mult);
-    ba_expect_taps(what, hw * hw * out_c, ba_dw_ref, &c, k * k, ba_dw_taps);
+    ba_expect_dw(what, hw * hw * out_c, &c, k * k);
 }
 
 void ba_depthwise_long_k(void)

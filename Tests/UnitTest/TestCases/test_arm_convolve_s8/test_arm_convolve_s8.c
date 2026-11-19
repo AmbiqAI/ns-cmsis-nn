@@ -4275,3 +4275,28 @@ static void patch_wider_case(int32_t kernel_w, int32_t channels)
 }
 
 void patch_wider_than_16_bits_arm_convolve_s8(void) { patch_wider_case(2, 32769); }
+
+void depthwise_weight_sum_wrapping(void)
+{
+#if defined(ARM_MATH_MVEI)
+    /* Extra backing keeps existing group pointer updates within the objects. */
+    int8_t weights[32];
+    int32_t output[8];
+    const int32_t bias[5] = {INT32_MIN, INT32_MAX, INT32_MIN + 128, INT32_MAX - 128, 0};
+    const cmsis_nn_dims filter_dims = {1, 2, 2, 5};
+    const cmsis_nn_dims output_dims = {1, 1, 1, 5};
+    for (int sign = -1; sign <= 1; sign += 2)
+    {
+        memset(weights, sign * 127, sizeof(weights));
+        TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
+                          arm_depthwise_convolve_weight_sum(
+                              output, NULL, weights, NULL, NULL, &filter_dims, &output_dims, 128, bias));
+        for (int ch = 0; ch < 5; ++ch)
+        {
+            const uint32_t bits = (uint32_t)((int64_t)bias[ch] + 4 * sign * 127 * 128);
+            const int32_t expected = (int32_t)(bits > INT32_MAX ? (int64_t)bits - 4294967296LL : bits);
+            TEST_ASSERT_EQUAL_INT32(expected, output[ch]);
+        }
+    }
+#endif
+}

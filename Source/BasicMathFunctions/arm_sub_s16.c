@@ -20,6 +20,7 @@
  * -------------------------------------------------------------------- */
 
 #include "Internal/arm_nn_broadcast_walk.h"
+#include "Internal/arm_nn_rsub_scalar.h"
 #include "arm_nnfunctions.h"
 #include "arm_nnsupportfunctions.h"
 
@@ -31,23 +32,6 @@
  * @addtogroup groupElementwise
  * @{
  */
-
-arm_cmsis_nn_status arm_rsub_scalar_s16(const int16_t *input_1_vect,
-                                        const int16_t *input_2_vect,
-                                        const int32_t input_1_offset,
-                                        const int32_t input_1_mult,
-                                        const int32_t input_1_shift,
-                                        const int32_t input_2_offset,
-                                        const int32_t input_2_mult,
-                                        const int32_t input_2_shift,
-                                        const int32_t left_shift,
-                                        int16_t *output,
-                                        const int32_t out_offset,
-                                        const int32_t out_mult,
-                                        const int32_t out_shift,
-                                        const int32_t out_activation_min,
-                                        const int32_t out_activation_max,
-                                        const int32_t block_size);
 
 /* Kernel adapters for ARM_NN_BROADCAST_WALK_NHWC; the quantization parameters and the output
  * requantization parameters are locals of the enclosing function. SCALAR_1 broadcasts one element

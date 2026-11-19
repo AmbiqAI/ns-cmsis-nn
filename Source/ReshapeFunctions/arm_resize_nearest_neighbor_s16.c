@@ -76,6 +76,12 @@ arm_cmsis_nn_status arm_resize_nearest_neighbor_s16(const cmsis_nn_context *ctx,
         return ARM_CMSIS_NN_ARG_ERROR;
     }
 
+#if defined(__clang__)
+    /* Keep map flags invariant across writes to the scratch buffer. */
+    const cmsis_nn_resize_params map_params = *resize_params;
+    resize_params = &map_params;
+#endif
+
     const float y_scale = (resize_params->align_corners && output_height > 1)
         ? (float)(input_height - 1) / (float)(output_height - 1)
         : (float)input_height / (float)output_height;

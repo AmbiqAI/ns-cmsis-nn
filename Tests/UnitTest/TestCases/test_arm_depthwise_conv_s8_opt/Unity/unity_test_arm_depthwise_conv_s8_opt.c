@@ -99,3 +99,7 @@ void test_dw3_bounds_arm_depthwise_conv_s8_opt(void) { dw3_bounds_arm_depthwise_
 void test_undersized_context_arm_depthwise_conv_s8_opt(void) { undersized_context_arm_depthwise_conv_s8_opt(); }
 
 void test_padding_beyond_filter_arm_depthwise_conv_s8_opt(void) { padding_beyond_filter_arm_depthwise_conv_s8_opt(); }
+
+void test_tall_input_arm_depthwise_conv_s8_opt(void) { tall_input_arm_depthwise_conv_s8_opt(); }
+
+void test_counter_limits_arm_depthwise_conv_s8_opt(void) { counter_limits_arm_depthwise_conv_s8_opt(); }

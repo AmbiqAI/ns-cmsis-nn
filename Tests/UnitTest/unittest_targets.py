@@ -412,7 +412,12 @@ def parse_generated_test_runner(test_runner):
 
     with open(test_runner, "r") as f:
         lines = f.readlines()
+    uses_exit = any(line.strip() == 'return UNITY_END();' for line in lines)
+    has_stdlib = any(re.match(r'\s*#\s*include\s*[<"]stdlib\.h[>"]', line) for line in lines)
     with open(test_runner, "w") as f:
+        # The exit call introduced below must not depend on the test wrapper's includes.
+        if uses_exit and not has_stdlib:
+            f.write("#include <stdlib.h>\n")
         for line in lines:
             sline = line.strip('\n')
             if sline.strip() == 'return UNITY_END();':

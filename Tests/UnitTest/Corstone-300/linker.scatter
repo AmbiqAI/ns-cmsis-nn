@@ -75,6 +75,8 @@ APP_IMAGE LR_START LR_SIZE
     ; 2x2MB - only first part mapped
     SRAM SRAM_START UNINIT SRAM_SIZE
     {
+        ; Match the GNU layout for explicitly initialized large test buffers.
+        * (.bss.NoInit)
     }
 
     ARM_LIB_HEAP  (STACK_HEAP - STACK_SIZE - HEAP_SIZE) EMPTY ALIGN 8 HEAP_SIZE {}

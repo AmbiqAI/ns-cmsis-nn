@@ -40,6 +40,13 @@
 /** Exact-rational INT8 bilinear resize direct entries are available. */
 #define ARM_NN_HAS_RESIZE_BILINEAR_S8 1
 
+/** arm_dequantize_f16_bits_f32 keeps a NaN's sign and payload on the MVE vector path too (#871). */
+#define ARM_NN_HAS_DEQUANTIZE_F16_NAN_PAYLOAD 1
+
+/** The default float16 depthwise entries accumulate every tap in float32 on MVE builds too; the _acc16 entries are the
+ *  float16-lane fast path (#830). */
+#define ARM_NN_HAS_DEPTHWISE_F16_ACC32 1
+
 #include "arm_nn_math_types.h"
 #include "arm_nn_types.h"
 
@@ -452,7 +459,11 @@ int32_t arm_convolve_wrapper_s16_get_buffer_size_mve(const cmsis_nn_conv_params 
  * @param[in]      output_dims    Output tensor dimensions. Format: [N, H, W, C_OUT]
  * @param[out]     output_data    Output data pointer. Data type: int8
 
- * @return     The function returns <code>ARM_CMSIS_NN_SUCCESS</code>
+ * @return     The function returns one of the following
+ *                <code>ARM_CMSIS_NN_ARG_ERROR</code> - ctx->buf is NULL, or a dimension, padding, stride or
+ *                                                      dilation that arm_convolve_s8() rejects. The filter C is not
+ *                                                      read; it is taken to be C_IN.
+ *                <code>ARM_CMSIS_NN_SUCCESS</code> - Successful operation
  *
  * @details
  *    1. Supported framework: TensorFlow Lite micro
@@ -1169,7 +1180,8 @@ arm_cmsis_nn_status arm_convolve_s16(const cmsis_nn_context *ctx,
  *
  * @return     The function returns <code>ARM_CMSIS_NN_SUCCESS</code> if successful or
  *                                  <code>ARM_CMSIS_NN_ARG_ERROR</code> if incorrect arguments (among them a C_IN
- *                                  that is not positive, a negative C_OUT, or a filter C other than C_IN) or
+ *                                  that is not positive, a negative C_OUT, a filter C other than C_IN, a filter
+ *                                  other than 1x1, or an output H or W other than the input's) or
  *                                  <code>ARM_CMSIS_NN_NO_IMPL_ERROR</code>
  *
  * @details
@@ -1374,7 +1386,8 @@ arm_cmsis_nn_status arm_convolve_1x1_s4(const cmsis_nn_context *ctx,
  *
  * @return     The function returns either
  *                  <code>ARM_CMSIS_NN_ARG_ERROR</code> if argument constraints fail (among them a negative N, H, W
- *                  or C_OUT, a C_IN below 1, or a pixel count N * H * W above INT32_MAX), or
+ *                  or C_OUT, a C_IN below 1, an output H or W other than the input's, or a pixel count
+ *                  N * H * W above INT32_MAX), or
  *                  <code>ARM_CMSIS_NN_SUCCESS</code> on successful completion. When the input N, H or W, or C_OUT, is
  *                  0 and no other argument is in error, the output is empty and it returns
  *                  <code>ARM_CMSIS_NN_SUCCESS</code> at once, writing nothing.
@@ -1460,7 +1473,9 @@ int32_t arm_convolve_1x1_s8_fast_get_buffer_size(const cmsis_nn_dims *input_dims
  * @param[out]     output_data   Output data pointer. Data type: int8
  *
  * @return     The function returns either
- *                  <code>ARM_CMSIS_NN_ARG_ERROR</code> if argument constraints fail. or,
+ *                  <code>ARM_CMSIS_NN_ARG_ERROR</code> if argument constraints fail, among them a padding other
+ *                  than 0, a stride below 1, a negative output W or H, a C_IN below 1, or an output W or H whose
+ *                  last pixel, (W - 1) * stride, lies at or past the input's W or H, or,
  *                  <code>ARM_CMSIS_NN_SUCCESS</code> on successful completion.
  * @details
  *   - Supported framework : TensorFlow Lite Micro
@@ -1909,7 +1924,9 @@ int32_t arm_convolve_1_x_n_s4_get_buffer_size(const cmsis_nn_conv_params *conv_p
  *                (ARM_MATH_DSP and ARM_MATH_MVEI both defined), or if ctx->size is non-zero and below
  *                arm_depthwise_conv_s8_opt_get_buffer_size() for a layer its channel path runs, or if that sizer
  *                returns -1 (a negative dimension or a byte count it cannot represent), or on the MVE
- *                arm_convolve_wrapper_s8() diversion route if weight_sum_ctx->buf is NULL.
+ *                arm_convolve_wrapper_s8() diversion route if weight_sum_ctx->buf is NULL, or for any other
+ *                argument error of the function it picks, among them those of arm_depthwise_conv_s8()'s generic
+ *                kernel.
  *
  * @details
  *    - Supported framework: TensorFlow Lite
@@ -1946,7 +1963,7 @@ arm_cmsis_nn_status arm_depthwise_conv_wrapper_s8(const cmsis_nn_context *ctx,
  *                                 always matches the wrapper's own routing.
  *                                 The caller is expected to clear the buffer ,if applicable, for security reasons.
  * @param[in]      dw_conv_params  Depthwise convolution parameters (e.g. strides, dilations, pads,...)
- *                                 dw_conv_params->dilation is not used.
+ *                                 dw_conv_params->dilation is honoured.
  *                                 Range of dw_conv_params->input_offset : [-127, 128]
  *                                 Range of dw_conv_params->output_offset : [-128, 127]
  * @param[in]      quant_params    Per-channel quantization info.
@@ -1963,7 +1980,8 @@ arm_cmsis_nn_status arm_depthwise_conv_wrapper_s8(const cmsis_nn_context *ctx,
  * @param[in]      output_dims     Output tensor dimensions. Format: [1, H, W, C_OUT]
  * @param[out]     output_data     Output data pointer. Data type: int8
  * @return     The function returns
- *                <code>ARM_CMSIS_NN_SUCCESS</code>   -  Successful completion.
+ *                <code>ARM_CMSIS_NN_SUCCESS</code>   -  Successful completion, or
+ *                <code>ARM_CMSIS_NN_ARG_ERROR</code> -  an argument error of the function it picks.
  *
  * @details
  *    - Supported framework: TensorFlow Lite
@@ -2108,7 +2126,7 @@ int32_t arm_depthwise_conv_wrapper_s4_get_buffer_size_mve(const cmsis_nn_dw_conv
                                                           const cmsis_nn_dims *output_dims);
 
 /**
- * @brief Basic s8 depthwise convolution function that doesn't have any constraints on the input dimensions.
+ * @brief Basic s8 depthwise convolution function subject to the route-specific limits under @return.
  *
  * @param[in]      ctx             Function context. This kernel uses no additional buffer, so ctx->buf may be NULL and
  *                                 there is deliberately no arm_depthwise_conv_s8_get_buffer_size(). If you reached this
@@ -2131,7 +2149,12 @@ int32_t arm_depthwise_conv_wrapper_s4_get_buffer_size_mve(const cmsis_nn_dw_conv
  * @param[in]      bias_data       Bias data pointer. Data type: int32
  * @param[in]      output_dims     Output tensor dimensions. Format: [N, H, W, C_OUT]
  * @param[out]     output_data     Output data pointer. Data type: int8
- * @return     The function returns <code>ARM_CMSIS_NN_SUCCESS</code>
+ * @return     The function returns <code>ARM_CMSIS_NN_SUCCESS</code>, or <code>ARM_CMSIS_NN_ARG_ERROR</code> with
+ *             nothing written when the generic kernel would run (a channel multiplier that is not a multiple of 4,
+ *             more than one batch, or a dilation other than 1) and a dimension, ch_mult, padding, stride or
+ *             dilation is outside [0, 65,535], a padding or stride is above 32,767, or (output W or H - 1) *
+ *             stride - padding is above 32,767: that kernel takes those values as uint16_t and keeps the first tap
+ *             index of an output as int16_t.
  *
  * @details
  *    - Supported framework: TensorFlow Lite
@@ -2149,7 +2172,7 @@ arm_cmsis_nn_status arm_depthwise_conv_s8(const cmsis_nn_context *ctx,
                                           int8_t *output_data);
 
 /**
- * @brief Basic s4 depthwise convolution function that doesn't have any constraints on the input dimensions.
+ * @brief Basic s4 depthwise convolution function subject to the limits under @return.
  *
  * @param[in]      ctx             Function context. This kernel uses no additional buffer, so ctx->buf may be NULL and
  *                                 there is deliberately no arm_depthwise_conv_s4_get_buffer_size(). If you reached this
@@ -2157,7 +2180,7 @@ arm_cmsis_nn_status arm_depthwise_conv_s8(const cmsis_nn_context *ctx,
  *                                 arm_depthwise_conv_wrapper_s4_get_buffer_size() instead, because another route
  *                                 through that wrapper does require a buffer.
  * @param[in]      dw_conv_params  Depthwise convolution parameters (e.g. strides, dilations, pads,...)
- *                                 dw_conv_params->dilation is not used.
+ *                                 dw_conv_params->dilation is honoured.
  *                                 Range of dw_conv_params->input_offset : [-127, 128]
  *                                 Range of dw_conv_params->output_offset : [-128, 127]
  * @param[in]      quant_params    Per-channel quantization info.
@@ -2173,7 +2196,9 @@ arm_cmsis_nn_status arm_depthwise_conv_s8(const cmsis_nn_context *ctx,
  * @param[in]      bias            Bias data pointer. Data type: int32
  * @param[in]      output_dims     Output tensor dimensions. Format: [N, H, W, C_OUT]
  * @param[in, out] output          Output data pointer. Data type: int8
- * @return     The function returns <code>ARM_CMSIS_NN_SUCCESS</code>
+ * @return     The function returns <code>ARM_CMSIS_NN_SUCCESS</code>, or <code>ARM_CMSIS_NN_ARG_ERROR</code> with
+ *             nothing written when a padding or stride is outside [0, 32,767] or (output W or H - 1) * stride -
+ *             padding is above 32,767: the kernel keeps the first tap index of an output as int16_t.
  *
  * @details
  *    - Supported framework: TensorFlow Lite
@@ -2219,7 +2244,8 @@ arm_cmsis_nn_status arm_depthwise_conv_s4(const cmsis_nn_context *ctx,
  *             channels) holds more than INT32_MAX elements, a KW or KH times the dilation or an output W or H times
  *             the stride or C * ch_mult is above INT32_MAX / 2, or KW * KH, KW * C * ch_mult, stride W * C,
  *             max(KW, 1) * dilation W * C or max(KH, 1) * dilation H * W * max(C, 1) is above INT32_MAX. Where the
- *             generic kernel runs (builds without the MVE kernel, and filters of 512 or more taps), it is also an
+ *             generic kernel runs (builds without the MVE kernel, empty input/filter width or height, and
+ *             filters of 512 or more taps), it is also an
  *             argument error when a dimension, ch_mult, padding, stride or dilation is above 65,535, since that
  *             kernel takes them as uint16_t, or a padding or stride is above 32,767 or (output W or H - 1) * stride
  *             - padding is above 32,767, since it keeps the first tap index of an output as int16_t.
@@ -2394,7 +2420,8 @@ int32_t arm_depthwise_conv_wrapper_s16_get_buffer_size_mve(const cmsis_nn_dw_con
  *                                                      kernel or, on the DSP path (DSP builds without the MVE
  *                                                      kernel), more than 65,535 channels, a padding or stride
  *                                                      above 32,767 or (output W or H - 1) * stride - padding
- *                                                      above 32,767; builds without DSP run
+ *                                                      above 32,767; builds without DSP, and MVE calls with
+ *                                                      empty input/filter width or height, run
  *                                                      arm_depthwise_conv_s16() and return its errors
  *
  *                <code>ARM_CMSIS_NN_SUCCESS</code> - Successful operation
@@ -2527,6 +2554,8 @@ arm_cmsis_nn_status arm_depthwise_conv_3x3_s8(const cmsis_nn_context *ctx,
  *
  * @return     The function returns one of the following
  *                <code>ARM_CMSIS_NN_ARG_ERROR</code> - input channel != output channel or ch_mult != 1, or
+ *                                                      on builds without DSP, an argument error of
+ *                                                      arm_depthwise_conv_s8(), which they run, or
  *                                                      dw_conv_params->dilation.h != 1 or
  *                                                      dw_conv_params->dilation.w < 1, or
  *                                                      ctx->buf is NULL when a scratch buffer is required, or
@@ -2536,7 +2565,9 @@ arm_cmsis_nn_status arm_depthwise_conv_3x3_s8(const cmsis_nn_context *ctx,
  *                                                      that sizer returns -1 (a negative dimension or a byte
  *                                                      count it cannot represent) on the channel path, or
  *                                                      weight_sum_ctx->buf is NULL on builds where it is read
- *                                                      (ARM_MATH_DSP and ARM_MATH_MVEI both defined)
+ *                                                      (ARM_MATH_DSP and ARM_MATH_MVEI both defined), or, on
+ *                                                      builds with DSP and without MVE, more than 65,535 channels
+ *                                                      or filter taps (W * H)
  *                <code>ARM_CMSIS_NN_SUCCESS</code> - Successful operation
  *
  * @note       ctx->size is optional: a caller that leaves it at zero opts out of the size check, as TFLM does. On
@@ -2805,7 +2836,8 @@ int32_t arm_depthwise_conv_s8_opt_3x3_get_buffer_size(const cmsis_nn_dims *input
  *
  * @param[in, out] ctx             Function context that contains the additional buffer required by the function.
  *                                 arm_depthwise_conv_s4_opt_get_buffer_size() will return the buffer_size. A NULL
- *                                 ctx->buf is diagnosed with <code>ARM_CMSIS_NN_ARG_ERROR</code>.
+ *                                 ctx->buf, or a non-zero ctx->size below that size, is diagnosed with
+ *                                 <code>ARM_CMSIS_NN_ARG_ERROR</code>; a ctx->size of zero opts out of the size check.
  *                                 The caller is expected to clear the buffer, if applicable, for security reasons.
  * @param[in]      dw_conv_params  Depthwise convolution parameters (e.g. strides, dilations, pads,...)
  *                                 dw_conv_params->dilation is not used.
@@ -2827,8 +2859,11 @@ int32_t arm_depthwise_conv_s8_opt_3x3_get_buffer_size(const cmsis_nn_dims *input
  *
  * @return     The function returns one of the following
  *                <code>ARM_CMSIS_NN_ARG_ERROR</code> - input channel != output channel or
- *                                                      ch_mult != 1 or
- *                                                      a negative channel count, filter width or filter height
+ *                                                      on builds without MVE, more than 65,535 channels or
+ *                                                      filter taps (W * H) or
+ *                                                      arm_depthwise_conv_s4_opt_get_buffer_size() returns -1
+ *                                                      (a negative channel count, filter width or filter height,
+ *                                                      or a size it cannot hold) or the ctx check above fails
  *                <code>ARM_CMSIS_NN_SUCCESS</code> - Successful operation
  *
  * @note       MVE channel tail loads and stores are predicated, so channel-indexed arrays are not accessed beyond
@@ -8134,17 +8169,17 @@ arm_dequantize_s16_f32(const int16_t *input, float *output, int32_t size, int32_
  * finite values, subnormals (normal in float32), +/-0 and +/-Inf convert exactly, whatever FPSCR.FZ and FZ16
  * hold. Needs no float16 support from the toolchain or the build (ARM_NN_ENABLE_F16 may be off), so float32 code
  * can widen stored float16 weights. The inline arm_nn_dequantize_f16_bits_f32 in arm_nnsupportfunctions.h is the
- * same conversion without the argument checks, provided its caller compiles with the library's VCVT form: the
- * ARM_NN_GAS_* verdict reaches users of an INTERFACE (module) build of the library; users of a static-library
- * build must pass it themselves, or NaN payloads can differ on the MVE path. Paths:
- *  - MVE float16, ARM_NN_ENABLE_F16 and no ARM_MATH_AUTOVECTORIZE: the vector VCVTB. Every NaN becomes the
- *    default NaN (0x7FC00000), except where the assembler needs the scalar form instead (#427, see
- *    Internal/arm_nn_vcvt_f16.h), which treats a NaN as the next path does.
- *  - Otherwise, a little-endian M-profile core with an FPU: the scalar VCVTB/VCVTT, two elements per word. A NaN
- *    keeps its sign and payload and comes back quiet; FPSCR.DN set gives the default NaN instead.
+ * same conversion without the argument checks. A NaN keeps its sign and payload and comes back quiet on every path,
+ * bit-exact with LiteRT's Float16BitsToFloat32, except where FPSCR.DN is set on the scalar FPU path. Paths:
+ *  - MVE float16, ARM_NN_ENABLE_F16 and no ARM_MATH_AUTOVECTORIZE: the vector VCVTB (or, where the assembler
+ *    needs it, the scalar form, #427, see Internal/arm_nn_vcvt_f16.h), with NaN lanes rebuilt from the input
+ *    bits, so FPSCR.DN does not apply.
+ *  - Otherwise, a little-endian M-profile core with an FPU: the scalar VCVTB/VCVTT, two elements per word;
+ *    FPSCR.DN set gives the default NaN (0x7FC00000).
  *  - Otherwise: integer widening with the scalar VCVTB's result at reset FPSCR.
  *
- * On the two hardware paths FPSCR.AHP set reads exponent 31 as a number, and a signaling NaN sets FPSCR.IOC.
+ * On the two hardware paths FPSCR.AHP set reads exponent 31 as a number (on the MVE path, Inf only: a NaN pattern is
+ * still rebuilt as a NaN), and a signaling NaN sets FPSCR.IOC.
  * arm_dequantize_f16_f32() calls this function. Input and output must not overlap.
  *
  * @param[in]   input       Pointer to the binary16 bit patterns.
@@ -8164,14 +8199,30 @@ arm_cmsis_nn_status arm_dequantize_f16_bits_f32(const uint16_t *input, float *ou
 /**
  * @brief Strided slice function for int8 data
  *
+ * Reads element i of input axis a at begin_dims[a] + i * stride_dims[a], for i from 0 to output_dims[a] - 1, and
+ * writes the elements contiguously in N, H, W, C order: output_dims->n * h * w * c elements in all. Every argument
+ * is per input axis, in input axis order [N, H, W, C], after the caller pads a lower-rank slice to 4-D.
+ *
+ * output_dims holds the number of elements to read on each input axis. That is the output tensor's shape only when
+ * no axis is removed: for an axis that TFLite's shrink_axis_mask removes, or any slice whose output rank is below
+ * the input rank, pass 1 at that axis's position, not the output tensor's shape padded to 4-D. TFLM's
+ * strided_slice::StridedSliceStartForAxis() and StridedSliceEndForAxis() give the per-axis begin and end the counts
+ * follow from. Example: input [2, 3, 4] sliced x[:, 1, :] (shrink axis 1) is input_dims {1, 2, 3, 4}, begin_dims
+ * {0, 0, 1, 0}, stride_dims {1, 1, 1, 1} and output_dims {1, 2, 1, 4}; the output tensor's padded shape
+ * {1, 1, 2, 4} would read rows 1 and 2 of batch 0 instead, and still return ARM_CMSIS_NN_SUCCESS.
+ *
+ * Every visited index must lie inside input_dims, and the output buffer must hold the elements read; neither is
+ * checked. An empty slice (a count of 0 on some axis) is rejected, so the caller skips it before the call.
+ *
  * @param[in]   input_data         Pointer to input tensor
  * @param[out]  output_data        Pointer to output tensor
- * @param[in]   input_dims         Input tensor dimensions
- * @param[in]   begin_dims         Begin dimensions for slicing
- * @param[in]   stride_dims        Stride dimensions for slicing
- * @param[in]   output_dims        Output tensor dimensions
+ * @param[in]   input_dims         Input tensor dimensions, each at least 1
+ * @param[in]   begin_dims         Index of the first element read on each input axis
+ * @param[in]   stride_dims        Step between elements read on each input axis, nonzero; negative walks backwards
+ * @param[in]   output_dims        Number of elements to read on each input axis, each at least 1 (see above)
  *
- * @return     The function returns <code>ARM_CMSIS_NN_SUCCESS</code>
+ * @return     <code>ARM_CMSIS_NN_SUCCESS</code>, or <code>ARM_CMSIS_NN_ARG_ERROR</code> when a pointer is NULL, an
+ *             input_dims or output_dims value is less than 1, or a stride_dims value is 0.
  *
  * @details
  *    1. Supported framework: TensorFlow Lite Micro
@@ -8187,14 +8238,30 @@ arm_cmsis_nn_status arm_strided_slice_s8(const int8_t *input_data,
 /**
  * @brief Strided slice function for int16 data
  *
+ * Reads element i of input axis a at begin_dims[a] + i * stride_dims[a], for i from 0 to output_dims[a] - 1, and
+ * writes the elements contiguously in N, H, W, C order: output_dims->n * h * w * c elements in all. Every argument
+ * is per input axis, in input axis order [N, H, W, C], after the caller pads a lower-rank slice to 4-D.
+ *
+ * output_dims holds the number of elements to read on each input axis. That is the output tensor's shape only when
+ * no axis is removed: for an axis that TFLite's shrink_axis_mask removes, or any slice whose output rank is below
+ * the input rank, pass 1 at that axis's position, not the output tensor's shape padded to 4-D. TFLM's
+ * strided_slice::StridedSliceStartForAxis() and StridedSliceEndForAxis() give the per-axis begin and end the counts
+ * follow from. Example: input [2, 3, 4] sliced x[:, 1, :] (shrink axis 1) is input_dims {1, 2, 3, 4}, begin_dims
+ * {0, 0, 1, 0}, stride_dims {1, 1, 1, 1} and output_dims {1, 2, 1, 4}; the output tensor's padded shape
+ * {1, 1, 2, 4} would read rows 1 and 2 of batch 0 instead, and still return ARM_CMSIS_NN_SUCCESS.
+ *
+ * Every visited index must lie inside input_dims, and the output buffer must hold the elements read; neither is
+ * checked. An empty slice (a count of 0 on some axis) is rejected, so the caller skips it before the call.
+ *
  * @param[in]   input_data         Pointer to input tensor
  * @param[out]  output_data        Pointer to output tensor
- * @param[in]   input_dims         Input tensor dimensions
- * @param[in]   begin_dims         Begin dimensions for slicing
- * @param[in]   stride_dims        Stride dimensions for slicing
- * @param[in]   output_dims        Output tensor dimensions
+ * @param[in]   input_dims         Input tensor dimensions, each at least 1
+ * @param[in]   begin_dims         Index of the first element read on each input axis
+ * @param[in]   stride_dims        Step between elements read on each input axis, nonzero; negative walks backwards
+ * @param[in]   output_dims        Number of elements to read on each input axis, each at least 1 (see above)
  *
- * @return     The function returns <code>ARM_CMSIS_NN_SUCCESS</code>
+ * @return     <code>ARM_CMSIS_NN_SUCCESS</code>, or <code>ARM_CMSIS_NN_ARG_ERROR</code> when a pointer is NULL, an
+ *             input_dims or output_dims value is less than 1, or a stride_dims value is 0.
  *
  * @details
  *    1. Supported framework: TensorFlow Lite Micro
@@ -8210,14 +8277,30 @@ arm_cmsis_nn_status arm_strided_slice_s16(const int16_t *input_data,
 /**
  * @brief Strided slice function for int32 data
  *
+ * Reads element i of input axis a at begin_dims[a] + i * stride_dims[a], for i from 0 to output_dims[a] - 1, and
+ * writes the elements contiguously in N, H, W, C order: output_dims->n * h * w * c elements in all. Every argument
+ * is per input axis, in input axis order [N, H, W, C], after the caller pads a lower-rank slice to 4-D.
+ *
+ * output_dims holds the number of elements to read on each input axis. That is the output tensor's shape only when
+ * no axis is removed: for an axis that TFLite's shrink_axis_mask removes, or any slice whose output rank is below
+ * the input rank, pass 1 at that axis's position, not the output tensor's shape padded to 4-D. TFLM's
+ * strided_slice::StridedSliceStartForAxis() and StridedSliceEndForAxis() give the per-axis begin and end the counts
+ * follow from. Example: input [2, 3, 4] sliced x[:, 1, :] (shrink axis 1) is input_dims {1, 2, 3, 4}, begin_dims
+ * {0, 0, 1, 0}, stride_dims {1, 1, 1, 1} and output_dims {1, 2, 1, 4}; the output tensor's padded shape
+ * {1, 1, 2, 4} would read rows 1 and 2 of batch 0 instead, and still return ARM_CMSIS_NN_SUCCESS.
+ *
+ * Every visited index must lie inside input_dims, and the output buffer must hold the elements read; neither is
+ * checked. An empty slice (a count of 0 on some axis) is rejected, so the caller skips it before the call.
+ *
  * @param[in]   input_data         Pointer to input tensor
  * @param[out]  output_data        Pointer to output tensor
- * @param[in]   input_dims         Input tensor dimensions
- * @param[in]   begin_dims         Begin dimensions for slicing
- * @param[in]   stride_dims        Stride dimensions for slicing
- * @param[in]   output_dims        Output tensor dimensions
+ * @param[in]   input_dims         Input tensor dimensions, each at least 1
+ * @param[in]   begin_dims         Index of the first element read on each input axis
+ * @param[in]   stride_dims        Step between elements read on each input axis, nonzero; negative walks backwards
+ * @param[in]   output_dims        Number of elements to read on each input axis, each at least 1 (see above)
  *
- * @return     The function returns <code>ARM_CMSIS_NN_SUCCESS</code>
+ * @return     <code>ARM_CMSIS_NN_SUCCESS</code>, or <code>ARM_CMSIS_NN_ARG_ERROR</code> when a pointer is NULL, an
+ *             input_dims or output_dims value is less than 1, or a stride_dims value is 0.
  *
  * @details
  *    1. Supported framework: TensorFlow Lite Micro

@@ -66,3 +66,5 @@ void test_convolve_argument_domains_f16(void) { convolve_argument_domains_f16();
 void test_convolve_clipped_windows_f16(void) { convolve_clipped_windows_f16(); }
 
 void test_convolve_large_padding_fold_f16(void) { convolve_large_padding_fold_f16(); }
+
+void test_convolve_small_c_cached_weights_f16(void) { convolve_small_c_cached_weights_f16(); }

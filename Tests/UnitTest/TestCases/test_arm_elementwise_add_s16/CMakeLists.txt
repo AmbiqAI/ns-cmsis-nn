@@ -21,3 +21,13 @@ add_cmsis_nn_unit_test_executable(test_arm_elementwise_add_s16)
 target_sources(test_arm_elementwise_add_s16 PRIVATE
     Unity/unity_test_arm_elementwise_add_s16.c
     Unity/TestRunner/unity_test_arm_elementwise_add_s16_runner.c)
+
+# Compile the header helpers in both rounding modes, independently of the library's mode.
+foreach(rounding default single)
+    set(target test_arm_requantize_shifted_mve_${rounding})
+    add_cmsis_nn_unit_test_executable(${target})
+    target_sources(${target} PRIVATE test_arm_requantize_shifted_mve.c)
+    if(rounding STREQUAL "single")
+        target_compile_definitions(${target} PRIVATE TEST_REQUANTIZE_SINGLE_ROUNDING)
+    endif()
+endforeach()

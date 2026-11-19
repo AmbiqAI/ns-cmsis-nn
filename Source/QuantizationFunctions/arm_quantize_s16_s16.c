@@ -70,20 +70,36 @@ arm_cmsis_nn_status arm_requantize_s16_s16(const int16_t *input,
         return ARM_CMSIS_NN_SUCCESS;
     }
 #if defined(ARM_MATH_MVEI) && !defined(ARM_MATH_AUTOVECTORIZE)
-    const int32_t count = size / 4 + (size % 4 > 0);
-    int32x4_t max = vdupq_n_s32(INT16_MAX);
-    int32x4_t min = vdupq_n_s32(INT16_MIN);
-    for (int i = 0; i < count; i++)
+    const int32x4_t min = vdupq_n_s32(INT16_MIN);
+    const int32x4_t max = vdupq_n_s32(INT16_MAX);
+
+    /* Whole blocks run unpredicated and the remainder is peeled out. Predicating the main
+       loop instead costs a VCTP and two VPST per iteration: the compiler folds the INT16
+       clamp into VQMOVNB, which then makes LLVM reject the loop for hardware tail
+       predication, so neither form of predication comes for free here. */
+    int32_t blocks = size >> 2;
+    while (blocks-- > 0)
     {
-        const int32_t offset = i * 4;
-        mve_pred16_t pred = vctp32q(size);
-        size -= 4;
-        int32x4_t vals = vldrhq_z_s32(input + offset, pred);
+        int32x4_t vals = vldrhq_s32(input);
         vals = vaddq_n_s32(vals, -input_zeropoint);
         vals = arm_requantize_mve(vals, effective_scale_multiplier, effective_scale_shift);
-        int32x4_t shifted = vaddq_n_s32(vals, output_zeropoint);
-        int32x4_t clamped = vminq_s32(vmaxq_s32(shifted, min), max);
-        vstrhq_p_s32(output + offset, clamped, pred);
+        vals = vaddq_n_s32(vals, output_zeropoint);
+        vstrhq_s32(output, vminq_s32(vmaxq_s32(vals, min), max));
+        input += 4;
+        output += 4;
+    }
+
+    /* Negative lengths can leave a nonzero remainder mask. Gate the tail on size so
+       they write nothing, as the scalar path below does. */
+    const int32_t tail = size > 0 ? (size & 3) : 0;
+    if (tail)
+    {
+        mve_pred16_t pred = vctp32q(tail);
+        int32x4_t vals = vldrhq_z_s32(input, pred);
+        vals = vaddq_n_s32(vals, -input_zeropoint);
+        vals = arm_requantize_mve(vals, effective_scale_multiplier, effective_scale_shift);
+        vals = vaddq_n_s32(vals, output_zeropoint);
+        vstrhq_p_s32(output, vminq_s32(vmaxq_s32(vals, min), max), pred);
     }
 #else
     for (int i = 0; i < size; i++)

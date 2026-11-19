@@ -18,7 +18,7 @@ arm_cmsis_nn_status arm_reduce_min_f32(const float32_t *input_data,
                                        float32_t *output_data,
                                        const cmsis_nn_dims *output_dims)
 {
-    return arm_nn_extrema_run(input_data, input_dims, axis_dims, output_data, output_dims, 4, false);
+    return arm_nn_extrema_run(input_data, input_dims, axis_dims, output_data, output_dims, 4, false, false);
 }
 
 #endif

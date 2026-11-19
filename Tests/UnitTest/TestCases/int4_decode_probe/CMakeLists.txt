@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: LicenseRef-Ambiq-Apollo-SDK
 
 # Recompile the affected production objects: instrumenting only the probe would
-# leave the library's shift-base exclusion in force. Executable definitions win
+# depend on the library's own sanitizer flags. Executable definitions win
 # over archive members; cmsis-nn supplies configuration and conversion helpers.
 add_executable(test_arm_int4_decode_probe
     int4_decode_probe.c

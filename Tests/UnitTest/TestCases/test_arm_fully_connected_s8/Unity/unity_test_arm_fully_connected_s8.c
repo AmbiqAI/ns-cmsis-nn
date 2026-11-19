@@ -83,3 +83,6 @@ void test_fc_packed_contract_arm_fully_connected_per_channel_packed_s8(void)
 
 extern void vector_sum_tail_boundaries(void);
 void test_vector_sum_tail_boundaries(void) { vector_sum_tail_boundaries(); }
+
+extern void vector_sum_wrapping(void);
+void test_vector_sum_wrapping(void) { vector_sum_wrapping(); }

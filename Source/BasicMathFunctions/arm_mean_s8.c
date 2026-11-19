@@ -22,6 +22,13 @@
 #include "arm_nnfunctions.h"
 #include "arm_nnsupportfunctions.h"
 
+/* Requantize, add the output offset and clamp one sum to the int8 range */
+static int32_t arm_mean_s8_out(int32_t acc, int32_t out_mult, int32_t out_shift, int32_t out_offset)
+{
+    acc = arm_nn_requantize(acc, out_mult, out_shift) + out_offset;
+    return ARM_NN_CLAMP(acc, 127, -128);
+}
+
 /**
  *  @ingroup Public
  */
@@ -95,12 +102,8 @@ arm_cmsis_nn_status arm_mean_reduce_generic_s8(const int8_t *input_data,
                                     acc += input_data[flat_index];
                                 }
 
-                    acc = arm_nn_requantize(acc, out_mult, out_shift);
-                    acc += out_offset;
-                    acc = ARM_NN_CLAMP(acc, 127, -128);
-
                     int out_index = ((n * out_H + h) * out_W + w) * out_C + c;
-                    output_data[out_index] = (int8_t)acc;
+                    output_data[out_index] = (int8_t)arm_mean_s8_out(acc, out_mult, out_shift, out_offset);
                 }
 
     return ARM_CMSIS_NN_SUCCESS;
@@ -135,11 +138,7 @@ arm_cmsis_nn_status arm_mean_flatten_reduce_last_dims_s8(const int8_t *input_dat
             acc += input_data[base + j];
         }
 
-        acc = arm_nn_requantize(acc, out_mult, out_shift);
-        acc += out_offset;
-        acc = ARM_NN_CLAMP(acc, 127, -128);
-
-        output_data[i] = (int8_t)acc;
+        output_data[i] = (int8_t)arm_mean_s8_out(acc, out_mult, out_shift, out_offset);
     }
 
 #elif defined(ARM_MATH_DSP)
@@ -168,12 +167,7 @@ arm_cmsis_nn_status arm_mean_flatten_reduce_last_dims_s8(const int8_t *input_dat
             acc += *p++;
         }
 
-        // requantize, add output offset, clamp
-        acc = arm_nn_requantize(acc, out_mult, out_shift);
-        acc += out_offset;
-        acc = ARM_NN_CLAMP(acc, 127, -128);
-
-        output_data[i] = (int8_t)acc;
+        output_data[i] = (int8_t)arm_mean_s8_out(acc, out_mult, out_shift, out_offset);
     }
 
 #else
@@ -187,10 +181,7 @@ arm_cmsis_nn_status arm_mean_flatten_reduce_last_dims_s8(const int8_t *input_dat
         {
             acc += input_data[base + j];
         }
-        acc = arm_nn_requantize(acc, out_mult, out_shift);
-        acc += out_offset;
-        acc = ARM_NN_CLAMP(acc, 127, -128);
-        output_data[i] = (int8_t)acc;
+        output_data[i] = (int8_t)arm_mean_s8_out(acc, out_mult, out_shift, out_offset);
     }
 #endif
     return ARM_CMSIS_NN_SUCCESS;
@@ -284,13 +275,7 @@ arm_cmsis_nn_status arm_mean_reduce_spatial_mve_s8(const int8_t *input_data,
             {
                 acc += in_ptr[i * C + c];
             }
-
-            // requantize
-            acc = arm_nn_requantize(acc, out_mult, out_shift);
-            acc += out_offset;
-            // clamp to int8
-            acc = ARM_NN_CLAMP(acc, 127, -128);
-            out_ptr[c] = (int8_t)acc;
+            out_ptr[c] = (int8_t)arm_mean_s8_out(acc, out_mult, out_shift, out_offset);
         }
     }
 
@@ -298,13 +283,6 @@ arm_cmsis_nn_status arm_mean_reduce_spatial_mve_s8(const int8_t *input_data,
 }
 
 #else
-
-/* Requantize, add the output offset and clamp one spatial sum */
-static int8_t arm_mean_s8_out(int32_t acc, int32_t out_mult, int32_t out_shift, int32_t out_offset)
-{
-    acc = arm_nn_requantize(acc, out_mult, out_shift) + out_offset;
-    return (int8_t)ARM_NN_CLAMP(acc, 127, -128);
-}
 
 /*
  * axis = [H, W] without MVE, in the shape of arm_mean_reduce_spatial_mve_s8: four channels per pass in registers and
@@ -342,10 +320,10 @@ static arm_cmsis_nn_status arm_mean_reduce_spatial_s8(const int8_t *input_data,
                 acc2 += p[2];
                 acc3 += p[3];
             }
-            out_ptr[c] = arm_mean_s8_out(acc0, out_mult, out_shift, out_offset);
-            out_ptr[c + 1] = arm_mean_s8_out(acc1, out_mult, out_shift, out_offset);
-            out_ptr[c + 2] = arm_mean_s8_out(acc2, out_mult, out_shift, out_offset);
-            out_ptr[c + 3] = arm_mean_s8_out(acc3, out_mult, out_shift, out_offset);
+            out_ptr[c] = (int8_t)arm_mean_s8_out(acc0, out_mult, out_shift, out_offset);
+            out_ptr[c + 1] = (int8_t)arm_mean_s8_out(acc1, out_mult, out_shift, out_offset);
+            out_ptr[c + 2] = (int8_t)arm_mean_s8_out(acc2, out_mult, out_shift, out_offset);
+            out_ptr[c + 3] = (int8_t)arm_mean_s8_out(acc3, out_mult, out_shift, out_offset);
         }
         for (; c < C; ++c)
         {
@@ -354,7 +332,7 @@ static arm_cmsis_nn_status arm_mean_reduce_spatial_s8(const int8_t *input_data,
             {
                 acc += in_ptr[i * C + c];
             }
-            out_ptr[c] = arm_mean_s8_out(acc, out_mult, out_shift, out_offset);
+            out_ptr[c] = (int8_t)arm_mean_s8_out(acc, out_mult, out_shift, out_offset);
         }
     }
     return ARM_CMSIS_NN_SUCCESS;

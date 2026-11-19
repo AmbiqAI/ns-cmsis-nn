@@ -1,8 +1,8 @@
-FROM python:3.10-bookworm@sha256:2cffd68eda34762d010cba5de2e4462fcdab15ac2a53722b7cb17e8c76255cb3 AS ns-cmsis-nn-ci
+FROM python:3.10-bookworm@sha256:f72a86806f92fe13a49f49aeca1db0b19ea5cf4a0470b842a01b0e14314945b8 AS ns-cmsis-nn-ci
 
 ARG NS_CMSIS_NN_TAG=unknown
 ARG FLATBUFFERS_VERSION=v25.2.10
-ARG UV_VERSION=0.6.14
+ARG UV_VERSION=0.13.5
 
 LABEL org.opencontainers.image.version="${NS_CMSIS_NN_TAG}" \
       com.ambiq.ns-cmsis-nn.tag="${NS_CMSIS_NN_TAG}"
@@ -35,7 +35,11 @@ RUN apt-get update \
             zip \
       && rm -rf /var/lib/apt/lists/*
 
-RUN python -m pip install --no-cache-dir "uv==${UV_VERSION}"
+# Bootstrap from the advisory's hash-verified wheel before resolving packages.
+# Keep this inline: recovery builds use historical source contexts (#228).
+RUN python -m pip install --no-cache-dir \
+      "pip @ https://files.pythonhosted.org/packages/3f/06/3e4420302363fbb71be3c7f35ce042f54bfca330e3e66b3a2e3c4cca579f/pip-26.2.2-py3-none-any.whl#sha256=fd7f4dfa8190e014013b9f08f3e973f4e4c26ffd179a204895533a7254813a70" \
+      && python -m pip install --no-cache-dir "uv==${UV_VERSION}" "certifi==2026.10.23"
 
 # Python dependencies the unit-test drivers import at runtime. Baking them keeps
 # the FVP/host/lib-variant CI jobs free of per-run pip installs.

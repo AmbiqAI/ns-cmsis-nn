@@ -81,24 +81,18 @@ arm_cmsis_nn_status arm_vector_sum_s8(int32_t *vector_sum_buf,
 
             if (rhs_offset)
             {
-                vector_sum_0 += vector_cols * rhs_offset;
-                vector_sum_1 += vector_cols * rhs_offset;
-                vector_sum_2 += vector_cols * rhs_offset;
-                vector_sum_3 += vector_cols * rhs_offset;
-                vector_sum_4 += vector_cols * rhs_offset;
+                vector_sum_0 = arm_nn_mac_wrap_s32_bits(vector_sum_0, vector_cols, rhs_offset);
+                vector_sum_1 = arm_nn_mac_wrap_s32_bits(vector_sum_1, vector_cols, rhs_offset);
+                vector_sum_2 = arm_nn_mac_wrap_s32_bits(vector_sum_2, vector_cols, rhs_offset);
+                vector_sum_3 = arm_nn_mac_wrap_s32_bits(vector_sum_3, vector_cols, rhs_offset);
+                vector_sum_4 = arm_nn_mac_wrap_s32_bits(vector_sum_4, vector_cols, rhs_offset);
             }
 
-            vector_sum_0 *= lhs_offset;
-            vector_sum_1 *= lhs_offset;
-            vector_sum_2 *= lhs_offset;
-            vector_sum_3 *= lhs_offset;
-            vector_sum_4 *= lhs_offset;
-
-            vector_sum_buf[0] += vector_sum_0;
-            vector_sum_buf[1] += vector_sum_1;
-            vector_sum_buf[2] += vector_sum_2;
-            vector_sum_buf[3] += vector_sum_3;
-            vector_sum_buf[4] += vector_sum_4;
+            vector_sum_buf[0] = arm_nn_mac_wrap_s32_bits(vector_sum_buf[0], vector_sum_0, lhs_offset);
+            vector_sum_buf[1] = arm_nn_mac_wrap_s32_bits(vector_sum_buf[1], vector_sum_1, lhs_offset);
+            vector_sum_buf[2] = arm_nn_mac_wrap_s32_bits(vector_sum_buf[2], vector_sum_2, lhs_offset);
+            vector_sum_buf[3] = arm_nn_mac_wrap_s32_bits(vector_sum_buf[3], vector_sum_3, lhs_offset);
+            vector_sum_buf[4] = arm_nn_mac_wrap_s32_bits(vector_sum_buf[4], vector_sum_4, lhs_offset);
             vector_sum_buf += 5;
         }
         const int32_t loop_cnt = vector_rows % 5;
@@ -108,25 +102,32 @@ arm_cmsis_nn_status arm_vector_sum_s8(int32_t *vector_sum_buf,
             vector_data += vector_cols;
             if (rhs_offset)
             {
-                vector_sum_0 += vector_cols * rhs_offset;
+                vector_sum_0 = arm_nn_mac_wrap_s32_bits(vector_sum_0, vector_cols, rhs_offset);
             }
-            vector_sum_0 *= lhs_offset;
 
-            vector_sum_buf[i_row_loop_cnt] += vector_sum_0;
+            vector_sum_buf[i_row_loop_cnt] =
+                arm_nn_mac_wrap_s32_bits(vector_sum_buf[i_row_loop_cnt], vector_sum_0, lhs_offset);
         }
 #else
+    #if defined(__clang__)
+        /* Keep one row reduction: duplicating it increases size and can worsen load scheduling. */
+        #pragma clang loop unroll(disable)
+    #endif
         for (int i = 0; i < vector_rows; i++)
         {
-            int32_t sum = 0;
+            uint32_t sum_bits = 0;
             for (int j = 0; j < vector_cols; j++)
             {
-                sum += *vector_data++;
+                sum_bits += (uint32_t)*vector_data++;
             }
+            int32_t sum;
+            memcpy(&sum, &sum_bits, sizeof(sum));
             if (rhs_offset)
             {
-                sum += vector_cols * rhs_offset;
+                sum = arm_nn_mac_wrap_s32_bits(sum, vector_cols, rhs_offset);
             }
-            *vector_sum_buf++ += sum * lhs_offset;
+            *vector_sum_buf = arm_nn_mac_wrap_s32_bits(*vector_sum_buf, sum, lhs_offset);
+            vector_sum_buf++;
         }
 #endif
     }

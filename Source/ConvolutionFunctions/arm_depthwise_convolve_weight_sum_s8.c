@@ -88,7 +88,7 @@ arm_cmsis_nn_status arm_depthwise_convolve_weight_sum(int32_t *vector_sum_buf,
             // vstrwq_p_s32(sum_buf_runner, ker_sum, p);
             for (int j = 0; j < ARM_NN_MIN(4, ch_left); ++j)
             {
-                vector_sum_buf[j] += ker_sum[j];
+                vector_sum_buf[j] = arm_nn_mac_wrap_s32_bits(vector_sum_buf[j], ker_sum[j], 1);
             }
             rhs_base += 4;
             vector_sum_buf += 4;

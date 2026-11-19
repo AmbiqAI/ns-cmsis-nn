@@ -95,7 +95,8 @@ __STATIC_INLINE bool arm_conv_nhwc_use_small_c_f32(const cmsis_nn_conv_params_f3
                                                    const cmsis_nn_dims *filter_dims,
                                                    const cmsis_nn_dims *output_dims)
 {
-    return arm_nn_conv_f32_is_small_c(input_dims, output_dims) &&
+    return (arm_nn_conv_f32_is_small_c(input_dims, output_dims) ||
+            arm_nn_conv_f32_is_small_c_3x3(input_dims, filter_dims, output_dims)) &&
         arm_nn_conv_f32_small_c_coords_ok(&conv_params->stride,
                                           &conv_params->padding,
                                           &conv_params->dilation,
@@ -241,7 +242,7 @@ typedef struct
     uint32x4_t out_offsets; /* lane * output_c */
 } arm_conv_small_c_f32;
 
-/* Direct kernel for fewer input channels than one vector: lanes are output x positions, weights are scalars,
+/* Direct kernel for small input-channel counts: lanes are output x positions, weights are scalars,
  * OC_GROUP output channels accumulate at once. Interior lane groups
  * (every tap in range) load unpredicated -- contiguous for input_c == 1 with stride 1/2/4, gathered otherwise --
  * and store unpredicated; edge and tail groups compare in_x against input_w once per tap column. */
@@ -817,20 +818,21 @@ __STATIC_FORCEINLINE arm_cmsis_nn_status arm_convolve_nhwc_direct_f32_body(const
                 arm_conv_f32_tap_span(in_y0, dil_h, kernel_h, input_h, &ky_first, &ky_end, &iy_first);
                 arm_conv_f32_tap_span(in_x0, dil_w, kernel_w, input_w, &kx_first, &kx_end, &ix_first);
     #if defined(ARM_MATH_MVEF) && !defined(ARM_MATH_AUTOVECTORIZE)
-                if (row_contig)
+                if (row_contig && ky_first < ky_end && kx_first < kx_end)
                 {
                     /* The valid taps of one filter row are contiguous in both the input and OHWI weights. */
                     const int32_t row_len = (kx_end - kx_first) * kernel_ch;
                     const float32_t *x_first = input_b + ((size_t)iy_first * input_w + ix_first) * input_c;
-                    const size_t w_first =
-                        row_len > 0 ? ((size_t)ky_first * kernel_w + (size_t)kx_first) * kernel_ch : 0;
+                    const size_t w_first = ((size_t)ky_first * kernel_w + (size_t)kx_first) * kernel_ch;
                     for (int32_t oc = 0; oc < output_c; ++oc)
                     {
-                        const float32_t *x_row = x_first;
-                        const float32_t *w_row = filter_data + (size_t)oc * patch_len + w_first;
+                        size_t x_offset = 0;
+                        size_t w_offset = (size_t)oc * patch_len + w_first;
                         float32x4_t vacc = vdupq_n_f32(0.0f);
-                        for (int32_t ky = ky_first; ky < ky_end; ++ky, x_row += x_ky_step, w_row += w_ky_step)
+                        for (int32_t ky = ky_first; ky < ky_end; ++ky, x_offset += x_ky_step, w_offset += w_ky_step)
                         {
+                            const float32_t *x_row = x_first + x_offset;
+                            const float32_t *w_row = filter_data + w_offset;
                             int32_t i = 0;
                             for (; i + 4 <= row_len; i += 4)
                             {

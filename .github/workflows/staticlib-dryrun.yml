@@ -202,8 +202,9 @@ jobs:
     # Digest-pinned for the same reason as release.yml's armclang job: this
     # job handles the Arm licensing secret, so the image it runs must be one
     # that was actually reviewed, not whatever `:latest` points at today.
+    # Verified emSign remediation image: security-893-fc15b5cf (issue #893).
     container:
-      image: ghcr.io/ambiqai/ns-cmsis-nn-ci@sha256:0d18641d43015eba02d8e05821b59c95ddfcdf0d9ff7a070edd532bad3e09eeb
+      image: ghcr.io/ambiqai/ns-cmsis-nn-ci@sha256:090c83310103ac5295d7b7591ea15c6fe6e02caa44037ddbffef049e1d98cd20
     defaults:
       run:
         # Inside a container GitHub defaults to `sh -e`, which lacks

@@ -79,3 +79,7 @@ void test_wrapper_vertical_padding_1_x_n_arm_convolve_s4(void)
 {
     wrapper_vertical_padding_1_x_n_arm_convolve_s4();
 }
+
+void test_wide_columns_arm_convolve_s4(void) { wide_columns_arm_convolve_s4(); }
+
+void test_arg_errors_arm_convolve_s4(void) { arg_errors_arm_convolve_s4(); }

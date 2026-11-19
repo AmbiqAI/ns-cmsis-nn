@@ -17,6 +17,7 @@
  */
 
 #include <arm_nnfunctions.h>
+#include <arm_nnsupportfunctions.h>
 #include <stdlib.h>
 #include <unity.h>
 
@@ -686,4 +687,93 @@ void buffer_size_dsp_arm_convolve_1x1_s4_fast(void)
 
     TEST_ASSERT_EQUAL(wrapper_buf_size, dsp_wrapper_buf_size);
 #endif
+}
+
+/* Compare active predicated lanes with the same arithmetic used for full rows. */
+void requantize_s4_predicated_rounding(void)
+{
+#if defined(ARM_MATH_MVEI) && !defined(ARM_MATH_AUTOVECTORIZE)
+    uint32_t seed = 671;
+    for (int shift = -8; shift <= 5; ++shift)
+    {
+        for (int sample = 0; sample < 128; ++sample)
+        {
+            int32_t input[4], actual[4];
+            for (int lane = 0; lane < 4; ++lane)
+            {
+                seed = seed * 1664525u + 1013904223u;
+                input[lane] = (int32_t)(seed & 0x1fffffu) - 0x100000;
+            }
+            seed = seed * 1664525u + 1013904223u;
+            const int32_t multiplier = (int32_t)((seed & 0x3fffffffu) + 0x40000000u);
+            for (int lanes = 1; lanes <= 4; ++lanes)
+            {
+                const int32x4_t result = arm_requantize_mve_pred(vldrwq_s32(input), multiplier, shift, vctp32q(lanes));
+                vstrwq_s32(actual, result);
+                for (int lane = 0; lane < lanes; ++lane)
+                {
+                    TEST_ASSERT_EQUAL_INT32(arm_nn_requantize(input[lane], multiplier, shift), actual[lane]);
+                }
+                for (int lane = lanes; lane < 4; ++lane)
+                {
+                    TEST_ASSERT_EQUAL_INT32(0, actual[lane]);
+                }
+            }
+        }
+    }
+#endif
+}
+
+/* Identical pixels must not depend on whether they occupy a full block or tail. */
+void matrix_s4_rounding_row_groups(void)
+{
+    int8_t input[4 * 16], packed_weights[8 * 16 / 2], output[4 * 8];
+    int32_t bias[8], multiplier[8], shift[8];
+    uint32_t seed = 681;
+    for (int sample = 0; sample < 32; ++sample)
+    {
+        for (unsigned i = 0; i < sizeof(input); ++i)
+        {
+            seed = seed * 1664525u + 1013904223u;
+            input[i] = (int8_t)((int32_t)(seed >> 24) - 128);
+        }
+        for (unsigned i = 0; i < sizeof(packed_weights); ++i)
+        {
+            seed = seed * 1664525u + 1013904223u;
+            packed_weights[i] = (int8_t)((int32_t)(seed >> 24) - 128);
+        }
+        for (int ch = 0; ch < 8; ++ch)
+        {
+            bias[ch] = ch * 17 - 63;
+            multiplier[ch] = 1073741824 + ch * 7654321;
+            shift[ch] = -5 - ch % 3;
+        }
+        for (int rows = 1; rows <= 4; ++rows)
+        {
+            TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
+                              arm_nn_mat_mult_nt_t_s4(input, packed_weights, bias, output, multiplier, shift,
+                                                      rows, 8, 16, 3, 0, -128, 127, 16));
+            for (int row = 0; row < rows; ++row)
+            {
+                for (int ch = 0; ch < 8; ++ch)
+                {
+                    int64_t acc = bias[ch];
+                    for (int k = 0; k < 16; ++k)
+                    {
+                        const int index = ch * 16 + k;
+                        const int nibble = ((uint8_t)packed_weights[index / 2] >> (4 * (index % 2))) & 15;
+                        acc += (input[row * 16 + k] + 3) * (nibble < 8 ? nibble : nibble - 16);
+                    }
+#if defined(CMSIS_NN_USE_SINGLE_ROUNDING)
+                    const int right = 31 - shift[ch];
+                    int32_t expected = (int32_t)((acc * multiplier[ch] + ((int64_t)1 << (right - 1))) >> right);
+#else
+                    int32_t expected = arm_nn_requantize((int32_t)acc, multiplier[ch], shift[ch]);
+#endif
+                    expected = ARM_NN_MAX(-128, ARM_NN_MIN(127, expected));
+                    TEST_ASSERT_EQUAL_INT8(expected, output[row * 8 + ch]);
+                }
+            }
+        }
+    }
 }

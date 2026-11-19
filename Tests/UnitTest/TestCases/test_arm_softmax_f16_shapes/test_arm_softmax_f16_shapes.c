@@ -8,6 +8,7 @@
  */
 
 #include <arm_nnfunctions.h>
+#include <string.h>
 #include <unity.h>
 
 #include "softmax_f16_shapes_data.h"
@@ -113,4 +114,44 @@ void softmax_f16_shapes_arg_error_arm_softmax_f16(void)
                       arm_softmax_f16(softmax_f16_input, SOFTMAX_F16_NUM_ROWS, SOFTMAX_F16_ROW_SIZE, NULL));
     TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR, arm_softmax_f16(softmax_f16_input, 0, SOFTMAX_F16_ROW_SIZE, output));
     TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR, arm_softmax_f16(softmax_f16_input, SOFTMAX_F16_NUM_ROWS, 0, output));
+}
+
+// Input values never change the status, and a row with no finite maximum (NaN,
+// +Inf, only -Inf) leaves the next row exactly as a call on that row alone
+// computes it. Bits are set through memcpy so no float16 select is generated.
+// Refs #854.
+void softmax_f16_shapes_nonfinite_rows_arm_softmax_f16(void)
+{
+    enum
+    {
+        cols = 5
+    };
+    const uint16_t nan = 0x7e00u;
+    const uint16_t pos_inf = 0x7c00u;
+    const uint16_t neg_inf = 0xfc00u;
+    const uint16_t token_rows[3][cols] = {{0x3c00u, nan, 0x4000u, 0x4200u, 0x3800u},
+                                          {0x3c00u, pos_inf, 0x4000u, 0x4200u, 0x3800u},
+                                          {neg_inf, neg_inf, neg_inf, neg_inf, neg_inf}};
+    const uint16_t finite_bits[cols] = {0x3400u, 0xbc00u, 0x4000u, 0x3800u, 0x3c00u};
+    float16_t finite[cols];
+    float16_t expected[cols];
+    memcpy(finite, finite_bits, sizeof(finite));
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, arm_softmax_f16(finite, 1, cols, expected));
+
+    for (int t = 0; t < 3; ++t)
+    {
+        float16_t input[2 * cols];
+        float16_t output[2 * cols];
+        memcpy(input, token_rows[t], sizeof(token_rows[t]));
+        memcpy(input + cols, finite_bits, sizeof(finite_bits));
+        TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, arm_softmax_f16(input, 2, cols, output));
+        TEST_ASSERT_EQUAL_MEMORY(expected, output + cols, sizeof(expected));
+    }
+
+    // The 1x2 specialization takes its own path.
+    const uint16_t pair_bits[2] = {nan, 0x3c00u};
+    float16_t pair[2];
+    float16_t pair_output[2];
+    memcpy(pair, pair_bits, sizeof(pair));
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, arm_softmax_f16(pair, 1, 2, pair_output));
 }
