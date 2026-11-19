@@ -9,6 +9,7 @@
 
 #include <arm_nnfunctions.h>
 #include <arm_nnsupportfunctions.h>
+#include <float.h>
 #include <math.h>
 #include <stdlib.h>
 #include <string.h>
@@ -160,6 +161,48 @@ static void conv_f32_params(cmsis_nn_conv_params_f32 *cp, int32_t pad_h, int32_t
     cp->activation.min = (float32_t)-1.0e4f;
     cp->activation.max = (float32_t)1.0e4f;
     cp->weight_format = packed ? ARM_NN_WEIGHT_FORMAT_NT_N_PACKED : ARM_NN_WEIGHT_FORMAT_STANDARD;
+}
+
+void convolve_grouped_direct_f32(void)
+{
+    const cmsis_nn_dims in = {1, 1, 1, 4}, filter = {4, 1, 1, 2}, out = {1, 1, 1, 4};
+    const float32_t input[] = {1, 2, 3, 4}, weights[] = {1, 0, 0, 1, 1, 0, 0, 1};
+    float32_t output[4] = {0};
+    cmsis_nn_conv_params_f32 cp;
+    conv_f32_params(&cp, 0, 0, 0);
+    TEST_ASSERT_EQUAL(
+        ARM_CMSIS_NN_SUCCESS,
+        arm_convolve_direct_nhwc_ohwi_f32(NULL, &cp, &in, input, &filter, weights, NULL, NULL, &out, output));
+    TEST_ASSERT_EQUAL_MEMORY(input, output, sizeof(output));
+    cmsis_nn_dims empty_in = in, empty_out = out;
+    empty_in.n = empty_out.n = 0;
+    cp.weight_format = ARM_NN_WEIGHT_FORMAT_NT_N_PACKED;
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_NO_IMPL_ERROR,
+                      arm_convolve_direct_nhwc_ohwi_f32(
+                          NULL, &cp, &empty_in, input, &filter, weights, NULL, NULL, &empty_out, output));
+}
+
+void convolve_direct_cancellation_f32(void)
+{
+    const cmsis_nn_dims in = {1, 1, 8, 1}, filter = {1, 1, 8, 1}, out = {1, 1, 1, 1};
+    const float32_t weights[] = {1, 1, 1, 1, 1, 1, 1, 1};
+    const float32_t inputs[][8] = {
+        {0x1p24f, -0x1p24f, 0, 0, 1, 0, 0, 0},
+        {FLT_MAX, -FLT_MAX, 0, 0, FLT_MAX, -FLT_MAX, 0, 0},
+    };
+    const float32_t expected[] = {1, 0};
+    cmsis_nn_conv_params_f32 cp;
+    conv_f32_params(&cp, 0, 0, 0);
+    cp.activation.min = -FLT_MAX;
+    cp.activation.max = FLT_MAX;
+    for (int i = 0; i < 2; ++i)
+    {
+        float32_t y = -1;
+        TEST_ASSERT_EQUAL(
+            ARM_CMSIS_NN_SUCCESS,
+            arm_convolve_direct_nhwc_ohwi_f32(NULL, &cp, &in, inputs[i], &filter, weights, NULL, NULL, &out, &y));
+        TEST_ASSERT_EQUAL_FLOAT(expected[i], y);
+    }
 }
 
 void convolve_grouped_f32(void)

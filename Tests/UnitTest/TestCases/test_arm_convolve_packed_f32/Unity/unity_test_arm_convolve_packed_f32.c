@@ -29,6 +29,10 @@ void setUp(void)
 
 void tearDown(void) {}
 
+void test_convolve_grouped_direct_f32(void) { convolve_grouped_direct_f32(); }
+
+void test_convolve_direct_cancellation_f32(void) { convolve_direct_cancellation_f32(); }
+
 void test_convolve_grouped_f32(void) { convolve_grouped_f32(); }
 
 void test_convolve_16_channels_4_groups_f32(void) { convolve_16_channels_4_groups_f32(); }
