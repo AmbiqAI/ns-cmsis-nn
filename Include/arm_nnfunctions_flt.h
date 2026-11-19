@@ -3245,8 +3245,8 @@ arm_cmsis_nn_status arm_convolve_nhwc_f16(const cmsis_nn_context *ctx,
  * @param[out]    output_data Pointer to the output tensor data.
  *
  * @return `ARM_CMSIS_NN_SUCCESS` on success, `ARM_CMSIS_NN_ARG_ERROR` for NULL required pointers, negative dimensions,
- *         or invalid grouped channels, or `ARM_CMSIS_NN_NO_IMPL_ERROR` for an unsupported shape, weight format, or
- *         target.
+ *         invalid grouped channels or unrepresentable tensor sizes. Unsupported shapes, weight formats and targets
+ *         return `ARM_CMSIS_NN_NO_IMPL_ERROR`.
  */
 arm_cmsis_nn_status arm_convolve_f16_fast_small_kernel(const cmsis_nn_context *ctx,
                                                        const cmsis_nn_conv_params_f16 *conv_params,
@@ -3282,7 +3282,7 @@ arm_cmsis_nn_status arm_convolve_f16_fast_small_kernel(const cmsis_nn_context *c
  * @param[out]    output_data Pointer to the output tensor data.
  *
  * @return `ARM_CMSIS_NN_SUCCESS` on success or for zero-sized work, `ARM_CMSIS_NN_ARG_ERROR` for NULL required
- *         pointers, invalid dimensions, or a channel contract other than one input and output channel per group, or
+ *         pointers, invalid dimensions, unrepresentable tensor sizes, or invalid per-group channel counts, or
  *         `ARM_CMSIS_NN_NO_IMPL_ERROR` when packed weights are requested.
  */
 arm_cmsis_nn_status arm_convolve_f16_group_ch_mult_1(const cmsis_nn_context *ctx,

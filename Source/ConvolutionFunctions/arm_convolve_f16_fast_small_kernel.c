@@ -191,6 +191,11 @@ arm_cmsis_nn_status arm_convolve_f16_fast_small_kernel(const cmsis_nn_context *c
         return ARM_CMSIS_NN_SUCCESS;
     }
 
+    if (!arm_nn_conv_flt_tensor_sizes_ok(input_dims, filter_dims, output_dims, sizeof(float16_t), 8, false))
+    {
+        return ARM_CMSIS_NN_ARG_ERROR;
+    }
+
     #if defined(ARM_MATH_MVE_FLOAT16) && !defined(ARM_MATH_AUTOVECTORIZE)
     const int32_t input_batches = input_dims->n;
     const int32_t input_x = input_dims->w;

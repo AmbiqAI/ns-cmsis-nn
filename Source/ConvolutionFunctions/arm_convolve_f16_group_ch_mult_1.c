@@ -181,12 +181,11 @@ arm_cmsis_nn_status arm_convolve_f16_group_ch_mult_1(const cmsis_nn_context *ctx
         return ARM_CMSIS_NN_SUCCESS;
     }
 
-    const int64_t rhs_cols_64 = (int64_t)kernel_y * kernel_x;
-    if (rhs_cols_64 > INT32_MAX)
+    if (!arm_nn_conv_flt_tensor_sizes_ok(input_dims, filter_dims, output_dims, sizeof(float16_t), 8, false))
     {
         return ARM_CMSIS_NN_ARG_ERROR;
     }
-    const int32_t rhs_cols = (int32_t)rhs_cols_64;
+    const int32_t rhs_cols = kernel_y * kernel_x;
 
     #if defined(ARM_MATH_MVE_FLOAT16) && !defined(ARM_MATH_AUTOVECTORIZE)
     const bool output_fits = (int64_t)(output_x - 1) * stride_x + (int64_t)(kernel_x - 1) * dilation_x < input_x &&

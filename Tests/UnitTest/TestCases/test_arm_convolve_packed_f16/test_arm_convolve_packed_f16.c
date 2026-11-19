@@ -276,6 +276,11 @@ void convolve_grouped_contracts_f16(void)
     const cmsis_nn_dims huge_kernel_flt = {.n = 4, .h = INT32_MAX, .w = INT32_MAX, .c = 1};
     const cmsis_nn_dims unit_flt = {.n = 4, .h = 1, .w = 1, .c = 1};
     const cmsis_nn_dims overflow_positions_out = {.n = 1, .h = 46341, .w = 46341, .c = 4};
+    /* Check the shared size bound using only metadata. Each batch fits individually. */
+    const cmsis_nn_dims large_batch = {.n = 16, .h = 1024, .w = 1024, .c = 128};
+    TEST_ASSERT_FALSE(arm_nn_conv_flt_tensor_sizes_ok(&large_batch, &unit_flt, &out, sizeof(float16_t), 8, false));
+    TEST_ASSERT_FALSE(arm_nn_conv_flt_tensor_sizes_ok(&in, &unit_flt, &large_batch, sizeof(float16_t), 8, false));
+
     const cmsis_nn_dims small_flt = {.n = 4, .h = 1, .w = 3, .c = 1};
     const cmsis_nn_dims unsupported_flt = {.n = 4, .h = 9, .w = 9, .c = 1};
     const cmsis_nn_dims mismatched_small_flt = {.n = 3, .h = 1, .w = 3, .c = 1};
