@@ -3263,7 +3263,7 @@ arm_cmsis_nn_status arm_convolve_f16_fast_small_kernel(const cmsis_nn_context *c
  * @brief Float16 grouped convolution with one input and one output channel per group.
  *
  * This is the Conv2D-layout equivalent of depthwise convolution with channel multiplier one. The filter must use
- * standard `[C_OUT, H_K, W_K, 1]` layout. Arbitrary stride, dilation, and padding are supported.
+ * standard `[C_OUT, H_K, W_K, 1]` layout. Stride and dilation must be positive, and padding must be nonnegative.
  *
  * @param[in,out] ctx         Unused; no scratch buffer is required.
  * @param[in]     conv_params Convolution parameters. Stride and dilation must be positive, and weights must use the
@@ -3967,6 +3967,7 @@ arm_cmsis_nn_status arm_convolve_patch_gemm_nhwc_packed_f16_acc16(const cmsis_nn
 
 /**
  * @copydoc arm_convolve_direct_nhwc_ohwi_f32
+ * @note Standard OHWI filters can use C_IN / groups channels per filter tap. Groups use no scratch.
  */
 arm_cmsis_nn_status arm_convolve_direct_nhwc_ohwi_f16(const cmsis_nn_context *ctx,
                                                       const cmsis_nn_conv_params_f16 *conv_params,
@@ -3981,6 +3982,7 @@ arm_cmsis_nn_status arm_convolve_direct_nhwc_ohwi_f16(const cmsis_nn_context *ct
 
 /**
  * @copydoc arm_convolve_direct_nhwc_ohwi_f32
+ * @note Standard OHWI filters can use C_IN / groups channels per filter tap. Groups use no scratch.
  */
 arm_cmsis_nn_status arm_convolve_direct_nhwc_ohwi_f16_acc16(const cmsis_nn_context *ctx,
                                                             const cmsis_nn_conv_params_f16 *conv_params,

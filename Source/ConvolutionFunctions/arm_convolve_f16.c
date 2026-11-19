@@ -848,7 +848,7 @@ __STATIC_FORCEINLINE arm_cmsis_nn_status arm_convolve_nhwc_direct_f16_body(const
     const int32_t kernel_ch = filter_dims->c;
     const int32_t groups = input_c / kernel_ch;
     #else
-    /* `grouped` is constant per call site, so ungrouped scalar calls fold the group loop away. */
+    /* Single-group-only call sites fold the group loop away. */
     const int32_t kernel_ch = grouped ? filter_dims->c : input_c;
     const int32_t groups = grouped ? input_c / kernel_ch : 1;
     #endif
@@ -1985,18 +1985,20 @@ arm_cmsis_nn_status arm_convolve_direct_nhwc_ohwi_f16(const cmsis_nn_context *ct
 {
     (void)ctx;
     (void)bias_dims;
-    if (!arm_convolve_nhwc_f16_args_ok(
+    if (!arm_convolve_nhwc_f16_grouped_args_ok(
             conv_params, input_dims, input_data, filter_dims, filter_data, output_dims, output_data))
     {
         return ARM_CMSIS_NN_ARG_ERROR;
     }
-    if (arm_nn_conv_flt_empty(output_dims))
-    {
-        return ARM_CMSIS_NN_SUCCESS;
-    }
-    if (conv_params->weight_format != ARM_NN_WEIGHT_FORMAT_STANDARD)
+    const bool empty = arm_nn_conv_flt_empty(output_dims);
+    /* Grouped calls always require OHWI; retain the existing empty single-group no-op. */
+    if (conv_params->weight_format != ARM_NN_WEIGHT_FORMAT_STANDARD && (!empty || filter_dims->c != input_dims->c))
     {
         return ARM_CMSIS_NN_NO_IMPL_ERROR;
+    }
+    if (empty)
+    {
+        return ARM_CMSIS_NN_SUCCESS;
     }
     return arm_convolve_nhwc_direct_f16_body(conv_params,
                                              input_dims,
@@ -2008,7 +2010,7 @@ arm_cmsis_nn_status arm_convolve_direct_nhwc_ohwi_f16(const cmsis_nn_context *ct
                                              output_data,
                                              ARM_NN_F16_ACC_BLOCK,
                                              false,
-                                             false);
+                                             true);
 }
 
 arm_cmsis_nn_status arm_convolve_direct_nhwc_ohwi_f16_acc16(const cmsis_nn_context *ctx,
@@ -2024,18 +2026,20 @@ arm_cmsis_nn_status arm_convolve_direct_nhwc_ohwi_f16_acc16(const cmsis_nn_conte
 {
     (void)ctx;
     (void)bias_dims;
-    if (!arm_convolve_nhwc_f16_args_ok(
+    if (!arm_convolve_nhwc_f16_grouped_args_ok(
             conv_params, input_dims, input_data, filter_dims, filter_data, output_dims, output_data))
     {
         return ARM_CMSIS_NN_ARG_ERROR;
     }
-    if (arm_nn_conv_flt_empty(output_dims))
-    {
-        return ARM_CMSIS_NN_SUCCESS;
-    }
-    if (conv_params->weight_format != ARM_NN_WEIGHT_FORMAT_STANDARD)
+    const bool empty = arm_nn_conv_flt_empty(output_dims);
+    /* Grouped calls always require OHWI; retain the existing empty single-group no-op. */
+    if (conv_params->weight_format != ARM_NN_WEIGHT_FORMAT_STANDARD && (!empty || filter_dims->c != input_dims->c))
     {
         return ARM_CMSIS_NN_NO_IMPL_ERROR;
+    }
+    if (empty)
+    {
+        return ARM_CMSIS_NN_SUCCESS;
     }
     return arm_convolve_nhwc_direct_f16_body(conv_params,
                                              input_dims,
@@ -2047,7 +2051,7 @@ arm_cmsis_nn_status arm_convolve_direct_nhwc_ohwi_f16_acc16(const cmsis_nn_conte
                                              output_data,
                                              ARM_NN_F16_ACC_BLOCK_NONE,
                                              false,
-                                             false);
+                                             true);
 }
 
 arm_cmsis_nn_status arm_convolve_direct_nhwc_packed_f16(const cmsis_nn_context *ctx,

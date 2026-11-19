@@ -162,6 +162,30 @@ static void conv_f16_params(cmsis_nn_conv_params_f16 *cp, int32_t pad_h, int32_t
     cp->weight_format = packed ? ARM_NN_WEIGHT_FORMAT_NT_N_PACKED : ARM_NN_WEIGHT_FORMAT_STANDARD;
 }
 
+void convolve_grouped_direct_f16(void)
+{
+    const cmsis_nn_dims in = {1, 1, 1, 4}, filter = {4, 1, 1, 2}, out = {1, 1, 1, 4};
+    const float16_t input[] = {1, 2, 3, 4}, weights[] = {1, 0, 0, 1, 1, 0, 0, 1};
+    float16_t output[4] = {0};
+    cmsis_nn_conv_params_f16 cp;
+    conv_f16_params(&cp, 0, 0, 0);
+    TEST_ASSERT_EQUAL(
+        ARM_CMSIS_NN_SUCCESS,
+        arm_convolve_direct_nhwc_ohwi_f16(NULL, &cp, &in, input, &filter, weights, NULL, NULL, &out, output));
+    TEST_ASSERT_EQUAL_MEMORY(input, output, sizeof(output));
+    memset(output, 0, sizeof(output));
+    TEST_ASSERT_EQUAL(
+        ARM_CMSIS_NN_SUCCESS,
+        arm_convolve_direct_nhwc_ohwi_f16_acc16(NULL, &cp, &in, input, &filter, weights, NULL, NULL, &out, output));
+    TEST_ASSERT_EQUAL_MEMORY(input, output, sizeof(output));
+    cmsis_nn_dims empty_in = in, empty_out = out;
+    empty_in.n = empty_out.n = 0;
+    cp.weight_format = ARM_NN_WEIGHT_FORMAT_NT_N_PACKED;
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_NO_IMPL_ERROR,
+                      arm_convolve_direct_nhwc_ohwi_f16(
+                          NULL, &cp, &empty_in, input, &filter, weights, NULL, NULL, &empty_out, output));
+}
+
 void convolve_grouped_f16(void)
 {
     const cmsis_nn_dims in = {.n = 1, .h = 5, .w = 5, .c = 16};
@@ -262,6 +286,12 @@ void convolve_grouped_contracts_f16(void)
     cmsis_nn_conv_params_f16 cp;
 
     conv_f16_params(&cp, 0, 0, 0);
+    cp.padding.w = -1;
+    y[0] = 23;
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR,
+                      arm_convolve_f16_group_ch_mult_1(NULL, &cp, &in, x, &unit_flt, w, NULL, NULL, &out, y));
+    TEST_ASSERT_EQUAL_FLOAT(23.0f, (float)y[0]);
+    cp.padding.w = 0;
     TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR,
                       arm_convolve_wrapper_f16(NULL, &cp, &in, x, &invalid_flt, w, NULL, NULL, &out, y));
     TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR,

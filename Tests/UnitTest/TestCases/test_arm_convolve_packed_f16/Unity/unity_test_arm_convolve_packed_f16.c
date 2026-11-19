@@ -29,6 +29,8 @@ void setUp(void)
 
 void tearDown(void) {}
 
+void test_convolve_grouped_direct_f16(void) { convolve_grouped_direct_f16(); }
+
 void test_convolve_grouped_f16(void) { convolve_grouped_f16(); }
 
 void test_convolve_grouped_contracts_f16(void) { convolve_grouped_contracts_f16(); }
