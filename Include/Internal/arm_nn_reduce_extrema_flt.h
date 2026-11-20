@@ -270,8 +270,8 @@ static inline uint32x4_t arm_nn_extrema_key_f32(uint32x4_t value)
 // The MVE paths load integer lanes. From a float load, LLVM rewrites the zero test as an MVE VCMP.F32/F16,
 // which treats subnormals as zero (F32 always, F16 under FPSCR.FZ16). Refs #853.
 // With tflite a NaN lane keeps the running value and never raises the NaN result. Refs #870.
-static inline void arm_nn_extrema_mve_f32(const uint32_t *input,
-                                          uint32_t *output,
+static inline void arm_nn_extrema_mve_f32(const float32_t *input,
+                                          float32_t *output,
                                           const arm_nn_extrema_plan *plan,
                                           bool maximum,
                                           bool tflite)
@@ -287,7 +287,7 @@ static inline void arm_nn_extrema_mve_f32(const uint32_t *input,
             for (int32_t r = 0; r < plan->reduction; r += 4)
             {
                 const mve_pred16_t p = vctp32q((uint32_t)(plan->reduction - r));
-                const uint32x4_t value = vld1q_z(input + r, p);
+                const uint32x4_t value = arm_nn_mve_load_word_bits(input + r, p);
                 const mve_pred16_t is_nan = vcmphiq_n_u32(vandq(value, vdupq_n_u32(0x7fffffffu)), 0x7f800000u) & p;
                 const mve_pred16_t live = tflite ? (mve_pred16_t)(p & ~is_nan) : p;
                 any_nan |= tflite ? 0 : is_nan;
@@ -328,7 +328,7 @@ static inline void arm_nn_extrema_mve_f32(const uint32_t *input,
             mve_pred16_t any_nan = 0;
             for (int32_t r = 0; r < plan->reduction; ++r)
             {
-                const uint32x4_t value = vld1q_z(input + r * plan->inner + c, p);
+                const uint32x4_t value = arm_nn_mve_load_word_bits(input + r * plan->inner + c, p);
                 const uint32x4_t key = arm_nn_extrema_key_f32(value);
                 const mve_pred16_t is_nan = vcmphiq_n_u32(vandq(value, vdupq_n_u32(0x7fffffffu)), 0x7f800000u) & p;
                 any_nan |= tflite ? 0 : is_nan;
@@ -341,7 +341,7 @@ static inline void arm_nn_extrema_mve_f32(const uint32_t *input,
                 best_key = vpselq(key, best_key, better);
             }
             best = vpselq(vdupq_n_u32(0x7fc00000u), best, any_nan);
-            vstrwq_p(output + c, best, p);
+            arm_nn_mve_store_word_bits(output + c, best, p);
         }
         input += plan->reduction * plan->inner;
         output += plan->inner;
