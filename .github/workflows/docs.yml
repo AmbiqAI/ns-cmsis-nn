@@ -76,6 +76,13 @@ jobs:
         working-directory: astro-site
         run: npm run build
 
+      # The committed kernel contract is exported by a header scanner; the Doxygen
+      # XML the reference build just generated is the independent reading of the
+      # same doc blocks. They must name the same functions, parameters, types and
+      # directions, or one of the two parsers has a blind spot. Refs #525.
+      - name: Cross-check the kernel contract against the Doxygen XML
+        run: python3 scripts/check_kernel_contract.py verify-xml --xml-dir astro-site/.cache/reference/xml
+
       - name: Validate types and coverage
         working-directory: astro-site
         run: |

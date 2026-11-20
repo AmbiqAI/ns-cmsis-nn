@@ -1,0 +1,61 @@
+# SPDX-License-Identifier: LicenseRef-Ambiq-Apollo-SDK
+#
+# s8 pooling implementations. Schema and field rules: scripts/check_kernel_implementations.py.
+# Regenerate the export with `python3 scripts/check_kernel_implementations.py export`.
+
+family: pooling_s8
+
+implementations:
+  - id: avg_pool_s8
+    op: avg_pool
+    quantization: none
+    dtypes: {input_data: int8, output_data: int8}
+    layout: {input_data: NHWC, output_data: NHWC}
+    entry: arm_avgpool_s8
+    routed_by: direct
+    requires: []
+    buffers:
+      - name: accumulators
+        param: ctx
+        size_query:
+          symbol: arm_avgpool_s8_get_buffer_size
+          args: {dim_dst_width: output_dims.w, ch_src: input_dims.c}
+        units: bytes
+        align: 4
+        lifetime: call
+        optional: true
+        note: >-
+          Non-zero only on builds with ARM_MATH_DSP and without ARM_MATH_MVEI. ctx itself must be non-NULL on builds
+          without ARM_MATH_MVEI.
+    prepare: []
+    declines: []
+    since: 4.0.0
+    numerics:
+      reference: hct_ref:avg_pool_s8
+      claim: bit_exact
+      holds_with: []
+
+  - id: max_pool_s8
+    op: max_pool
+    quantization: none
+    dtypes: {input_data: int8, output_data: int8}
+    layout: {input_data: NHWC, output_data: NHWC}
+    entry: arm_max_pool_s8
+    routed_by: direct
+    requires: []
+    buffers:
+      - name: ctx
+        param: ctx
+        size_query: none
+        units: bytes
+        align: 1
+        lifetime: call
+        optional: true
+        note: No scratch; ctx->buf may be NULL.
+    prepare: []
+    declines: []
+    since: 4.0.0
+    numerics:
+      reference: hct_ref:max_pool_s8
+      claim: bit_exact
+      holds_with: []

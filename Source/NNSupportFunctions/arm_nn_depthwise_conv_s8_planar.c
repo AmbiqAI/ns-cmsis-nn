@@ -17,8 +17,13 @@
  *
  * -------------------------------------------------------------------- */
 
+#include "Internal/arm_nn_dispatch.h"
 #include "arm_nnfunctions.h"
 #include "arm_nnsupportfunctions.h"
+
+#if !ARM_NN_ROUTES_MATCH_BUILD
+    #error "ARM_NN_ROUTE_* must describe the build that compiles this kernel"
+#endif
 
 /**
  * @ingroup groupSupport
@@ -299,8 +304,8 @@ arm_cmsis_nn_status arm_nn_depthwise_conv_s8_planar(const cmsis_nn_context *ctx,
 {
 #if defined(ARM_MATH_MVEI)
     const int32_t plane_bytes = dw_planar_plane_bytes(dw_conv_params, input_dims, filter_dims, output_dims);
-    if (plane_bytes < 0 || ctx == NULL || ctx->buf == NULL || plane_bytes > ctx->size || weight_sum_ctx == NULL ||
-        weight_sum_ctx->buf == NULL || plane_bytes > arm_depthwise_conv_s8_opt_get_buffer_size(input_dims, filter_dims))
+    if (arm_nn_depthwise_conv_s8_opt_select(plane_bytes, ctx, weight_sum_ctx, input_dims, filter_dims) !=
+        ARM_NN_DW_OPT_S8_ROUTE_PLANAR)
     {
         return ARM_CMSIS_NN_NO_IMPL_ERROR;
     }

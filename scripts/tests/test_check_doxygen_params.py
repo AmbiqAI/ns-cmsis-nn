@@ -3,6 +3,7 @@
 """Mutation tests for scripts/check_doxygen_params.py, plus a run over the real headers."""
 
 from pathlib import Path
+import re
 import subprocess
 import sys
 import tempfile
@@ -10,6 +11,8 @@ import unittest
 
 ROOT = Path(__file__).resolve().parents[2]
 CHECKER = ROOT / 'scripts/check_doxygen_params.py'
+sys.path.insert(0, str(CHECKER.parent))
+from check_doxygen_params import PUBLIC_HEADER_GLOB, public_headers  # noqa: E402
 
 # Every syntactic shape the real public headers use, all correctly documented.
 CLEAN = '''\
@@ -486,11 +489,86 @@ class FixtureTests(unittest.TestCase):
                         or f'fixture.h:{kernel_line}\t' in lines['fx_kernel_s8'], lines['fx_kernel_s8'])
 
 
+PUBLIC_HEADER_NAMES = (
+    'arm_nnfunctions.h',
+    'arm_nnfunctions_flt.h',
+    'arm_nnsupportfunctions.h',
+    'arm_nnsupportfunctions_flt.h',
+)
+
+
+class HeaderDiscoveryTests(unittest.TestCase):
+    """With no header arguments the checker globs the include dir, so a public header
+    added later is checked without anyone editing a list; a shrinking set is an error."""
+
+    def write_include_dir(self, directory, names, text_for=lambda name: CLEAN):
+        for name in names:
+            (Path(directory) / name).write_text(text_for(name))
+
+    def test_every_public_header_is_discovered(self):
+        fifth = 'arm_nnextrafunctions.h'
+        with tempfile.TemporaryDirectory() as directory:
+            self.write_include_dir(directory, (*PUBLIC_HEADER_NAMES, fifth))
+            # Not a functions header: never discovered, so its bad tag must not be reported.
+            (Path(directory) / 'arm_nn_types.h').write_text(
+                '/** @brief t\n * @param x x\n */\nvoid fx_typed(int32_t x);\n')
+            result = run(['--include-dir', directory])
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn('OK: 35 declarations in 5 headers', result.stdout)
+
+    def test_fifth_public_header_is_checked(self):
+        fifth = 'arm_nnextrafunctions.h'
+        broken = CLEAN.replace(' * @param[in]  block_size  Number of elements to copy.\n', '', 1)
+        self.assertNotEqual(broken, CLEAN)
+        with tempfile.TemporaryDirectory() as directory:
+            self.write_include_dir(directory, (*PUBLIC_HEADER_NAMES, fifth),
+                                   lambda name: broken if name == fifth else CLEAN)
+            result = run(['--include-dir', directory])
+        self.assertEqual(result.returncode, 1, result.stdout)
+        self.assertIn(fifth, result.stderr)
+        self.assertIn('missing @param block_size', result.stderr)
+
+    def test_too_few_public_headers_is_an_error(self):
+        with tempfile.TemporaryDirectory() as directory:
+            self.write_include_dir(directory, PUBLIC_HEADER_NAMES[:3])
+            result = run(['--include-dir', directory])
+        self.assertEqual(result.returncode, 1, result.stdout)
+        self.assertIn('expected at least 4 public headers', result.stderr)
+        self.assertIn("'arm_nn*functions*.h'", result.stderr)
+
+    def test_explicit_header_arguments_skip_discovery(self):
+        with tempfile.TemporaryDirectory() as directory:
+            self.write_include_dir(directory, ('only.h',))
+            result = run(['--include-dir', directory, 'only.h'])
+        self.assertEqual(result.returncode, 0, result.stderr)
+        self.assertIn('OK: 7 declarations in 1 headers', result.stdout)
+
+    def test_pre_commit_hook_covers_the_same_files_as_the_glob(self):
+        config = (ROOT / '.pre-commit-config.yaml').read_text()
+        hook = config[config.index('- id: doxygen-params'):]
+        pattern = re.compile(re.search(r'^\s*files:\s*(\S+)\s*$', hook, re.M).group(1))
+        for name in (*PUBLIC_HEADER_NAMES, 'arm_nnextrafunctions.h'):
+            self.assertTrue(pattern.search(f'Include/{name}'), name)
+            self.assertTrue(Path(name).match(PUBLIC_HEADER_GLOB), name)
+        for path in ('Include/arm_nn_types.h', 'Include/arm_nn_math_types_flt.h',
+                     'Include/Internal/arm_nn_compiler.h', 'Source/x/arm_nnfunctions.h',
+                     'Include/arm_nnfunctions.hpp'):
+            self.assertFalse(pattern.search(path), path)
+        for name in ('arm_nn_types.h', 'arm_nn_math_types_flt.h', 'arm_nn_compiler.h',
+                     'arm_nnfunctions.hpp'):
+            self.assertFalse(Path(name).match(PUBLIC_HEADER_GLOB), name)
+
+
 class RealHeaderTests(unittest.TestCase):
     def test_public_headers_are_clean(self):
         result = run([], cwd=ROOT)
         self.assertEqual(result.returncode, 0, result.stderr)
         self.assertIn('OK: ', result.stdout)
+        self.assertIn(f'in {len(PUBLIC_HEADER_NAMES)} headers', result.stdout)
+
+    def test_glob_resolves_exactly_the_public_headers(self):
+        names = [path.name for path in public_headers(ROOT / 'Include')]
+        self.assertEqual(names, sorted(PUBLIC_HEADER_NAMES))
 
 
 if __name__ == '__main__':

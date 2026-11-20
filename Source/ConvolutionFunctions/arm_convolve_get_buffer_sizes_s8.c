@@ -30,6 +30,7 @@
  * -------------------------------------------------------------------- */
 
 #include "Internal/arm_nn_compiler.h"
+#include "Internal/arm_nn_dispatch.h"
 #include "arm_nnfunctions.h"
 #include "arm_nnsupportfunctions.h"
 
@@ -54,7 +55,7 @@ __STATIC_INLINE int32_t arm_convolve_1x1_s8_fast_get_buffer_size_dsp(const cmsis
         return -1;
     }
 
-#if defined(__ARMCC_VERSION) && (__ARMCC_VERSION >= 6010050)
+#if ARM_NN_TOOLCHAIN_ARMCLANG
     return (int32_t)required_bytes;
 #else
     return 0;
@@ -158,19 +159,7 @@ int32_t arm_convolve_s8_get_buffer_size(const cmsis_nn_dims *input_dims, const c
 
 int32_t arm_convolve_s8_get_weights_sum_size(const cmsis_nn_dims *output_dims)
 {
-#if !defined(ARM_MATH_MVEI)
-    (void)output_dims;
-    return 0;
-#else
-    const int64_t weights_sums_size = (int64_t)output_dims->c * (int64_t)sizeof(int32_t);
-
-    if ((output_dims->c < 0) || (weights_sums_size > INT32_MAX))
-    {
-        return -1;
-    }
-
-    return (int32_t)weights_sums_size;
-#endif
+    return arm_nn_convolve_s8_weights_sum_bytes(output_dims);
 }
 
 int32_t arm_convolve_1_x_n_s8_get_buffer_size(const cmsis_nn_conv_params *conv_params,
@@ -260,24 +249,15 @@ int32_t arm_convolve_wrapper_s8_get_buffer_size(const cmsis_nn_conv_params *conv
 #elif defined(ARM_MATH_DSP)
     return arm_convolve_wrapper_s8_get_buffer_size_dsp(conv_params, input_dims, filter_dims, output_dims);
 #else
-    if (arm_nn_is_convolve_1x1(conv_params, input_dims, filter_dims))
+    switch (arm_nn_convolve_wrapper_s8_select(conv_params, input_dims, filter_dims, output_dims))
     {
-        if (arm_nn_is_convolve_1x1_fast(conv_params))
-        {
-            return arm_convolve_1x1_s8_fast_get_buffer_size(input_dims);
-        }
-        else
-        {
-            return 0;
-        }
-    }
-    else if (arm_nn_is_convolve_1_x_n(conv_params, input_dims, filter_dims) &&
-             arm_nn_convolve_1_x_n_s8_padding_supported(conv_params, filter_dims, output_dims))
-    {
+    case ARM_NN_CONV_S8_ROUTE_1X1_FAST:
+        return arm_convolve_1x1_s8_fast_get_buffer_size(input_dims);
+    case ARM_NN_CONV_S8_ROUTE_1X1:
+        return 0;
+    case ARM_NN_CONV_S8_ROUTE_1_X_N:
         return arm_convolve_1_x_n_s8_get_buffer_size(conv_params, input_dims, filter_dims, output_dims);
-    }
-    else
-    {
+    default:
         return arm_convolve_s8_get_buffer_size(input_dims, filter_dims);
     }
 #endif
@@ -288,24 +268,17 @@ int32_t arm_convolve_wrapper_s8_get_buffer_size_mve(const cmsis_nn_conv_params *
                                                     const cmsis_nn_dims *filter_dims,
                                                     const cmsis_nn_dims *output_dims)
 {
-    if (arm_nn_is_convolve_1x1(conv_params, input_dims, filter_dims))
+    /* Every route after 1xN (1x1_out, small_cin, 3x3_c16_s1, generic) takes arm_convolve_s8()'s scratch, so the
+       answer does not depend on the build this query is compiled in. */
+    switch (arm_nn_convolve_wrapper_s8_select(conv_params, input_dims, filter_dims, output_dims))
     {
-        if (arm_nn_is_convolve_1x1_fast(conv_params))
-        {
-            return arm_convolve_1x1_s8_fast_get_buffer_size(input_dims);
-        }
-        else
-        {
-            return 0;
-        }
-    }
-    else if (arm_nn_is_convolve_1_x_n(conv_params, input_dims, filter_dims) &&
-             arm_nn_convolve_1_x_n_s8_padding_supported(conv_params, filter_dims, output_dims))
-    {
+    case ARM_NN_CONV_S8_ROUTE_1X1_FAST:
+        return arm_convolve_1x1_s8_fast_get_buffer_size(input_dims);
+    case ARM_NN_CONV_S8_ROUTE_1X1:
+        return 0;
+    case ARM_NN_CONV_S8_ROUTE_1_X_N:
         return arm_convolve_1_x_n_s8_get_buffer_size_mve(conv_params, input_dims, filter_dims, output_dims);
-    }
-    else
-    {
+    default:
         return arm_convolve_s8_get_buffer_size_mve(input_dims, filter_dims);
     }
 }
@@ -315,24 +288,17 @@ int32_t arm_convolve_wrapper_s8_get_buffer_size_dsp(const cmsis_nn_conv_params *
                                                     const cmsis_nn_dims *filter_dims,
                                                     const cmsis_nn_dims *output_dims)
 {
-    if (arm_nn_is_convolve_1x1(conv_params, input_dims, filter_dims))
+    /* Every route after 1xN (1x1_out, small_cin, 3x3_c16_s1, generic) takes arm_convolve_s8()'s scratch, so the
+       answer does not depend on the build this query is compiled in. */
+    switch (arm_nn_convolve_wrapper_s8_select(conv_params, input_dims, filter_dims, output_dims))
     {
-        if (arm_nn_is_convolve_1x1_fast(conv_params))
-        {
-            return arm_convolve_1x1_s8_fast_get_buffer_size_dsp(input_dims);
-        }
-        else
-        {
-            return 0;
-        }
-    }
-    else if (arm_nn_is_convolve_1_x_n(conv_params, input_dims, filter_dims) &&
-             arm_nn_convolve_1_x_n_s8_padding_supported(conv_params, filter_dims, output_dims))
-    {
+    case ARM_NN_CONV_S8_ROUTE_1X1_FAST:
+        return arm_convolve_1x1_s8_fast_get_buffer_size_dsp(input_dims);
+    case ARM_NN_CONV_S8_ROUTE_1X1:
+        return 0;
+    case ARM_NN_CONV_S8_ROUTE_1_X_N:
         return arm_convolve_1_x_n_s8_get_buffer_size(conv_params, input_dims, filter_dims, output_dims);
-    }
-    else
-    {
+    default:
         return arm_convolve_s8_get_buffer_size(input_dims, filter_dims);
     }
 }

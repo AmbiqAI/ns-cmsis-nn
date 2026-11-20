@@ -1,0 +1,14 @@
+# Sources of the host planner library, relative to the repository root. CMakeLists.txt and the tests both read this
+# list; a planner that calls another library query adds its source here.
+Planner/src/arm_nn_plan.c
+Planner/src/arm_nn_plan_route_scalar.c
+Planner/src/arm_nn_plan_route_mve.c
+Planner/src/arm_nn_plan_route_mve_autovec.c
+Source/ConvolutionFunctions/arm_convolve_get_buffer_sizes_s8.c
+Source/ConvolutionFunctions/arm_depthwise_conv_get_buffer_sizes_s8.c
+Source/ConvolutionFunctions/arm_depthwise_conv_s8_opt_3x3.c
+Source/FullyConnectedFunctions/arm_fully_connected_get_buffer_sizes_s8.c
+Source/FullyConnectedFunctions/arm_fully_connected_per_channel_packed_s8.c
+Source/FullyConnectedFunctions/arm_vector_sum_s8.c
+Source/NNSupportFunctions/arm_nn_depthwise_conv_s8_planar.c
+Source/PoolingFunctions/arm_avgpool_get_buffer_sizes_s8.c
