@@ -2053,9 +2053,11 @@ void dilation_arg_check_arm_depthwise_conv_s8_opt(void)
    either side of its gate, must match arm_depthwise_conv_s8() byte for byte and stay inside the reported scratch. */
 #define PLANAR_MAX_IO (48 * 48 * 8)
 #define PLANAR_GUARD (32)
-static int8_t planar_in[PLANAR_MAX_IO], planar_ker[16 * 16 * 40], planar_out[PLANAR_MAX_IO + PLANAR_GUARD],
+#define PLANAR_MAX_CH (128)
+static int8_t planar_in[PLANAR_MAX_IO], planar_ker[16 * 16 * PLANAR_MAX_CH], planar_out[PLANAR_MAX_IO + PLANAR_GUARD],
     planar_ref[PLANAR_MAX_IO];
-static int32_t planar_bias[40], planar_mult[40], planar_shift[40], planar_wsum[40];
+static int32_t planar_bias[PLANAR_MAX_CH], planar_mult[PLANAR_MAX_CH], planar_shift[PLANAR_MAX_CH],
+    planar_wsum[PLANAR_MAX_CH];
 static int8_t planar_scratch[16 * 1024 + PLANAR_GUARD];
 
 static void planar_case(int32_t ih,
@@ -2073,7 +2075,8 @@ static void planar_case(int32_t ih,
 {
     const int32_t oh = ih + 2 * pad_h - (kh - 1);
     const int32_t ow = iw + 2 * pad_w - (kw - 1) * dil;
-    TEST_ASSERT_TRUE(ih * iw * ch <= PLANAR_MAX_IO && oh * ow * ch <= PLANAR_MAX_IO && kh * kw <= 256 && ch <= 40);
+    TEST_ASSERT_TRUE(ih * iw * ch <= PLANAR_MAX_IO && oh * ow * ch <= PLANAR_MAX_IO && kh * kw <= 256 &&
+                     ch <= PLANAR_MAX_CH);
     uint32_t seed = (uint32_t)(ih * 977 + iw * 131 + ch * 7 + kw * 3 + dil);
     for (int32_t i = 0; i < ih * iw * ch; i++)
     {
@@ -2247,12 +2250,16 @@ void planar_shapes_arm_depthwise_conv_s8_opt(void)
         {1, 240, 14, 1, 3, 1, 0, 1, 1}, /* tcn32 */
         {1, 240, 8, 1, 3, 2, 0, 2, 1},   {1, 240, 8, 1, 3, 4, 0, 4, 1},  {1, 240, 8, 1, 3, 8, 0, 8, 1},
         {1, 256, 16, 1, 9, 1, 0, 4, 1}, /* heart-arr */
-        {1, 128, 24, 1, 9, 1, 0, 4, 1},  {1, 64, 32, 1, 9, 1, 0, 4, 1},  {1, 32, 40, 1, 9, 1, 0, 4, 0},
+        {1, 128, 24, 1, 9, 1, 0, 4, 1},  {1, 64, 32, 1, 9, 1, 0, 4, 1},  {1, 32, 40, 1, 9, 1, 0, 4, 1},
         {1, 256, 1, 1, 7, 1, 0, 3, 1}, /* heart-seg */
-        {1, 256, 16, 1, 7, 2, 0, 6, 1},  {1, 256, 24, 1, 7, 4, 0, 12, 1}, {1, 256, 32, 1, 7, 8, 0, 24, 0},
+        {1, 256, 16, 1, 7, 2, 0, 6, 1},  {1, 256, 24, 1, 7, 4, 0, 12, 1}, {1, 256, 32, 1, 7, 8, 0, 24, 1},
         {7, 9, 5, 3, 3, 1, 1, 1, 1},     {9, 17, 16, 5, 5, 1, 2, 2, 1},  {6, 23, 3, 3, 3, 2, 1, 2, 1},
         {1, 11, 6, 1, 5, 1, 0, 0, 0},    {1, 100, 3, 1, 16, 5, 0, 37, 1}, {1, 9, 1, 1, 7, 1, 0, 3, 1},
-        {1, 64, 33, 1, 7, 1, 0, 3, 0},   {1, 40, 17, 1, 5, 1, 0, 2, 1},  {3, 31, 2, 3, 3, 1, 0, 1, 1},
+        {1, 64, 33, 1, 7, 1, 0, 3, 1},   {1, 40, 17, 1, 5, 1, 0, 2, 1},  {3, 31, 2, 3, 3, 1, 0, 1, 1},
+        {1, 240, 32, 1, 7, 8, 0, 24, 1}, /* sleepkit TCN */
+        {1, 240, 48, 1, 7, 8, 0, 24, 1}, {1, 240, 48, 1, 7, 16, 0, 48, 1}, {1, 240, 64, 1, 7, 16, 0, 48, 1},
+        {1, 31, 48, 1, 7, 1, 0, 3, 0},   {1, 33, 48, 1, 4, 1, 0, 1, 0},  {1, 64, 96, 1, 7, 1, 0, 3, 1},
+        {1, 64, 97, 1, 7, 1, 0, 3, 0},
     };
     for (size_t i = 0; i < sizeof(shapes) / sizeof(shapes[0]); i++)
     {
@@ -2267,7 +2274,7 @@ void planar_shapes_arm_depthwise_conv_s8_opt(void)
 void planar_predicate_grid_arm_depthwise_conv_s8_opt(void)
 {
 #if defined(ARM_MATH_DSP) && defined(ARM_MATH_MVEI)
-    const int32_t channels[] = {1, 8, 9, 16, 17, 24, 32, 33};
+    const int32_t channels[] = {1, 8, 9, 16, 17, 24, 32, 33, 48, 96, 97};
     const int32_t kernels[][2] = {{3, 3}, {5, 5}, {1, 3}, {1, 5}, {1, 9}, {1, 16}, {1, 17}};
     const int32_t dilations[] = {1, 2, 4, 8};
     const int32_t sizes[][2] = {{1, 8}, {1, 24}, {1, 64}, {8, 8}, {8, 16}, {12, 32}, {80, 80}};
