@@ -36,7 +36,7 @@ jobs:
         run: python3 scripts/check_zephyr_kconfig.py
 
   apollo510:
-    name: Apollo510 source build (Zephyr SDK and Arm GCC 15)
+    name: Apollo510 EVB build
     runs-on: ubuntu-24.04
     timeout-minutes: 35
     steps:
