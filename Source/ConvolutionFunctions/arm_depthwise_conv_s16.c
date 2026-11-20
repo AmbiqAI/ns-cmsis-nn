@@ -434,16 +434,14 @@ static int32x4_t dw_s16_rq_s64(const int32x4_t acc,
                                const int32_t act_max)
 {
     int32_t res[4];
-    memcpy(res, &acc, sizeof(res));
+    vstrbq_s8((int8_t *)res, vreinterpretq_s8_s32(acc));
     for (int32_t i = 0; i < lanes; i++)
     {
         const int64_t val = (int64_t)res[i] + (bias ? bias[i] : 0);
         const int32_t r = arm_nn_requantize_s64(val, REDUCE_MULTIPLIER(mult[i]), shift[i]);
         res[i] = ARM_NN_MIN(ARM_NN_MAX(r, act_min), act_max);
     }
-    int32x4_t result;
-    memcpy(&result, res, sizeof(result));
-    return result;
+    return vreinterpretq_s32_s8(vldrbq_s8((const int8_t *)res));
 }
 
 /* Requantize one pixel of four channels */
@@ -530,8 +528,7 @@ static void dw_s16_mve(const int16_t *input,
                 offs_buf[i] = (uint32_t)(ARM_NN_MIN(oc + i, output_ch - 1) / ch_mult);
             }
         }
-        uint32x4_t offs;
-        memcpy(&offs, offs_buf, sizeof(offs));
+        const uint32x4_t offs = {offs_buf[0], offs_buf[1], offs_buf[2], offs_buf[3]};
         const int32_t in_off = mode == DW_S16_IN_VEC ? oc : (mode == DW_S16_IN_DUP ? oc / ch_mult : 0);
         uintptr_t in_batch = (uintptr_t)input + (uintptr_t)in_off * sizeof(int16_t);
         uintptr_t out = (uintptr_t)output + (uintptr_t)oc * sizeof(int16_t);

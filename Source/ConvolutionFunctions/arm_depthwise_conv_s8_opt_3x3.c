@@ -44,7 +44,10 @@ __STATIC_FORCEINLINE int64_t dw3_scratch_bytes(const cmsis_nn_dims *input_dims)
 #if defined(ARM_MATH_MVEI) && !defined(ARM_MATH_AUTOVECTORIZE)
 
 // The packed scratch layout contains both byte weights and four-word parameter slots.
-__STATIC_FORCEINLINE void dw3_store_words(void *dst, int32x4_t words) { memcpy(dst, &words, sizeof(words)); }
+__STATIC_FORCEINLINE void dw3_store_words(void *dst, int32x4_t words)
+{
+    vstrbq_s8((int8_t *)dst, vreinterpretq_s8_s32(words));
+}
 
 /* A block is three output rows at one output column; each 4-channel group loads its nine weight vectors once for the
    three rows and reads the input rows in place. Parameters are repacked per 4-channel group as [9 taps x 4 weights][ws]
