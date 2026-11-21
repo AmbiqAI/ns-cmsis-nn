@@ -49,7 +49,7 @@ arm_cmsis_nn_status arm_tanh_s16(const int16_t *input,
     // power-of-two case
     if (input_multiplier == 0)
     {
-        input_multiplier = 3 << input_left_shift;
+        input_multiplier = (int32_t)(3u << input_left_shift);
         input_left_shift = 0;
     }
     const int32_t round = (input_left_shift > 0) ? (1 << (input_left_shift - 1)) : 0;
@@ -149,8 +149,8 @@ arm_cmsis_nn_status arm_tanh_s16(const int16_t *input,
 
     for (int32_t i = 0; i < input_size; i++)
     {
-        int32_t input_data = ((input[i] * input_multiplier + round) >> input_left_shift);
-        uint32_t abs_input_data = (uint32_t)(input_data >= 0 ? input_data : -input_data);
+        const int32_t input_data = arm_nn_mac_wrap_s32_bits(round, input[i], input_multiplier) >> input_left_shift;
+        const uint32_t abs_input_data = input_data < 0 ? 0u - (uint32_t)input_data : (uint32_t)input_data;
         uint32_t uh = abs_input_data >> 8;
         uint32_t result;
         if (uh >= 255)

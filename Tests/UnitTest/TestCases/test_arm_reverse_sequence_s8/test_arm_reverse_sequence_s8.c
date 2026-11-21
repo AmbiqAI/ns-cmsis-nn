@@ -111,6 +111,9 @@ void reverse_sequence_shape_bounds(void)
     TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR, arm_reverse_sequence_s8(&input, &length, &params, &output));
     shape[0] = 1;
     shape[1] = 1;
+    params.seq_dim = params.batch_dim;
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR, arm_reverse_sequence_s8(&input, &length, &params, &output));
+    TEST_ASSERT_EQUAL_INT8(42, output);
     params.seq_dim = 2;
     TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR, arm_reverse_sequence_s8(&input, &length, &params, &output));
 }

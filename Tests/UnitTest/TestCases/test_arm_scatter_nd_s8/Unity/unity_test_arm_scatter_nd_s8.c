@@ -42,3 +42,8 @@ void test_scatter_nd_slice_bounds(void)
 {
     scatter_nd_slice_bounds();
 }
+
+void test_scatter_nd_empty_slices(void)
+{
+    scatter_nd_empty_slices();
+}

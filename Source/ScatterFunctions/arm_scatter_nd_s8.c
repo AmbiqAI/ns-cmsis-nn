@@ -44,18 +44,13 @@ arm_cmsis_nn_status arm_scatter_nd_s8(const int32_t *indices,
     const int32_t *output_strides = params->output_strides;
 
     if (num_updates < 0 || index_depth < 0 || slice_size < 0 || output_size < 0 ||
-        (num_updates && slice_size && index_depth && !output_strides))
+        (slice_size == 0 && output_size != 0) || (num_updates && index_depth && !output_strides))
     {
         return ARM_CMSIS_NN_ARG_ERROR;
     }
 
     /* Zero-initialize output */
     arm_memset_s8(output, 0, (uint32_t)output_size);
-
-    if (slice_size == 0)
-    {
-        return ARM_CMSIS_NN_SUCCESS;
-    }
 
     /* Scatter updates */
     for (int32_t i = 0; i < num_updates; i++)
@@ -66,7 +61,7 @@ arm_cmsis_nn_status arm_scatter_nd_s8(const int32_t *indices,
         {
             const int32_t stride = output_strides[d];
             const int32_t coord = *indices++;
-            if (coord < 0 || stride <= 0)
+            if (coord < 0 || stride < 0 || (stride == 0 && slice_size != 0))
             {
                 return ARM_CMSIS_NN_ARG_ERROR;
             }

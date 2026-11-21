@@ -107,3 +107,20 @@ void scatter_nd_slice_bounds(void)
     params.slice_size = 3;
     TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR, arm_scatter_nd_s8(indices, updates, &params, output));
 }
+
+void scatter_nd_empty_slices(void)
+{
+    const int32_t strides[] = {0, 0};
+    int32_t indices[] = {0, 1, 1, 0};
+    const int8_t update = 7;
+    int8_t output = 42;
+    cmsis_nn_scatter_nd_params params = {
+        .num_updates = 2, .index_depth = 2, .slice_size = 0, .output_size = 0, .output_strides = strides};
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, arm_scatter_nd_s8(indices, &update, &params, &output));
+    indices[3] = -1;
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR, arm_scatter_nd_s8(indices, &update, &params, &output));
+    indices[3] = 0;
+    params.output_size = 1;
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR, arm_scatter_nd_s8(indices, &update, &params, &output));
+    TEST_ASSERT_EQUAL_INT8(42, output);
+}

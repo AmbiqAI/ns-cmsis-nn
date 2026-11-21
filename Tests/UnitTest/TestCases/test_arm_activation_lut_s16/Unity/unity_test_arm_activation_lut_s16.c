@@ -38,6 +38,18 @@ void test_activation_mixed_lanes_and_tail(void)
     TEST_ASSERT_EQUAL_INT16_ARRAY(logistic_expected, output, 9);
 }
 
+void test_activation_minimum_scaled_value(void)
+{
+    const int16_t input[] = {INT16_MIN, INT16_MAX};
+    int16_t output[2];
+    const int16_t tanh_expected[] = {-32767, 32767};
+    const int16_t logistic_expected[] = {1, 32767};
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, arm_tanh_s16(input, output, 2, 65536, 0));
+    TEST_ASSERT_EQUAL_INT16_ARRAY(tanh_expected, output, 2);
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, arm_logistic_s16(input, output, 2, 65536, 0));
+    TEST_ASSERT_EQUAL_INT16_ARRAY(logistic_expected, output, 2);
+}
+
 void test_activation_lookup_lanes(void)
 {
 #if defined(ARM_MATH_MVEI) && !defined(ARM_MATH_AUTOVECTORIZE)

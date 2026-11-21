@@ -42,7 +42,8 @@ arm_cmsis_nn_status arm_reverse_sequence_s8(const int8_t *input,
     const int32_t seq_dim = params->seq_dim;
     const int32_t batch_dim = params->batch_dim;
 
-    if (!shape || rank < 1 || rank > 8 || seq_dim < 0 || seq_dim >= rank || batch_dim < 0 || batch_dim >= rank)
+    if (!shape || rank < 1 || rank > 8 || seq_dim < 0 || seq_dim >= rank || batch_dim < 0 || batch_dim >= rank ||
+        seq_dim == batch_dim)
     {
         return ARM_CMSIS_NN_ARG_ERROR;
     }
