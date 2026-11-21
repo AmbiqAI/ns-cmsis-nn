@@ -22,8 +22,8 @@
  * Title:        arm_nnfunctions.h
  * Description:  Public header file for CMSIS NN Library
  *
- * $Date:        8 October 2026
- * $Revision:    V.19.2.0
+ * $Date:        8 November 2026
+ * $Revision:    V.19.3.0
  *
  * Target :  Arm(R) M-Profile Architecture
  * -------------------------------------------------------------------- */
@@ -1874,7 +1874,11 @@ int32_t arm_convolve_1_x_n_s4_get_buffer_size(const cmsis_nn_conv_params *conv_p
  *                                 are 1 or the layer is 1D and dilated along the width only: filter, input and
  *                                 output height 1, stride 1 in both dimensions, dw_conv_params->padding.h == 0,
  *                                 dilation.h == 1 and dilation.w >= 1. Such a dilated 1D layer therefore reads the
- *                                 sums too. Outside those cases the wrapper calls arm_depthwise_conv_s8(), which
+ *                                 sums too. On MVE, a 3x3 layer on that route is first offered to
+ *                                 arm_depthwise_conv_s8_opt_3x3_c64_s1() (64 channels, stride.h 1) or
+ *                                 arm_depthwise_conv_s8_opt_3x3(), which read the same sums and fall back to
+ *                                 arm_depthwise_conv_s8_opt() for any layer or ctx->size outside their gate.
+ *                                 Outside those cases the wrapper calls arm_depthwise_conv_s8(), which
  *                                 has no such parameter and ignores the context entirely - which is why several
  *                                 in-tree tests legitimately pass sums built by arm_convolve_weight_sum(), or none
  *                                 at all, on those routes (a 2D-dilated layer, for example). On MVE with
@@ -2747,7 +2751,10 @@ arm_cmsis_nn_status arm_depthwise_conv_s8_opt_channelwise(const cmsis_nn_context
  *      padding, as in arm_depthwise_conv_s8().
  *    - Buffers: ctx and weight_sum_ctx and their buf are non-NULL, and ctx->size is at least
  *      arm_depthwise_conv_s8_opt_3x3_get_buffer_size() (3008 + input W x C + 16 bytes). ctx->buf needs no alignment.
- *    - It is a direct entry: arm_depthwise_conv_s8_opt() does not call it. A caller that selects the kernel per layer
+ *    - arm_depthwise_conv_s8_opt() does not call it, but on ARM_MATH_MVEI builds arm_depthwise_conv_wrapper_s8()
+ *      tries it (or arm_depthwise_conv_s8_opt_3x3_c64_s1()) before arm_depthwise_conv_s8_opt() for a 3x3 layer, and
+ *      arm_depthwise_conv_wrapper_s8_get_buffer_size() sizes the scratch for it, so callers of the wrapper get it
+ *      without selecting it. A caller that selects the kernel per layer
  *      ahead of time calls arm_depthwise_conv_s8_opt_3x3_c64_s1() for C 64 with stride.h 1, this function for the
  *      rest of the gate, and arm_depthwise_conv_s8_opt() for every other layer, or on
  *      <code>ARM_CMSIS_NN_NO_IMPL_ERROR</code>. All three take the same arguments and the same weight sums; a ctx

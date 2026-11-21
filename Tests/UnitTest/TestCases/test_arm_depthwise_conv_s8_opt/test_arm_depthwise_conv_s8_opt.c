@@ -3187,6 +3187,134 @@ static void dw3_declines(const dw3_entry_fn entry, const int32_t ch)
     }
 }
 
+/* arm_depthwise_conv_wrapper_s8() on a 3x3 layer: with the wrapper's own scratch size (which on MVE covers the
+   direct 3x3 entries it tries first) and with only the arm_depthwise_conv_s8_opt() size (on which the entries
+   decline and the wrapper falls back), the output must equal arm_depthwise_conv_s8()'s. */
+static void dw3_wrapper_case(const dw3_shape *s, int32_t opt_size_only)
+{
+    cmsis_nn_dims input_dims, filter_dims, bias_dims, output_dims;
+    dw3_dims(s, &input_dims, &filter_dims, &bias_dims, &output_dims);
+    const int32_t out_bytes = output_dims.h * output_dims.w * s->ch;
+    TEST_ASSERT_TRUE(s->ih * s->iw * s->ch <= DW3_MAX_IN && out_bytes <= DW3_MAX_OUT && s->ch <= DW3_MAX_CH);
+    dw3_fill(s, (uint32_t)(s->ih * 389 + s->iw * 61 + s->ch * 11 + s->sy * 5 + s->sx));
+
+    const cmsis_nn_dw_conv_params params = {.input_offset = 128,
+                                            .output_offset = -3,
+                                            .ch_mult = 1,
+                                            .stride = {s->sx, s->sy},
+                                            .padding = {s->pad_x, s->pad_y},
+                                            .dilation = {1, 1},
+                                            .activation = {-128, 127}};
+    const cmsis_nn_per_channel_quant_params quant = {dw3_mult, dw3_shift};
+    const cmsis_nn_context none = {NULL, 0};
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
+                      arm_depthwise_conv_s8(&none,
+                                            &params,
+                                            &quant,
+                                            &input_dims,
+                                            dw3_in,
+                                            &filter_dims,
+                                            dw3_ker,
+                                            &bias_dims,
+                                            dw3_bias,
+                                            &output_dims,
+                                            dw3_ref));
+    (void)arm_depthwise_convolve_weight_sum(
+        dw3_wsum, dw3_scratch, dw3_ker, &params, &input_dims, &filter_dims, &output_dims, 128, dw3_bias);
+    const cmsis_nn_context wsum = {dw3_wsum, s->ch * (int32_t)sizeof(int32_t)};
+
+    const int32_t wrapper_size =
+        arm_depthwise_conv_wrapper_s8_get_buffer_size(&params, &input_dims, &filter_dims, &output_dims);
+    const int32_t opt_size = arm_depthwise_conv_s8_opt_get_buffer_size(&input_dims, &filter_dims);
+    TEST_ASSERT_TRUE(wrapper_size >= 0 && opt_size >= 0);
+#if defined(ARM_MATH_MVEI)
+    const int32_t need = arm_depthwise_conv_s8_opt_3x3_get_buffer_size(&input_dims);
+    TEST_ASSERT_EQUAL_INT32(need > opt_size ? need : opt_size, wrapper_size);
+    TEST_ASSERT_EQUAL_INT32(
+        wrapper_size,
+        arm_depthwise_conv_wrapper_s8_get_buffer_size_mve(&params, &input_dims, &filter_dims, &output_dims));
+#endif
+    const int32_t size = opt_size_only ? opt_size : wrapper_size;
+    TEST_ASSERT_TRUE(size <= DW3_MAX_SCRATCH);
+
+    memset(dw3_out, 0x5A, sizeof(dw3_out));
+    memset(dw3_scratch, 0x3C, sizeof(dw3_scratch));
+    const cmsis_nn_context ctx = {size > 0 ? dw3_scratch + DW3_GUARD : NULL, size};
+    const arm_cmsis_nn_status status = arm_depthwise_conv_wrapper_s8(&ctx,
+                                                                     &wsum,
+                                                                     &params,
+                                                                     &quant,
+                                                                     &input_dims,
+                                                                     dw3_in,
+                                                                     &filter_dims,
+                                                                     dw3_ker,
+                                                                     &bias_dims,
+                                                                     dw3_bias,
+                                                                     &output_dims,
+                                                                     dw3_out + DW3_GUARD);
+    if (status != ARM_CMSIS_NN_SUCCESS || memcmp(dw3_ref, dw3_out + DW3_GUARD, (size_t)out_bytes) != 0)
+    {
+        printf("dw3 wrapper: %dx%dx%d stride %d,%d pad %d,%d scratch %d\n",
+               (int)s->ih,
+               (int)s->iw,
+               (int)s->ch,
+               (int)s->sy,
+               (int)s->sx,
+               (int)s->pad_y,
+               (int)s->pad_x,
+               (int)size);
+    }
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, status);
+    TEST_ASSERT_EQUAL_INT8_ARRAY(dw3_ref, dw3_out + DW3_GUARD, out_bytes);
+    dw3_check_untouched(dw3_out, DW3_GUARD, 0x5A);
+    dw3_check_untouched(dw3_out + DW3_GUARD + out_bytes, DW3_GUARD, 0x5A);
+    dw3_check_untouched(dw3_scratch + DW3_GUARD + size, DW3_GUARD, 0x3C);
+}
+
+void dw3_wrapper_arm_depthwise_conv_s8_opt(void)
+{
+    /* ih, iw, ch, stride_y, stride_x, pad_y, pad_x, oh, ow, exact scratch (unused) */
+    const dw3_shape shapes[] = {
+        {25, 5, 64, 1, 1, 1, 1, 0, 0, 0},    /* KWS DS-CNN: the c64_s1 entry */
+        {12, 12, 64, 2, 2, 0, 0, 6, 6, 0},   /* 64 channels, stride 2: the general entry */
+        {24, 24, 32, 2, 2, 0, 0, 12, 12, 0}, /* VWW dw7 */
+        {11, 7, 16, 1, 1, 1, 1, 0, 0, 0},    /* the smallest channel count in the gate */
+        {9, 9, 68, 2, 2, 1, 1, 0, 0, 0},
+        {6, 24, 68, 1, 1, 1, 1, 0, 0, 0}, /* W x C > 1440: the entries need more than arm_depthwise_conv_s8_opt() */
+        {5, 48, 32, 2, 1, 1, 1, 0, 0, 0}, /* W x C > 1440 */
+        {7, 9, 8, 1, 1, 1, 1, 0, 0, 0},   /* 8 channels: outside the gate, the wrapper's size is unchanged */
+        {4, 9, 32, 1, 1, 0, 1, 0, 0, 0},  /* output H 2, below the gate's 3 rows: the entries decline */
+    };
+    for (size_t i = 0; i < sizeof(shapes) / sizeof(shapes[0]); i++)
+    {
+        dw3_wrapper_case(&shapes[i], 0);
+        dw3_wrapper_case(&shapes[i], 1);
+    }
+
+    /* Outside the gate's shape terms the MVE wrapper sizer sizes for arm_depthwise_conv_s8_opt() alone (on every
+       build: the _mve sizers are plain C for code generators). */
+    const dw3_shape small = {7, 9, 8, 1, 1, 1, 1, 0, 0, 0};
+    cmsis_nn_dims input_dims, filter_dims, bias_dims, output_dims;
+    dw3_dims(&small, &input_dims, &filter_dims, &bias_dims, &output_dims);
+    const cmsis_nn_dw_conv_params params = {.input_offset = 0,
+                                            .output_offset = 0,
+                                            .ch_mult = 1,
+                                            .stride = {1, 1},
+                                            .padding = {1, 1},
+                                            .dilation = {1, 1},
+                                            .activation = {-128, 127}};
+    TEST_ASSERT_EQUAL_INT32(
+        arm_depthwise_conv_s8_opt_get_buffer_size_mve(&input_dims, &filter_dims),
+        arm_depthwise_conv_wrapper_s8_get_buffer_size_mve(&params, &input_dims, &filter_dims, &output_dims));
+
+    /* Inside them, with input W x C > 1440, it sizes for the direct entries. */
+    const dw3_shape wide = {6, 24, 68, 1, 1, 1, 1, 0, 0, 0};
+    dw3_dims(&wide, &input_dims, &filter_dims, &bias_dims, &output_dims);
+    TEST_ASSERT_EQUAL_INT32(
+        arm_depthwise_conv_s8_opt_3x3_get_buffer_size(&input_dims),
+        arm_depthwise_conv_wrapper_s8_get_buffer_size_mve(&params, &input_dims, &filter_dims, &output_dims));
+}
+
 void dw3_declines_arm_depthwise_conv_s8_opt(void)
 {
     dw3_declines(arm_depthwise_conv_s8_opt_3x3, 16);
