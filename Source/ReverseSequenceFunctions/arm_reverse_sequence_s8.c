@@ -42,24 +42,40 @@ arm_cmsis_nn_status arm_reverse_sequence_s8(const int8_t *input,
     const int32_t seq_dim = params->seq_dim;
     const int32_t batch_dim = params->batch_dim;
 
-    if (rank < 1 || rank > 8)
+    if (!shape || rank < 1 || rank > 8 || seq_dim < 0 || seq_dim >= rank || batch_dim < 0 || batch_dim >= rank)
     {
         return ARM_CMSIS_NN_ARG_ERROR;
     }
 
-    /* Compute strides */
-    int32_t strides[8];
-    strides[rank - 1] = 1;
-    for (int32_t d = rank - 2; d >= 0; d--)
-    {
-        strides[d] = strides[d + 1] * shape[d + 1];
-    }
-
-    /* Compute total size */
-    int32_t total_size = 1;
+    bool empty = false;
     for (int32_t d = 0; d < rank; d++)
     {
-        total_size *= shape[d];
+        if (shape[d] < 0)
+        {
+            return ARM_CMSIS_NN_ARG_ERROR;
+        }
+        empty = empty || shape[d] == 0;
+    }
+
+    int32_t strides[8];
+    int32_t total_size = empty ? 0 : 1;
+    for (int32_t d = rank - 1; d >= 0; d--)
+    {
+        strides[d] = total_size;
+        const int64_t product = (int64_t)total_size * shape[d];
+        if (product > INT32_MAX)
+        {
+            return ARM_CMSIS_NN_ARG_ERROR;
+        }
+        total_size = (int32_t)product;
+    }
+
+    for (int32_t b = 0; b < shape[batch_dim]; b++)
+    {
+        if (seq_lengths[b] < 0 || seq_lengths[b] > shape[seq_dim])
+        {
+            return ARM_CMSIS_NN_ARG_ERROR;
+        }
     }
 
     for (int32_t dst_idx = 0; dst_idx < total_size; dst_idx++)

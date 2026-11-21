@@ -43,3 +43,13 @@ void test_reverse_sequence_axis0_s8_arm_reverse_sequence_s8(void)
 {
     reverse_sequence_axis0_s8_arm_reverse_sequence_s8();
 }
+
+void test_reverse_sequence_length_bounds(void)
+{
+    reverse_sequence_length_bounds();
+}
+
+void test_reverse_sequence_shape_bounds(void)
+{
+    reverse_sequence_shape_bounds();
+}

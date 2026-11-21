@@ -43,25 +43,50 @@ arm_cmsis_nn_status arm_scatter_nd_s8(const int32_t *indices,
     const int32_t output_size = params->output_size;
     const int32_t *output_strides = params->output_strides;
 
+    if (num_updates < 0 || index_depth < 0 || slice_size < 0 || output_size < 0 ||
+        (num_updates && slice_size && index_depth && !output_strides))
+    {
+        return ARM_CMSIS_NN_ARG_ERROR;
+    }
+
     /* Zero-initialize output */
     arm_memset_s8(output, 0, (uint32_t)output_size);
+
+    if (slice_size == 0)
+    {
+        return ARM_CMSIS_NN_SUCCESS;
+    }
 
     /* Scatter updates */
     for (int32_t i = 0; i < num_updates; i++)
     {
         int32_t flat_index = 0;
+        int32_t span = output_size;
         for (int32_t d = 0; d < index_depth; d++)
         {
-            flat_index += indices[i * index_depth + d] * output_strides[d];
+            const int32_t stride = output_strides[d];
+            const int32_t coord = *indices++;
+            if (coord < 0 || stride <= 0)
+            {
+                return ARM_CMSIS_NN_ARG_ERROR;
+            }
+            /* A coordinate must select a whole stride within its parent dimension. */
+            const int64_t offset = (int64_t)coord * stride;
+            if (offset + stride > span)
+            {
+                return ARM_CMSIS_NN_ARG_ERROR;
+            }
+            flat_index += (int32_t)offset;
+            span = stride;
         }
-        if (flat_index < 0 || flat_index + slice_size > output_size)
+        if (slice_size > span)
         {
             return ARM_CMSIS_NN_ARG_ERROR;
         }
 
         for (int32_t j = 0; j < slice_size; j++)
         {
-            output[flat_index + j] += updates[i * slice_size + j];
+            output[flat_index + j] += *updates++;
         }
     }
 

@@ -8499,7 +8499,8 @@ arm_broadcast_to_s16(const int16_t *input, const cmsis_nn_broadcast_to_params *p
  * @param[in]   params      Pointer to scatter_nd parameters
  * @param[out]  output      Pointer to output tensor data (pre-allocated by caller)
  *
- * @return     The function returns <code>ARM_CMSIS_NN_SUCCESS</code>
+ * @return     ARM_CMSIS_NN_SUCCESS on success, or ARM_CMSIS_NN_ARG_ERROR for invalid parameters or an
+ *             index outside its output dimension. Earlier updates may already have been applied on error.
  *
  */
 arm_cmsis_nn_status arm_scatter_nd_s8(const int32_t *indices,
@@ -8658,7 +8659,8 @@ arm_cmsis_nn_status arm_select_v2_s16(const bool *condition,
  * @param[in]   params        Pointer to reverse_sequence parameters
  * @param[out]  output        Pointer to output tensor data
  *
- * @return     The function returns <code>ARM_CMSIS_NN_SUCCESS</code>
+ * @return     ARM_CMSIS_NN_SUCCESS on success, or ARM_CMSIS_NN_ARG_ERROR for invalid parameters or a
+ *             sequence length outside [0, shape[seq_dim]].
  *
  */
 arm_cmsis_nn_status arm_reverse_sequence_s8(const int8_t *input,

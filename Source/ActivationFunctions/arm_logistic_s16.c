@@ -19,6 +19,7 @@
  *
  * -------------------------------------------------------------------- */
 
+#include "Internal/arm_nn_activation_lut_s16.h"
 #include "arm_nn_tables.h"
 #include "arm_nn_types.h"
 #include "arm_nnfunctions.h"
@@ -53,7 +54,7 @@ arm_cmsis_nn_status arm_logistic_s16(const int16_t *input,
     }
     const int32_t round = (input_left_shift > 0) ? (1 << (input_left_shift - 1)) : 0;
 
-#if defined(ARM_MATH_MVEI)
+#if defined(ARM_MATH_MVEI) && !defined(ARM_MATH_AUTOVECTORIZE)
 
     int32_t count = input_size;
     int32_t blk_size = (input_size + 7) / 8;
@@ -84,19 +85,15 @@ arm_cmsis_nn_status arm_logistic_s16(const int16_t *input,
         /* Compute table index: uh = abs >> 9, and fractional part: ut = abs & 0x1FF. */
         uint32x4_t uh_lo = vshrq_n_u32(abs_lo, 9);
         uint32x4_t uh_hi = vshrq_n_u32(abs_hi, 9);
-        uint16x8_t uh = vdupq_n_u16(0);
-        uh = vmovnbq_u32(uh, uh_lo);
-        uh = vmovntq_u32(uh, uh_hi);
+        uint16x8_t uh;
+        const mve_pred16_t lookup = arm_nn_activation_lut_indices_s16(uh_lo, uh_hi, &uh) & p;
 
         uint32x4_t ut_lo = vandq_u32(abs_lo, vdupq_n_u32(0x1FF));
         uint32x4_t ut_hi = vandq_u32(abs_hi, vdupq_n_u32(0x1FF));
 
-        /* Sature when uh >= 255 */
-        mve_pred16_t p_sat = vcmpltq_n_s16(vreinterpretq_s16_u16(uh), 255);
-
         /* Gather LUT values for ua and ub (ua = LUT[uh], ub = LUT[uh+1]). */
-        uint16x8_t ua = vldrhq_gather_shifted_offset_z_u16(sigmoid_table_uint16, uh, p_sat);
-        uint16x8_t ub = vldrhq_gather_shifted_offset_z_u16(sigmoid_table_uint16, vaddq_n_u16(uh, 1), p_sat);
+        uint16x8_t ua = vldrhq_gather_shifted_offset_z_u16(sigmoid_table_uint16, uh, lookup);
+        uint16x8_t ub = vldrhq_gather_shifted_offset_z_u16(sigmoid_table_uint16, vaddq_n_u16(uh, 1), lookup);
 
         /* Extend LUT values to 32-bit for interpolation. */
         uint32x4_t ua_lo = vmovlbq_u16(ua);
@@ -109,9 +106,9 @@ arm_cmsis_nn_status arm_logistic_s16(const int16_t *input,
         uint32x4_t interp_hi = vaddq_u32(vshlq_n_u32(ua_hi, 9), vmulq_u32(ut_hi, vsubq_u32(ub_hi, ua_hi)));
 
         /* For values with index (uh) >= 255, saturate to maximum: 0x7FFF << 10 */
-        p_sat = vcmpltq_n_s32(vreinterpretq_s32_u32(uh_lo), 255);
+        mve_pred16_t p_sat = vcmphiq_u32(vdupq_n_u32(255), uh_lo);
         interp_lo = vpselq_u32(interp_lo, vdupq_n_u32(0x7FFF << 10), p_sat);
-        p_sat = vcmpltq_n_s32(vreinterpretq_s32_u32(uh_hi), 255);
+        p_sat = vcmphiq_u32(vdupq_n_u32(255), uh_hi);
         interp_hi = vpselq_u32(interp_hi, vdupq_n_u32(0x7FFF << 10), p_sat);
 
         /* Sign correction:

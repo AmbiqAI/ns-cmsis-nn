@@ -32,3 +32,13 @@ void tearDown(void) {}
 void test_scatter_nd_1d_s8_arm_scatter_nd_s8(void) { scatter_nd_1d_s8_arm_scatter_nd_s8(); }
 void test_scatter_nd_rows_s8_arm_scatter_nd_s8(void) { scatter_nd_rows_s8_arm_scatter_nd_s8(); }
 void test_scatter_nd_points_2d_s8_arm_scatter_nd_s8(void) { scatter_nd_points_2d_s8_arm_scatter_nd_s8(); }
+
+void test_scatter_nd_coordinate_bounds(void)
+{
+    scatter_nd_coordinate_bounds();
+}
+
+void test_scatter_nd_slice_bounds(void)
+{
+    scatter_nd_slice_bounds();
+}
