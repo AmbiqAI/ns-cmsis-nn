@@ -79,9 +79,6 @@ arm_cmsis_nn_status arm_tanh_s16(const int16_t *input,
         output += advance;
     }
 
-#elif defined(ARM_NN_ACTIVATION_S16_DSP_LUT)
-    arm_nn_activation_dsp_s16(input, output, input_size, input_multiplier, input_left_shift, round, true);
-
 #else
 
     for (int32_t i = 0; i < input_size; i++)
