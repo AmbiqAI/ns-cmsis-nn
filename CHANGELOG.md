@@ -1,5 +1,12 @@
 # Changelog
 
+## [7.47.2](https://github.com/AmbiqAI/ns-cmsis-nn/compare/v7.47.1...v7.47.2) (2026-11-21)
+
+
+### Bug Fixes
+
+* **kernels:** validate ReverseSequence and ScatterND indices and bound MVE activation lookups ([#908](https://github.com/AmbiqAI/ns-cmsis-nn/issues/908)) ([efe7771](https://github.com/AmbiqAI/ns-cmsis-nn/commit/efe7771d0e97505e3c1d2188ab3a53269a7e7156))
+
 ## [7.47.1](https://github.com/AmbiqAI/ns-cmsis-nn/compare/v7.47.0...v7.47.1) (2026-11-20)
 
 
