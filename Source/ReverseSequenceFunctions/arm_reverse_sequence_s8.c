@@ -71,9 +71,11 @@ arm_cmsis_nn_status arm_reverse_sequence_s8(const int8_t *input,
         total_size = (int32_t)product;
     }
 
-    for (int32_t b = 0; b < shape[batch_dim]; b++)
+    const int32_t batches = shape[batch_dim];
+    const int32_t sequence_size = shape[seq_dim];
+    for (int32_t b = 0; b < batches; b++)
     {
-        if (seq_lengths[b] < 0 || seq_lengths[b] > shape[seq_dim])
+        if (seq_lengths[b] < 0 || seq_lengths[b] > sequence_size)
         {
             return ARM_CMSIS_NN_ARG_ERROR;
         }
@@ -85,9 +87,14 @@ arm_cmsis_nn_status arm_reverse_sequence_s8(const int8_t *input,
     const int32_t slice = strides[seq_dim > batch_dim ? seq_dim : batch_dim];
     for (int32_t dst = 0; dst < total_size; dst += slice)
     {
-        const int32_t batch = (dst / batch_stride) % shape[batch_dim];
-        const int32_t pos = (dst / seq_stride) % shape[seq_dim];
+        const int32_t batch = (dst / batch_stride) % batches;
+        const int32_t pos = (dst / seq_stride) % sequence_size;
         const int32_t length = seq_lengths[batch];
+        /* Output may share storage with lengths already checked above. */
+        if ((uint32_t)length > (uint32_t)sequence_size)
+        {
+            return ARM_CMSIS_NN_ARG_ERROR;
+        }
         const int32_t src = pos < length ? dst + (length - 1 - pos - pos) * seq_stride : dst;
         if (slice == 1)
         {
