@@ -47,3 +47,16 @@ void test_scatter_nd_empty_slices(void)
 {
     scatter_nd_empty_slices();
 }
+
+void test_scatter_nd_deep_indices(void)
+{
+    const int32_t strides[] = {4, 4, 4, 4, 4, 4, 4, 2, 1};
+    const int32_t indices[] = {0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1};
+    const cmsis_nn_scatter_nd_params params = {
+        .num_updates = 2, .index_depth = 9, .slice_size = 1, .output_size = 4, .output_strides = strides};
+    const int8_t updates[] = {5, 7};
+    const int8_t expected[] = {0, 7, 5, 0};
+    int8_t output[4];
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, arm_scatter_nd_s8(indices, updates, &params, output));
+    TEST_ASSERT_EQUAL_INT8_ARRAY(expected, output, 4);
+}

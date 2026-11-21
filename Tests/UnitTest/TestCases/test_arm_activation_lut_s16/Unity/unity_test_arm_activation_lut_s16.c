@@ -50,19 +50,26 @@ void test_activation_minimum_scaled_value(void)
     TEST_ASSERT_EQUAL_INT16_ARRAY(logistic_expected, output, 2);
 }
 
+void test_activation_last_interpolation_interval(void)
+{
+    const int16_t input[] = {32575, 32576, 32577, 32640, -32575, -32576, -32577, -32640};
+    const int16_t tanh_expected[] = {32766, 32767, 32767, 32767, -32766, -32767, -32767, -32767};
+    const int16_t logistic_expected[] = {32767, 32767, 32767, 32767, 1, 1, 1, 1};
+    int16_t output[8];
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, arm_tanh_s16(input, output, 8, 2, 0));
+    TEST_ASSERT_EQUAL_INT16_ARRAY(tanh_expected, output, 8);
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, arm_logistic_s16(input, output, 8, 4, 0));
+    TEST_ASSERT_EQUAL_INT16_ARRAY(logistic_expected, output, 8);
+}
+
 void test_activation_lookup_lanes(void)
 {
 #if defined(ARM_MATH_MVEI) && !defined(ARM_MATH_AUTOVECTORIZE)
-    const uint32_t even[] = {254, 32767, 65535, 65536};
-    const uint32_t odd[] = {255, 32768, 0, 17};
-    const uint16_t expected[] = {254, 255, 255, 255, 255, 0, 255, 17};
-    uint16x8_t indices;
-    const mve_pred16_t lookup = arm_nn_activation_lut_indices_s16(vld1q_u32(even), vld1q_u32(odd), &indices);
-    uint16_t lanes[8];
-    vst1q_u16(lanes, indices);
-    TEST_ASSERT_EQUAL_UINT16_ARRAY(expected, lanes, 8);
-    /* A 16-bit lane occupies two predicate bits. Only lanes 0, 5 and 7 may gather. */
-    TEST_ASSERT_EQUAL_HEX16(0xCC03, lookup);
+    const uint32_t first[] = {254, 255, 32767, 32768};
+    const uint32_t second[] = {65535, 0, 65536, 17};
+    TEST_ASSERT_EQUAL_HEX16(0x000F, arm_nn_activation_lut_predicate_s16(vld1q_u32(first), vctp32q(4)));
+    TEST_ASSERT_EQUAL_HEX16(0xF0F0, arm_nn_activation_lut_predicate_s16(vld1q_u32(second), vctp32q(4)));
+    TEST_ASSERT_EQUAL_HEX16(0x00F0, arm_nn_activation_lut_predicate_s16(vld1q_u32(second), vctp32q(3)));
 #else
     TEST_IGNORE_MESSAGE("Requires MVE integer intrinsics");
 #endif

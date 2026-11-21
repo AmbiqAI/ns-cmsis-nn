@@ -79,36 +79,24 @@ arm_cmsis_nn_status arm_reverse_sequence_s8(const int8_t *input,
         }
     }
 
-    for (int32_t dst_idx = 0; dst_idx < total_size; dst_idx++)
+    /* Coordinates after both indexed axes form contiguous, unchanged slices. */
+    const int32_t seq_stride = strides[seq_dim];
+    const int32_t batch_stride = strides[batch_dim];
+    const int32_t slice = strides[seq_dim > batch_dim ? seq_dim : batch_dim];
+    for (int32_t dst = 0; dst < total_size; dst += slice)
     {
-        int32_t remainder = dst_idx;
-        int32_t coords[8];
-
-        for (int32_t d = 0; d < rank; d++)
+        const int32_t batch = (dst / batch_stride) % shape[batch_dim];
+        const int32_t pos = (dst / seq_stride) % shape[seq_dim];
+        const int32_t length = seq_lengths[batch];
+        const int32_t src = pos < length ? dst + (length - 1 - pos - pos) * seq_stride : dst;
+        if (slice == 1)
         {
-            coords[d] = remainder / strides[d];
-            remainder %= strides[d];
+            output[dst] = input[src];
         }
-
-        /* Get batch index and seq_length for this batch */
-        int32_t batch_idx = coords[batch_dim];
-        int32_t seq_len = seq_lengths[batch_idx];
-        int32_t seq_coord = coords[seq_dim];
-
-        /* Reverse if within seq_length */
-        if (seq_coord < seq_len)
+        else
         {
-            coords[seq_dim] = seq_len - 1 - seq_coord;
+            memmove(output + dst, input + src, (size_t)slice);
         }
-
-        /* Compute source flat index */
-        int32_t src_idx = 0;
-        for (int32_t d = 0; d < rank; d++)
-        {
-            src_idx += coords[d] * strides[d];
-        }
-
-        output[dst_idx] = input[src_idx];
     }
 
     return ARM_CMSIS_NN_SUCCESS;
