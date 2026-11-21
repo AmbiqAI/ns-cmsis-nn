@@ -272,7 +272,8 @@ jobs:
 
   codegen-tests-mve-float:
     runs-on: ubuntu-latest
-    timeout-minutes: 14
+    # The float coverage legs use the same container and dependency setup as shipped-flags-tests.
+    timeout-minutes: 25
     needs: resolve-container-image
     container:
       image: ${{ needs.resolve-container-image.outputs.container_image }}
