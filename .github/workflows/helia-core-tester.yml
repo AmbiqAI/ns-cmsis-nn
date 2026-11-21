@@ -159,7 +159,8 @@ jobs:
   # -Ofast, Tests/UnitTest/build_and_run_tests.sh).
   shipped-flags-tests:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    # The job clock includes the container pull, cache restore, and dependency retry before FVP execution.
+    timeout-minutes: 25
     needs: resolve-container-image
     container:
       image: ${{ needs.resolve-container-image.outputs.container_image }}
