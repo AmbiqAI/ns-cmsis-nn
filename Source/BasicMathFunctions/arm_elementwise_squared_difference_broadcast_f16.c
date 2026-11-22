@@ -9,7 +9,7 @@
 
 /* The walker calls this loop from several branches. Keep one copy in flash. */
 static __attribute__((noinline)) void
-arm_squared_difference_row_f16(const float16_t scalar, const float16_t *vec, float16_t *out, int32_t count)
+arm_squared_difference_row_f16(const float16_t scalar, const float16_t *vec, float16_t *restrict out, int32_t count)
 {
     #if defined(ARM_MATH_MVE_FLOAT16) && !defined(ARM_MATH_AUTOVECTORIZE)
     const float16x8_t b = vdupq_n_f16(scalar);
@@ -45,17 +45,15 @@ arm_cmsis_nn_status arm_elementwise_squared_difference_broadcast_f16(const float
         return ARM_CMSIS_NN_ARG_ERROR;
     }
 
-    ARM_NN_BROADCAST_WALK_NHWC(float16_t,
-                               float16_t,
-                               input_1_data,
-                               input_1_dims,
-                               input_2_data,
-                               input_2_dims,
-                               output_data,
-                               output_dims,
-                               arm_elementwise_squared_difference_f16,
-                               SQUARED_DIFF_ROW,
-                               SQUARED_DIFF_ROW);
+    ARM_NN_BROADCAST_WALK_SYMMETRIC_NHWC(float16_t,
+                                         input_1_data,
+                                         input_1_dims,
+                                         input_2_data,
+                                         input_2_dims,
+                                         output_data,
+                                         output_dims,
+                                         arm_elementwise_squared_difference_f16,
+                                         SQUARED_DIFF_ROW);
     return ARM_CMSIS_NN_SUCCESS;
 }
 

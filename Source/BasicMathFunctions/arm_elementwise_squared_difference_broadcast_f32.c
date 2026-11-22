@@ -9,8 +9,11 @@
 #if ARM_NN_ENABLE_F32
 
 /* The walker calls this loop from several branches. Keep one copy in flash. */
-static __attribute__((noinline)) void
-arm_squared_difference_row_f32(const float32_t scalar, const float32_t *vec, float32_t *out, int32_t count, int flush)
+static __attribute__((noinline)) void arm_squared_difference_row_f32(const float32_t scalar,
+                                                                     const float32_t *vec,
+                                                                     float32_t *restrict out,
+                                                                     int32_t count,
+                                                                     int flush)
 {
     #if defined(ARM_MATH_MVEF) && !defined(ARM_MATH_AUTOVECTORIZE)
     const float32x4_t b = vdupq_n_f32(scalar);
@@ -65,17 +68,15 @@ arm_cmsis_nn_status arm_elementwise_squared_difference_broadcast_f32(const float
     const int flush = 0;
     #endif
 
-    ARM_NN_BROADCAST_WALK_NHWC(float32_t,
-                               float32_t,
-                               input_1_data,
-                               input_1_dims,
-                               input_2_data,
-                               input_2_dims,
-                               output_data,
-                               output_dims,
-                               arm_elementwise_squared_difference_f32,
-                               SQUARED_DIFF_ROW,
-                               SQUARED_DIFF_ROW);
+    ARM_NN_BROADCAST_WALK_SYMMETRIC_NHWC(float32_t,
+                                         input_1_data,
+                                         input_1_dims,
+                                         input_2_data,
+                                         input_2_dims,
+                                         output_data,
+                                         output_dims,
+                                         arm_elementwise_squared_difference_f32,
+                                         SQUARED_DIFF_ROW);
     return ARM_CMSIS_NN_SUCCESS;
 }
 
