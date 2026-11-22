@@ -59,6 +59,12 @@ arm_nn_broadcast_dims_valid(const cmsis_nn_dims *dims_1, const cmsis_nn_dims *di
         arm_nn_broadcast_dim_valid(dims_1->c, dims_2->c, dims_out->c);
 }
 
+/* The walker uses signed 32-bit offsets. Call after validating all axes as positive. */
+static inline int32_t arm_nn_broadcast_bytes_fit(const cmsis_nn_dims *dims, int32_t element_bytes)
+{
+    return dims->c <= INT32_MAX / element_bytes / dims->n / dims->h / dims->w;
+}
+
 /**
  * @brief Walk an NHWC broadcast of two operands, calling a contiguous kernel on each run.
  *
