@@ -1,5 +1,17 @@
 # Changelog
 
+## [7.48.0](https://github.com/AmbiqAI/ns-cmsis-nn/compare/v7.47.2...v7.48.0) (2026-11-22)
+
+
+### Features
+
+* add a Corstone-320 NSX entry point for integer kernels ([#913](https://github.com/AmbiqAI/ns-cmsis-nn/issues/913)) ([5a2d78b](https://github.com/AmbiqAI/ns-cmsis-nn/commit/5a2d78be4eecf376bb1c6bc5c6f568447ca2bea7))
+
+
+### Bug Fixes
+
+* **headers:** make FP16 finite limits valid in strict C11 ([#912](https://github.com/AmbiqAI/ns-cmsis-nn/issues/912)) ([ee830b5](https://github.com/AmbiqAI/ns-cmsis-nn/commit/ee830b50b4c336129b6cbe1044f047a299b33a04))
+
 ## [7.47.2](https://github.com/AmbiqAI/ns-cmsis-nn/compare/v7.47.1...v7.47.2) (2026-11-21)
 
 
