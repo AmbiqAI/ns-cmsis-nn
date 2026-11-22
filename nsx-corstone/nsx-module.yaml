@@ -1,0 +1,24 @@
+schema_version: 1
+module:
+  name: nsx-corstone-cmsis-nn
+  type: algorithm
+  version: "7.47.2" # x-release-please-version
+support:
+  ambiqsuite: false
+  corstone: true
+  zephyr: false
+summary: Source-built CMSIS-NN integer kernels for Corstone-320 FVP.
+build:
+  cmake:
+    package: nsx_cmsis_nn
+    targets:
+      - nsx::cmsis_nn
+depends:
+  required:
+    - name: nsx-corstone-soc
+      version: ">=0.2.0"
+  optional: []
+compatibility:
+  boards: [corstone320_fvp_u85]
+  socs: [corstone320]
+  toolchains: [arm-none-eabi-gcc]
