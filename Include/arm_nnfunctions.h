@@ -50,6 +50,9 @@
 /** NHWC broadcast squared difference for enabled floating-point types. */
 #define ARM_NN_HAS_SQUARED_DIFFERENCE_BROADCAST_FLOAT 1
 
+/** The float32 NHWC convolution and direct OHWI entries accept grouped standard filters. */
+#define ARM_NN_HAS_GROUPED_CONV_F32 1
+
 #include "arm_nn_math_types.h"
 #include "arm_nn_types.h"
 
