@@ -18,9 +18,19 @@
 #
 
 cmake_minimum_required(VERSION 3.15.6)
-set(CMSIS_OPTIMIZATION_LEVEL "-Ofast" CACHE STRING "Compiler optimization level.")
-option(ARM_NN_ENABLE_F32 "Enable CMSIS-NN float32 extensions." OFF)
-option(ARM_NN_ENABLE_F16 "Enable CMSIS-NN float16 extensions." OFF)
+# Host reference build (cmake/ns_cmsis_nn_host_reference.cmake): plain C for the
+# host CPU, every float width, no fast-math. It changes the defaults below.
+option(NS_CMSIS_NN_HOST_REFERENCE "Build the plain-C host reference library used for test goldens." OFF)
+if(NS_CMSIS_NN_HOST_REFERENCE)
+  set(_ns_cmsis_nn_default_optimization "-O2")
+  set(_ns_cmsis_nn_default_float ON)
+else()
+  set(_ns_cmsis_nn_default_optimization "-Ofast")
+  set(_ns_cmsis_nn_default_float OFF)
+endif()
+set(CMSIS_OPTIMIZATION_LEVEL "${_ns_cmsis_nn_default_optimization}" CACHE STRING "Compiler optimization level.")
+option(ARM_NN_ENABLE_F32 "Enable CMSIS-NN float32 extensions." ${_ns_cmsis_nn_default_float})
+option(ARM_NN_ENABLE_F16 "Enable CMSIS-NN float16 extensions." ${_ns_cmsis_nn_default_float})
 
 # Without this, CMake's ARMClang module appends its own
 # -mcpu=${CMAKE_SYSTEM_PROCESSOR} on top of the flags
@@ -103,6 +113,11 @@ _ns_cmsis_nn_source_options(cmsis-nn
 ns_cmsis_nn_attach(cmsis-nn
                    GROUPS ${_NS_ENABLED_GROUPS}
                    INCLUDE_DIRS_VISIBILITY PUBLIC)
+
+if(NS_CMSIS_NN_HOST_REFERENCE)
+  include(${CMAKE_CURRENT_LIST_DIR}/cmake/ns_cmsis_nn_host_reference.cmake)
+  ns_cmsis_nn_host_reference(cmsis-nn)
+endif()
 
 # Standalone-build-only dependencies (Zephyr / NSX provide their own).
 if(DEFINED CMSIS_PATH)

@@ -151,3 +151,32 @@ jobs:
 
       - name: Compile every public header with host clang
         run: scripts/check_host_clang_headers.sh clang
+
+  host-reference:
+    # The plain-C host reference library helia-core-tester takes goldens from
+    # (cmake/ns_cmsis_nn_host_reference.cmake): its build, its manifest, and every
+    # configuration it refuses. float16_t differs by host (_Float16 on x86-64,
+    # __fp16 on arm64), so both are exercised.
+    name: host-reference / ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, ubuntu-24.04-arm, macos-latest]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Install build dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends cmake ninja-build gcc
+
+      - name: Install build dependencies
+        if: runner.os == 'macOS'
+        run: brew install ninja
+
+      - name: Host reference build and refusals
+        run: python3 scripts/tests/test_host_reference.py -v
