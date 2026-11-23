@@ -3229,7 +3229,7 @@ int32_t arm_depthwise_conv_wrapper_f16_get_buffer_size(const cmsis_nn_dw_conv_pa
  * @param[out]    output_data Pointer to the output tensor data.
  *
  * @note When `conv_params->weight_format` is set to
- *       `ARM_NN_WEIGHT_FORMAT_NT_N_PACKED`, every convolution path, including
+ *       `ARM_NN_WEIGHT_FORMAT_NT_N_PACKED`, every single-group convolution path, including
  *       the 1xN kernels and the generic fallback that runs without scratch,
  *       interprets @p filter_data as an already prepacked `NTxN` RHS buffer
  *       instead of the standard public filter layout.
@@ -3355,7 +3355,7 @@ arm_cmsis_nn_status arm_convolve_nhwc_f16_acc16(const cmsis_nn_context *ctx,
  * @param[in]     layout      Tensor layout selector. Current float APIs require `ARM_NN_LAYOUT_NHWC`.
  *
  * @note When `conv_params->weight_format` is set to
- *       `ARM_NN_WEIGHT_FORMAT_NT_N_PACKED`, every convolution path, including
+ *       `ARM_NN_WEIGHT_FORMAT_NT_N_PACKED`, every single-group convolution path, including
  *       the 1xN kernels and the generic fallback that runs without scratch,
  *       interprets @p filter_data as an already prepacked `NTxN` RHS buffer
  *       instead of the standard public filter layout.
