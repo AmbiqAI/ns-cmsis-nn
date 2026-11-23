@@ -1,17 +1,6 @@
 # SPDX-FileCopyrightText: Copyright 2024-2026 Ambiq <opensource@ambiq.com>
 # SPDX-License-Identifier: LicenseRef-Ambiq-Apollo-SDK
 #
-# Zephyr integration wiring checks. PR-gated, no SDK / no west / no
-# cross-compiler required — every check is configure-time CMake or pure
-# Python and runs in seconds.
-#
-# A real end-to-end `west build` is intentionally not part of this
-# workflow: it would only re-prove what the wiring checks here cover
-# (plus that GCC can compile sources the unit-test suite already
-# exercises), at the cost of a multi-GB Zephyr SDK pull per run. If a
-# future regression requires reintroducing it, add a `workflow_dispatch`
-# job to this file rather than a separate workflow.
-
 name: Zephyr Integration
 
 on:
@@ -45,3 +34,56 @@ jobs:
 
       - name: Run Kconfig contract test
         run: python3 scripts/check_zephyr_kconfig.py
+
+  apollo510:
+    name: Apollo510 EVB build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 35
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          path: helia-core
+      - uses: actions/checkout@v7
+        with:
+          repository: zephyrproject-rtos/zephyr
+          ref: v4.5.0
+          path: workspace/zephyr
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - name: Prepare Apollo510 west workspace
+        working-directory: workspace
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y device-tree-compiler gperf ninja-build
+          python -m pip install -r zephyr/scripts/requirements-base.txt
+          west init -l zephyr
+          west update --narrow -o=--depth=1 cmsis cmsis_6 cmsis-dsp hal_ambiq picolibc
+      - name: Cache Arm Zephyr SDK
+        id: sdk
+        uses: actions/cache@v6
+        with:
+          path: ~/zephyr-sdk-1.0.1
+          key: zephyr-sdk-1.0.1-arm-zephyr-eabi-${{ runner.os }}-${{ runner.arch }}
+      - name: Install Arm Zephyr SDK
+        if: steps.sdk.outputs.cache-hit != 'true'
+        working-directory: workspace
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          west sdk install --version 1.0.1 --gnu-toolchains arm-zephyr-eabi --no-hosttools \
+            --personal-access-token "$GH_TOKEN"
+      - uses: carlosperate/arm-none-eabi-gcc-action@v1
+        with:
+          release: '15.3.Rel1'
+      - name: Build and link all kernel groups with Zephyr integer types
+        working-directory: workspace
+        run: |
+          export ZEPHYR_BASE="$PWD/zephyr"
+          export ZEPHYR_SDK_INSTALL_DIR="$HOME/zephyr-sdk-1.0.1"
+          export GNUARMEMB_TOOLCHAIN_PATH="$(dirname "$(dirname "$(command -v arm-none-eabi-gcc)")")"
+          core="$GITHUB_WORKSPACE/helia-core"
+          for toolchain in zephyr gnuarmemb; do
+            ZEPHYR_TOOLCHAIN_VARIANT="$toolchain" west build -b apollo510_evb "$core/Tests/Zephyr" \
+              -d "build-$toolchain" -- "-DEXTRA_ZEPHYR_MODULES=$core"
+          done

@@ -10,6 +10,7 @@
         { "type": "generic", "path": "Include/arm_nn_types.h" },
         { "type": "generic", "path": "Ambiq.NS-CMSIS-NN.pdsc" },
         { "type": "generic", "path": "nsx/nsx-module.yaml" },
+        { "type": "generic", "path": "nsx-corstone/nsx-module.yaml" },
         {
           "type": "generic",
           "path": "Tests/UnitTest/cmsis/cmsis_nn_unit_tests_flt.csolution.yml"

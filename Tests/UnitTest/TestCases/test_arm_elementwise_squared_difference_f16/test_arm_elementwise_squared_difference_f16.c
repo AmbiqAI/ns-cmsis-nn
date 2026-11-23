@@ -100,3 +100,33 @@ void squared_difference_f16_arg_error(void)
     TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR, arm_elementwise_squared_difference_f16(input, input, output, 0));
     TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR, arm_elementwise_squared_difference_f16(input, input, output, -1));
 }
+
+typedef float16_t broadcast_element;
+#define broadcast_kernel arm_elementwise_squared_difference_broadcast_f16
+#include "../Common/squared_difference_broadcast_tests.h"
+
+static void broadcast_f16_compare_flat(void)
+{
+    const cmsis_nn_dims rows = {1, 1, 2, 1}, full = {1, 1, 2, 9};
+    const uint16_t inf = 0x7c00, nan = 0x7e01, tiny = 0x1000;
+    const float16_t scalars[] = {0, squared_difference_f16_from_bits(&inf)};
+    float16_t vec[18] = {0}, expanded[18], expected[18], out[18];
+    vec[8] = squared_difference_f16_from_bits(&tiny); /* (2^-11)^2 is subnormal. */
+    vec[9] = scalars[1];
+    vec[10] = squared_difference_f16_from_bits(&nan);
+    for (int i = 0; i < 18; ++i)
+        expanded[i] = scalars[i / 9];
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, arm_elementwise_squared_difference_f16(vec, expanded, expected, 18));
+    for (int swap = 0; swap <= 1; ++swap)
+    {
+        TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, broadcast_kernel(swap ? scalars : vec, swap ? &rows : &full,
+            swap ? vec : scalars, swap ? &full : &rows, out, &full));
+        for (int i = 0; i < 18; ++i)
+        {
+            if (squared_difference_f16_bits_are_nan(expected[i]))
+                TEST_ASSERT_TRUE(squared_difference_f16_bits_are_nan(out[i]));
+            else
+                TEST_ASSERT_EQUAL_MEMORY(expected + i, out + i, sizeof(*out));
+        }
+    }
+}

@@ -165,6 +165,19 @@ jobs:
       - name: Report toolchain version
         run: arm-none-eabi-gcc --version
 
+      - name: Compile FP16 activation limits in a strict C11 consumer
+        if: matrix.target_cpu == 'cortex-m55'
+        run: |
+          arm-none-eabi-gcc -mcpu=cortex-m55 -mthumb -mfp16-format=ieee \
+            -std=c11 -pedantic-errors -Wall -Wextra -Werror -DARM_NN_ENABLE_F16=1 \
+            -isystem Include -fsyntax-only -x c - <<'EOF'
+          #include <arm_nn_types.h>
+          const cmsis_nn_activation_f16 clamp_range = {
+              .min = ARM_NN_F16_FINITE_LOWEST,
+              .max = ARM_NN_F16_FINITE_MAX,
+          };
+          EOF
+
       - name: Build static library
         run: |
           set -euo pipefail

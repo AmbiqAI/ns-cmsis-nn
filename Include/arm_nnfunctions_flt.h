@@ -1213,6 +1213,30 @@ arm_cmsis_nn_status arm_elementwise_squared_difference_f32(const float32_t *inpu
                                                            int32_t block_size);
 
 /**
+ * @brief Elementwise squared difference with NHWC broadcasting, without scratch or an activation clamp.
+ *
+ * Each axis must match or have extent 1 in one operand. At round-to-nearest, arithmetic follows
+ * arm_elementwise_squared_difference_f32 on expanded inputs, including its floating-point mode requirements.
+ * NaN payloads are unspecified. The output must be disjoint from both inputs.
+ *
+ * @param[in] input_1_data First contiguous NHWC input.
+ * @param[in] input_1_dims First input shape.
+ * @param[in] input_2_data Second contiguous NHWC input.
+ * @param[in] input_2_dims Second input shape.
+ * @param[out] output_data Contiguous NHWC output.
+ * @param[in] output_dims Per-axis maximum of the input shapes.
+ * @return ARM_CMSIS_NN_SUCCESS, or ARM_CMSIS_NN_ARG_ERROR for null pointers, nonpositive or
+ * incompatible dimensions, an incorrect output shape, or an output larger than INT32_MAX bytes.
+ * Nothing is written on error.
+ */
+arm_cmsis_nn_status arm_elementwise_squared_difference_broadcast_f32(const float32_t *input_1_data,
+                                                                     const cmsis_nn_dims *input_1_dims,
+                                                                     const float32_t *input_2_data,
+                                                                     const cmsis_nn_dims *input_2_dims,
+                                                                     float32_t *output_data,
+                                                                     const cmsis_nn_dims *output_dims);
+
+/**
  * @brief Elementwise absolute value.
  *
  * @param[in]  input       Pointer to the input vector.
@@ -4273,6 +4297,30 @@ arm_cmsis_nn_status arm_elementwise_squared_difference_f16(const float16_t *inpu
                                                            const float16_t *input_2_vect,
                                                            float16_t *output,
                                                            int32_t block_size);
+
+/**
+ * @brief Elementwise squared difference with NHWC broadcasting, without scratch or an activation clamp.
+ *
+ * Each axis must match or have extent 1 in one operand. At round-to-nearest, arithmetic follows
+ * arm_elementwise_squared_difference_f16 on expanded inputs, including its floating-point mode requirements.
+ * NaN payloads are unspecified. The output must be disjoint from both inputs.
+ *
+ * @param[in] input_1_data First contiguous NHWC input.
+ * @param[in] input_1_dims First input shape.
+ * @param[in] input_2_data Second contiguous NHWC input.
+ * @param[in] input_2_dims Second input shape.
+ * @param[out] output_data Contiguous NHWC output.
+ * @param[in] output_dims Per-axis maximum of the input shapes.
+ * @return ARM_CMSIS_NN_SUCCESS, or ARM_CMSIS_NN_ARG_ERROR for null pointers, nonpositive or
+ * incompatible dimensions, an incorrect output shape, or an output larger than INT32_MAX bytes.
+ * Nothing is written on error.
+ */
+arm_cmsis_nn_status arm_elementwise_squared_difference_broadcast_f16(const float16_t *input_1_data,
+                                                                     const cmsis_nn_dims *input_1_dims,
+                                                                     const float16_t *input_2_data,
+                                                                     const cmsis_nn_dims *input_2_dims,
+                                                                     float16_t *output_data,
+                                                                     const cmsis_nn_dims *output_dims);
 
 /**
  * @copydoc arm_nn_abs_f32
