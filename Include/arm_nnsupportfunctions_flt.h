@@ -1667,9 +1667,12 @@ __STATIC_INLINE bool arm_nn_conv_flt_grouped_dims_ok(const cmsis_nn_tile *stride
 {
     if (input_dims->n < 0 || input_dims->h < 0 || input_dims->w < 0 || input_dims->c <= 0 ||
         output_dims->n != input_dims->n || output_dims->h < 0 || output_dims->w < 0 || output_dims->c <= 0 ||
-        filter_dims->n != output_dims->c || filter_dims->c <= 0 || input_dims->c % filter_dims->c != 0 ||
-        output_dims->c % (input_dims->c / filter_dims->c) != 0 || filter_dims->h <= 0 || filter_dims->w <= 0 ||
-        stride->h <= 0 || stride->w <= 0 || dilation->h <= 0 || dilation->w <= 0 || padding->h < 0 || padding->w < 0)
+        filter_dims->n != output_dims->c ||
+        (filter_dims->c != input_dims->c &&
+         (filter_dims->c <= 0 || input_dims->c % filter_dims->c != 0 ||
+          output_dims->c % (input_dims->c / filter_dims->c) != 0)) ||
+        filter_dims->h <= 0 || filter_dims->w <= 0 || stride->h <= 0 || stride->w <= 0 || dilation->h <= 0 ||
+        dilation->w <= 0 || padding->h < 0 || padding->w < 0)
     {
         return false;
     }
@@ -1711,9 +1714,46 @@ __STATIC_INLINE bool arm_nn_conv_flt_dims_ok(const cmsis_nn_tile *stride,
                                              int32_t packed_lanes,
                                              bool packed)
 {
-    return filter_dims->c == input_dims->c &&
-        arm_nn_conv_flt_grouped_dims_ok(
-               stride, padding, dilation, input_dims, filter_dims, output_dims, element_size, packed_lanes, packed);
+    if (input_dims->n < 0 || input_dims->h < 0 || input_dims->w < 0 || input_dims->c <= 0 ||
+        output_dims->n != input_dims->n || output_dims->h < 0 || output_dims->w < 0 || output_dims->c <= 0 ||
+        filter_dims->n != output_dims->c || filter_dims->c != input_dims->c || filter_dims->h <= 0 ||
+        filter_dims->w <= 0 || stride->h <= 0 || stride->w <= 0 || dilation->h <= 0 || dilation->w <= 0 ||
+        padding->h < 0 || padding->w < 0)
+    {
+        return false;
+    }
+    if (arm_nn_conv_flt_empty(output_dims))
+    {
+        return true;
+    }
+    if (input_dims->h == 0 || input_dims->w == 0)
+    {
+        return false;
+    }
+    /* Keep the legacy size checks in this validator. An out-of-line tensor-size check adds a
+     * live stack frame in the ordinary Cortex-M55 convolution path on ATfE. */
+    /* Leave room for the largest vector loop increment as well as packed channel rounding. */
+    const int64_t limit = ARM_NN_MIN((size_t)(INT32_MAX - 2 * packed_lanes), SIZE_MAX / element_size);
+    const int64_t input_hw = (int64_t)input_dims->h * input_dims->w;
+    const int64_t output_hw = (int64_t)output_dims->h * output_dims->w;
+    const int64_t filter_hw = (int64_t)filter_dims->h * filter_dims->w;
+    if (input_hw > limit || output_hw > limit || filter_hw > limit)
+    {
+        return false;
+    }
+    const int64_t input_len = input_hw * input_dims->c;
+    const int64_t output_len = output_hw * output_dims->c;
+    const int64_t patch_len = filter_hw * input_dims->c;
+    if (input_len > limit || output_len > limit || patch_len > limit || output_dims->c > limit)
+    {
+        return false;
+    }
+    const int64_t filter_c =
+        packed ? ((int64_t)output_dims->c + packed_lanes - 1) / packed_lanes * packed_lanes : output_dims->c;
+    return input_len * input_dims->n <= limit && output_len * output_dims->n <= limit &&
+        patch_len * filter_c <= limit &&
+        arm_nn_conv_flt_axis_ok(output_dims->h, filter_dims->h, stride->h, padding->h, dilation->h) &&
+        arm_nn_conv_flt_axis_ok(output_dims->w, filter_dims->w, stride->w, padding->w, dilation->w);
 }
 
 /**

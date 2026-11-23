@@ -250,6 +250,7 @@ jobs:
           # through its direct small-C kernel (AmbiqAI/ns-cmsis-nn#417).
           SUITE_FOR = {
               "arm_convolve_f16": "test_arm_convolve_packed_f16",
+              "arm_convolve_grouped_f16": "test_arm_convolve_packed_f16",
               "arm_convolve_f16_fast_small_kernel": "test_arm_convolve_packed_f16",
               "arm_convolve_f16_group_ch_mult_1": "test_arm_convolve_packed_f16",
           }

@@ -216,6 +216,7 @@ function(_ns_cmsis_nn_group_def group out_subdir out_patterns out_extras)
     endif()
     if(ARM_NN_ENABLE_F16)
       list(APPEND extras "arm_convolve_f16.c"
+                         "arm_convolve_grouped_f16.c"
                          "arm_convolve_f16_fast_small_kernel.c"
                          "arm_convolve_f16_group_ch_mult_1.c"
                          "arm_convolve_1_x_n_f16.c"
