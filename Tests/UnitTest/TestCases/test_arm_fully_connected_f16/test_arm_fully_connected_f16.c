@@ -620,6 +620,9 @@ static void fc16_nan_case(fc16_nan_kind kind, uint16_t lo, uint16_t hi)
                     }
                 }
                 break;
+            default:
+                TEST_FAIL_MESSAGE("Unknown fully connected test case");
+                return;
             }
 
             fc16_nan_run(s, entry, lo, hi, fc16_nan_y);

@@ -101,6 +101,7 @@ jobs:
         test_arm_nn_sqrt_f16
         test_arm_reduce_sum_f16
         test_arm_rsqrt_f16
+        test_arm_nn_exp_f16
         test_arm_softmax_f16
         test_arm_softmax_f16_shapes
       TOOLCHAIN_MANIFEST: ci/toolchains/arm-gnu-floor.json

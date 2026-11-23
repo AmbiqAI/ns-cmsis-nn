@@ -436,6 +436,7 @@ static void tw_expect_refused(const float32_t *input, const cmsis_nn_tree_table_
 static void tw_refused_before_the_walk(void)
 {
     cmsis_nn_tree_node_f32 nodes[3];
+    tw_good_nodes(nodes);
     const float32_t row[2] = {-5.0f, -5.0f};
     const cmsis_nn_tree_table_f32 good = tw_table(nodes, tw_good_roots, 3, 5, 2, 2);
     cmsis_nn_tree_table_f32 table;
@@ -447,7 +448,6 @@ static void tw_refused_before_the_walk(void)
     static const int32_t bad_features[] = {0, -1, INT32_MIN, TW_MOST_FEATURES + 1, INT32_MAX};
     static const uint32_t bad_roots[] = {3u, UINT32_C(0x80000000), UINT32_MAX};
 
-    tw_good_nodes(nodes);
 
     /* The table is good: what refuses below is the one change, not the table. */
     tw_fill(leaf_ids, 2 + TW_GUARD);
@@ -499,13 +499,13 @@ static void tw_refused_before_the_walk(void)
 static void tw_refused_in_the_first_tree(void)
 {
     cmsis_nn_tree_node_f32 nodes[3];
+    tw_good_nodes(nodes);
     const float32_t row[2] = {-5.0f, -5.0f};
     const cmsis_nn_tree_table_f32 table = tw_table(nodes, tw_good_roots, 3, 5, 2, 2);
 
     int32_t leaf_ids[2];
 
     /* The row goes left at split 0, then left at split 1 to leaf 1. */
-    tw_good_nodes(nodes);
     TEST_ASSERT_EQUAL_INT(ARM_CMSIS_NN_SUCCESS, arm_nn_tree_walk_f32(row, &table, leaf_ids));
     TEST_ASSERT_EQUAL_INT32(1, leaf_ids[0]);
 
@@ -536,9 +536,9 @@ static void tw_refused_in_the_first_tree(void)
         /* The same two checks on the right child: this row goes right at split 0. */
         const float32_t above[2] = {5.0f, 5.0f};
         cmsis_nn_tree_node_f32 right_nodes[3];
+        tw_good_nodes(right_nodes);
         const cmsis_nn_tree_table_f32 right_table = tw_table(right_nodes, tw_good_roots, 3, 5, 2, 2);
 
-        tw_good_nodes(right_nodes);
         right_nodes[0].right = 3;
         tw_expect_refused(above, &right_table, "right child == node_count");
         tw_good_nodes(right_nodes);
@@ -555,11 +555,11 @@ static void tw_refused_in_the_first_tree(void)
 static void tw_later_tree_keeps_earlier_leaves(void)
 {
     cmsis_nn_tree_node_f32 nodes[3];
+    tw_good_nodes(nodes);
     const float32_t row[2] = {-5.0f, -5.0f};
     const cmsis_nn_tree_table_f32 table = tw_table(nodes, tw_good_roots, 3, 5, 2, 2);
     int32_t leaf_ids[2 + TW_GUARD];
 
-    tw_good_nodes(nodes);
     nodes[2].feature = 2u;
     tw_fill(leaf_ids, 2 + TW_GUARD);
     TEST_ASSERT_EQUAL_INT(ARM_CMSIS_NN_ARG_ERROR, arm_nn_tree_walk_f32(row, &table, leaf_ids));
@@ -579,11 +579,11 @@ static void tw_later_tree_keeps_earlier_leaves(void)
 static void tw_unreached_defect(void)
 {
     cmsis_nn_tree_node_f32 nodes[3];
+    tw_good_nodes(nodes);
     const float32_t row[2] = {-5.0f, -5.0f};
     const cmsis_nn_tree_table_f32 table = tw_table(nodes, tw_good_roots, 3, 5, 2, 2);
     int32_t leaf_ids[2];
 
-    tw_good_nodes(nodes);
     nodes[0].right = 3; /* This row goes left at split 0. */
     TEST_ASSERT_EQUAL_INT(ARM_CMSIS_NN_SUCCESS, arm_nn_tree_walk_f32(row, &table, leaf_ids));
     TEST_ASSERT_EQUAL_INT32(1, leaf_ids[0]);

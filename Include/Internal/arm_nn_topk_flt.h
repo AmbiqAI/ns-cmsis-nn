@@ -195,7 +195,7 @@ arm_nn_topk_line_32(const uint8_t *row, size_t line, size_t kept_max, uint8_t *r
             continue;
         }
         uint32_t lane_ranks[4];
-        vstrwq_u32(lane_ranks, ranks);
+        arm_nn_mve_store_word_bits(lane_ranks, ranks, tail);
         const size_t lanes = line - i < 4 ? line - i : 4;
         for (size_t j = 0; j < lanes; ++j)
         {

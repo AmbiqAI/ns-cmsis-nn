@@ -477,6 +477,9 @@ static void fc_nan_case(fc_nan_kind kind, float32_t act_min, float32_t act_max)
                 }
             }
             break;
+        default:
+            TEST_FAIL_MESSAGE("Unknown fully connected test case");
+            return;
         }
 
         fc_nan_run(s, act_min, act_max, fc_nan_y);
