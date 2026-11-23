@@ -240,7 +240,7 @@ int32_t arm_depthwise_conv_wrapper_f32_get_buffer_size(const cmsis_nn_dw_conv_pa
  * batches must match. Matching zero batches or zero output spatial extents select a successful no-op.
  *
  * @note When `conv_params->weight_format` is set to
- *       `ARM_NN_WEIGHT_FORMAT_NT_N_PACKED`, every convolution path, including
+ *       `ARM_NN_WEIGHT_FORMAT_NT_N_PACKED`, every single-group convolution path, including
  *       the 1xN kernels and the generic fallback that runs without scratch,
  *       interprets @p filter_data as an already prepacked `NTxN` RHS buffer
  *       instead of the standard public filter layout. Packed weights are supported only when `groups == 1`.
@@ -279,7 +279,7 @@ arm_cmsis_nn_status arm_convolve_nhwc_f32(const cmsis_nn_context *ctx,
  * uses no scratch buffer.
  *
  * @note When `conv_params->weight_format` is set to
- *       `ARM_NN_WEIGHT_FORMAT_NT_N_PACKED`, every convolution path, including
+ *       `ARM_NN_WEIGHT_FORMAT_NT_N_PACKED`, every single-group convolution path, including
  *       the 1xN kernels and the generic fallback that runs without scratch,
  *       interprets @p filter_data as an already prepacked `NTxN` RHS buffer
  *       instead of the standard public filter layout. Packed weights are supported only when `groups == 1`.
