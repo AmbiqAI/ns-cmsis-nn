@@ -22,6 +22,7 @@ file(GLOB SRC_S16 "./*_s16*.c")
 set(SRC_FLT "")
 if (ARM_NN_ENABLE_F32)
   list(APPEND SRC_FLT arm_convolve_f32.c
+                      arm_convolve_grouped_f32.c
                       arm_convolve_1_x_n_f32.c
                       arm_convolve_1x1_f32.c
                       arm_depthwise_conv_f32.c

@@ -209,6 +209,7 @@ function(_ns_cmsis_nn_group_def group out_subdir out_patterns out_extras)
     set(patterns "*_s4*.c" "*_s8*.c" "*_s16*.c")
     if(ARM_NN_ENABLE_F32)
       list(APPEND extras "arm_convolve_f32.c"
+                         "arm_convolve_grouped_f32.c"
                          "arm_convolve_1_x_n_f32.c"
                          "arm_convolve_1x1_f32.c"
                          "arm_depthwise_conv_f32.c"
