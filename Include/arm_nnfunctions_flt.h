@@ -3889,7 +3889,22 @@ arm_cmsis_nn_status arm_convolve_patch_gemm_nhwc_packed_f16_acc16(const cmsis_nn
                                                                   float16_t *output_data);
 
 /**
- * @copydoc arm_convolve_direct_nhwc_ohwi_f32
+ * @brief Direct NHWC float16 convolution with standard OHWI weights.
+ *
+ * @param[in]  ctx         Unused. This entry requires zero scratch bytes.
+ * @param[in]  conv_params Stride, padding, dilation, activation bounds and weight format.
+ * @param[in]  input_dims  Input dimensions [N, H, W, C_IN].
+ * @param[in]  input_data  Input tensor.
+ * @param[in]  filter_dims Filter dimensions [C_OUT, H_K, W_K, C_IN]. Filter depth must equal input depth.
+ * @param[in]  filter_data Weights in the standard OHWI format.
+ * @param[in]  bias_dims   Unused.
+ * @param[in]  bias_data   Optional bias with C_OUT elements.
+ * @param[in]  output_dims Output dimensions [N, H_OUT, W_OUT, C_OUT].
+ * @param[out] output_data Output tensor.
+ *
+ * @return ARM_CMSIS_NN_SUCCESS on completion or for valid empty output, ARM_CMSIS_NN_ARG_ERROR for invalid
+ *         arguments including unequal channel depths, or ARM_CMSIS_NN_NO_IMPL_ERROR for a different weight
+ *         format on nonempty output.
  */
 arm_cmsis_nn_status arm_convolve_direct_nhwc_ohwi_f16(const cmsis_nn_context *ctx,
                                                       const cmsis_nn_conv_params_f16 *conv_params,
@@ -3903,7 +3918,8 @@ arm_cmsis_nn_status arm_convolve_direct_nhwc_ohwi_f16(const cmsis_nn_context *ct
                                                       float16_t *output_data);
 
 /**
- * @copydoc arm_convolve_direct_nhwc_ohwi_f32
+ * @copydoc arm_convolve_direct_nhwc_ohwi_f16
+ * @note Uses the accumulation policy of arm_convolve_f16_acc16().
  */
 arm_cmsis_nn_status arm_convolve_direct_nhwc_ohwi_f16_acc16(const cmsis_nn_context *ctx,
                                                             const cmsis_nn_conv_params_f16 *conv_params,
@@ -3917,7 +3933,22 @@ arm_cmsis_nn_status arm_convolve_direct_nhwc_ohwi_f16_acc16(const cmsis_nn_conte
                                                             float16_t *output_data);
 
 /**
- * @copydoc arm_convolve_direct_nhwc_ohwi_f32
+ * @brief Direct NHWC float16 convolution with prepacked NT_N_PACKED weights.
+ *
+ * @param[in]  ctx         Unused. This entry requires zero scratch bytes.
+ * @param[in]  conv_params Stride, padding, dilation, activation bounds and weight format.
+ * @param[in]  input_dims  Input dimensions [N, H, W, C_IN].
+ * @param[in]  input_data  Input tensor.
+ * @param[in]  filter_dims Filter dimensions [C_OUT, H_K, W_K, C_IN]. Filter depth must equal input depth.
+ * @param[in]  filter_data Weights in the prepacked NT_N_PACKED format.
+ * @param[in]  bias_dims   Unused.
+ * @param[in]  bias_data   Optional bias with C_OUT elements.
+ * @param[in]  output_dims Output dimensions [N, H_OUT, W_OUT, C_OUT].
+ * @param[out] output_data Output tensor.
+ *
+ * @return ARM_CMSIS_NN_SUCCESS on completion or for valid empty output, ARM_CMSIS_NN_ARG_ERROR for invalid
+ *         arguments including unequal channel depths, or ARM_CMSIS_NN_NO_IMPL_ERROR for a different weight
+ *         format on nonempty output.
  */
 arm_cmsis_nn_status arm_convolve_direct_nhwc_packed_f16(const cmsis_nn_context *ctx,
                                                         const cmsis_nn_conv_params_f16 *conv_params,
@@ -3931,7 +3962,8 @@ arm_cmsis_nn_status arm_convolve_direct_nhwc_packed_f16(const cmsis_nn_context *
                                                         float16_t *output_data);
 
 /**
- * @copydoc arm_convolve_direct_nhwc_ohwi_f32
+ * @copydoc arm_convolve_direct_nhwc_packed_f16
+ * @note Uses the accumulation policy of arm_convolve_f16_acc16().
  */
 arm_cmsis_nn_status arm_convolve_direct_nhwc_packed_f16_acc16(const cmsis_nn_context *ctx,
                                                               const cmsis_nn_conv_params_f16 *conv_params,
