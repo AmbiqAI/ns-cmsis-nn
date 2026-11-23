@@ -15,45 +15,45 @@
 #define MAX_F 65
 #define MAX_N 1000
 /* Static arrays keep the embedded test's stack bounded. */
-static float input[MAX_F], refs[MAX_F * MAX_N], deltas[MAX_F * MAX_N];
-static float terms[MAX_F * MAX_N], wanted[MAX_N], actual[MAX_N];
+static float input[MAX_F], refs[MAX_F * MAX_N], actual[MAX_N];
 typedef arm_cmsis_nn_status (*distance_fn)(const float *, const float *, int32_t, int32_t, float *);
 static distance_fn kernels[] = {arm_nn_l1_distance_f32, arm_nn_sq_l2_distance_f32};
 
 static void compare_chain(int32_t n, int32_t f, int square)
 {
-    const cmsis_nn_dims xd = {1, 1, 1, f}, rd = {1, 1, n, f};
-    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
-                      arm_elementwise_sub_broadcast_f32(input, &xd, refs, &rd, deltas, &rd, -FLT_MAX, FLT_MAX));
-    if (square)
+    const cmsis_nn_dims row_dims = {1, 1, 1, f};
+    float deltas[MAX_F], terms[MAX_F];
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, kernels[square](input, refs, n, f, actual));
+    /* Each reference row has an independent reduction. Reuse the oracle's
+     * scratch for each row while exercising the full batch in the fused call. */
+    for (int i = 0; i < n; ++i)
     {
         TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
-                          arm_elementwise_mul_f32(deltas, deltas, terms, -FLT_MAX, FLT_MAX, n * f));
-    }
-    else
-    {
-        TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, arm_nn_abs_f32(deltas, terms, n * f));
-    }
+                          arm_elementwise_sub_broadcast_f32(
+                              input, &row_dims, refs + i * f, &row_dims, deltas, &row_dims, -FLT_MAX, FLT_MAX));
+        if (square)
+        {
+            TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
+                              arm_elementwise_mul_f32(deltas, deltas, terms, -FLT_MAX, FLT_MAX, f));
+        }
+        else
+        {
+            TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, arm_nn_abs_f32(deltas, terms, f));
+        }
 #if defined(ARM_MATH_MVEF) && !defined(ARM_MATH_AUTOVECTORIZE)
-    /* The fused contract has scalar accumulation order even on MVE. The
-     * unfused MVE SUM is deliberately not a bitwise oracle for that order. */
-    for (int row = 0; row < n; ++row)
-    {
+        /* The fused entry accumulates in scalar order on MVE. */
         volatile float sum = 0.0f;
         for (int col = 0; col < f; ++col)
         {
-            sum += terms[row * f + col];
+            sum += terms[col];
         }
-        wanted[row] = sum;
-    }
+        const float wanted = sum;
 #else
-    const cmsis_nn_dims axis = {0, 0, 0, 1}, outd = {1, 1, n, 1};
-    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, arm_reduce_sum_f32(terms, &rd, &axis, wanted, &outd));
+        float wanted;
+        const cmsis_nn_dims axis = {0, 0, 0, 1}, out_dims = {1, 1, 1, 1};
+        TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, arm_reduce_sum_f32(terms, &row_dims, &axis, &wanted, &out_dims));
 #endif
-    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, kernels[square](input, refs, n, f, actual));
-    for (int i = 0; i < n; ++i)
-    {
-        if (isnan(wanted[i]))
+        if (isnan(wanted))
         {
             TEST_ASSERT_TRUE(isnan(actual[i]));
         }
@@ -61,7 +61,7 @@ static void compare_chain(int32_t n, int32_t f, int square)
         {
             uint32_t a, b;
             memcpy(&a, actual + i, sizeof(a));
-            memcpy(&b, wanted + i, sizeof(b));
+            memcpy(&b, &wanted, sizeof(b));
             TEST_ASSERT_EQUAL_HEX32(b, a);
         }
     }
