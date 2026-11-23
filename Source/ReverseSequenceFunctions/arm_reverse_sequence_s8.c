@@ -42,56 +42,68 @@ arm_cmsis_nn_status arm_reverse_sequence_s8(const int8_t *input,
     const int32_t seq_dim = params->seq_dim;
     const int32_t batch_dim = params->batch_dim;
 
-    if (rank < 1 || rank > 8)
+    if (!shape || rank < 1 || rank > 8 || seq_dim < 0 || seq_dim >= rank || batch_dim < 0 || batch_dim >= rank ||
+        seq_dim == batch_dim)
     {
         return ARM_CMSIS_NN_ARG_ERROR;
     }
 
-    /* Compute strides */
-    int32_t strides[8];
-    strides[rank - 1] = 1;
-    for (int32_t d = rank - 2; d >= 0; d--)
-    {
-        strides[d] = strides[d + 1] * shape[d + 1];
-    }
-
-    /* Compute total size */
-    int32_t total_size = 1;
+    bool empty = false;
     for (int32_t d = 0; d < rank; d++)
     {
-        total_size *= shape[d];
+        if (shape[d] < 0)
+        {
+            return ARM_CMSIS_NN_ARG_ERROR;
+        }
+        empty = empty || shape[d] == 0;
     }
 
-    for (int32_t dst_idx = 0; dst_idx < total_size; dst_idx++)
+    int32_t strides[8];
+    int32_t total_size = empty ? 0 : 1;
+    for (int32_t d = rank - 1; d >= 0; d--)
     {
-        int32_t remainder = dst_idx;
-        int32_t coords[8];
-
-        for (int32_t d = 0; d < rank; d++)
+        strides[d] = total_size;
+        const int64_t product = (int64_t)total_size * shape[d];
+        if (product > INT32_MAX)
         {
-            coords[d] = remainder / strides[d];
-            remainder %= strides[d];
+            return ARM_CMSIS_NN_ARG_ERROR;
         }
+        total_size = (int32_t)product;
+    }
 
-        /* Get batch index and seq_length for this batch */
-        int32_t batch_idx = coords[batch_dim];
-        int32_t seq_len = seq_lengths[batch_idx];
-        int32_t seq_coord = coords[seq_dim];
-
-        /* Reverse if within seq_length */
-        if (seq_coord < seq_len)
+    const int32_t batches = shape[batch_dim];
+    const int32_t sequence_size = shape[seq_dim];
+    for (int32_t b = 0; b < batches; b++)
+    {
+        if (seq_lengths[b] < 0 || seq_lengths[b] > sequence_size)
         {
-            coords[seq_dim] = seq_len - 1 - seq_coord;
+            return ARM_CMSIS_NN_ARG_ERROR;
         }
+    }
 
-        /* Compute source flat index */
-        int32_t src_idx = 0;
-        for (int32_t d = 0; d < rank; d++)
+    /* Coordinates after both indexed axes form contiguous, unchanged slices. */
+    const int32_t seq_stride = strides[seq_dim];
+    const int32_t batch_stride = strides[batch_dim];
+    const int32_t slice = strides[seq_dim > batch_dim ? seq_dim : batch_dim];
+    for (int32_t dst = 0; dst < total_size; dst += slice)
+    {
+        const int32_t batch = (dst / batch_stride) % batches;
+        const int32_t pos = (dst / seq_stride) % sequence_size;
+        const int32_t length = seq_lengths[batch];
+        /* Output may share storage with lengths already checked above. */
+        if ((uint32_t)length > (uint32_t)sequence_size)
         {
-            src_idx += coords[d] * strides[d];
+            return ARM_CMSIS_NN_ARG_ERROR;
         }
-
-        output[dst_idx] = input[src_idx];
+        const int32_t src = pos < length ? dst + (length - 1 - pos - pos) * seq_stride : dst;
+        if (slice == 1)
+        {
+            output[dst] = input[src];
+        }
+        else
+        {
+            memmove(output + dst, input + src, (size_t)slice);
+        }
     }
 
     return ARM_CMSIS_NN_SUCCESS;

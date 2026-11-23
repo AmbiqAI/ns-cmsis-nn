@@ -47,8 +47,8 @@ __STATIC_FORCEINLINE void arm_nn_compare_s32(const int32_t *a,
     for (int32_t remaining = count; remaining > 0; remaining -= 4, i += 4)
     {
         const mve_pred16_t p = vctp32q((uint32_t)remaining);
-        const int32x4_t va = scalar_a ? vdupq_n_s32(*a) : vld1q_z(a + i, p);
-        const int32x4_t vb = scalar_b ? vdupq_n_s32(*b) : vld1q_z(b + i, p);
+        const int32x4_t va = scalar_a ? vdupq_n_s32(*a) : vldrwq_z_s32(a + i, p);
+        const int32x4_t vb = scalar_b ? vdupq_n_s32(*b) : vldrwq_z_s32(b + i, p);
         mve_pred16_t match;
         switch (operation)
         {

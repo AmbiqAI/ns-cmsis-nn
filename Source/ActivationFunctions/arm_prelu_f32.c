@@ -74,8 +74,8 @@ static void arm_prelu_vec_f32(const float32_t *input, const float32_t *alpha, fl
     for (int32_t i = 0; i < flat_size; i += 4)
     {
         const mve_pred16_t p = vctp32q((uint32_t)(flat_size - i));
-        const uint32x4_t xb = vld1q_z((const uint32_t *)&input[i], p);
-        const uint32x4_t ab = vld1q_z((const uint32_t *)&alpha[i], p);
+        const uint32x4_t xb = arm_nn_mve_load_word_bits(&input[i], p);
+        const uint32x4_t ab = arm_nn_mve_load_word_bits(&alpha[i], p);
         const float32x4_t vx = vreinterpretq_f32_u32(xb);
         const float32x4_t vneg = vmulq(vx, vreinterpretq_f32_u32(ab));
         const mve_pred16_t pos = vcmpgeq_n_f32(vx, 0.0f);
@@ -117,7 +117,7 @@ arm_prelu_alpha_scalar_f32(const float32_t *input, float32_t alpha_value, float3
     for (int32_t i = 0; i < flat_size; i += 4)
     {
         const mve_pred16_t p = vctp32q((uint32_t)(flat_size - i));
-        const uint32x4_t xb = vld1q_z((const uint32_t *)&input[i], p);
+        const uint32x4_t xb = arm_nn_mve_load_word_bits(&input[i], p);
         const float32x4_t vx = vreinterpretq_f32_u32(xb);
         const float32x4_t vneg = vmulq(vx, va);
         const mve_pred16_t pos = vcmpgeq_n_f32(vx, 0.0f);

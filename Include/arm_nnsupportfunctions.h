@@ -2864,7 +2864,12 @@ __STATIC_FORCEINLINE int32_t arm_nn_mac_wrap_s32_bits(const int32_t acc, const i
 {
     const uint32_t bits = (uint32_t)acc + (uint32_t)a * (uint32_t)b;
     int32_t result;
+#if defined(__GNUC__) || defined(__clang__)
+    /* Keep this register bit-cast inline in freestanding kernel loops. */
+    __builtin_memcpy(&result, &bits, sizeof(result));
+#else
     memcpy(&result, &bits, sizeof(result));
+#endif
     return result;
 }
 

@@ -23,9 +23,9 @@ __STATIC_FORCEINLINE void select_span(const bool *condition,
     {
         const mve_pred16_t p = vctp32q((uint32_t)remaining);
         const uint32x4_t vc = cs == 1 ? vldrbq_z_u32((const uint8_t *)condition + i, p) : vdupq_n_u32(*condition);
-        const int32x4_t vx = xs == 1 ? vld1q_z(x + i, p) : vdupq_n_s32(*x);
-        const int32x4_t vy = ys == 1 ? vld1q_z(y + i, p) : vdupq_n_s32(*y);
-        vstrwq_p(output + i, vpselq(vx, vy, vcmpneq_n_u32(vc, 0)), p);
+        const int32x4_t vx = xs == 1 ? vldrwq_z_s32(x + i, p) : vdupq_n_s32(*x);
+        const int32x4_t vy = ys == 1 ? vldrwq_z_s32(y + i, p) : vdupq_n_s32(*y);
+        arm_nn_mve_store_word_bits(output + i, vreinterpretq_u32_s32(vpselq(vx, vy, vcmpneq_n_u32(vc, 0))), p);
     }
 #else
     for (int32_t i = 0; i < count; ++i)

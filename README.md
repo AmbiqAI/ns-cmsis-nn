@@ -779,3 +779,9 @@ heliaCORE NN is built on top of [Arm CMSIS-NN][upstream] (Apache-2.0).
 We are grateful to the Arm CMSIS-NN team for the foundational kernel work
 and to the TFLM community for the quantization specifications this library
 implements.
+
+### NSX Corstone-320 FVP
+
+The `nsx-corstone-cmsis-nn` entry point in `nsx-corstone/` builds the integer
+kernels from source with Arm GNU. Link `nsx::cmsis_nn` from your application.
+It requires the `nsx::corstone_cpu` target from `nsx-corstone-soc` 0.2.0 or later.
