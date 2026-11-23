@@ -50,8 +50,26 @@ __STATIC_FORCEINLINE int32_t arm_nn_gather_shape(const cmsis_nn_dims *dims, int3
     return 1;
 }
 
+/* The element count of a shape whose extents are non-negative, or 0 where its byte count would
+ * pass INT32_MAX; `rank` is at most 4, the length of every shape here. Small extents take no
+ * division: where every extent is below 2^7 (the OR of the extents is below 128) and an element
+ * is at most four bytes, the count is at most 127^4 = 260,144,641, below 2^28 and so below
+ * INT32_MAX / 4, which the bound below accepts; the product is then the count, zero where an
+ * extent is zero. Otherwise the bound divides per extent. */
 __STATIC_FORCEINLINE int32_t arm_nn_gather_count(const int32_t *shape, int32_t rank, size_t element_size, size_t *count)
 {
+    int32_t any = 0;
+    size_t product = 1;
+    for (int32_t d = 0; d < rank; ++d)
+    {
+        any |= shape[d];
+        product *= (size_t)shape[d];
+    }
+    if (element_size <= sizeof(int32_t) && (uint32_t)any < (UINT32_C(1) << 7))
+    {
+        *count = product;
+        return 1;
+    }
     *count = 1;
     for (int32_t d = 0; d < rank; ++d)
     {
@@ -298,7 +316,48 @@ __STATIC_FORCEINLINE arm_cmsis_nn_status arm_nn_gather_nd_prepare(const void *pa
     return ARM_CMSIS_NN_SUCCESS;
 }
 
-    #define ARM_NN_GATHER_COPY_DEFINE(SUFFIX, TYPE)                                                                    \
+    #if ARM_NN_ENABLE_F32
+/* binary32 encodings read and written through this type, which may alias the float storage. */
+typedef uint32_t arm_nn_gather_bits32_t __attribute__((__may_alias__));
+
+/* One gathered run of `count` binary32 elements, the encodings' bits unchanged. A run under one
+ * vector is copied directly: on Helium by one predicated load and store (a run of four
+ * included), otherwise word by word; a longer run goes to arm_memcpy_f32. */
+__STATIC_FORCEINLINE void arm_nn_gather_row_f32(float32_t *dst, const float32_t *src, uint32_t count)
+{
+        #if defined(ARM_MATH_MVEF) && !defined(ARM_MATH_AUTOVECTORIZE)
+    if (count <= 4U)
+    {
+        const mve_pred16_t p = vctp32q(count);
+        vstrwq_p(dst, vld1q_z(src, p), p);
+        return;
+    }
+        #else
+    if (count < 4U)
+    {
+        arm_nn_gather_bits32_t *to = (arm_nn_gather_bits32_t *)(void *)dst;
+        const arm_nn_gather_bits32_t *from = (const arm_nn_gather_bits32_t *)(const void *)src;
+        if (count > 0U)
+        {
+            to[0] = from[0];
+        }
+        if (count > 1U)
+        {
+            to[1] = from[1];
+        }
+        if (count > 2U)
+        {
+            to[2] = from[2];
+        }
+        return;
+    }
+        #endif
+    arm_memcpy_f32(dst, src, count);
+}
+    #endif
+
+    /* ROW copies one gathered run of GATHER; GATHER_ND's runs go to arm_memcpy_##SUFFIX. */
+    #define ARM_NN_GATHER_COPY_DEFINE(SUFFIX, TYPE, ROW)                                                               \
         __STATIC_FORCEINLINE void arm_nn_gather_copy_##SUFFIX(                                                         \
             const TYPE *input, const int32_t *indices, TYPE *output, const arm_nn_gather_plan *plan)                   \
         {                                                                                                              \
@@ -310,7 +369,7 @@ __STATIC_FORCEINLINE arm_cmsis_nn_status arm_nn_gather_nd_prepare(const void *pa
                     for (size_t c = 0; c < plan->coords; ++c)                                                          \
                     {                                                                                                  \
                         const size_t offset = base + (size_t)indices[batch * plan->coords + c] * plan->inner;          \
-                        arm_memcpy_##SUFFIX(output, input + offset, (uint32_t)plan->inner);                            \
+                        ROW(output, input + offset, (uint32_t)plan->inner);                                            \
                         output += plan->inner;                                                                         \
                     }                                                                                                  \
                 }                                                                                                      \
@@ -335,10 +394,10 @@ __STATIC_FORCEINLINE arm_cmsis_nn_status arm_nn_gather_nd_prepare(const void *pa
         }
 
     #if ARM_NN_ENABLE_F32
-ARM_NN_GATHER_COPY_DEFINE(f32, float32_t)
+ARM_NN_GATHER_COPY_DEFINE(f32, float32_t, arm_nn_gather_row_f32)
     #endif
     #if ARM_NN_ENABLE_F16
-ARM_NN_GATHER_COPY_DEFINE(f16, float16_t)
+ARM_NN_GATHER_COPY_DEFINE(f16, float16_t, arm_memcpy_f16)
     #endif
 
 #endif /* ARM_NN_FLOAT_API_ENABLED */

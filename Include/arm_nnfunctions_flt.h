@@ -67,12 +67,13 @@ extern "C" {
  * scratch: at least 4-byte aligned for float32_t and at least 2-byte aligned for float16_t.
  *
  * @note Accumulation and NaN, per leg (AmbiqAI/ns-cmsis-nn#448). Every route accumulates the bias and every tap in
- *       float32 on every leg. A NaN input tap or weight does not propagate: the `ch_mult == 1` direct kernel's MVE
- *       leg clamps it to the activation minimum (`vmaxnm` / `vminnm`); the MVE to-convolution route (input
- *       channels 1, output channels 8 or more, ctx supplied) clamps it to the activation minimum
- *       (`arm_nn_clamp_mve_f32`); its scalar leg and the `ch_mult > 1` generic kernel clamp it to the activation
- *       maximum (`ARM_NN_CLAMP`). That is the pre-#448 behavior of these routes; unifying it with the float16
- *       scalar leg under the #334 promise is a separate issue.
+ *       float32 on every leg. On the direct and generic kernels a NaN input tap or weight does not propagate: the
+ *       `ch_mult == 1` direct kernel's MVE leg clamps it to the activation minimum (`vmaxnm` / `vminnm`); its
+ *       scalar leg and the `ch_mult > 1` generic kernel clamp it to the activation maximum (`ARM_NN_CLAMP`). That
+ *       is the pre-#448 behavior of these routes; unifying it with the float16 scalar leg under the #334 promise is
+ *       a separate issue. The MVE to-convolution route (input channels 1, output channels 8 or more, ctx supplied)
+ *       runs a float matmul product, whose clamp passes a NaN accumulator through to that output
+ *       (ARM_NN_HAS_MAT_MULT_FLT_NAN_PROPAGATION).
  *
  * @return `ARM_CMSIS_NN_SUCCESS` on success or `ARM_CMSIS_NN_ARG_ERROR` on invalid arguments.
  */
@@ -107,12 +108,13 @@ arm_cmsis_nn_status arm_depthwise_nhwc_conv_f32(const cmsis_nn_context *ctx,
  * scratch: at least 4-byte aligned for float32_t and at least 2-byte aligned for float16_t.
  *
  * @note Accumulation and NaN, per leg (AmbiqAI/ns-cmsis-nn#448). Every route accumulates the bias and every tap in
- *       float32 on every leg. A NaN input tap or weight does not propagate: the `ch_mult == 1` direct kernel's MVE
- *       leg clamps it to the activation minimum (`vmaxnm` / `vminnm`); the MVE to-convolution route (input
- *       channels 1, output channels 8 or more, ctx supplied) clamps it to the activation minimum
- *       (`arm_nn_clamp_mve_f32`); its scalar leg and the `ch_mult > 1` generic kernel clamp it to the activation
- *       maximum (`ARM_NN_CLAMP`). That is the pre-#448 behavior of these routes; unifying it with the float16
- *       scalar leg under the #334 promise is a separate issue.
+ *       float32 on every leg. On the direct and generic kernels a NaN input tap or weight does not propagate: the
+ *       `ch_mult == 1` direct kernel's MVE leg clamps it to the activation minimum (`vmaxnm` / `vminnm`); its
+ *       scalar leg and the `ch_mult > 1` generic kernel clamp it to the activation maximum (`ARM_NN_CLAMP`). That
+ *       is the pre-#448 behavior of these routes; unifying it with the float16 scalar leg under the #334 promise is
+ *       a separate issue. The MVE to-convolution route (input channels 1, output channels 8 or more, ctx supplied)
+ *       runs a float matmul product, whose clamp passes a NaN accumulator through to that output
+ *       (ARM_NN_HAS_MAT_MULT_FLT_NAN_PROPAGATION).
  *
  * @return `ARM_CMSIS_NN_SUCCESS` on success or `ARM_CMSIS_NN_ARG_ERROR` on invalid arguments.
  */
@@ -146,12 +148,13 @@ arm_cmsis_nn_status arm_depthwise_conv_f32(const cmsis_nn_context *ctx,
  * scratch: at least 4-byte aligned for float32_t and at least 2-byte aligned for float16_t.
  *
  * @note Accumulation and NaN, per leg (AmbiqAI/ns-cmsis-nn#448). Every route accumulates the bias and every tap in
- *       float32 on every leg. A NaN input tap or weight does not propagate: the `ch_mult == 1` direct kernel's MVE
- *       leg clamps it to the activation minimum (`vmaxnm` / `vminnm`); the MVE to-convolution route (input
- *       channels 1, output channels 8 or more, ctx supplied) clamps it to the activation minimum
- *       (`arm_nn_clamp_mve_f32`); its scalar leg and the `ch_mult > 1` generic kernel clamp it to the activation
- *       maximum (`ARM_NN_CLAMP`). That is the pre-#448 behavior of these routes; unifying it with the float16
- *       scalar leg under the #334 promise is a separate issue.
+ *       float32 on every leg. On the direct and generic kernels a NaN input tap or weight does not propagate: the
+ *       `ch_mult == 1` direct kernel's MVE leg clamps it to the activation minimum (`vmaxnm` / `vminnm`); its
+ *       scalar leg and the `ch_mult > 1` generic kernel clamp it to the activation maximum (`ARM_NN_CLAMP`). That
+ *       is the pre-#448 behavior of these routes; unifying it with the float16 scalar leg under the #334 promise is
+ *       a separate issue. The MVE to-convolution route (input channels 1, output channels 8 or more, ctx supplied)
+ *       runs a float matmul product, whose clamp passes a NaN accumulator through to that output
+ *       (ARM_NN_HAS_MAT_MULT_FLT_NAN_PROPAGATION).
  *
  * @return `ARM_CMSIS_NN_SUCCESS` on success or `ARM_CMSIS_NN_ARG_ERROR` on invalid arguments.
  */
@@ -239,6 +242,14 @@ int32_t arm_depthwise_conv_wrapper_f32_get_buffer_size(const cmsis_nn_dw_conv_pa
  *       interprets @p filter_data as an already prepacked `NTxN` RHS buffer
  *       instead of the standard public filter layout.
  *
+ * @note NaN (ARM_NN_HAS_MAT_MULT_FLT_NAN_PROPAGATION): where this entry's route runs a float matmul product
+ *       (arm_nn_mat_mult_nt_t_f32 or arm_nn_mat_mult_nt_n_packed_f32, or for float16 their `_f16` and `_f16_acc16`
+ *       twins), the product's clamp passes a NaN
+ *       accumulator through on every leg: a NaN input, weight or bias, or an inf * 0 or inf - inf in the dot
+ *       product, yields NaN at that output. Only the NaN-ness is guaranteed, not the payload (Helium arithmetic
+ *       returns the default NaN). An infinite accumulator saturates to the activation bounds. Routes that clamp on
+ *       their own keep their documented behaviour.
+ *
  * @return `ARM_CMSIS_NN_SUCCESS` on success or `ARM_CMSIS_NN_ARG_ERROR` on invalid arguments.
  */
 arm_cmsis_nn_status arm_convolve_nhwc_f32(const cmsis_nn_context *ctx,
@@ -273,6 +284,14 @@ arm_cmsis_nn_status arm_convolve_nhwc_f32(const cmsis_nn_context *ctx,
  *       interprets @p filter_data as an already prepacked `NTxN` RHS buffer
  *       instead of the standard public filter layout.
  *
+ * @note NaN (ARM_NN_HAS_MAT_MULT_FLT_NAN_PROPAGATION): where this entry's route runs a float matmul product
+ *       (arm_nn_mat_mult_nt_t_f32 or arm_nn_mat_mult_nt_n_packed_f32, or for float16 their `_f16` and `_f16_acc16`
+ *       twins), the product's clamp passes a NaN
+ *       accumulator through on every leg: a NaN input, weight or bias, or an inf * 0 or inf - inf in the dot
+ *       product, yields NaN at that output. Only the NaN-ness is guaranteed, not the payload (Helium arithmetic
+ *       returns the default NaN). An infinite accumulator saturates to the activation bounds. Routes that clamp on
+ *       their own keep their documented behaviour.
+ *
  * @return `ARM_CMSIS_NN_SUCCESS` on success or `ARM_CMSIS_NN_ARG_ERROR` on invalid arguments.
  */
 arm_cmsis_nn_status arm_convolve_f32(const cmsis_nn_context *ctx,
@@ -301,6 +320,14 @@ arm_cmsis_nn_status arm_convolve_f32(const cmsis_nn_context *ctx,
  * @param[in]     output_dims Output tensor dimensions. Format: [N, H, W, C_OUT].
  * @param[out]    output_data Pointer to the output tensor data.
  *
+ * @note NaN (ARM_NN_HAS_MAT_MULT_FLT_NAN_PROPAGATION): where this entry's route runs a float matmul product
+ *       (arm_nn_mat_mult_nt_t_f32 or arm_nn_mat_mult_nt_n_packed_f32, or for float16 their `_f16` and `_f16_acc16`
+ *       twins), the product's clamp passes a NaN
+ *       accumulator through on every leg: a NaN input, weight or bias, or an inf * 0 or inf - inf in the dot
+ *       product, yields NaN at that output. Only the NaN-ness is guaranteed, not the payload (Helium arithmetic
+ *       returns the default NaN). An infinite accumulator saturates to the activation bounds. Routes that clamp on
+ *       their own keep their documented behaviour.
+ *
  * @return `ARM_CMSIS_NN_SUCCESS` on success or `ARM_CMSIS_NN_ARG_ERROR` on invalid arguments.
  */
 arm_cmsis_nn_status arm_convolve_wrapper_f32(const cmsis_nn_context *ctx,
@@ -327,6 +354,14 @@ arm_cmsis_nn_status arm_convolve_wrapper_f32(const cmsis_nn_context *ctx,
  * @param[in]     bias_data   Optional bias tensor data.
  * @param[in]     output_dims Output tensor dimensions. Format: [N, H, W, C_OUT].
  * @param[out]    output_data Pointer to the output tensor data.
+ *
+ * @note NaN (ARM_NN_HAS_MAT_MULT_FLT_NAN_PROPAGATION): where this entry's route runs a float matmul product
+ *       (arm_nn_mat_mult_nt_t_f32 or arm_nn_mat_mult_nt_n_packed_f32, or for float16 their `_f16` and `_f16_acc16`
+ *       twins), the product's clamp passes a NaN
+ *       accumulator through on every leg: a NaN input, weight or bias, or an inf * 0 or inf - inf in the dot
+ *       product, yields NaN at that output. Only the NaN-ness is guaranteed, not the payload (Helium arithmetic
+ *       returns the default NaN). An infinite accumulator saturates to the activation bounds. Routes that clamp on
+ *       their own keep their documented behaviour.
  *
  * @return `ARM_CMSIS_NN_SUCCESS` on success or `ARM_CMSIS_NN_ARG_ERROR` on invalid arguments.
  */
@@ -399,6 +434,14 @@ arm_cmsis_nn_status arm_convolve_1x1_nhwc_packed_f32(const cmsis_nn_context *ctx
  *       convolution paths interpret @p filter_data as an already prepacked
  *       `NTxN` RHS buffer instead of the standard public filter layout.
  *
+ * @note NaN (ARM_NN_HAS_MAT_MULT_FLT_NAN_PROPAGATION): where this entry's route runs a float matmul product
+ *       (arm_nn_mat_mult_nt_t_f32 or arm_nn_mat_mult_nt_n_packed_f32, or for float16 their `_f16` and `_f16_acc16`
+ *       twins), the product's clamp passes a NaN
+ *       accumulator through on every leg: a NaN input, weight or bias, or an inf * 0 or inf - inf in the dot
+ *       product, yields NaN at that output. Only the NaN-ness is guaranteed, not the payload (Helium arithmetic
+ *       returns the default NaN). An infinite accumulator saturates to the activation bounds. Routes that clamp on
+ *       their own keep their documented behaviour.
+ *
  * @return `ARM_CMSIS_NN_SUCCESS` on success or `ARM_CMSIS_NN_ARG_ERROR` on invalid arguments.
  */
 arm_cmsis_nn_status arm_convolve_1x1_f32(const cmsis_nn_context *ctx,
@@ -442,6 +485,14 @@ arm_cmsis_nn_status arm_convolve_1x1_f32(const cmsis_nn_context *ctx,
  *       channels), and through a strided kernel otherwise. The float16 entries
  *       also do so from 80 taps when 4 to 7 output channels remain in the last
  *       8-channel block.
+ *
+ * @note NaN (ARM_NN_HAS_MAT_MULT_FLT_NAN_PROPAGATION): where this entry's route runs a float matmul product
+ *       (arm_nn_mat_mult_nt_t_f32 or arm_nn_mat_mult_nt_n_packed_f32, or for float16 their `_f16` and `_f16_acc16`
+ *       twins), the product's clamp passes a NaN
+ *       accumulator through on every leg: a NaN input, weight or bias, or an inf * 0 or inf - inf in the dot
+ *       product, yields NaN at that output. Only the NaN-ness is guaranteed, not the payload (Helium arithmetic
+ *       returns the default NaN). An infinite accumulator saturates to the activation bounds. Routes that clamp on
+ *       their own keep their documented behaviour.
  *
  * @return `ARM_CMSIS_NN_SUCCESS` on success or `ARM_CMSIS_NN_ARG_ERROR` on invalid arguments.
  */
@@ -526,6 +577,14 @@ arm_cmsis_nn_status arm_convolve_1_x_n_nhwc_packed_f32(const cmsis_nn_context *c
  *       channels), and through a strided kernel otherwise. The float16 entries
  *       also do so from 80 taps when 4 to 7 output channels remain in the last
  *       8-channel block.
+ *
+ * @note NaN (ARM_NN_HAS_MAT_MULT_FLT_NAN_PROPAGATION): where this entry's route runs a float matmul product
+ *       (arm_nn_mat_mult_nt_t_f32 or arm_nn_mat_mult_nt_n_packed_f32, or for float16 their `_f16` and `_f16_acc16`
+ *       twins), the product's clamp passes a NaN
+ *       accumulator through on every leg: a NaN input, weight or bias, or an inf * 0 or inf - inf in the dot
+ *       product, yields NaN at that output. Only the NaN-ness is guaranteed, not the payload (Helium arithmetic
+ *       returns the default NaN). An infinite accumulator saturates to the activation bounds. Routes that clamp on
+ *       their own keep their documented behaviour.
  *
  * @return `ARM_CMSIS_NN_SUCCESS` on success or `ARM_CMSIS_NN_ARG_ERROR` on invalid arguments.
  */
@@ -795,6 +854,14 @@ arm_cmsis_nn_status arm_convolve_small_c_nhwc_f32(const cmsis_nn_context *ctx,
  * @param[in]      bias_data      Bias data pointer, or NULL for no bias. Data type: float32
  * @param[in]      output_dims    Output tensor dimensions. Format: [N, H, W, C_OUT]
  * @param[out]     output_data    Output data pointer. Data type: float32
+ *
+ * @note NaN (ARM_NN_HAS_MAT_MULT_FLT_NAN_PROPAGATION): where this entry's route runs a float matmul product
+ *       (arm_nn_mat_mult_nt_t_f32 or arm_nn_mat_mult_nt_n_packed_f32, or for float16 their `_f16` and `_f16_acc16`
+ *       twins), the product's clamp passes a NaN
+ *       accumulator through on every leg: a NaN input, weight or bias, or an inf * 0 or inf - inf in the dot
+ *       product, yields NaN at that output. Only the NaN-ness is guaranteed, not the payload (Helium arithmetic
+ *       returns the default NaN). An infinite accumulator saturates to the activation bounds. Routes that clamp on
+ *       their own keep their documented behaviour.
  *
  * @return     The function returns one of the following
  *                <code>ARM_CMSIS_NN_ARG_ERROR</code> - conv_params, a dimension or a data pointer other than
@@ -1586,6 +1653,59 @@ arm_cmsis_nn_status arm_elementwise_mul_broadcast_f32(const float32_t *input_1_d
 arm_cmsis_nn_status arm_nn_sqrt_f32(const float32_t *input, float32_t *output, int32_t block_size);
 
 /**
+ * @brief Elementwise exponential, `exp(x)`: the LiteRT `EXP` builtin on a float32 tensor.
+ *
+ * The scalar body, `arm_nn_exp_scalar_f32` in `Internal/arm_nn_exp_flt.h`, is heliaML's
+ * `heliaml_reference_exp_f32` (helia-ml 4633a47c): a Cody-Waite reduction
+ * `x = n ln2 + r` and a degree-6 minimax polynomial in `r` evaluated in `fmaf`, scaled by
+ * `2^n` through the exponent bits. Its result is bit-identical to heliaML's on all
+ * 4 278 190 082 non-NaN float32 inputs, measured exhaustively, and does not depend on
+ * the optimisation level, on contraction or on the compiler (GCC or LLVM fast-math):
+ * every classification is on the bit pattern and the scaling leaves no float operation
+ * to reassociate.
+ *
+ * Value path per leg: under `ARM_MATH_MVEF && !ARM_MATH_AUTOVECTORIZE` a Helium body,
+ * `arm_nn_exp_mve_f32`, runs the same operations four lanes at a time, tail-predicated,
+ * and is bit-identical to the scalar body on every input whose scalar result is not
+ * subnormal; every other build runs the scalar body.
+ *
+ * Accuracy: `|y - exp(x)| <= 2^-149 + 2.5e-7 * exp(x)` against a float64 exponential,
+ * which is helia-ml's `EXP_F32` (python/helia_ml/tolerance.py). heliaML measured it over
+ * every float32 argument this body computes, `[-103.97, 88.7228317]`: at most 1.09 ulp
+ * from the float64 exponential for a normal result, 0.93 of a subnormal step below the
+ * normal range. The identity above is what carries that measurement here.
+ *
+ * Results by input:
+ * - NaN: the same NaN with the quiet bit set, sign and payload kept.
+ * - `x < -103.97f`, `-Inf` included: `+0`.
+ * - `x > 88.7228317f`, `+Inf` included: `+Inf`. `0x42B17217` is the largest input with a
+ *   finite result.
+ * - `+0` and `-0`: exactly `1.0f`. A subnormal input gives `1.0f` too, on every leg.
+ * - `-103.97f <= x < -87.3366f` (bits `0xC2CFF0A4` down to `0xC2AEAC50`, 2 180 181
+ *   inputs): on the scalar leg a subnormal result, below `2^-126`, rounded once, which
+ *   follows FPSCR.FZ: with FZ set (as the Apollo510 Lite and Apollo330M Plus images
+ *   start) it is `+0`. On the Helium leg it is `+0` whatever FZ holds, because Helium
+ *   flushes subnormal results.
+ *
+ * FPSCR: the rounding mode is neither set nor read, and the results above are at
+ * round-to-nearest; on the scalar leg FZ flushes subnormal results as stated, and a
+ * subnormal input reads as zero, whose result is the same `1.0f`; the Helium leg
+ * flushes regardless of FZ; DN changes nothing on either leg, because NaN results are
+ * built from the input's bits. The cumulative exception flags are not part of the
+ * contract: an exponential raises inexact, overflow and underflow by nature.
+ *
+ * No scratch, no state: the call reads @p input and writes @p output only.
+ *
+ * @param[in]  input       Pointer to the input vector.
+ * @param[out] output      Pointer to the output vector; may alias @p input.
+ * @param[in]  block_size  Number of elements to process.
+ *
+ * @return `ARM_CMSIS_NN_SUCCESS` on success, or `ARM_CMSIS_NN_ARG_ERROR` without writing
+ *         @p output when @p input or @p output is NULL or @p block_size is below 1.
+ */
+arm_cmsis_nn_status arm_nn_exp_f32(const float32_t *input, float32_t *output, int32_t block_size);
+
+/**
  * @brief Elementwise reciprocal square root, `1 / sqrt(x)`.
  *
  * Same value path as arm_nn_sqrt_f32, including its FPSCR.FZ behaviour on subnormal
@@ -1625,6 +1745,17 @@ arm_cmsis_nn_status arm_rsqrt_f32(const float32_t *input, float32_t *output, int
  * @param[in]     output_dims Output tensor dimensions.
  * @param[out]    output      Pointer to the output tensor data.
  *
+ * @note NaN (ARM_NN_HAS_MAT_MULT_FLT_NAN_PROPAGATION): the layer runs arm_nn_mat_mult_nt_t_f32, or
+ *       arm_nn_mat_mult_nt_n_packed_f32 for `ARM_NN_WEIGHT_FORMAT_NT_N_PACKED` weights (for float16, their `_f16`
+ *       and `_f16_acc16` twins), whose clamp passes a NaN accumulator through on every leg: a NaN input, weight
+ *       or bias, or an inf * 0 or inf - inf in the dot product, yields NaN at that output. Only the NaN-ness is
+ *       guaranteed, not the payload (Helium arithmetic returns the default NaN). An infinite accumulator saturates
+ *       to the activation bounds.
+ *
+ * @note Contraction (float32, `ARM_NN_WEIGHT_FORMAT_STANDARD` weights): whether an output is bit for bit the
+ *       product of its one weight row depends on the leg and on the compiler's contraction of `a * b + c`; under
+ *       GCC on the scalar leg it is, and the contraction note of arm_nn_mat_mult_nt_t_f32 states the rest.
+ *
  * @return `ARM_CMSIS_NN_SUCCESS` on success or `ARM_CMSIS_NN_ARG_ERROR` on invalid arguments.
  */
 arm_cmsis_nn_status arm_fully_connected_nhwc_f32(const cmsis_nn_context *ctx,
@@ -1652,6 +1783,17 @@ arm_cmsis_nn_status arm_fully_connected_nhwc_f32(const cmsis_nn_context *ctx,
  * @param[in]     output_dims Output tensor dimensions.
  * @param[out]    output      Pointer to the output tensor data.
  * @param[in]     layout      Tensor layout selector. Current float APIs require `ARM_NN_LAYOUT_NHWC`.
+ *
+ * @note NaN (ARM_NN_HAS_MAT_MULT_FLT_NAN_PROPAGATION): the layer runs arm_nn_mat_mult_nt_t_f32, or
+ *       arm_nn_mat_mult_nt_n_packed_f32 for `ARM_NN_WEIGHT_FORMAT_NT_N_PACKED` weights (for float16, their `_f16`
+ *       and `_f16_acc16` twins), whose clamp passes a NaN accumulator through on every leg: a NaN input, weight
+ *       or bias, or an inf * 0 or inf - inf in the dot product, yields NaN at that output. Only the NaN-ness is
+ *       guaranteed, not the payload (Helium arithmetic returns the default NaN). An infinite accumulator saturates
+ *       to the activation bounds.
+ *
+ * @note Contraction (float32, `ARM_NN_WEIGHT_FORMAT_STANDARD` weights): whether an output is bit for bit the
+ *       product of its one weight row depends on the leg and on the compiler's contraction of `a * b + c`; under
+ *       GCC on the scalar leg it is, and the contraction note of arm_nn_mat_mult_nt_t_f32 states the rest.
  *
  * @return `ARM_CMSIS_NN_SUCCESS` on success or `ARM_CMSIS_NN_ARG_ERROR` on invalid arguments.
  */
@@ -2059,6 +2201,14 @@ arm_cmsis_nn_status arm_resize_nearest_neighbor_f32(const cmsis_nn_context *ctx,
  *                               and consecutive batch matrices are stored back to back at that stride.
  * @param[in]     output_dims    Output tensor dimensions.
  * @param[out]    output         Pointer to the output tensor.
+ *
+ * @note NaN (ARM_NN_HAS_MAT_MULT_FLT_NAN_PROPAGATION): without adjoint flags the product runs
+ *       arm_nn_mat_mult_nt_t_f32, or arm_nn_mat_mult_nt_n_packed_f32 for a packed rhs (for float16, their `_f16`
+ *       twins), whose clamp passes a NaN accumulator through on every leg: a NaN operand, or an inf * 0 or
+ *       inf - inf in the dot product, yields NaN at that output. Only the NaN-ness is guaranteed, not the payload
+ *       (Helium arithmetic returns the default NaN). An infinite accumulator saturates to the activation bounds. The
+ *       adjoint routes clamp on their own with `ARM_NN_CLAMP` (float16: `arm_nn_clamp_f16h`), which resolves a NaN
+ *       to the activation maximum.
  *
  * @return `ARM_CMSIS_NN_SUCCESS` on success or `ARM_CMSIS_NN_ARG_ERROR` on invalid arguments.
  */
@@ -2488,6 +2638,76 @@ arm_cmsis_nn_status arm_reduce_sum_f32(const float32_t *input_data,
 
 /**
  * @ingroup Reduction
+ * @brief Fused squared Euclidean distances from one row to a reference matrix.
+ *
+ * Computes each output in increasing feature order, starting at +0. Each
+ * subtraction is rounded to float32 and clamped to [-FLT_MAX, FLT_MAX],
+ * then its separately rounded square is clamped to [-FLT_MAX, FLT_MAX] and accumulated.
+ * This is the scalar SUB -> MUL(self) -> SUM chain with NONE activation.
+ * NaNs propagate (payloads unspecified); infinities saturate at the elementwise
+ * clamps, and the final sum may overflow. Signed zeros follow that chain.
+ * Subnormals depend on the target FP mode. Use strict floating point compilation
+ * (-ffp-contract=off, no reassociation) when comparing bit patterns to the chain.
+ * This scalar implementation is used on every backend; it does not promise the
+ * four-lane accumulation order of the existing Helium SUM. No scratch or state.
+ *
+ * Input has features elements; references is contiguous [rows, features];
+ * output has rows elements. Buffers have natural float alignment. Output must
+ * not overlap either input (the two read-only inputs may overlap each other).
+ * Null pointers, nonpositive sizes, sizes above INT32_MAX bytes or overlapping
+ * output are rejected before any write. The caller supplies allocated buffers
+ * of the declared lengths. No allocation, recursion or I/O is performed.
+ *
+ * @param[in] input One feature vector.
+ * @param[in] references Row-major reference matrix.
+ * @param[in] rows Number of reference rows.
+ * @param[in] features Number of features per row.
+ * @param[out] output Distances, one per reference.
+ * @return ARM_CMSIS_NN_SUCCESS or ARM_CMSIS_NN_ARG_ERROR.
+ */
+arm_cmsis_nn_status arm_nn_sq_l2_distance_f32(const float32_t *input,
+                                              const float32_t *references,
+                                              int32_t rows,
+                                              int32_t features,
+                                              float32_t *output);
+
+/**
+ * @ingroup Reduction
+ * @brief Fused Manhattan distances from one row to a reference matrix.
+ *
+ * Computes each output in increasing feature order, starting at +0. Each
+ * subtraction is rounded to float32 and clamped to [-FLT_MAX, FLT_MAX],
+ * then its absolute value is accumulated.
+ * This is the scalar SUB -> ABS -> SUM chain with NONE activation.
+ * NaNs propagate (payloads unspecified); infinities saturate at the elementwise
+ * clamps, and the final sum may overflow. Signed zeros follow that chain.
+ * Subnormals depend on the target FP mode. Use strict floating point compilation
+ * (-ffp-contract=off, no reassociation) when comparing bit patterns to the chain.
+ * This scalar implementation is used on every backend; it does not promise the
+ * four-lane accumulation order of the existing Helium SUM. No scratch or state.
+ *
+ * Input has features elements; references is contiguous [rows, features];
+ * output has rows elements. Buffers have natural float alignment. Output must
+ * not overlap either input (the two read-only inputs may overlap each other).
+ * Null pointers, nonpositive sizes, sizes above INT32_MAX bytes or overlapping
+ * output are rejected before any write. The caller supplies allocated buffers
+ * of the declared lengths. No allocation, recursion or I/O is performed.
+ *
+ * @param[in] input One feature vector.
+ * @param[in] references Row-major reference matrix.
+ * @param[in] rows Number of reference rows.
+ * @param[in] features Number of features per row.
+ * @param[out] output Distances, one per reference.
+ * @return ARM_CMSIS_NN_SUCCESS or ARM_CMSIS_NN_ARG_ERROR.
+ */
+arm_cmsis_nn_status arm_nn_l1_distance_f32(const float32_t *input,
+                                           const float32_t *references,
+                                           int32_t rows,
+                                           int32_t features,
+                                           float32_t *output);
+
+/**
+ * @ingroup Reduction
  * @brief Returns the first minimum's axis-relative INT32 index for a f32 tensor.
  *
  * The input is contiguous NHWC with four extents; axis is a canonical index 0..3.
@@ -2553,6 +2773,220 @@ arm_argmin_f32(const float32_t *input_data, const cmsis_nn_dims *input_dims, int
  */
 arm_cmsis_nn_status
 arm_argmax_f32(const float32_t *input_data, const cmsis_nn_dims *input_dims, int32_t axis, int32_t *output_data);
+
+/**
+ * @ingroup Reduction
+ * @brief Selects the k largest elements of each innermost line of a f32 tensor (LiteRT TOPK_V2).
+ *
+ * The LiteRT TOPK_V2 builtin over the innermost axis. The input is contiguous NHWC; each of
+ * the n * h * w lines of c elements yields its first k elements in the order below, and line
+ * r writes elements [r * k, (r + 1) * k) of both outputs. Logical ranks and output metadata
+ * are the caller's responsibility.
+ *
+ * Order: descending by value; equal values by ascending index, so +0 and -0 are equal and
+ * keep their index order; every NaN, whatever its sign, payload or signalling bit, after
+ * every number, -inf included; NaNs among themselves by ascending index. With k = 1 the index
+ * is arm_argmax_f32's over axis 3 on every input, an all-NaN line included (index 0).
+ *
+ * This order is the one ai_edge_litert 2.2.0's TOPK_V2 was observed to keep on eight-wide
+ * float32 rows at k = 1, 3 and 8 (all equal, ties at and across the k-th place, both zeros,
+ * NaNs first, in the middle and in the majority, -inf rows), indices and value bits alike;
+ * that observation is the compatibility this entry keeps.
+ *
+ * Each value written is the input's bits at the selected index, copied, never computed:
+ * -0 stays -0 and a NaN keeps its sign and payload, signalling ones unquieted. Selection uses
+ * integer keys on the raw bits (the arg reductions' arm_nn_arg_key); no floating-point
+ * instruction touches the data, so the result is independent of FPSCR (rounding, FZ, FZ16,
+ * DN), raises no cumulative exception flag, and does not depend on the optimiser.
+ *
+ * Arguments: NULL input_dims, any negative extent, k < 0, k > c, or an input, value or index
+ * byte count above INT32_MAX return ARM_CMSIS_NN_ARG_ERROR. When n * h * w * k is 0 (k = 0
+ * or a zero extent) the call returns ARM_CMSIS_NN_SUCCESS, writes nothing and accepts NULL
+ * data pointers; otherwise a NULL input_data, output_values or output_indices is
+ * ARM_CMSIS_NN_ARG_ERROR. Every detected error precedes the first write. The outputs must
+ * not overlap the input, each other or the metadata; if they do, the result is unspecified.
+ *
+ * No scratch and no state: each line is an insertion into the caller's outputs in index
+ * order, which hold the line's best so far, O(c * k) work per line. The body is one scalar
+ * loop on every backend; there is no Helium path.
+ *
+ * @param[in] input_data Input tensor, NHWC.
+ * @param[in] input_dims Four NHWC extents; the innermost, c, is reduced.
+ * @param[in] k Number of elements selected per line, in [0,c].
+ * @param[out] output_values The selected elements' bits, k per line.
+ * @param[out] output_indices The selected elements' indices in [0,c), k per line.
+ * @return ARM_CMSIS_NN_SUCCESS or ARM_CMSIS_NN_ARG_ERROR.
+ */
+arm_cmsis_nn_status arm_topk_v2_f32(const float32_t *input_data,
+                                    const cmsis_nn_dims *input_dims,
+                                    int32_t k,
+                                    float32_t *output_values,
+                                    int32_t *output_indices);
+
+/**
+ * @ingroup Reduction
+ * @brief Walks a packed table of trees for one float32 row and writes the leaf each tree reaches.
+ *
+ * For each tree t, in order, the walk starts at split roots[t]. At a split it reads
+ * v = input[feature & 0x7FFF]. A NaN goes left when bit 15 of feature is set and right when it is
+ * clear; any other v goes left iff v <= threshold, one rule, a float32 compare. A negative child ends
+ * the walk with leaf_ids[t] = -child - 1; a child >= 0 is the next split.
+ *
+ * The NaN test is on the float's bits, (bits & 0x7FFFFFFF) > 0x7F800000, so the route is independent
+ * of FPSCR and of -ffinite-math-only, and every NaN, quiet or signalling, of either sign, routes alike.
+ * Infinities are not special: they are compared as floats, so +inf goes right of every finite threshold
+ * and -inf goes left of it. The two zeros compare equal. Thresholds are expected finite; a writer's
+ * validator holds that, and the walk does not check it.
+ *
+ * Limits, and why each: node_count 1..32767 (a child field is int16_t); leaf_count 1..32768 (the leaf
+ * code -(leaf + 1) of an int16_t reaches -32768); tree_count 1..65535 (the uint16_t tree counter of the
+ * forest this was ported from); feature_count 1..32767 (bit 15 of the feature field is the NaN route).
+ * Trees need not be disjoint: two roots may name one split.
+ *
+ * Step budget: a tree of node_count splits cannot need more than node_count steps, so a walk that
+ * takes node_count + 1 has met a split twice. It returns ARM_CMSIS_NN_FAILURE rather than loop.
+ *
+ * ARM_CMSIS_NN_ARG_ERROR, before the first write: a NULL input, table, table->nodes, table->roots or
+ * leaf_ids; a count outside its range; a root >= node_count. ARM_CMSIS_NN_ARG_ERROR during a walk, on
+ * the path that row takes: a feature >= feature_count, a split child >= node_count or a leaf >=
+ * leaf_count. The walk checks the path it takes and no other, so a table's other defects are a
+ * validator's to find. An error or a FAILURE in tree t leaves the leaves of trees 0..t-1 written and
+ * leaf_ids[t] onward untouched; in the first tree, nothing is written. leaf_ids must not overlap input
+ * or the table; if it does, the behaviour is undefined.
+ *
+ * No scratch, no state, no Helium path: the walk is compares and dependent loads, one scalar loop on
+ * every backend.
+ *
+ * This is a port of heliaML's heliaml_tree_traverse_f32 with its strict argument removed, so the one
+ * rule is the <= above and a writer normalises a strict library's thresholds. Two more departures, each
+ * neutral to the leaves of a well-formed table: the NaN test is on the bits rather than isnan, and the
+ * step budget returns ARM_CMSIS_NN_FAILURE where the port returns its argument error.
+ *
+ * cmsis_nn_tree_node_f32 is an ABI from this version on: heliaAOT's HELIAML_TREE_WALK packs into this
+ * record, 12 bytes with threshold at 0, feature at 4, left at 6, right at 8 and two bytes of padding, which a writer
+ * stores as zero and the walk never reads.
+ *
+ * @param[in] input The row, table->feature_count values.
+ * @param[in] table The packed table.
+ * @param[out] leaf_ids The leaf of each tree in tree order, table->tree_count values.
+ * @return ARM_CMSIS_NN_SUCCESS, ARM_CMSIS_NN_ARG_ERROR or ARM_CMSIS_NN_FAILURE.
+ */
+arm_cmsis_nn_status
+arm_nn_tree_walk_f32(const float32_t *input, const cmsis_nn_tree_table_f32 *table, int32_t *leaf_ids);
+
+/**
+ * @ingroup Reduction
+ * @brief Walks a packed table of trees for one float32 row, takes the mean of the leaf rows the trees reach and
+ * writes the first maximum's class.
+ *
+ * Each tree is walked by arm_nn_tree_walk_f32's rules, with its limits and its step budget. leaf_rows holds
+ * table->leaf_count rows of class_count values, row-major: row l is leaf l's class scores.
+ *
+ * Order: for each tree t ascending, walk tree t to its leaf l; for t = 0, scores[c] = leaf_rows[l * class_count + c],
+ * and for t > 0, scores[c] = scores[c] + leaf_rows[l * class_count + c], one float32 add each. Each class's sum is
+ * therefore the leaf rows' values added in tree order. Then scores[c] = scores[c] * (1.0f / (float32_t)tree_count),
+ * one float32 multiply each by one float32 reciprocal: a multiply, not a divide. For a tree_count that is a power of
+ * two this is the divide; otherwise the mean carries two roundings (the reciprocal and the product), for a normal
+ * result a relative error of at most 2^-23 + 2^-48 from the sum's exact quotient where the divide has 2^-24. The form
+ * holds under -ffast-math (the library's -Ofast), whose reciprocal-math may turn a divide into this multiply but has
+ * no reason to turn this multiply into anything else. Both forms are monotone in the sum, so
+ * neither reorders two distinct sums; either can round two distinct sums to one mean, and the tie rule then decides.
+ *
+ * Class: *class_index is the first maximum of scores as written, the rule of arm_argmax_f32 over the class axis:
+ * equal values keep the first index, +0.0f and -0.0f are one value, a NaN never wins whatever its sign or payload,
+ * infinities and subnormals are ordered as numbers, and scores that are all NaN answer 0. The rule is on the
+ * float's bits, independent of FPSCR and of -ffinite-math-only.
+ *
+ * NaN: a NaN leaf value makes its class's score a NaN, which never wins; the sign and payload of a NaN score are
+ * unspecified. A walk routes a NaN feature by bit 15 of the split's feature field, as arm_nn_tree_walk_f32 does.
+ *
+ * Status, in precedence:
+ * - ARM_CMSIS_NN_ARG_ERROR, before any read of the table's arrays, of leaf_rows and of input, and before any write:
+ *   a NULL input, table, table->nodes, table->roots, leaf_rows, scores or class_index; a count of the table outside
+ *   arm_nn_tree_walk_f32's range; class_count < 1 or class_count > INT32_MAX / (4 * table->leaf_count) (the leaf rows
+ *   at most INT32_MAX bytes).
+ * - Otherwise the trees in ascending order, each checked as it is walked and none read after the first that fails:
+ *   ARM_CMSIS_NN_ARG_ERROR for a root >= node_count or, on the path the row takes, a feature >= feature_count, a split
+ *   child >= node_count or a leaf >= leaf_count; ARM_CMSIS_NN_FAILURE for a walk past the step budget (a cycle).
+ *   A defect off the row's path, and any defect in a tree after the first that fails, is not seen.
+ * On any status but ARM_CMSIS_NN_SUCCESS the contents of scores are unspecified (untouched, or the sums of the trees
+ * before the one that failed) and *class_index is untouched. No refusal reads or writes outside the arrays the
+ * arguments describe.
+ *
+ * Builds: the order above is fixed on every build, since each class's sum is formed tree by tree and a compiler that
+ * vectorises the class loops puts different classes in different lanes. The scores are bit for bit those of scalar
+ * IEEE float32 arithmetic in that order, any NaN for any NaN, wherever the arithmetic is IEEE: with Arm GNU 14.2.1
+ * every -O2 build, whose class loops stay scalar, and +nomve or +nomve.fp at -Ofast; on the host, Apple clang at -O2
+ * and at -O3 -ffast-math. Where -Ofast vectorises the class loops on the MVE ISA (four classes at a time, the last
+ * class_count mod 4 scalar), Helium float arithmetic flushes subnormal operands and results to zero and answers the
+ * default NaN (observed on QEMU mps3-an547): a finite score is within tree_count x 2^-123 of the scalar one, a NaN
+ * score's payload may differ, and the class may differ only where two scalar scores are within twice that bound.
+ * Measured on QEMU over the suite's 275,184 sweep cases: 8,485 cases with a score within the bound and not equal,
+ * 12,152 with the class at such a tie, 13,288 with a NaN payload changed, all in leaf rows holding subnormals, the
+ * smallest normals or NaNs; none in leaf rows of zeros, normals and infinities.
+ *
+ * Overlap: scores and class_index must not overlap each other, input, the table or leaf_rows; if they do, the
+ * behaviour is undefined. Scratch: none; scores, class_count values the caller owns, holds the sums while the trees
+ * are walked and the means on success. No state, no allocation, no Helium path written by hand.
+ *
+ * @param[in] input The row, table->feature_count values.
+ * @param[in] table The packed table.
+ * @param[in] leaf_rows The class scores of each leaf, table->leaf_count x class_count values, row-major.
+ * @param[in] class_count Classes per leaf row, at least 1.
+ * @param[out] scores The mean over the trees of each class's score, class_count values.
+ * @param[out] class_index The first maximum's class, one value, written only on success.
+ * @return ARM_CMSIS_NN_SUCCESS, ARM_CMSIS_NN_ARG_ERROR or ARM_CMSIS_NN_FAILURE.
+ */
+arm_cmsis_nn_status arm_nn_tree_walk_mean_argmax_f32(const float32_t *input,
+                                                     const cmsis_nn_tree_table_f32 *table,
+                                                     const float32_t *leaf_rows,
+                                                     int32_t class_count,
+                                                     float32_t *scores,
+                                                     int32_t *class_index);
+
+/**
+ * @ingroup Reduction
+ * @brief Walks a packed table of trees for one float32 row and writes the value of the leaf each tree reaches.
+ *
+ * Each tree is walked by arm_nn_tree_walk_f32's rules, with its limits and its step budget. For each tree t
+ * ascending, walk tree t to its leaf l, then values[t] = leaf_values[l], copied as a 32-bit word. No float operation
+ * touches a leaf value, so every bit pattern passes through unchanged on every build and under any FPSCR: a NaN keeps
+ * its sign, payload and quiet bit (a signalling NaN stays signalling), and both zeros, the infinities and the
+ * subnormals are copied as they are. This is the walk followed by a gather of leaf_values at the leaves, in one call
+ * and without the leaf buffer; it does no arithmetic, so a sum over the values is the caller's.
+ *
+ * Status, in precedence:
+ * - ARM_CMSIS_NN_ARG_ERROR, before any read of the table's arrays, of leaf_values and of input, and before any write:
+ *   a NULL input, table, table->nodes, table->roots, leaf_values or values; a count of the table outside
+ *   arm_nn_tree_walk_f32's range; leaf_value_count < table->leaf_count. A leaf_value_count above leaf_count is
+ *   accepted, and values past leaf_values[leaf_count - 1] are never read.
+ * - Otherwise the trees in ascending order, each checked as it is walked and none read after the first that fails:
+ *   ARM_CMSIS_NN_ARG_ERROR for a root >= node_count or, on the path the row takes, a feature >= feature_count, a split
+ *   child >= node_count or a leaf >= leaf_count (so no leaf at or past leaf_value_count is read); ARM_CMSIS_NN_FAILURE
+ *   for a walk past the step budget (a cycle). A defect off the row's path, and any defect in a tree after the first
+ *   that fails, is not seen. Roots are checked as each tree is reached, not in a pass before the first walk, so a
+ *   cycle in tree 0 answers ARM_CMSIS_NN_FAILURE where arm_nn_tree_walk_f32 answers a later tree's bad root with
+ *   ARM_CMSIS_NN_ARG_ERROR.
+ * On any status but ARM_CMSIS_NN_SUCCESS, values may hold a prefix: an argument error writes nothing; a status from
+ * tree t leaves values[0 .. t) holding the values of trees 0 .. t - 1 and values[t .. tree_count) untouched. No
+ * status reads or writes outside the arrays the arguments describe, and nothing outside values[0 .. tree_count) is
+ * written.
+ *
+ * Overlap: values must not overlap input, the table or leaf_values; if it does, the behaviour is undefined. Scratch:
+ * none. No state, no allocation, no Helium path: the work is compares, dependent loads and one word copy per tree.
+ *
+ * @param[in] input The row, table->feature_count values.
+ * @param[in] table The packed table.
+ * @param[in] leaf_values The value of each leaf, leaf_value_count values; leaf l's is leaf_values[l].
+ * @param[in] leaf_value_count The values in leaf_values, at least table->leaf_count.
+ * @param[out] values The value of the leaf each tree reaches, in tree order, table->tree_count values.
+ * @return ARM_CMSIS_NN_SUCCESS, ARM_CMSIS_NN_ARG_ERROR or ARM_CMSIS_NN_FAILURE.
+ */
+arm_cmsis_nn_status arm_nn_tree_walk_values_f32(const float32_t *input,
+                                                const cmsis_nn_tree_table_f32 *table,
+                                                const float32_t *leaf_values,
+                                                int32_t leaf_value_count,
+                                                float32_t *values);
 
 /**
  * @ingroup Reduction
@@ -3065,6 +3499,13 @@ arm_cmsis_nn_status arm_depthwise_conv_cin1_nhwc_f16(const cmsis_nn_context *ctx
  *
  * @note The one-input-channel route, accumulating as arm_depthwise_conv_f16_acc16() does; same build, gate and
  *       ctx conditions as arm_depthwise_conv_cin1_nhwc_f16.
+ *
+ * @note NaN (ARM_NN_HAS_MAT_MULT_FLT_NAN_PROPAGATION): where this entry's route runs a float matmul product
+ *       (on MVE builds, arm_nn_mat_mult_nt_n_packed_f16_acc16), the product's clamp passes a NaN accumulator
+ *       through on every leg: a NaN input, weight or bias, or an inf * 0 or inf - inf in the dot product, yields
+ *       NaN at that output. Only the NaN-ness is guaranteed, not the payload (Helium arithmetic returns the default
+ *       NaN). An infinite accumulator saturates to the activation bounds. Routes that clamp on their own keep their
+ *       documented behaviour.
  */
 arm_cmsis_nn_status arm_depthwise_conv_cin1_nhwc_f16_acc16(const cmsis_nn_context *ctx,
                                                            const cmsis_nn_dw_conv_params_f16 *dw_conv_params,
@@ -4392,6 +4833,49 @@ arm_cmsis_nn_status arm_elementwise_mul_broadcast_f16(const float16_t *input_1_d
 arm_cmsis_nn_status arm_nn_sqrt_f16(const float16_t *input, float16_t *output, int32_t block_size);
 
 /**
+ * @brief Elementwise exponential of a float16 tensor, `exp(x)`: the LiteRT `EXP` builtin.
+ *
+ * The result is `(float16_t)` of arm_nn_exp_f32's scalar body, `arm_nn_exp_scalar_f32`,
+ * at the input widened to float32: one rounding, bit for bit, on all 65 536 binary16
+ * inputs on the scalar leg. Its accuracy is therefore arm_nn_exp_f32's (helia-ml's
+ * `EXP_F32`) followed by one rounding to binary16: every result is the binary16 nearest
+ * `exp(x)` or one of its two neighbours.
+ *
+ * Value path per leg: under `ARM_MATH_MVE_FLOAT16 && !ARM_MATH_AUTOVECTORIZE`, where
+ * arm_nn_exp_f32's Helium body is compiled, eight halves are widened to two float32
+ * vectors, run through that body and narrowed once, tail-predicated; every other build
+ * widens, evaluates and narrows one element at a time. On QEMU 11.0.0 (`mps3-an547`) the
+ * Helium leg equals the scalar leg on all 65 536 inputs, so no input is named here; the
+ * float32 lanes it flushes are below every binary16, and the narrowing kept the 891
+ * subnormal binary16 results (`x` from -9.71 down to -17.33). Silicon has not run it.
+ *
+ * Results by input:
+ * - NaN: the same NaN with the quiet bit set (bit 9), sign and payload kept, decided on
+ *   the binary16 bits before any widening.
+ * - `x >= 11.09375` (`0x498C`), `+Inf` included: `+Inf`. `0x498B` (11.0859375) is the
+ *   largest input with a finite result, 65248.
+ * - `x <= -17.34375`, `-Inf` included: `+0`. Results below `2^-14` are binary16
+ *   subnormals.
+ * - `+0`, `-0` and every subnormal input: exactly `1.0`.
+ *
+ * FPSCR: the results do not depend on FZ, FZ16 or DN (checked on QEMU over all 65 536
+ * inputs): a NaN is built from its bits, a float32 result FZ flushes is below every
+ * binary16, and a binary16 subnormal input widens to a normal float32. The rounding mode
+ * is neither set nor read, and the results are at round-to-nearest. The cumulative
+ * exception flags are not part of the contract.
+ *
+ * No scratch, no state: the call reads @p input and writes @p output only.
+ *
+ * @param[in]  input       Pointer to the input tensor.
+ * @param[out] output      Pointer to the output tensor; may alias @p input.
+ * @param[in]  block_size  Number of tensor elements.
+ *
+ * @return `ARM_CMSIS_NN_SUCCESS` on success, or `ARM_CMSIS_NN_ARG_ERROR` without writing
+ *         @p output when @p input or @p output is NULL or @p block_size is below 1.
+ */
+arm_cmsis_nn_status arm_nn_exp_f16(const float16_t *input, float16_t *output, int32_t block_size);
+
+/**
  * @brief Elementwise reciprocal square root of a float16 tensor, `1 / sqrt(x)`.
  *
  * Same value path as arm_nn_sqrt_f16: widen to float32, evaluate `1.0f / sqrtf(x)`
@@ -5072,6 +5556,53 @@ arm_argmin_f16(const float16_t *input_data, const cmsis_nn_dims *input_dims, int
  */
 arm_cmsis_nn_status
 arm_argmax_f16(const float16_t *input_data, const cmsis_nn_dims *input_dims, int32_t axis, int32_t *output_data);
+
+/**
+ * @ingroup Reduction
+ * @brief Selects the k largest elements of each innermost line of a f16 tensor (LiteRT TOPK_V2).
+ *
+ * The LiteRT TOPK_V2 builtin over the innermost axis. The input is contiguous NHWC; each of
+ * the n * h * w lines of c elements yields its first k elements in the order below, and line
+ * r writes elements [r * k, (r + 1) * k) of both outputs. Logical ranks and output metadata
+ * are the caller's responsibility.
+ *
+ * Order: descending by value; equal values by ascending index, so +0 and -0 are equal and
+ * keep their index order; every NaN, whatever its sign, payload or signalling bit, after
+ * every number, -inf included; NaNs among themselves by ascending index. With k = 1 the index
+ * is arm_argmax_f16's over axis 3 on every input, an all-NaN line included (index 0).
+ *
+ * The order is arm_topk_v2_f32's, on binary16 bits; LiteRT has no float16 TOPK_V2 to
+ * compare with.
+ *
+ * Each value written is the input's bits at the selected index, copied, never computed:
+ * -0 stays -0 and a NaN keeps its sign and payload, signalling ones unquieted. Selection uses
+ * integer keys on the raw bits (the arg reductions' arm_nn_arg_key); no floating-point
+ * instruction touches the data, so the result is independent of FPSCR (rounding, FZ, FZ16,
+ * DN), raises no cumulative exception flag, and does not depend on the optimiser.
+ *
+ * Arguments: NULL input_dims, any negative extent, k < 0, k > c, or an input, value or index
+ * byte count above INT32_MAX return ARM_CMSIS_NN_ARG_ERROR. When n * h * w * k is 0 (k = 0
+ * or a zero extent) the call returns ARM_CMSIS_NN_SUCCESS, writes nothing and accepts NULL
+ * data pointers; otherwise a NULL input_data, output_values or output_indices is
+ * ARM_CMSIS_NN_ARG_ERROR. Every detected error precedes the first write. The outputs must
+ * not overlap the input, each other or the metadata; if they do, the result is unspecified.
+ *
+ * No scratch and no state: each line is an insertion into the caller's outputs in index
+ * order, which hold the line's best so far, O(c * k) work per line. The body is one scalar
+ * loop on every backend; there is no Helium path.
+ *
+ * @param[in] input_data Input tensor, NHWC.
+ * @param[in] input_dims Four NHWC extents; the innermost, c, is reduced.
+ * @param[in] k Number of elements selected per line, in [0,c].
+ * @param[out] output_values The selected elements' bits, k per line.
+ * @param[out] output_indices The selected elements' indices in [0,c), k per line.
+ * @return ARM_CMSIS_NN_SUCCESS or ARM_CMSIS_NN_ARG_ERROR.
+ */
+arm_cmsis_nn_status arm_topk_v2_f16(const float16_t *input_data,
+                                    const cmsis_nn_dims *input_dims,
+                                    int32_t k,
+                                    float16_t *output_values,
+                                    int32_t *output_indices);
 
 /**
  * @ingroup Reduction

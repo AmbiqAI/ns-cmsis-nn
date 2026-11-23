@@ -78,6 +78,7 @@
         <file category="header" name="Include/arm_nn_math_types_flt.h"/>
         <file category="header" name="Include/Internal/arm_nn_activation_flt.h"/>
         <file category="header" name="Include/Internal/arm_nn_activation_lut_s16.h"/>
+        <file category="header" name="Include/Internal/arm_nn_distance_f32.h"/>
         <file category="header" name="Include/Internal/arm_conv1x1_opt_f16.h"/>
         <file category="header" name="Include/Internal/arm_conv1x1_opt_f32.h"/>
         <file category="header" name="Include/Internal/arm_conv_opt_f16.h"/>
@@ -88,13 +89,17 @@
         <file category="header" name="Include/Internal/arm_nn_broadcast_walk.h"/>
         <file category="header" name="Include/Internal/arm_nn_compare_s32.h"/>
         <file category="header" name="Include/Internal/arm_nn_div_flt.h"/>
+        <file category="header" name="Include/Internal/arm_nn_exp_flt.h"/>
         <file category="header" name="Include/Internal/arm_nn_logical_common.h"/>
+        <file category="header" name="Include/Internal/arm_nn_mat_mult_nt_t_flt.h"/>
         <file category="header" name="Include/Internal/arm_nn_reduce_bool.h"/>
         <file category="header" name="Include/Internal/arm_nn_reduce_extrema_flt.h"/>
         <file category="header" name="Include/Internal/arm_nn_resize_bilinear.h"/>
         <file category="header" name="Include/Internal/arm_nn_rsub_scalar.h"/>
         <file category="header" name="Include/Internal/arm_nn_s4_decode.h"/>
         <file category="header" name="Include/Internal/arm_nn_sqrt_flt.h"/>
+        <file category="header" name="Include/Internal/arm_nn_topk_flt.h"/>
+        <file category="header" name="Include/Internal/arm_nn_tree_walk_flt.h"/>
         <file category="header" name="Include/Internal/arm_minmax_f16_common.h"/>
         <file category="header" name="Include/Internal/arm_minmax_f32_common.h"/>
         <file category="header" name="Include/Internal/arm_resize_nearest_neighbor_common.h"/>
@@ -204,6 +209,8 @@
         <file category="source" name="Source/BasicMathFunctions/arm_mul_scalar_s8.c"/>
         <file category="source" name="Source/BasicMathFunctions/arm_nn_abs_f16.c"/>
         <file category="source" name="Source/BasicMathFunctions/arm_nn_abs_f32.c"/>
+        <file category="source" name="Source/BasicMathFunctions/arm_nn_exp_f16.c"/>
+        <file category="source" name="Source/BasicMathFunctions/arm_nn_exp_f32.c"/>
         <file category="source" name="Source/BasicMathFunctions/arm_nn_fill_f16.c"/>
         <file category="source" name="Source/BasicMathFunctions/arm_nn_fill_f32.c"/>
         <file category="source" name="Source/BasicMathFunctions/arm_nn_mean_f16.c"/>
@@ -212,6 +219,11 @@
         <file category="source" name="Source/BasicMathFunctions/arm_nn_neg_f32.c"/>
         <file category="source" name="Source/BasicMathFunctions/arm_nn_sqrt_f16.c"/>
         <file category="source" name="Source/BasicMathFunctions/arm_nn_sqrt_f32.c"/>
+        <file category="source" name="Source/BasicMathFunctions/arm_nn_l1_distance_f32.c"/>
+        <file category="source" name="Source/BasicMathFunctions/arm_nn_sq_l2_distance_f32.c"/>
+        <file category="source" name="Source/BasicMathFunctions/arm_nn_tree_walk_f32.c"/>
+        <file category="source" name="Source/BasicMathFunctions/arm_nn_tree_walk_mean_argmax_f32.c"/>
+        <file category="source" name="Source/BasicMathFunctions/arm_nn_tree_walk_values_f32.c"/>
         <file category="source" name="Source/BasicMathFunctions/arm_reduce_max_f16.c"/>
         <file category="source" name="Source/BasicMathFunctions/arm_reduce_max_f32.c"/>
         <file category="source" name="Source/BasicMathFunctions/arm_reduce_max_s16.c"/>
@@ -240,6 +252,8 @@
         <file category="source" name="Source/BasicMathFunctions/arm_sub_s8.c"/>
         <file category="source" name="Source/BasicMathFunctions/arm_sub_scalar_s16.c"/>
         <file category="source" name="Source/BasicMathFunctions/arm_sub_scalar_s8.c"/>
+        <file category="source" name="Source/BasicMathFunctions/arm_topk_v2_f16.c"/>
+        <file category="source" name="Source/BasicMathFunctions/arm_topk_v2_f32.c"/>
         <file category="source" name="Source/ComparisonFunctions/arm_comparison_s16.c"/>
         <file category="source" name="Source/ComparisonFunctions/arm_comparison_s8.c"/>
         <file category="source" name="Source/ComparisonFunctions/arm_equal_bool.c"/>

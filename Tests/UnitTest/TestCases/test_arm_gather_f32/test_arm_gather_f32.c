@@ -13,3 +13,4 @@
 #define GF_KERNEL arm_gather_f32
 
 #include "../Utils/gather_flt_cases.h"
+#include "gather_differential.h"

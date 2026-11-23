@@ -1,0 +1,273 @@
+/*
+ * SPDX-FileCopyrightText: Copyright 2026 Arm Limited and/or its affiliates <open-source-office@arm.com>
+ *
+ * SPDX-License-Identifier: Apache-2.0
+ *
+ * Licensed under the Apache License, Version 2.0 (the License); you may
+ * not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ * www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an AS IS BASIS, WITHOUT
+ * WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+/* arm_nn_mat_mult_nt_t_f32 as it was at 38c6b99e (Source/NNSupportFunctions/arm_nn_mat_mult_nt_t_f32.c), before its
+ * body moved to Include/Internal/arm_nn_mat_mult_nt_t_flt.h: the file from its includes on, every name renamed to mp_
+ * and nothing else changed, so that no later change to the library reaches it. It is the reference the suite's
+ * differential cases hold the entry to, status and every output bit, and the suite compiles it with the library's own
+ * options, not the suite's. */
+
+#include "mat_mult_nt_t_f32_previous.h"
+#include "../../../../Include/Internal/arm_nn_activation_flt.h"
+#include "arm_nnsupportfunctions.h"
+
+#if ARM_NN_ENABLE_F32
+
+    #if defined(ARM_MATH_MVEF) && !defined(ARM_MATH_AUTOVECTORIZE)
+        #define MP_MAT_MULT_NT_T_F32_MVE_BLOCK_ROWS (4)
+        #define MP_MAT_MULT_NT_T_F32_MVE_DUAL_BLOCK_ROWS (8)
+        /* Contiguous-K kernel (#417): from this K on, rhs rows are dotted in groups of CONTIG_ROWS with
+         * contiguous vector loads instead of per-k gathers. Below it the gather kernels are unchanged. */
+        #define MP_MAT_MULT_NT_T_F32_CONTIG_MIN_K (32)
+        #define MP_MAT_MULT_NT_T_F32_CONTIG_ROWS (4)
+    #endif
+
+    #if !defined(ARM_MATH_MVEF) || defined(ARM_MATH_AUTOVECTORIZE)
+        #define MP_MAT_MULT_NT_T_F32_SCALAR_BLOCK_ROWS (4)
+
+__STATIC_INLINE float32_t mp_dot_scalar_f32(const float32_t *__RESTRICT lhs_row,
+                                            const float32_t *__RESTRICT rhs_row,
+                                            int32_t len)
+{
+    float32_t acc = 0.0f;
+    for (int32_t i = 0; i < len; ++i)
+    {
+        acc += lhs_row[i] * rhs_row[i];
+    }
+    return acc;
+}
+    #endif
+
+    #if defined(ARM_MATH_MVEF) && !defined(ARM_MATH_AUTOVECTORIZE)
+__STATIC_INLINE
+float32_t mp_dot_mve_f32(const float32_t *__RESTRICT lhs_row, const float32_t *__RESTRICT rhs_row, int32_t len)
+{
+    /* Full blocks unpredicated, one predicated tail: no vctp inside a loop. */
+    float32x4_t vacc = vdupq_n_f32(0.0f);
+    int32_t i = 0;
+    for (; i + MP_MAT_MULT_NT_T_F32_MVE_BLOCK_ROWS <= len; i += MP_MAT_MULT_NT_T_F32_MVE_BLOCK_ROWS)
+    {
+        vacc = vfmaq(vacc, vld1q(lhs_row + i), vld1q(rhs_row + i));
+    }
+    if (i < len)
+    {
+        const mve_pred16_t p = vctp32q((uint32_t)(len - i));
+        vacc = vfmaq_m(vacc, vld1q_z(lhs_row + i, p), vld1q_z(rhs_row + i, p), p);
+    }
+
+    return arm_nn_vec_reduce_add_f32(vacc);
+}
+
+/* CONTIG_ROWS rhs rows against one lhs row: one contiguous lhs load feeds four accumulators, each reduced once.
+ * Kept out of line so the small-K gather loops below keep their original register allocation (#417). */
+__attribute__((noinline)) static void mp_contig_rows_f32(const float32_t *__RESTRICT lhs_row,
+                                                         const float32_t *__RESTRICT rhs_block,
+                                                         const float32_t *__RESTRICT bias,
+                                                         float32_t *__RESTRICT dst,
+                                                         int32_t len,
+                                                         float32_t activation_min,
+                                                         float32_t activation_max)
+{
+    const float32_t *rhs0 = rhs_block;
+    const float32_t *rhs1 = rhs0 + len;
+    const float32_t *rhs2 = rhs1 + len;
+    const float32_t *rhs3 = rhs2 + len;
+    float32x4_t vacc0 = vdupq_n_f32(0.0f);
+    float32x4_t vacc1 = vdupq_n_f32(0.0f);
+    float32x4_t vacc2 = vdupq_n_f32(0.0f);
+    float32x4_t vacc3 = vdupq_n_f32(0.0f);
+    int32_t k = 0;
+
+    for (; k + MP_MAT_MULT_NT_T_F32_MVE_BLOCK_ROWS <= len; k += MP_MAT_MULT_NT_T_F32_MVE_BLOCK_ROWS)
+    {
+        const float32x4_t vlhs = vld1q(lhs_row + k);
+        vacc0 = vfmaq(vacc0, vlhs, vld1q(rhs0 + k));
+        vacc1 = vfmaq(vacc1, vlhs, vld1q(rhs1 + k));
+        vacc2 = vfmaq(vacc2, vlhs, vld1q(rhs2 + k));
+        vacc3 = vfmaq(vacc3, vlhs, vld1q(rhs3 + k));
+    }
+    if (k < len)
+    {
+        const mve_pred16_t p = vctp32q((uint32_t)(len - k));
+        const float32x4_t vlhs = vld1q_z(lhs_row + k, p);
+        vacc0 = vfmaq_m(vacc0, vlhs, vld1q_z(rhs0 + k, p), p);
+        vacc1 = vfmaq_m(vacc1, vlhs, vld1q_z(rhs1 + k, p), p);
+        vacc2 = vfmaq_m(vacc2, vlhs, vld1q_z(rhs2 + k, p), p);
+        vacc3 = vfmaq_m(vacc3, vlhs, vld1q_z(rhs3 + k, p), p);
+    }
+
+    float32_t acc0 = arm_nn_vec_reduce_add_f32(vacc0);
+    float32_t acc1 = arm_nn_vec_reduce_add_f32(vacc1);
+    float32_t acc2 = arm_nn_vec_reduce_add_f32(vacc2);
+    float32_t acc3 = arm_nn_vec_reduce_add_f32(vacc3);
+    if (bias)
+    {
+        acc0 += bias[0];
+        acc1 += bias[1];
+        acc2 += bias[2];
+        acc3 += bias[3];
+    }
+    dst[0] = arm_nn_propagate_nan_f32(acc0, ARM_NN_CLAMP(acc0, activation_max, activation_min));
+    dst[1] = arm_nn_propagate_nan_f32(acc1, ARM_NN_CLAMP(acc1, activation_max, activation_min));
+    dst[2] = arm_nn_propagate_nan_f32(acc2, ARM_NN_CLAMP(acc2, activation_max, activation_min));
+    dst[3] = arm_nn_propagate_nan_f32(acc3, ARM_NN_CLAMP(acc3, activation_max, activation_min));
+}
+    #endif
+
+arm_cmsis_nn_status mp_mat_mult_nt_t_f32(const float32_t *__RESTRICT lhs,
+                                         const float32_t *__RESTRICT rhs,
+                                         const float32_t *__RESTRICT bias,
+                                         float32_t *__RESTRICT dst,
+                                         int32_t lhs_rows,
+                                         int32_t rhs_rows,
+                                         int32_t rhs_cols,
+                                         int32_t row_address_offset,
+                                         float32_t activation_min,
+                                         float32_t activation_max)
+{
+    if (!lhs || !rhs || !dst || lhs_rows <= 0 || rhs_rows <= 0 || rhs_cols <= 0 || row_address_offset <= 0)
+    {
+        return ARM_CMSIS_NN_ARG_ERROR;
+    }
+
+    #if defined(ARM_MATH_MVEF) && !defined(ARM_MATH_AUTOVECTORIZE)
+    const uint32_t rhs_cols_u32 = (uint32_t)rhs_cols;
+    const uint32x4_t offsets = vmulq(vidupq_u32((uint32_t)0, 1), rhs_cols_u32);
+    const uint32x4_t offsets_hi = vaddq(offsets, (uint32_t)(MP_MAT_MULT_NT_T_F32_MVE_BLOCK_ROWS * rhs_cols_u32));
+    const float32x4_t vmin = vdupq_n_f32(activation_min);
+    const float32x4_t vmax = vdupq_n_f32(activation_max);
+    #endif
+
+    for (int32_t r = 0; r < lhs_rows; ++r)
+    {
+        const float32_t *lhs_row = lhs + (size_t)r * rhs_cols;
+        float32_t *dst_row = dst + (size_t)r * row_address_offset;
+
+    #if defined(ARM_MATH_MVEF) && !defined(ARM_MATH_AUTOVECTORIZE)
+        int32_t c = 0;
+        if (rhs_cols >= MP_MAT_MULT_NT_T_F32_CONTIG_MIN_K)
+        {
+            for (; c + MP_MAT_MULT_NT_T_F32_CONTIG_ROWS <= rhs_rows; c += MP_MAT_MULT_NT_T_F32_CONTIG_ROWS)
+            {
+                mp_contig_rows_f32(lhs_row,
+                                   rhs + (size_t)c * rhs_cols,
+                                   bias ? bias + c : NULL,
+                                   dst_row + c,
+                                   rhs_cols,
+                                   activation_min,
+                                   activation_max);
+            }
+        }
+
+        for (; c + MP_MAT_MULT_NT_T_F32_MVE_DUAL_BLOCK_ROWS <= rhs_rows; c += MP_MAT_MULT_NT_T_F32_MVE_DUAL_BLOCK_ROWS)
+        {
+            const float32_t *rhs_block = rhs + (size_t)c * rhs_cols;
+            float32x4_t vacc_lo = bias ? vld1q(bias + c) : vdupq_n_f32(0.0f);
+            float32x4_t vacc_hi = bias ? vld1q(bias + c + MP_MAT_MULT_NT_T_F32_MVE_BLOCK_ROWS) : vdupq_n_f32(0.0f);
+
+            for (int32_t k = 0; k < rhs_cols; ++k)
+            {
+                const float32_t lhs_v = lhs_row[k];
+                const float32x4_t vrhs_lo = vldrwq_gather_shifted_offset(rhs_block + k, offsets);
+                const float32x4_t vrhs_hi = vldrwq_gather_shifted_offset(rhs_block + k, offsets_hi);
+                vacc_lo = vfmaq(vacc_lo, vrhs_lo, lhs_v);
+                vacc_hi = vfmaq(vacc_hi, vrhs_hi, lhs_v);
+            }
+
+            vacc_lo = arm_nn_clamp_propagate_nan_mve_f32(vacc_lo, vmin, vmax);
+            vacc_hi = arm_nn_clamp_propagate_nan_mve_f32(vacc_hi, vmin, vmax);
+            vst1q(dst_row + c, vacc_lo);
+            vst1q(dst_row + c + MP_MAT_MULT_NT_T_F32_MVE_BLOCK_ROWS, vacc_hi);
+        }
+
+        for (; c + MP_MAT_MULT_NT_T_F32_MVE_BLOCK_ROWS <= rhs_rows; c += MP_MAT_MULT_NT_T_F32_MVE_BLOCK_ROWS)
+        {
+            const float32_t *rhs_block = rhs + (size_t)c * rhs_cols;
+            float32x4_t vacc = bias ? vld1q(bias + c) : vdupq_n_f32(0.0f);
+
+            for (int32_t k = 0; k < rhs_cols; ++k)
+            {
+                const float32x4_t vrhs = vldrwq_gather_shifted_offset(rhs_block + k, offsets);
+                vacc = vfmaq(vacc, vrhs, lhs_row[k]);
+            }
+
+            vacc = arm_nn_clamp_propagate_nan_mve_f32(vacc, vmin, vmax);
+            vst1q(dst_row + c, vacc);
+        }
+    #else
+        int32_t c = 0;
+        /* Four output rows at once, each its own accumulation chain, so the
+         * four chains overlap in the pipeline instead of serialising on one
+         * accumulator's latency. Each row's sum is the same sequence of
+         * products from 0.0f, added to its bias at the end, that the row
+         * loop below computes, so under GCC every output keeps its bits; the
+         * declaration's contraction note states the compilers where a row
+         * may differ by one rounding of one contraction. */
+        for (; c + MP_MAT_MULT_NT_T_F32_SCALAR_BLOCK_ROWS <= rhs_rows; c += MP_MAT_MULT_NT_T_F32_SCALAR_BLOCK_ROWS)
+        {
+            const float32_t *rhs0 = rhs + (size_t)c * rhs_cols;
+            const float32_t *rhs1 = rhs0 + rhs_cols;
+            const float32_t *rhs2 = rhs1 + rhs_cols;
+            const float32_t *rhs3 = rhs2 + rhs_cols;
+            float32_t dot0 = 0.0f;
+            float32_t dot1 = 0.0f;
+            float32_t dot2 = 0.0f;
+            float32_t dot3 = 0.0f;
+
+            for (int32_t k = 0; k < rhs_cols; ++k)
+            {
+                const float32_t lhs_v = lhs_row[k];
+                dot0 += lhs_v * rhs0[k];
+                dot1 += lhs_v * rhs1[k];
+                dot2 += lhs_v * rhs2[k];
+                dot3 += lhs_v * rhs3[k];
+            }
+
+            float32_t acc0 = bias ? bias[c] : 0.0f;
+            float32_t acc1 = bias ? bias[c + 1] : 0.0f;
+            float32_t acc2 = bias ? bias[c + 2] : 0.0f;
+            float32_t acc3 = bias ? bias[c + 3] : 0.0f;
+            acc0 += dot0;
+            acc1 += dot1;
+            acc2 += dot2;
+            acc3 += dot3;
+            dst_row[c] = arm_nn_propagate_nan_f32(acc0, ARM_NN_CLAMP(acc0, activation_max, activation_min));
+            dst_row[c + 1] = arm_nn_propagate_nan_f32(acc1, ARM_NN_CLAMP(acc1, activation_max, activation_min));
+            dst_row[c + 2] = arm_nn_propagate_nan_f32(acc2, ARM_NN_CLAMP(acc2, activation_max, activation_min));
+            dst_row[c + 3] = arm_nn_propagate_nan_f32(acc3, ARM_NN_CLAMP(acc3, activation_max, activation_min));
+        }
+    #endif
+
+        for (; c < rhs_rows; ++c)
+        {
+            const float32_t *rhs_row = rhs + (size_t)c * rhs_cols;
+            float32_t acc = bias ? bias[c] : 0.0f;
+
+    #if defined(ARM_MATH_MVEF) && !defined(ARM_MATH_AUTOVECTORIZE)
+            acc += mp_dot_mve_f32(lhs_row, rhs_row, rhs_cols);
+    #else
+            acc += mp_dot_scalar_f32(lhs_row, rhs_row, rhs_cols);
+    #endif
+            dst_row[c] = arm_nn_propagate_nan_f32(acc, ARM_NN_CLAMP(acc, activation_max, activation_min));
+        }
+    }
+
+    return ARM_CMSIS_NN_SUCCESS;
+}
+
+#endif /* ARM_NN_ENABLE_F32 */

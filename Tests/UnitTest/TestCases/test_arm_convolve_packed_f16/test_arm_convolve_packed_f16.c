@@ -287,10 +287,11 @@ static inline bool conv_f16_bits_are_nan(float16_t x)
 }
 
 // NaN through arm_nn_mat_mult_nt_n_packed_f16's output clamp, the packed f16 matmul entry the packed
-// conv paths land on. On the scalar (non-MVE) build path the clamp is the bit-classified clamp of #380,
-// so the NaN row must come back NaN at every optimization level; the MVE path clamps with
-// vmaxnmq/vminnmq and no NaN restore, so there the NaN resolves to the lower clamp bound instead
-// (documented on the declaration). The finite row must clamp normally on both paths.
+// conv paths land on. The NaN row must come back NaN on every leg and at every optimization level
+// (ARM_NN_HAS_MAT_MULT_FLT_NAN_PROPAGATION): the scalar path's clamp is the bit-classified clamp of #380,
+// and the MVE path restores the NaN lanes that vmaxnmq/vminnmq suppress. This case used to expect the
+// lower clamp bound (-6) on the MVE path, which had no NaN restore. The finite row must clamp normally on
+// both paths.
 void convolve_packed_matmul_nan_f16(void)
 {
     volatile uint16_t nan_bits = 0x7E00u;
@@ -305,13 +306,8 @@ void convolve_packed_matmul_nan_f16(void)
         ARM_CMSIS_NN_SUCCESS,
         arm_nn_mat_mult_nt_n_packed_f16(lhs, rhs_packed, NULL, dst, 2, 2, 1, 2, (float16_t)-6.0f, (float16_t)6.0f));
 
-#if defined(ARM_MATH_MVE_FLOAT16) && !defined(ARM_MATH_AUTOVECTORIZE)
-    TEST_ASSERT_EQUAL_FLOAT(-6.0f, (float32_t)dst[0]);
-    TEST_ASSERT_EQUAL_FLOAT(-6.0f, (float32_t)dst[1]);
-#else
-    TEST_ASSERT_TRUE_MESSAGE(conv_f16_bits_are_nan(dst[0]), "Expected NaN through the scalar clamp");
-    TEST_ASSERT_TRUE_MESSAGE(conv_f16_bits_are_nan(dst[1]), "Expected NaN through the scalar clamp");
-#endif
+    TEST_ASSERT_TRUE_MESSAGE(conv_f16_bits_are_nan(dst[0]), "Expected NaN through the clamp");
+    TEST_ASSERT_TRUE_MESSAGE(conv_f16_bits_are_nan(dst[1]), "Expected NaN through the clamp");
     TEST_ASSERT_EQUAL_FLOAT(6.0f, (float32_t)dst[2]);
     TEST_ASSERT_EQUAL_FLOAT(6.0f, (float32_t)dst[3]);
 }

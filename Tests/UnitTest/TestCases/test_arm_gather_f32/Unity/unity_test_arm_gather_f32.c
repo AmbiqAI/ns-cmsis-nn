@@ -38,3 +38,9 @@ void test_gather_f32_invalid_metadata(void) { gather_f32_invalid_metadata(); }
 void test_gather_f32_capacity_and_rank(void) { gather_f32_capacity_and_rank(); }
 
 void test_gather_f32_oracle(void) { gather_f32_oracle(); }
+
+void test_gather_f32_differential_counts(void) { gd_counts(); }
+
+void test_gather_f32_differential_shapes(void) { gd_shapes(); }
+
+void test_gather_f32_differential_refusals(void) { gd_refusals(); }
