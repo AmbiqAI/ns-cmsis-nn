@@ -11,6 +11,7 @@
 #define ARM_NN_TOPK_FLT_H
 
 #include "Internal/arm_nn_arg_extrema_flt.h"
+#include "Internal/arm_nn_compiler.h"
 #include <limits.h>
 #include <stdbool.h>
 #include <stddef.h>
