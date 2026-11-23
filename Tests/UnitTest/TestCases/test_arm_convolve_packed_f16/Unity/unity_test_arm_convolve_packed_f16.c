@@ -33,6 +33,8 @@ void test_convolve_grouped_fast_small_rows_f16(void) { convolve_grouped_fast_sma
 
 void test_convolve_grouped_direct_f16(void) { convolve_grouped_direct_f16(); }
 
+void test_convolve_grouped_padded_nan_f16(void) { convolve_grouped_padded_nan_f16(); }
+
 void test_convolve_grouped_f16(void) { convolve_grouped_f16(); }
 
 void test_convolve_grouped_contracts_f16(void) { convolve_grouped_contracts_f16(); }

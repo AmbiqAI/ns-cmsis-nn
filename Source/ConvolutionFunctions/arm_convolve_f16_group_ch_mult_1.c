@@ -21,6 +21,7 @@
  *
  * -------------------------------------------------------------------- */
 
+#include "Internal/arm_nn_activation_flt.h"
 #include "arm_nnfunctions.h"
 #include "arm_nnsupportfunctions.h"
 
@@ -41,13 +42,6 @@ __STATIC_FORCEINLINE float32_t arm_convolve_group_ch_mult_1_widened_dot(float16x
     const float32x4_t product_lo = vmulq(arm_nn_vcvtbq_f32_f16(lhs), arm_nn_vcvtbq_f32_f16(rhs));
     const float32x4_t product_hi = vmulq(arm_nn_vcvttq_f32_f16(lhs), arm_nn_vcvttq_f32_f16(rhs));
     return arm_nn_vec_reduce_add_f32(vaddq(product_lo, product_hi));
-}
-
-/* Match the established MVE convolution clamp: maxNum with the lower bound first makes NaN resolve to min. */
-__STATIC_FORCEINLINE _Float16
-arm_convolve_group_ch_mult_1_clamp_mve_compatible(_Float16 value, _Float16 activation_min, _Float16 activation_max)
-{
-    return arm_nn_min_f16h(arm_nn_max_f16h(value, activation_min), activation_max);
 }
 
 __STATIC_FORCEINLINE bool arm_convolve_group_ch_mult_1_gather_offset(int32_t kernel_y,
@@ -265,8 +259,7 @@ arm_cmsis_nn_status arm_convolve_f16_group_ch_mult_1(const cmsis_nn_context *ctx
                             acc32 += arm_convolve_group_ch_mult_1_widened_dot(weight_1, input_1);
                         }
                         _Float16 acc = (_Float16)(acc32 + bias);
-                        *out_c = (float16_t)arm_convolve_group_ch_mult_1_clamp_mve_compatible(
-                            acc, activation_min, activation_max);
+                        *out_c = (float16_t)arm_nn_clamp_grouped_conv_f16(acc, activation_min, activation_max);
                         out_c += output_ch;
                         input_ptr += column_step;
                     }
@@ -279,8 +272,7 @@ arm_cmsis_nn_status arm_convolve_f16_group_ch_mult_1(const cmsis_nn_context *ctx
                         acc32 += arm_convolve_group_ch_mult_1_widened_dot(weight_1, input_1);
                     }
                     _Float16 acc = (_Float16)(acc32 + bias);
-                    *out_c = (float16_t)arm_convolve_group_ch_mult_1_clamp_mve_compatible(
-                        acc, activation_min, activation_max);
+                    *out_c = (float16_t)arm_nn_clamp_grouped_conv_f16(acc, activation_min, activation_max);
                     if (out_y + 1 < output_y)
                     {
                         out_c += output_ch;
@@ -367,7 +359,8 @@ scalar_fallback:
 
                     const size_t output_index = ((size_t)out_y * output_x + out_x) * output_ch + c;
                     const _Float16 acc = (_Float16)acc32;
-                    output_b[output_index] = (float16_t)arm_nn_clamp_f16h(acc, activation_max, activation_min);
+                    output_b[output_index] =
+                        (float16_t)arm_nn_clamp_grouped_conv_f16(acc, activation_min, activation_max);
                 }
             }
         }

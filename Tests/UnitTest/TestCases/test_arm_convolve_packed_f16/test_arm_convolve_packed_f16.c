@@ -1444,6 +1444,54 @@ typedef arm_cmsis_nn_status (*conv_entry_f16)(const cmsis_nn_context *,
                                          const cmsis_nn_dims *,
                                          float16_t *);
 
+/* Padding excludes the small-kernel specialization. With two channels per filter the router
+ * uses generic grouped OHWI; with one it uses the channel-multiplier-one fallback. */
+void convolve_grouped_padded_nan_f16(void)
+{
+#if defined(__ARM_FP16_FORMAT_ALTERNATIVE)
+    TEST_IGNORE_MESSAGE("Arm alternative half precision has no infinity or NaN encodings");
+#else
+    const struct
+    {
+        conv_entry_f16 entry;
+        int32_t filter_channels;
+    } cases[] = {
+        {arm_convolve_direct_nhwc_ohwi_f16, 2},
+        {arm_convolve_direct_nhwc_ohwi_f16_acc16, 2},
+        {arm_convolve_nhwc_f16, 2},
+        {arm_convolve_nhwc_f16_acc16, 2},
+        {arm_convolve_nhwc_f16, 1},
+        {arm_convolve_nhwc_f16_acc16, 1},
+        {arm_convolve_f16_group_ch_mult_1, 1},
+    };
+    volatile uint16_t nan_bits = 0x7E01u;
+    float16_t x[12] = {0};
+    x[0] = conv_f16_from_bits(&nan_bits);
+    const float16_t w[12] = {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1};
+    const float16_t bias[2] = {0, 3};
+    const cmsis_nn_dims out = {.n = 1, .h = 1, .w = 1, .c = 2};
+    cmsis_nn_conv_params_f16 cp;
+    conv_f16_params(&cp, 0, 2, 0);
+    cp.dilation.w = 2;
+    cp.activation.min = (float16_t)-7.0f;
+    cp.activation.max = (float16_t)11.0f;
+    for (size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); ++i)
+    {
+        const cmsis_nn_dims in = {.n = 1, .h = 1, .w = 3, .c = 2 * cases[i].filter_channels};
+        const cmsis_nn_dims flt = {.n = 2, .h = 1, .w = 3, .c = cases[i].filter_channels};
+        float16_t y[2] = {0};
+        TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, cases[i].entry(NULL, &cp, &in, x, &flt, w, NULL, bias, &out, y));
+    #if defined(ARM_MATH_MVE_FLOAT16) && !defined(ARM_MATH_AUTOVECTORIZE)
+        TEST_ASSERT_EQUAL_FLOAT(-7.0f, (float32_t)y[0]);
+    #else
+        TEST_ASSERT_EQUAL_FLOAT(11.0f, (float32_t)y[0]);
+    #endif
+        TEST_ASSERT_EQUAL_FLOAT(3.0f, (float32_t)y[1]);
+    }
+#endif
+}
+
+
 enum
 {
     ROUTE_1X1_F16,

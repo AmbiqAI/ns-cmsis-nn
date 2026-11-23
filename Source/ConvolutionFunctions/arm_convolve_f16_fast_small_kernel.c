@@ -22,6 +22,7 @@
  *
  * -------------------------------------------------------------------- */
 
+#include "Internal/arm_nn_activation_flt.h"
 #include "arm_nnfunctions.h"
 #include "arm_nnsupportfunctions.h"
 
@@ -42,13 +43,6 @@ __STATIC_FORCEINLINE float32_t arm_convolve_f16_widened_dot(float16x8_t lhs, flo
     const float32x4_t product_lo = vmulq(arm_nn_vcvtbq_f32_f16(lhs), arm_nn_vcvtbq_f32_f16(rhs));
     const float32x4_t product_hi = vmulq(arm_nn_vcvttq_f32_f16(lhs), arm_nn_vcvttq_f32_f16(rhs));
     return arm_nn_vec_reduce_add_f32(vaddq(product_lo, product_hi));
-}
-
-/* Match the established MVE convolution clamp: maxNum with the lower bound first makes NaN resolve to min. */
-__STATIC_FORCEINLINE _Float16
-arm_convolve_f16_clamp_mve_compatible(_Float16 value, _Float16 activation_min, _Float16 activation_max)
-{
-    return arm_nn_min_f16h(arm_nn_max_f16h(value, activation_min), activation_max);
 }
 
 __STATIC_FORCEINLINE bool arm_convolve_f16_gather_offset(int32_t kernel_y,
@@ -283,7 +277,7 @@ arm_cmsis_nn_status arm_convolve_f16_fast_small_kernel(const cmsis_nn_context *c
                         input_data_pr += column_step;
                         const float32_t acc32 = arm_convolve_f16_widened_dot(weight, in) + bias_val;
                         _Float16 acc = (_Float16)acc32;
-                        acc = arm_convolve_f16_clamp_mve_compatible(acc, act_min, act_max);
+                        acc = arm_nn_clamp_grouped_conv_f16(acc, act_min, act_max);
                         *out_c = (float16_t)acc;
                         out_c += output_ch;
                     }
@@ -293,7 +287,7 @@ arm_cmsis_nn_status arm_convolve_f16_fast_small_kernel(const cmsis_nn_context *c
                         const float16x8_t in = vldrhq_gather_shifted_offset_z(input_data_pr, offset_src, p);
                         const float32_t acc32 = arm_convolve_f16_widened_dot(weight, in) + bias_val;
                         _Float16 acc = (_Float16)acc32;
-                        acc = arm_convolve_f16_clamp_mve_compatible(acc, act_min, act_max);
+                        acc = arm_nn_clamp_grouped_conv_f16(acc, act_min, act_max);
                         *out_c = (float16_t)acc;
                         if (i_out_y + 1 < output_y)
                         {

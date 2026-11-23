@@ -209,15 +209,19 @@ __STATIC_FORCEINLINE arm_cmsis_nn_status arm_grouped_ohwi_f16(const cmsis_nn_con
                         }
                         else
                         {
-                            acc = bias_data ? (_Float16)bias_data[oc] : (_Float16)0;
+                            acc = (_Float16)0;
+                            if (bias_data)
+                            {
+                                acc = (_Float16)bias_data[oc];
+                            }
                             acc += (_Float16)arm_nn_vec_reduce_add_f16(vacc);
                         }
     #else
                         /* Single rounding; the f16 clamp below keeps the NaN/Inf contract unchanged. */
                         _Float16 acc = (_Float16)acc32;
     #endif
-                        acc = arm_nn_clamp_f16h(
-                            acc, (_Float16)conv_params->activation.max, (_Float16)conv_params->activation.min);
+                        acc = arm_nn_clamp_grouped_conv_f16(
+                            acc, (_Float16)conv_params->activation.min, (_Float16)conv_params->activation.max);
                         out_pos[oc] = (float16_t)acc;
                     }
                 }
