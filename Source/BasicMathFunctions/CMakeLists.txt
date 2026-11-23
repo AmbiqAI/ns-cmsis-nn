@@ -25,6 +25,7 @@ if (ARM_NN_ENABLE_F32)
                       arm_elementwise_add_f32.c
                       arm_elementwise_sub_f32.c
                       arm_elementwise_mul_f32.c
+                      arm_elementwise_squared_difference_broadcast_f32.c
                       arm_elementwise_squared_difference_f32.c
                       arm_elementwise_div_f32.c
                       arm_elementwise_sub_broadcast_f32.c
@@ -50,6 +51,7 @@ if (ARM_NN_ENABLE_F16)
                       arm_elementwise_add_fp16.c
                       arm_elementwise_add_f16.c
                       arm_elementwise_sub_f16.c
+                      arm_elementwise_squared_difference_broadcast_f16.c
                       arm_elementwise_squared_difference_f16.c
                       arm_elementwise_mul_f16.c
                       arm_elementwise_div_f16.c

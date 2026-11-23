@@ -45,3 +45,17 @@ void test_squared_difference_f32_alias(void) { squared_difference_f32_alias(); }
 void test_squared_difference_f32_flush_to_zero(void) { squared_difference_f32_flush_to_zero(); }
 void test_squared_difference_f32_threshold(void) { squared_difference_f32_threshold(); }
 void test_squared_difference_f32_arg_error(void) { squared_difference_f32_arg_error(); }
+
+void test_broadcast_f32_shapes(void) { squared_difference_broadcast_shapes(); }
+void test_broadcast_f32_errors(void) { squared_difference_broadcast_errors(); }
+
+void test_broadcast_f32_threshold(void) { broadcast_threshold(EXPECTED_COLUMN == 3); }
+void test_broadcast_f32_flush(void)
+{
+#if defined(ARM_NN_FP_CONTROL_AVAILABLE)
+    arm_nn_set_fp_control(arm_nn_get_fp_control() | (1u << 24));
+    broadcast_threshold(1);
+#else
+    TEST_IGNORE_MESSAGE("Arm FP control required");
+#endif
+}
