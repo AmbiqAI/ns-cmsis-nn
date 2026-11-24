@@ -187,14 +187,16 @@ __STATIC_FORCEINLINE float32x4_t arm_nn_exp_mve_f32(float32x4_t x)
     const float32x4_t scaled =
         vreinterpretq_f32_u32(vaddq_u32(vreinterpretq_u32_f32(p), vreinterpretq_u32_s32(vshlq_n_s32(half, 23))));
     const float32x4_t second = vreinterpretq_f32_s32(vshlq_n_s32(vaddq_n_s32(vsubq_s32(n, half), 127), 23));
-    float32x4_t result = vmulq_f32(scaled, second);
+    uint32x4_t result = vreinterpretq_u32_f32(vmulq_f32(scaled, second));
 
     const mve_pred16_t under = vcmphiq_n_u32(bits, ARM_NN_EXP_F32_ZERO_BITS);
     const mve_pred16_t over = vcmpgtq_n_s32(vreinterpretq_s32_u32(bits), (int32_t)ARM_NN_EXP_F32_INF_BITS);
     const mve_pred16_t nan = vcmphiq_n_u32(vandq_u32(bits, vdupq_n_u32(UINT32_C(0x7FFFFFFF))), UINT32_C(0x7F800000));
-    result = vpselq_f32(vdupq_n_f32(0.0f), result, under);
-    result = vpselq_f32(vreinterpretq_f32_u32(vdupq_n_u32(UINT32_C(0x7F800000))), result, over);
-    return vpselq_f32(vreinterpretq_f32_u32(vorrq_u32(bits, vdupq_n_u32(UINT32_C(0x00400000)))), result, nan);
+    // Select the exceptional encodings as integers. LLVM with finite-math enabled
+    // can discard a floating-point select whose selected value is infinity.
+    result = vpselq_u32(vdupq_n_u32(0), result, under);
+    result = vpselq_u32(vdupq_n_u32(UINT32_C(0x7F800000)), result, over);
+    return vreinterpretq_f32_u32(vpselq_u32(vorrq_u32(bits, vdupq_n_u32(UINT32_C(0x00400000))), result, nan));
 }
     #endif
 
