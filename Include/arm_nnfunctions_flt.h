@@ -2673,41 +2673,6 @@ arm_cmsis_nn_status arm_nn_sq_l2_distance_f32(const float32_t *input,
 
 /**
  * @ingroup Reduction
- * @brief Fused Manhattan distances from one row to a reference matrix.
- *
- * Computes each output in increasing feature order, starting at +0. Each
- * subtraction is rounded to float32 and clamped to [-FLT_MAX, FLT_MAX],
- * then its absolute value is accumulated.
- * This is the scalar SUB -> ABS -> SUM chain with NONE activation.
- * NaNs propagate (payloads unspecified); infinities saturate at the elementwise
- * clamps, and the final sum may overflow. Signed zeros follow that chain.
- * Subnormals depend on the target FP mode. Use strict floating point compilation
- * (-ffp-contract=off, no reassociation) when comparing bit patterns to the chain.
- * This scalar implementation is used on every backend; it does not promise the
- * four-lane accumulation order of the existing Helium SUM. No scratch or state.
- *
- * Input has features elements; references is contiguous [rows, features];
- * output has rows elements. Buffers have natural float alignment. Output must
- * not overlap either input (the two read-only inputs may overlap each other).
- * Null pointers, nonpositive sizes, sizes above INT32_MAX bytes or overlapping
- * output are rejected before any write. The caller supplies allocated buffers
- * of the declared lengths. No allocation, recursion or I/O is performed.
- *
- * @param[in] input One feature vector.
- * @param[in] references Row-major reference matrix.
- * @param[in] rows Number of reference rows.
- * @param[in] features Number of features per row.
- * @param[out] output Distances, one per reference.
- * @return ARM_CMSIS_NN_SUCCESS or ARM_CMSIS_NN_ARG_ERROR.
- */
-arm_cmsis_nn_status arm_nn_l1_distance_f32(const float32_t *input,
-                                           const float32_t *references,
-                                           int32_t rows,
-                                           int32_t features,
-                                           float32_t *output);
-
-/**
- * @ingroup Reduction
  * @brief Radial basis function kernel values of a reference matrix against one row, in one stage.
  *
  * For each row s ascending, output[s] = exp(neg_gamma * sum_k (references[s][k] - input[k])^2). The sum runs in
@@ -4870,49 +4835,6 @@ arm_cmsis_nn_status arm_elementwise_mul_broadcast_f16(const float16_t *input_1_d
  * @return `ARM_CMSIS_NN_SUCCESS` on success or `ARM_CMSIS_NN_ARG_ERROR` on invalid arguments.
  */
 arm_cmsis_nn_status arm_nn_sqrt_f16(const float16_t *input, float16_t *output, int32_t block_size);
-
-/**
- * @brief Elementwise exponential of a float16 tensor, `exp(x)`: the LiteRT `EXP` builtin.
- *
- * The result is `(float16_t)` of arm_nn_exp_f32's scalar body, `arm_nn_exp_scalar_f32`,
- * at the input widened to float32: one rounding, bit for bit, on all 65 536 binary16
- * inputs on the scalar leg. Its accuracy is therefore arm_nn_exp_f32's (helia-ml's
- * `EXP_F32`) followed by one rounding to binary16: every result is the binary16 nearest
- * `exp(x)` or one of its two neighbours.
- *
- * Value path per leg: under `ARM_MATH_MVE_FLOAT16 && !ARM_MATH_AUTOVECTORIZE`, where
- * arm_nn_exp_f32's Helium body is compiled, eight halves are widened to two float32
- * vectors, run through that body and narrowed once, tail-predicated; every other build
- * widens, evaluates and narrows one element at a time. On QEMU 11.0.0 (`mps3-an547`) the
- * Helium leg equals the scalar leg on all 65 536 inputs, so no input is named here; the
- * float32 lanes it flushes are below every binary16, and the narrowing kept the 891
- * subnormal binary16 results (`x` from -9.71 down to -17.33). Silicon has not run it.
- *
- * Results by input:
- * - NaN: the same NaN with the quiet bit set (bit 9), sign and payload kept, decided on
- *   the binary16 bits before any widening.
- * - `x >= 11.09375` (`0x498C`), `+Inf` included: `+Inf`. `0x498B` (11.0859375) is the
- *   largest input with a finite result, 65248.
- * - `x <= -17.34375`, `-Inf` included: `+0`. Results below `2^-14` are binary16
- *   subnormals.
- * - `+0`, `-0` and every subnormal input: exactly `1.0`.
- *
- * FPSCR: the results do not depend on FZ, FZ16 or DN (checked on QEMU over all 65 536
- * inputs): a NaN is built from its bits, a float32 result FZ flushes is below every
- * binary16, and a binary16 subnormal input widens to a normal float32. The rounding mode
- * is neither set nor read, and the results are at round-to-nearest. The cumulative
- * exception flags are not part of the contract.
- *
- * No scratch, no state: the call reads @p input and writes @p output only.
- *
- * @param[in]  input       Pointer to the input tensor.
- * @param[out] output      Pointer to the output tensor; may alias @p input.
- * @param[in]  block_size  Number of tensor elements.
- *
- * @return `ARM_CMSIS_NN_SUCCESS` on success, or `ARM_CMSIS_NN_ARG_ERROR` without writing
- *         @p output when @p input or @p output is NULL or @p block_size is below 1.
- */
-arm_cmsis_nn_status arm_nn_exp_f16(const float16_t *input, float16_t *output, int32_t block_size);
 
 /**
  * @brief Elementwise reciprocal square root of a float16 tensor, `1 / sqrt(x)`.

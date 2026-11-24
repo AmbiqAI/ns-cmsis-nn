@@ -26,12 +26,10 @@
 #include <math.h>
 #include <string.h>
 
-#if ARM_NN_FLOAT_API_ENABLED
+#if ARM_NN_ENABLE_F32
 
 /*
- * exp(x) in float32 for arm_nn_exp_f32 and arm_nn_exp_f16. Declared under
- * ARM_NN_FLOAT_API_ENABLED, not ARM_NN_ENABLE_F32, so the float16 entry can call
- * it in a build without the float32 kernels (AGENTS.md, "Cross-dtype helpers").
+ * exp(x) in float32 for arm_nn_exp_f32 and the RBF kernel.
  *
  * The value is heliaML's heliaml_reference_exp_f32 (helia-ml 4633a47c,
  * Include/heliaml/internal/heliaml_kernels.h), bit for bit on every non-NaN input:
@@ -132,7 +130,7 @@ __STATIC_FORCEINLINE float32_t arm_nn_exp_scalar_f32(float32_t x)
 }
 
     #if defined(ARM_MATH_MVEF) && !defined(ARM_MATH_AUTOVECTORIZE)
-        /** The Helium body below is compiled; arm_nn_exp_f32 and arm_nn_exp_f16 use it. */
+        /** The Helium body below is compiled; arm_nn_exp_f32 and the RBF kernel use it. */
         #define ARM_NN_EXP_MVE_F32 1
 
 /*
@@ -200,6 +198,6 @@ __STATIC_FORCEINLINE float32x4_t arm_nn_exp_mve_f32(float32x4_t x)
 }
     #endif
 
-#endif /* ARM_NN_FLOAT_API_ENABLED */
+#endif /* ARM_NN_ENABLE_F32 */
 
 #endif /* ARM_NN_EXP_FLT_H */

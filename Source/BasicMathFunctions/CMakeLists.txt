@@ -43,7 +43,6 @@ if (ARM_NN_ENABLE_F32)
                       arm_reduce_sum_f32.c
                       arm_nn_sqrt_f32.c
                       arm_nn_exp_f32.c
-                      arm_nn_l1_distance_f32.c
                       arm_nn_rbf_kernel_f32.c
                       arm_nn_sq_l2_distance_f32.c
                       arm_nn_tree_walk_f32.c
@@ -77,7 +76,6 @@ if (ARM_NN_ENABLE_F16)
                       arm_reduce_min_tflite_f16.c
                       arm_reduce_sum_f16.c
                       arm_nn_sqrt_f16.c
-                      arm_nn_exp_f16.c
                       arm_topk_v2_f16.c
                       arm_rsqrt_f16.c)
 endif()

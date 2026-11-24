@@ -13,6 +13,6 @@ arm_cmsis_nn_status arm_nn_sq_l2_distance_f32(const float32_t *input,
                                               int32_t features,
                                               float32_t *output)
 {
-    return distance_f32(input, references, rows, features, output, true);
+    return distance_f32(input, references, rows, features, output);
 }
 #endif

@@ -53,17 +53,11 @@
 /** arm_nn_exp_f32, the elementwise float32 exponential, is available. */
 #define ARM_NN_HAS_EXP_F32 1
 
-/** arm_nn_exp_f16, the elementwise float16 exponential, is available. */
-#define ARM_NN_HAS_EXP_F16 1
-
 /** arm_topk_v2_f32, the LiteRT TOPK_V2 builtin over the innermost axis, is available. */
 #define ARM_NN_HAS_TOPK_V2_F32 1
 
 /** arm_topk_v2_f16, the LiteRT TOPK_V2 builtin over the innermost axis, is available. */
 #define ARM_NN_HAS_TOPK_V2_F16 1
-
-/** arm_nn_l1_distance_f32, fused scalar-order float32 distance reduction, is available. */
-#define ARM_NN_HAS_L1_DISTANCE_F32 1
 
 /** arm_nn_sq_l2_distance_f32, fused scalar-order float32 distance reduction, is available. */
 #define ARM_NN_HAS_SQ_L2_DISTANCE_F32 1

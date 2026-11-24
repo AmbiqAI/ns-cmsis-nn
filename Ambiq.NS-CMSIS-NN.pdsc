@@ -210,7 +210,6 @@
         <file category="source" name="Source/BasicMathFunctions/arm_mul_scalar_s8.c"/>
         <file category="source" name="Source/BasicMathFunctions/arm_nn_abs_f16.c"/>
         <file category="source" name="Source/BasicMathFunctions/arm_nn_abs_f32.c"/>
-        <file category="source" name="Source/BasicMathFunctions/arm_nn_exp_f16.c"/>
         <file category="source" name="Source/BasicMathFunctions/arm_nn_exp_f32.c"/>
         <file category="source" name="Source/BasicMathFunctions/arm_nn_fill_f16.c"/>
         <file category="source" name="Source/BasicMathFunctions/arm_nn_fill_f32.c"/>
@@ -220,7 +219,6 @@
         <file category="source" name="Source/BasicMathFunctions/arm_nn_neg_f32.c"/>
         <file category="source" name="Source/BasicMathFunctions/arm_nn_sqrt_f16.c"/>
         <file category="source" name="Source/BasicMathFunctions/arm_nn_sqrt_f32.c"/>
-        <file category="source" name="Source/BasicMathFunctions/arm_nn_l1_distance_f32.c"/>
         <file category="source" name="Source/BasicMathFunctions/arm_nn_rbf_kernel_f32.c"/>
         <file category="source" name="Source/BasicMathFunctions/arm_nn_sq_l2_distance_f32.c"/>
         <file category="source" name="Source/BasicMathFunctions/arm_nn_tree_walk_f32.c"/>

@@ -39,12 +39,8 @@ static inline bool distance_overlaps(const void *a, size_t a_size, const void *b
     return left < right ? right - left < a_size : left - right < b_size;
 }
 
-static inline arm_cmsis_nn_status distance_f32(const float32_t *input,
-                                               const float32_t *references,
-                                               int32_t rows,
-                                               int32_t features,
-                                               float32_t *output,
-                                               bool squared)
+static inline arm_cmsis_nn_status
+distance_f32(const float32_t *input, const float32_t *references, int32_t rows, int32_t features, float32_t *output)
 {
     if (!input || !references || !output || rows <= 0 || features <= 0 ||
         rows > (INT32_MAX / (int32_t)sizeof(float32_t)) / features)
@@ -66,7 +62,7 @@ static inline arm_cmsis_nn_status distance_f32(const float32_t *input,
         for (int32_t col = 0; col < features; ++col)
         {
             const float32_t delta = distance_finite_clamp(input[col] - references[col]);
-            const float32_t term = squared ? distance_finite_clamp(delta * delta) : fabsf(delta);
+            const float32_t term = distance_finite_clamp(delta * delta);
             sum += term;
         }
         output[row] = sum;
