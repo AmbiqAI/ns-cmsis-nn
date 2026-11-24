@@ -68,6 +68,12 @@
 /** arm_nn_sq_l2_distance_f32, fused scalar-order float32 distance reduction, is available. */
 #define ARM_NN_HAS_SQ_L2_DISTANCE_F32 1
 
+/** arm_nn_rbf_kernel_f32, the radial basis function kernel values of a float32 reference table against one row, is
+ *  available, and its body arm_nn_rbf_kernel_body_f32, with the block bodies arm_nn_rbf_kernel_block_f32 and
+ *  arm_nn_rbf_sq_distance_block_f32, are static inline functions of Internal/arm_nn_rbf_kernel_flt.h that take every
+ *  extent by value, so generated code may call them with literal rows, features and lanes. */
+#define ARM_NN_HAS_RBF_KERNEL_F32 1
+
 /** arm_nn_tree_walk_f32, the table walk of a packed float32 tree table, is available. */
 #define ARM_NN_HAS_TREE_WALK_F32 1
 

@@ -98,6 +98,7 @@
         <file category="header" name="Include/Internal/arm_nn_rsub_scalar.h"/>
         <file category="header" name="Include/Internal/arm_nn_s4_decode.h"/>
         <file category="header" name="Include/Internal/arm_nn_sqrt_flt.h"/>
+        <file category="header" name="Include/Internal/arm_nn_rbf_kernel_flt.h"/>
         <file category="header" name="Include/Internal/arm_nn_topk_flt.h"/>
         <file category="header" name="Include/Internal/arm_nn_tree_walk_flt.h"/>
         <file category="header" name="Include/Internal/arm_minmax_f16_common.h"/>
@@ -220,6 +221,7 @@
         <file category="source" name="Source/BasicMathFunctions/arm_nn_sqrt_f16.c"/>
         <file category="source" name="Source/BasicMathFunctions/arm_nn_sqrt_f32.c"/>
         <file category="source" name="Source/BasicMathFunctions/arm_nn_l1_distance_f32.c"/>
+        <file category="source" name="Source/BasicMathFunctions/arm_nn_rbf_kernel_f32.c"/>
         <file category="source" name="Source/BasicMathFunctions/arm_nn_sq_l2_distance_f32.c"/>
         <file category="source" name="Source/BasicMathFunctions/arm_nn_tree_walk_f32.c"/>
         <file category="source" name="Source/BasicMathFunctions/arm_nn_tree_walk_mean_argmax_f32.c"/>

@@ -44,6 +44,7 @@ if (ARM_NN_ENABLE_F32)
                       arm_nn_sqrt_f32.c
                       arm_nn_exp_f32.c
                       arm_nn_l1_distance_f32.c
+                      arm_nn_rbf_kernel_f32.c
                       arm_nn_sq_l2_distance_f32.c
                       arm_nn_tree_walk_f32.c
                       arm_nn_tree_walk_mean_argmax_f32.c

@@ -2708,6 +2708,45 @@ arm_cmsis_nn_status arm_nn_l1_distance_f32(const float32_t *input,
 
 /**
  * @ingroup Reduction
+ * @brief Radial basis function kernel values of a reference matrix against one row, in one stage.
+ *
+ * For each row s ascending, output[s] = exp(neg_gamma * sum_k (references[s][k] - input[k])^2). The sum runs in
+ * increasing feature order from +0, with each difference rounded once and each term accumulated by one fused
+ * multiply-add, fma(d, d, acc), rounded once (vfma on the Helium leg, fmaf on the scalar leg), so the two legs compute
+ * the same sum bit for bit whatever the compiler's contraction. A library built with ARM_NN_RBF_KERNEL_MUL_ADD defined
+ * accumulates acc + d * d instead, whose rounding the compiler's contraction setting decides. The sum is multiplied
+ * once by neg_gamma and passed to arm_nn_exp_f32's body for the leg, unchanged; the stage has no clamp, so an
+ * infinite or overflowing sum reaches the multiply, and a neg_gamma of zero times an infinite sum is a NaN.
+ *
+ * Results follow the exponential: a NaN anywhere in a row, in the input or in neg_gamma gives a NaN (its payload is
+ * unspecified; on the Helium leg the default NaN of the arithmetic, quieted); an argument below -103.97f gives +0; a
+ * result below 2^-126 is subnormal on the scalar leg (+0 under FPSCR.FZ) and +0 on the Helium leg; every other result
+ * is the same bits on both legs. Rows are computed a block of four at a time, the last block holding the remainder,
+ * with no buffer of one value per row and no write past output[rows - 1]. No scratch or state. The body is the static
+ * inline arm_nn_rbf_kernel_body_f32 of Internal/arm_nn_rbf_kernel_flt.h.
+ *
+ * Input has features elements; references is contiguous [rows, features]; output has rows elements. Buffers have
+ * natural float alignment. Output must not overlap either input (the two read-only inputs may overlap each other).
+ * Null pointers, nonpositive sizes, sizes above INT32_MAX bytes or overlapping output are rejected before any write.
+ * The caller supplies allocated buffers of the declared lengths. No allocation, recursion or I/O is performed.
+ *
+ * @param[in] input One feature vector.
+ * @param[in] references Row-major reference matrix.
+ * @param[in] rows Number of reference rows.
+ * @param[in] features Number of features per row.
+ * @param[in] neg_gamma The scale of the squared distance, the negated gamma of the kernel.
+ * @param[out] output Kernel values, one per reference row.
+ * @return ARM_CMSIS_NN_SUCCESS or ARM_CMSIS_NN_ARG_ERROR.
+ */
+arm_cmsis_nn_status arm_nn_rbf_kernel_f32(const float32_t *input,
+                                          const float32_t *references,
+                                          int32_t rows,
+                                          int32_t features,
+                                          float32_t neg_gamma,
+                                          float32_t *output);
+
+/**
+ * @ingroup Reduction
  * @brief Returns the first minimum's axis-relative INT32 index for a f32 tensor.
  *
  * The input is contiguous NHWC with four extents; axis is a canonical index 0..3.
