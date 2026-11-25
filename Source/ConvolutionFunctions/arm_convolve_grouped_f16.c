@@ -10,6 +10,7 @@
 #if ARM_NN_ENABLE_F16
     #include "Internal/arm_conv_opt_f16.h"
     #include "Internal/arm_nn_activation_flt.h"
+    #include "Internal/arm_nn_conv_grouped_f16.h"
     #include "arm_nnfunctions.h"
     #include "arm_nnsupportfunctions.h"
 
@@ -31,24 +32,6 @@ __STATIC_INLINE bool arm_convolve_nhwc_f16_grouped_args_ok(const cmsis_nn_conv_p
                                         sizeof(float16_t),
                                         8,
                                         conv_params->weight_format == ARM_NN_WEIGHT_FORMAT_NT_N_PACKED);
-}
-
-/* Clip wide grouped coordinates before taking any tensor offsets. */
-__STATIC_FORCEINLINE void arm_conv_f16_tap_span(int64_t base,
-                                                int32_t dilation,
-                                                int32_t kernel,
-                                                int32_t input,
-                                                int32_t *first,
-                                                int32_t *end,
-                                                uint32_t *coordinate)
-{
-    /* Validated nonnegative int32 padding gives base >= -INT32_MAX. Thus both
-     * clipping distances fit uint32, even when coordinate construction needs int64. */
-    const uint32_t lo = base < 0 ? ((uint32_t)(-base) - 1u) / (uint32_t)dilation + 1u : 0;
-    const uint32_t hi = input > base ? (uint32_t)((int64_t)input - 1 - base) / (uint32_t)dilation + 1u : 0;
-    *first = (int32_t)(lo < (uint32_t)kernel ? lo : (uint32_t)kernel);
-    *end = (int32_t)(hi < (uint32_t)kernel ? hi : (uint32_t)kernel);
-    *coordinate = *first < *end ? (uint32_t)(base + (int64_t)*first * dilation) : 0;
 }
 
 __STATIC_FORCEINLINE arm_cmsis_nn_status arm_grouped_ohwi_f16(const cmsis_nn_conv_params_f16 *conv_params,

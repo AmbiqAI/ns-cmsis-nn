@@ -22,6 +22,7 @@
  * -------------------------------------------------------------------- */
 
 #include "Internal/arm_nn_activation_flt.h"
+#include "Internal/arm_nn_conv_grouped_f16.h"
 #include "arm_nnfunctions.h"
 #include "arm_nnsupportfunctions.h"
 
@@ -44,76 +45,6 @@ __STATIC_FORCEINLINE float32_t arm_convolve_group_ch_mult_1_widened_dot(float16x
     return arm_nn_vec_reduce_add_f32(vaddq(product_lo, product_hi));
 }
 
-__STATIC_FORCEINLINE bool arm_convolve_group_ch_mult_1_gather_offset(int32_t kernel_y,
-                                                                     int32_t kernel_x,
-                                                                     int32_t dilation_y,
-                                                                     int32_t dilation_x,
-                                                                     int32_t input_x,
-                                                                     int32_t input_ch,
-                                                                     uint16_t *offset)
-{
-    const uint64_t limit = ARM_NN_MVE_F16_GATHER_OFFSET_MAX;
-    uint64_t value = (uint64_t)(uint32_t)kernel_y * (uint32_t)dilation_y;
-    if (value > limit / (uint32_t)input_x)
-    {
-        return false;
-    }
-    value *= (uint32_t)input_x;
-
-    const uint64_t column = (uint64_t)(uint32_t)kernel_x * (uint32_t)dilation_x;
-    if (column > limit || value > limit - column)
-    {
-        return false;
-    }
-    value += column;
-
-    if (value > limit / (uint32_t)input_ch)
-    {
-        return false;
-    }
-    *offset = (uint16_t)(value * (uint32_t)input_ch);
-    return true;
-}
-
-__STATIC_FORCEINLINE bool arm_convolve_group_ch_mult_1_pointer_steps(int32_t input_x,
-                                                                     int32_t input_ch,
-                                                                     int32_t output_x,
-                                                                     int32_t output_y,
-                                                                     int32_t stride_x,
-                                                                     int32_t stride_y,
-                                                                     size_t *column_step,
-                                                                     size_t *row_step)
-{
-    *column_step = 0;
-    *row_step = 0;
-
-    if (output_x > 1)
-    {
-        const uint64_t step = (uint64_t)(uint32_t)input_ch * (uint32_t)stride_x;
-        if (step > SIZE_MAX)
-        {
-            return false;
-        }
-        *column_step = (size_t)step;
-    }
-
-    if (output_y > 1)
-    {
-        const uint64_t next_row = (uint64_t)(uint32_t)stride_y * (uint32_t)input_x;
-        const uint64_t current_column = (uint64_t)(uint32_t)(output_x - 1) * (uint32_t)stride_x;
-        if (next_row < current_column)
-        {
-            return false;
-        }
-        const uint64_t spatial_step = next_row - current_column;
-        if (spatial_step > SIZE_MAX / (uint32_t)input_ch)
-        {
-            return false;
-        }
-        *row_step = (size_t)(spatial_step * (uint32_t)input_ch);
-    }
-    return true;
-}
     #endif
 
 arm_cmsis_nn_status arm_convolve_f16_group_ch_mult_1(const cmsis_nn_context *ctx,
@@ -185,51 +116,16 @@ arm_cmsis_nn_status arm_convolve_f16_group_ch_mult_1(const cmsis_nn_context *ctx
     const bool output_fits = (int64_t)(output_x - 1) * stride_x + (int64_t)(kernel_x - 1) * dilation_x < input_x &&
         (int64_t)(output_y - 1) * stride_y + (int64_t)(kernel_y - 1) * dilation_y < input_y;
 
-    if (rhs_cols <= 16 && pad_y == 0 && pad_x == 0 && output_fits)
+    uint16_t offsets[16];
+    if (rhs_cols <= 16 && pad_y == 0 && pad_x == 0 && output_fits &&
+        arm_nn_conv_f16_gather_offsets(offsets, input_dims, filter_dims, &conv_params->dilation))
     {
         const int32_t rhs_cols_0 = (rhs_cols < 8) ? rhs_cols : 8;
         const int32_t rhs_cols_1 = rhs_cols - rhs_cols_0;
-        uint16x8_t offset_src_0 = vdupq_n_u16(0);
-        uint16x8_t offset_src_1 = vdupq_n_u16(0);
-        bool offsets_fit = true;
-
-        for (int32_t ky = 0; ky < kernel_y && offsets_fit; ++ky)
-        {
-            for (int32_t kx = 0; kx < kernel_x; ++kx)
-            {
-                const int32_t idx = ky * kernel_x + kx;
-                uint16_t offset;
-                if (!arm_convolve_group_ch_mult_1_gather_offset(
-                        ky, kx, dilation_y, dilation_x, input_x, input_ch, &offset))
-                {
-                    offsets_fit = false;
-                    break;
-                }
-                if (idx < 8)
-                {
-                    offset_src_0[idx] = offset;
-                }
-                else
-                {
-                    offset_src_1[idx - 8] = offset;
-                }
-            }
-        }
-
-        if (!offsets_fit)
-        {
-            goto scalar_fallback;
-        }
-
-        size_t column_step;
-        size_t row_step;
-        if (!arm_convolve_group_ch_mult_1_pointer_steps(
-                input_x, input_ch, output_x, output_y, stride_x, stride_y, &column_step, &row_step))
-        {
-            goto scalar_fallback;
-        }
         const mve_pred16_t p0 = vctp16q((uint32_t)rhs_cols_0);
         const mve_pred16_t p1 = vctp16q((uint32_t)rhs_cols_1);
+        const uint16x8_t offset_src_0 = vld1q_z(offsets, p0);
+        const uint16x8_t offset_src_1 = vld1q_z(offsets + 8, p1);
 
         for (int32_t b = 0; b < input_batches; ++b)
         {
@@ -249,34 +145,21 @@ arm_cmsis_nn_status arm_convolve_f16_group_ch_mult_1(const cmsis_nn_context *ctx
 
                 for (int32_t out_y = 0; out_y < output_y; ++out_y)
                 {
-                    for (int32_t out_x = 0; out_x < output_x - 1; ++out_x)
+                    const size_t row = (size_t)out_y * stride_y * input_x;
+                    for (int32_t out_x = 0; out_x < output_x; ++out_x)
                     {
-                        const float16x8_t input_0 = vldrhq_gather_shifted_offset_z(input_ptr, offset_src_0, p0);
+                        const size_t pos = (row + (size_t)out_x * stride_x) * input_ch;
+                        const float16_t *pixel = input_ptr + pos;
+                        const float16x8_t input_0 = vldrhq_gather_shifted_offset_z(pixel, offset_src_0, p0);
                         float32_t acc32 = arm_convolve_group_ch_mult_1_widened_dot(weight_0, input_0);
                         if (rhs_cols_1 > 0)
                         {
-                            const float16x8_t input_1 = vldrhq_gather_shifted_offset_z(input_ptr, offset_src_1, p1);
+                            const float16x8_t input_1 = vldrhq_gather_shifted_offset_z(pixel, offset_src_1, p1);
                             acc32 += arm_convolve_group_ch_mult_1_widened_dot(weight_1, input_1);
                         }
-                        _Float16 acc = (_Float16)(acc32 + bias);
-                        *out_c = (float16_t)arm_nn_clamp_grouped_conv_f16(acc, activation_min, activation_max);
-                        out_c += output_ch;
-                        input_ptr += column_step;
-                    }
-
-                    const float16x8_t input_0 = vldrhq_gather_shifted_offset_z(input_ptr, offset_src_0, p0);
-                    float32_t acc32 = arm_convolve_group_ch_mult_1_widened_dot(weight_0, input_0);
-                    if (rhs_cols_1 > 0)
-                    {
-                        const float16x8_t input_1 = vldrhq_gather_shifted_offset_z(input_ptr, offset_src_1, p1);
-                        acc32 += arm_convolve_group_ch_mult_1_widened_dot(weight_1, input_1);
-                    }
-                    _Float16 acc = (_Float16)(acc32 + bias);
-                    *out_c = (float16_t)arm_nn_clamp_grouped_conv_f16(acc, activation_min, activation_max);
-                    if (out_y + 1 < output_y)
-                    {
-                        out_c += output_ch;
-                        input_ptr += row_step;
+                        out_c[((size_t)out_y * output_x + out_x) * output_ch] =
+                            (float16_t)arm_nn_clamp_grouped_conv_f16(
+                                (_Float16)(acc32 + bias), activation_min, activation_max);
                     }
                 }
             }
@@ -285,9 +168,11 @@ arm_cmsis_nn_status arm_convolve_f16_group_ch_mult_1(const cmsis_nn_context *ctx
         }
         return ARM_CMSIS_NN_SUCCESS;
     }
-scalar_fallback:
-    #endif
 
+    /* Groups occupy adjacent NHWC channels; OHWI weights for those channels are rhs_cols apart. */
+    const int32_t channels_per_vector = arm_nn_conv_f16_weight_gather_lanes((size_t)rhs_cols);
+    const uint16x8_t channel_offsets = vmulq_n_u16(vidupq_u16((uint32_t)0, 1), (uint16_t)rhs_cols);
+    #endif
     for (int32_t b = 0; b < input_batches; ++b)
     {
         const float16_t *input_b = input_data + (size_t)b * input_y * input_x * input_ch;
@@ -296,63 +181,54 @@ scalar_fallback:
         for (int32_t out_y = 0; out_y < output_y; ++out_y)
         {
             const int64_t base_y = (int64_t)out_y * stride_y - pad_y;
+            int32_t ky_first, ky_end;
+            uint32_t iy_first;
+            arm_conv_f16_tap_span(base_y, dilation_y, kernel_y, input_y, &ky_first, &ky_end, &iy_first);
             for (int32_t out_x = 0; out_x < output_x; ++out_x)
             {
                 const int64_t base_x = (int64_t)out_x * stride_x - pad_x;
-                int64_t kernel_y_start;
-                int64_t kernel_y_end;
-                int64_t kernel_x_start;
-                int64_t kernel_x_end;
-
-                if (dilation_y > 1)
+                int32_t kx_first, kx_end;
+                uint32_t ix_first;
+                arm_conv_f16_tap_span(base_x, dilation_x, kernel_x, input_x, &kx_first, &kx_end, &ix_first);
+    #if defined(ARM_MATH_MVE_FLOAT16) && !defined(ARM_MATH_AUTOVECTORIZE)
+                for (int32_t c = 0; c < output_ch; c += channels_per_vector)
                 {
-                    kernel_y_start = (-base_y + dilation_y - 1) / dilation_y;
-                    kernel_y_end = (input_y - base_y + dilation_y - 1) / dilation_y;
+                    const mve_pred16_t pred = vctp16q((uint32_t)ARM_NN_MIN(channels_per_vector, output_ch - c));
+                    const float16x8_t bias = bias_data ? vld1q_z(bias_data + c, pred) : vdupq_n_f16((float16_t)0);
+                    float32x4_t lo = arm_nn_vcvtbq_f32_f16(bias);
+                    float32x4_t hi = arm_nn_vcvttq_f32_f16(bias);
+                    uint32_t iy = iy_first;
+                    for (int32_t ky = ky_first; ky < ky_end; ++ky, iy += (uint32_t)dilation_y)
+                    {
+                        uint32_t ix = ix_first;
+                        for (int32_t kx = kx_first; kx < kx_end; ++kx, ix += (uint32_t)dilation_x)
+                        {
+                            const float16x8_t x = vld1q_z(input_b + ((size_t)iy * input_x + ix) * input_ch + c, pred);
+                            const float16_t *tap = filter_data + (size_t)c * rhs_cols + (size_t)ky * kernel_x + kx;
+                            const float16x8_t w = vldrhq_gather_shifted_offset_z(tap, channel_offsets, pred);
+                            lo = vfmaq(lo, arm_nn_vcvtbq_f32_f16(x), arm_nn_vcvtbq_f32_f16(w));
+                            hi = vfmaq(hi, arm_nn_vcvttq_f32_f16(x), arm_nn_vcvttq_f32_f16(w));
+                        }
+                    }
+                    float16x8_t v = arm_nn_vcvtbq_f16_f32(vreinterpretq_f16_f32(lo), lo);
+                    v = arm_nn_vcvttq_f16_f32(v, hi);
+                    v = arm_nn_clamp_mve_f16(v, vdupq_n_f16(activation_min), vdupq_n_f16(activation_max));
+                    vstrhq_p(output_b + ((size_t)out_y * output_x + out_x) * output_ch + c, v, pred);
                 }
-                else
-                {
-                    kernel_y_start = -base_y;
-                    kernel_y_end = input_y - base_y;
-                }
-                if (dilation_x > 1)
-                {
-                    kernel_x_start = (-base_x + dilation_x - 1) / dilation_x;
-                    kernel_x_end = (input_x - base_x + dilation_x - 1) / dilation_x;
-                }
-                else
-                {
-                    kernel_x_start = -base_x;
-                    kernel_x_end = input_x - base_x;
-                }
-                if (kernel_y_start < 0)
-                {
-                    kernel_y_start = 0;
-                }
-                if (kernel_y_end > kernel_y)
-                {
-                    kernel_y_end = kernel_y;
-                }
-                if (kernel_x_start < 0)
-                {
-                    kernel_x_start = 0;
-                }
-                if (kernel_x_end > kernel_x)
-                {
-                    kernel_x_end = kernel_x;
-                }
-
+    #else
                 for (int32_t c = 0; c < output_ch; ++c)
                 {
                     float32_t acc32 = bias_data ? (float32_t)bias_data[c] : 0.0f;
                     const float16_t *filter_c = filter_data + (size_t)c * rhs_cols;
 
-                    for (int64_t ky = kernel_y_start; ky < kernel_y_end; ++ky)
+                    uint32_t iy = iy_first;
+                    for (int32_t ky = ky_first; ky < ky_end; ++ky, iy += (uint32_t)dilation_y)
                     {
-                        const int64_t in_y = base_y + ky * dilation_y;
-                        for (int64_t kx = kernel_x_start; kx < kernel_x_end; ++kx)
+                        uint32_t ix = ix_first;
+                        for (int32_t kx = kx_first; kx < kx_end; ++kx, ix += (uint32_t)dilation_x)
                         {
-                            const int64_t in_x = base_x + kx * dilation_x;
-                            const size_t input_index = ((size_t)in_y * input_x + in_x) * input_ch + c;
+
+                            const size_t input_index = ((size_t)iy * input_x + ix) * input_ch + c;
                             acc32 += (float32_t)input_b[input_index] * (float32_t)filter_c[ky * kernel_x + kx];
                         }
                     }
@@ -362,6 +238,7 @@ scalar_fallback:
                     output_b[output_index] =
                         (float16_t)arm_nn_clamp_grouped_conv_f16(acc, activation_min, activation_max);
                 }
+    #endif
             }
         }
     }

@@ -23,6 +23,7 @@
  * -------------------------------------------------------------------- */
 
 #include "Internal/arm_nn_activation_flt.h"
+#include "Internal/arm_nn_conv_grouped_f16.h"
 #include "arm_nnfunctions.h"
 #include "arm_nnsupportfunctions.h"
 
@@ -45,83 +46,6 @@ __STATIC_FORCEINLINE float32_t arm_convolve_f16_widened_dot(float16x8_t lhs, flo
     return arm_nn_vec_reduce_add_f32(vaddq(product_lo, product_hi));
 }
 
-__STATIC_FORCEINLINE bool arm_convolve_f16_gather_offset(int32_t kernel_y,
-                                                         int32_t kernel_x,
-                                                         int32_t dilation_y,
-                                                         int32_t dilation_x,
-                                                         int32_t input_x,
-                                                         int32_t input_ch,
-                                                         int32_t input_channel,
-                                                         uint16_t *offset)
-{
-    const uint64_t limit = ARM_NN_MVE_F16_GATHER_OFFSET_MAX;
-    uint64_t value = (uint64_t)(uint32_t)kernel_y * (uint32_t)dilation_y;
-    if (value > limit / (uint32_t)input_x)
-    {
-        return false;
-    }
-    value *= (uint32_t)input_x;
-
-    const uint64_t column = (uint64_t)(uint32_t)kernel_x * (uint32_t)dilation_x;
-    if (column > limit || value > limit - column)
-    {
-        return false;
-    }
-    value += column;
-
-    if (value > limit / (uint32_t)input_ch)
-    {
-        return false;
-    }
-    value *= (uint32_t)input_ch;
-    if ((uint32_t)input_channel > limit - value)
-    {
-        return false;
-    }
-
-    *offset = (uint16_t)(value + (uint32_t)input_channel);
-    return true;
-}
-
-__STATIC_FORCEINLINE bool arm_convolve_f16_pointer_steps(int32_t input_x,
-                                                         int32_t input_ch,
-                                                         int32_t output_x,
-                                                         int32_t output_y,
-                                                         int32_t stride_x,
-                                                         int32_t stride_y,
-                                                         size_t *column_step,
-                                                         size_t *row_step)
-{
-    *column_step = 0;
-    *row_step = 0;
-
-    if (output_x > 1)
-    {
-        const uint64_t step = (uint64_t)(uint32_t)input_ch * (uint32_t)stride_x;
-        if (step > SIZE_MAX)
-        {
-            return false;
-        }
-        *column_step = (size_t)step;
-    }
-
-    if (output_y > 1)
-    {
-        const uint64_t next_row = (uint64_t)(uint32_t)stride_y * (uint32_t)input_x;
-        const uint64_t current_column = (uint64_t)(uint32_t)(output_x - 1) * (uint32_t)stride_x;
-        if (next_row < current_column)
-        {
-            return false;
-        }
-        const uint64_t spatial_step = next_row - current_column;
-        if (spatial_step > SIZE_MAX / (uint32_t)input_ch)
-        {
-            return false;
-        }
-        *row_step = (size_t)(spatial_step * (uint32_t)input_ch);
-    }
-    return true;
-}
     #endif
 
 /*
@@ -228,33 +152,13 @@ arm_cmsis_nn_status arm_convolve_f16_fast_small_kernel(const cmsis_nn_context *c
         return ARM_CMSIS_NN_NO_IMPL_ERROR;
     }
     /* Element-scaled gather uses 16-bit per-lane offsets; bail out if the window does not fit. */
-    uint16x8_t offset_src = vdupq_n_u16(0);
-    for (int32_t i = 0; i < kernel_y; i++)
-    {
-        for (int32_t j = 0; j < kernel_x; j++)
-        {
-            const int32_t idx = i * kernel_x + j;
-            for (int32_t c = 0; c < kernel_ch; c++)
-            {
-                uint16_t offset;
-                if (!arm_convolve_f16_gather_offset(i, j, dilation_y, dilation_x, input_x, input_ch, c, &offset))
-                {
-                    return ARM_CMSIS_NN_NO_IMPL_ERROR;
-                }
-                offset_src[idx * kernel_ch + c] = offset;
-            }
-        }
-    }
-
-    size_t column_step;
-    size_t row_step;
-    if (!arm_convolve_f16_pointer_steps(
-            input_x, input_ch, output_x, output_y, stride_x, stride_y, &column_step, &row_step))
+    uint16_t offsets[8];
+    if (!arm_nn_conv_f16_gather_offsets(offsets, input_dims, filter_dims, &conv_params->dilation))
     {
         return ARM_CMSIS_NN_NO_IMPL_ERROR;
     }
     const mve_pred16_t p = vctp16q((uint32_t)rhs_cols);
-
+    const uint16x8_t offset_src = vld1q_z(offsets, p);
     for (int32_t i_batch = 0; i_batch < input_batches; i_batch++)
     {
         const float16_t *filter_data_ptr = filter_data;
@@ -263,7 +167,7 @@ arm_cmsis_nn_status arm_convolve_f16_fast_small_kernel(const cmsis_nn_context *c
         {
             for (int32_t c = 0; c < output_ch_per_group; c++)
             {
-                const float16_t *input_data_pr = input_data + i_group * kernel_ch;
+                const float16_t *input_c = input_data + i_group * kernel_ch;
                 float16_t *out_c = output_data + i_group * output_ch_per_group + c;
                 const float16x8_t weight = vld1q_z(filter_data_ptr, p);
                 filter_data_ptr += rhs_cols;
@@ -271,29 +175,14 @@ arm_cmsis_nn_status arm_convolve_f16_fast_small_kernel(const cmsis_nn_context *c
 
                 for (int32_t i_out_y = 0; i_out_y < output_y; i_out_y++)
                 {
-                    for (int32_t i_out_x = 0; i_out_x < output_x - 1; i_out_x++)
+                    const size_t row = (size_t)i_out_y * stride_y * input_x;
+                    for (int32_t i_out_x = 0; i_out_x < output_x; ++i_out_x)
                     {
-                        const float16x8_t in = vldrhq_gather_shifted_offset_z(input_data_pr, offset_src, p);
-                        input_data_pr += column_step;
+                        const size_t pos = (row + (size_t)i_out_x * stride_x) * input_ch;
+                        const float16x8_t in = vldrhq_gather_shifted_offset_z(input_c + pos, offset_src, p);
                         const float32_t acc32 = arm_convolve_f16_widened_dot(weight, in) + bias_val;
-                        _Float16 acc = (_Float16)acc32;
-                        acc = arm_nn_clamp_grouped_conv_f16(acc, act_min, act_max);
-                        *out_c = (float16_t)acc;
-                        out_c += output_ch;
-                    }
-
-                    /* Last output column of the row advances to the next row. */
-                    {
-                        const float16x8_t in = vldrhq_gather_shifted_offset_z(input_data_pr, offset_src, p);
-                        const float32_t acc32 = arm_convolve_f16_widened_dot(weight, in) + bias_val;
-                        _Float16 acc = (_Float16)acc32;
-                        acc = arm_nn_clamp_grouped_conv_f16(acc, act_min, act_max);
-                        *out_c = (float16_t)acc;
-                        if (i_out_y + 1 < output_y)
-                        {
-                            input_data_pr += row_step;
-                            out_c += output_ch;
-                        }
+                        out_c[((size_t)i_out_y * output_x + i_out_x) * output_ch] =
+                            (float16_t)arm_nn_clamp_grouped_conv_f16((_Float16)acc32, act_min, act_max);
                     }
                 }
             }

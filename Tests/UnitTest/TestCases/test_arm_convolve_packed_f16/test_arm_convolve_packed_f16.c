@@ -15,6 +15,7 @@
 #include <unity.h>
 
 #include "../Common/float_packed_test_utils.h"
+#include "Internal/arm_nn_conv_grouped_f16.h"
 
 // Deterministic data in [-1, 1) that survives a float16 round trip.
 static float16_t conv_f16_value(int32_t i, int32_t seed)
@@ -499,6 +500,43 @@ void convolve_group_ch_mult_1_f16(void)
         TEST_ASSERT_EQUAL_FLOAT(0.0f, (float32_t)large_y[1]);
         TEST_ASSERT_EQUAL_FLOAT(5.0f, (float32_t)large_y[2]);
     }
+}
+
+/* Nine adjacent groups exercise a complete vector and a one-lane tail at each padded pixel. */
+void convolve_group_ch_mult_1_gather_limits_f16(void)
+{
+    enum { channels = 9, width = 2 };
+    const cmsis_nn_dims in = {1, 1, width, channels};
+    const cmsis_nn_dims filter = {channels, 1, 3, 1};
+    float16_t x[width * channels], w[3 * channels], y[width * channels + 2];
+    cmsis_nn_conv_params_f16 cp;
+    conv_f16_params(&cp, 0, 1, 0);
+    for (int32_t c = 0; c < channels; ++c)
+    {
+        x[c] = (float16_t)(c + 1);
+        x[channels + c] = (float16_t)(c + 2);
+        w[3 * c] = 2;
+        w[3 * c + 1] = (float16_t)(c + 1);
+        w[3 * c + 2] = 3;
+    }
+    y[0] = y[width * channels + 1] = -123;
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
+                      arm_convolve_f16_group_ch_mult_1(NULL, &cp, &in, x, &filter, w, NULL, NULL, &in, y + 1));
+    for (int32_t c = 0; c < channels; ++c)
+    {
+        TEST_ASSERT_EQUAL_FLOAT((c + 1) * (c + 1) + 3 * (c + 2), (float32_t)y[1 + c]);
+        TEST_ASSERT_EQUAL_FLOAT(2 * (c + 1) + (c + 1) * (c + 2), (float32_t)y[1 + channels + c]);
+    }
+    TEST_ASSERT_EQUAL_FLOAT(-123, (float32_t)y[0]);
+    TEST_ASSERT_EQUAL_FLOAT(-123, (float32_t)y[width * channels + 1]);
+
+#if defined(ARM_MATH_MVE_FLOAT16) && !defined(ARM_MATH_AUTOVECTORIZE)
+    /* Largest active lane offset is (lanes - 1) * filter_area. */
+    TEST_ASSERT_EQUAL_INT32(8, arm_nn_conv_f16_weight_gather_lanes(UINT16_MAX / 7));
+    TEST_ASSERT_EQUAL_INT32(7, arm_nn_conv_f16_weight_gather_lanes(UINT16_MAX / 7 + 1));
+    TEST_ASSERT_EQUAL_INT32(2, arm_nn_conv_f16_weight_gather_lanes(UINT16_MAX));
+    TEST_ASSERT_EQUAL_INT32(1, arm_nn_conv_f16_weight_gather_lanes((size_t)UINT16_MAX + 1));
+#endif
 }
 
 /* Packed C_IN=C_OUT=1 must stay on the established single-group path. */
