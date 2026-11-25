@@ -294,6 +294,30 @@ def test_fully_connected_shape_mismatch_is_refused(libs, i, f, o):
     assert plan_fc(libs[GCC], target(), quant, i, f, o)[0] == E_SHAPE
 
 
+@pytest.mark.parametrize("isa", [SCALAR, DSP, MVE])
+def test_fully_connected_reads_only_the_filter_and_output_depths(libs, isa):
+    quant, _keep = fc_quant(True, 2)
+    filter_nc, output_nc = Dims(n=3, c=2), Dims(n=1, c=2)
+    status, plan = plan_fc(libs[GCC], target(isa), quant, dims(1, 1, 1, 3), filter_nc, output_nc)
+    assert status == OK
+    assert plan.ctx_bytes == (2 * 4 if isa == MVE else 0)
+    status, got = buffer_bytes(libs[GCC], target(isa), "arm_fully_connected_s8_get_buffer_size", filter_dims=filter_nc)
+    assert (status, got) == (OK, plan.ctx_bytes)
+
+
+@pytest.mark.parametrize("f, o, status", [
+    (Dims(n=0, c=2), Dims(n=1, c=2), E_SHAPE),
+    (Dims(n=3, c=0), Dims(n=1, c=0), E_SHAPE),
+    (Dims(n=3, c=-2), Dims(n=1, c=2), E_SHAPE),
+    (Dims(n=3, c=2), Dims(n=0, c=2), E_SHAPE),
+    (Dims(n=3, c=2), Dims(n=1, c=0), E_SHAPE),
+    (Dims(n=65536, c=32768), Dims(n=1, c=32768), E_RANGE),  # filter elements past int32_t
+])
+def test_fully_connected_depth_refusals(libs, f, o, status):
+    quant, _keep = fc_quant(True, 2)
+    assert plan_fc(libs[GCC], target(), quant, dims(1, 1, 1, f.n), f, o)[0] == status
+
+
 def plan_packed(lib, tgt, fc, quant, f):
     plan = Plan()
     status = lib.arm_nn_plan_fully_connected_per_channel_packed_s8(ctypes.byref(tgt), ctypes.byref(fc),
@@ -320,6 +344,17 @@ def test_packed_fully_connected_plans_its_stream(libs):
     assert plan.prepared_bytes == lib.arm_fully_connected_per_channel_packed_s8_get_packed_size(ctypes.byref(f))
     # ceil(9 / 4) blocks of 4 rows of 23 rounded up to 32, plus 48 bytes each.
     assert plan.prepared_bytes == 3 * (4 * 32 + 48)
+
+
+def test_packed_fully_connected_reads_only_the_filter_depths(libs):
+    quant, _keep = packed_quant(9)
+    f = Dims(n=23, c=9)
+    status, plan = plan_packed(libs[GCC], target(MVE), FcParams(0, 0, 0, Activation(-128, 127)), quant, f)
+    assert (status, plan.prepared_bytes) == (OK, 3 * (4 * 32 + 48))
+    assert buffer_bytes(libs[GCC], target(MVE), "arm_fully_connected_per_channel_packed_s8_get_packed_size",
+                        filter_dims=f) == (OK, plan.prepared_bytes)
+    assert plan_packed(libs[GCC], target(MVE), FcParams(0, 0, 0, Activation(-128, 127)), quant, Dims(n=23))[0] \
+        == E_SHAPE
 
 
 @pytest.mark.parametrize("tgt, fc_offset, shift", [
@@ -391,12 +426,109 @@ def test_pooling_refusals(libs):
         == E_RANGE
 
 
+AVGPOOL_MAX_WINDOW = 16711935  # 255 * 65537
+
+
+def global_pool(h, w, k=None):
+    k = k or (h, w)
+    return PoolParams(Tile(1, 1), Tile(0, 0), Activation(-128, 127)), dims(1, h, w, 1), dims(1, *k, 1), dims(1, 1, 1, 1)
+
+
+@pytest.mark.parametrize("isa", [SCALAR, DSP, MVE])
+@pytest.mark.parametrize("h, w, k, status", [
+    (255, 65537, None, OK),               # the largest window: 128 * count + count / 2 is 2^31 - 1
+    (256, 65281, None, E_RANGE),          # one element more
+    (4096, 4096, None, E_RANGE),
+    (8, 8, (4096, 4096), OK),             # a window covers at most the input
+    (300, 65537, (255, 70000), OK),       # 255 x 65537 once the width is clamped to the input
+    (300, 65537, (256, 70000), E_RANGE),
+])
+def test_average_pooling_window_bound(libs, isa, h, w, k, status):
+    params, i, f, o = global_pool(h, w, k)
+    assert plan_pool(libs[GCC], target(isa), 0, params, i, f, o)[0] == status
+    assert plan_pool(libs[GCC], target(isa), 1, params, i, f, o)[0] == OK
+
+
+def test_average_pooling_window_bound_is_the_kernels(tmp_path):
+    """The scalar arm_avgpool_s8() on constant -128 input: exact at the bound, and wrapped (built with -fwrapv, so
+    the overflow is defined) one element past it."""
+    driver = tmp_path / "avgpool.c"
+    driver.write_text("""
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include "arm_nnfunctions.h"
+int main(int argc, char **argv)
+{
+    const int32_t h = atoi(argv[1]), w = atoi(argv[2]);
+    int8_t *src = malloc((size_t)h * (size_t)w);
+    int8_t dst = 0;
+    if (src == NULL) return 2;
+    memset(src, -128, (size_t)h * (size_t)w);
+    const cmsis_nn_context ctx = {NULL, 0};
+    const cmsis_nn_pool_params params = {{1, 1}, {0, 0}, {-128, 127}};
+    const cmsis_nn_dims in = {1, h, w, 1}, filter = {1, h, w, 1}, out = {1, 1, 1, 1};
+    const arm_cmsis_nn_status status = arm_avgpool_s8(&ctx, &params, &in, src, &filter, &out, &dst);
+    printf("%d %d\\n", (int)status, (int)dst);
+    free(src);
+    return 0;
+}
+""")
+    exe = tmp_path / "avgpool"
+    subprocess.run([CC, "-std=c11", "-O2", "-fwrapv", f"-I{ROOT / 'Include'}", str(driver),
+                    str(ROOT / "Source/PoolingFunctions/arm_avgpool_s8.c"),
+                    str(ROOT / "Source/PoolingFunctions/arm_avgpool_get_buffer_sizes_s8.c"), "-o", str(exe)],
+                   check=True, capture_output=True, text=True)
+
+    def run(h, w):
+        return subprocess.run([str(exe), str(h), str(w)], check=True, capture_output=True, text=True).stdout.split()
+
+    assert 255 * 65537 == AVGPOOL_MAX_WINDOW
+    assert run(255, 65537) == ["0", "-128"]
+    assert run(256, 65281) == ["0", "127"]
+
+
 def test_the_planner_refuses_a_target_build(tmp_path):
     for flag in ("-DARM_MATH_DSP", "-DARM_MATH_MVEI"):
         out = subprocess.run([CC, "-std=c11", "-fsyntax-only", flag, f"-I{ROOT / 'Include'}",
                               f"-I{ROOT / 'Planner/include'}", f"-I{ROOT / 'Planner/src'}",
                               str(ROOT / "Planner/src/arm_nn_plan.c")], capture_output=True, text=True)
         assert out.returncode != 0 and "the ns-cmsis-nn planner is a host library" in out.stderr
+
+
+# to_conv runs arm_convolve_wrapper_s8() on the layer as a convolution of one input channel, so the convolution kernel
+# it selects sets the limits: arm_convolve_s8() (C_OUT % 4 != 0) and arm_convolve_s8_small_cin() (C_OUT % 4 == 0, not
+# under autovectorize) keep C_OUT in uint16_t; arm_convolve_1x1_s8_fast() has no such limit.
+@pytest.mark.parametrize("autovectorize", [0, 1])
+@pytest.mark.parametrize("toolchain", [GCC, ARMCLANG])
+@pytest.mark.parametrize("layer, status", [
+    (dict(c=1, ch_mult=65535, h=5, w=5), OK),
+    (dict(c=1, ch_mult=65532, h=5, w=5), OK),
+    (dict(c=1, ch_mult=65536, h=5, w=5), E_RANGE),
+    (dict(c=1, ch_mult=65537, h=5, w=5), E_RANGE),
+    (dict(c=1, ch_mult=65536, h=2, w=2, k=(1, 1)), OK),
+    (dict(c=1, ch_mult=65537, h=2, w=2, k=(1, 1)), OK),
+])
+def test_depthwise_to_conv_applies_the_convolutions_limits(libs, autovectorize, toolchain, layer, status):
+    params, i, f, o = dw_layer(**layer)
+    got, plan = plan_dw(libs[toolchain], target(MVE, autovectorize, toolchain=toolchain), params, i, f, o)
+    assert got == status
+    if got == OK:
+        assert (plan.route, plan.route_id) == (TO_CONV, b"dw_wrapper_s8:to_conv")
+
+
+def test_depthwise_to_conv_refuses_an_output_its_1x1_kernels_reject(libs):
+    lib = libs[GCC]
+    # The 1x1 unit-stride kernel writes one output pixel per input pixel.
+    params, i, f, o = dw_layer(c=1, ch_mult=16, h=4, w=4, k=(1, 1))
+    assert plan_dw(lib, target(), params, i, f, o)[0] == OK
+    o.h = 3
+    assert plan_dw(lib, target(), params, i, f, o)[0] == E_RANGE
+    # The strided 1x1 kernel needs its last output pixel to start inside the input.
+    params, i, f, o = dw_layer(c=1, ch_mult=16, h=4, w=4, k=(1, 1), stride=(2, 2))
+    assert (o.h, o.w) == (2, 2) and plan_dw(lib, target(), params, i, f, o)[0] == OK
+    o.w = 3
+    assert plan_dw(lib, target(), params, i, f, o)[0] == E_RANGE
 
 
 PLANAR, CHANNELWISE = range(2)
@@ -686,3 +818,44 @@ def test_weights_sum_bytes_on_scalar_builds_ignore_the_channel_count(libs):
     status, got = buffer_bytes(libs[GCC], target(SCALAR), "arm_convolve_s8_get_weights_sum_size",
                                output_dims=dims(1, 1, 1, 1 << 29))
     assert (status, got) == (OK, 0)
+
+
+def _manifest_records():
+    manifest = json.loads((ROOT / "Tests" / "KernelContracts" / "kernel_implementations.json").read_text())
+    return {r["routed_by"]["route"]: r for r in manifest["implementations"] if isinstance(r["routed_by"], dict)}
+
+
+def _operand(layer, path):
+    root, _, member = path.partition(".")
+    value = layer[root]
+    return getattr(value, member) if member else value
+
+
+# Every buffer the planned implementation declares has a size on the target whenever the plan succeeds.
+@pytest.mark.parametrize("isa, autovectorize", [(SCALAR, 0), (DSP, 0), (MVE, 0), (MVE, 1)])
+@pytest.mark.parametrize("layer, mve_status", [
+    (dict(c=1 << 29, h=1, w=1, k=(1, 1)), E_RANGE),        # weight sums of 2^31 bytes
+    (dict(c=(1 << 29) - 1, h=1, w=1, k=(1, 1)), OK),
+    (dict(c=1, ch_mult=(1 << 29), h=1, w=1, k=(1, 1)), E_RANGE),
+    (dict(**PLANAR_3X3), OK),
+    (dict(c=1, ch_mult=9), OK),
+])
+def test_a_plan_sizes_every_buffer_of_its_implementation(libs, isa, autovectorize, layer, mve_status):
+    lib, tgt = libs[GCC], target(isa, autovectorize)
+    params, i, f, o = dw_layer(**layer)
+    operands = dict(dw_conv_params=params, input_dims=i, filter_dims=f, output_dims=o)
+    records = _manifest_records()
+    plans = [plan_dw(lib, tgt, params, i, f, o)]
+    if params.ch_mult == 1:
+        plans += [plan_dw_opt(lib, tgt, params, i, f, o, 0), plan_dw_opt(lib, tgt, params, i, f, o, INT32_MAX)]
+    for status, plan in plans:
+        if isa == MVE:
+            assert status == mve_status
+        if status != OK:
+            continue
+        for buffer in records[plan.route_id.decode()]["buffers"]:
+            query = buffer["size_query"]
+            if query is None:
+                continue
+            args = {param: _operand(operands, path) for param, path in query["args"].items()}
+            assert buffer_bytes(lib, tgt, query["symbol"], **args)[0] == OK, (plan.route_id, buffer["name"])

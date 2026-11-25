@@ -23,7 +23,12 @@
       "routed_by": "direct",
       "requires": [],
       "varies_with": [],
-      "eligibility": null,
+      "eligibility": {
+        "when": "every window covers at most 16711935 input elements (255 x 65537, ARM_NN_PLAN_AVGPOOL_S8_MAX_WINDOW in Planner/include/arm_nn_plan.h), counting min(K, IN) per axis. Every build rounds the int32_t window sum as sum -/+ count / 2, which wraps for an input of -128 past that count; larger windows are not bit exact.",
+        "predicate": null,
+        "predicate_static": null,
+        "args": null
+      },
       "buffers": [
         {
           "name": "accumulators",

@@ -15,6 +15,10 @@
                                                   const cmsis_nn_dims *input_dims,                                     \
                                                   const cmsis_nn_dims *filter_dims,                                    \
                                                   const cmsis_nn_dims *output_dims);                                   \
+    int32_t arm_nn_plan_route_conv_s8_##suffix(const cmsis_nn_conv_params *conv_params,                                \
+                                               const cmsis_nn_dims *input_dims,                                        \
+                                               const cmsis_nn_dims *filter_dims,                                       \
+                                               const cmsis_nn_dims *output_dims);                                      \
     int32_t arm_nn_plan_route_fc_s8_##suffix(const cmsis_nn_quant_params *quant_params);                               \
     int32_t arm_nn_plan_route_dw_opt_s8_##suffix(const cmsis_nn_dw_conv_params *dw_conv_params,                        \
                                                  const cmsis_nn_dims *input_dims,                                      \
