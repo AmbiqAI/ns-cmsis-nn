@@ -1,10 +1,10 @@
 # SPDX-FileCopyrightText: 2026 Ambiq
 # SPDX-License-Identifier: LicenseRef-Ambiq-Apollo-SDK
-"""Generate the arm_topk_v2_f32 and arm_topk_v2_f16 goldens.
+"""Generate the arm_topk_v2_f32 goldens.
 
 Each block is an NHWC tensor whose innermost extent is reduced, with the indices and value
 bits of its top k for several k. The reference decodes every element to a Python float
-(binary64, exact for both widths) and sorts each row with
+(binary64, exact for binary32) and sorts each row with
 
     sorted(range(c), key=lambda i: (isnan(x[i]), -x[i], i))
 
@@ -41,15 +41,10 @@ class Width:
 
 
 F32 = Width("f32", "f", 8, "uint32_t")
-F16 = Width("f16", "e", 4, "uint16_t")
 
 
 def f32(value):
     return struct.unpack("<I", struct.pack("<f", value))[0]
-
-
-def f16(value):
-    return struct.unpack("<H", struct.pack("<e", value))[0]
 
 
 def reference(width, bits, dims, k):
@@ -105,39 +100,17 @@ LITERT_VALUES = {
         [0x00000000] + [0xFF800000] * 7],
 }
 
-# The same eight rows in binary16 (NaN payloads narrowed by hand; the reference alone
-# decides these outputs, since the interpreter has no float16 TOPK_V2).
-NINF16 = 0xFC00
-LITERT_ROWS_F16 = [
-    [f16(2.5)] * 8,
-    [f16(v) for v in (0, 5, 2, 5, 1, 5, 0, 0)],
-    [f16(v) for v in (9, 3, 7, 3, 3, 1, 3, 0)],
-    [f16(0.0), f16(-0.0), f16(0.0), f16(-0.0), f16(-1.0), f16(-1.0), f16(-1.0), f16(-1.0)],
-    [0x7E00] + [f16(v) for v in (3, 1, 4, 1, 5, 9, 2)],
-    [f16(3), f16(1), f16(4), 0xFE01, f16(1), f16(5), f16(9), f16(2)],
-    [0x7E00, 0xFE00, f16(1.0), 0x7C01, 0xFC45, f16(-2.0), 0x7FFF, 0xFFFF],
-    [NINF16, NINF16, NINF16, f16(0.0), NINF16, NINF16, NINF16, NINF16],
-]
-
 SPECIALS_F32 = [
     [0x7F7FFFFF, 0xFF7FFFFF, 0x7F800000, 0xFF800000, 0x00000001, 0x80000001, 0x007FFFFF, 0x807FFFFF],
     [0x00800000, 0x80800000, 0x00000000, 0x80000000, 0x3F800000, 0xBF800000, 0x7F800001, 0xFFC00000],
     [0x80000001, 0x00000001, 0x80000001, 0x00000001, 0x80000000, 0x00000000, 0x007FFFFF, 0x807FFFFF],
     [0x7FFFFFFF, 0x7F800000, 0xFF800000, 0xFFFFFFFF, 0x7F7FFFFF, 0x7F7FFFFF, 0xFF7FFFFF, 0x7FC00001],
 ]
-SPECIALS_F16 = [
-    [0x7BFF, 0xFBFF, 0x7C00, 0xFC00, 0x0001, 0x8001, 0x03FF, 0x83FF],
-    [0x0400, 0x8400, 0x0000, 0x8000, 0x3C00, 0xBC00, 0x7C01, 0xFE00],
-    [0x8001, 0x0001, 0x8001, 0x0001, 0x8000, 0x0000, 0x03FF, 0x83FF],
-    [0x7FFF, 0x7C00, 0xFC00, 0xFFFF, 0x7BFF, 0x7BFF, 0xFBFF, 0x7E01],
-]
 
 # Pools for the random block: repeats make ties at every place, NaNs of both kinds and
 # signs, both zeros, both infinities, subnormals and the largest finite values.
 POOL_F32 = [0x3F800000, 0x3F800000, 0xBF800000, 0x40000000, 0x00000000, 0x80000000, 0x7FC00000, 0xFF800001,
             0x7F800000, 0xFF800000, 0x00000001, 0x80000001, 0x7F7FFFFF, 0xFF7FFFFF, 0x3F800000, 0x40000000]
-POOL_F16 = [0x3C00, 0x3C00, 0xBC00, 0x4000, 0x0000, 0x8000, 0x7E00, 0xFC01,
-            0x7C00, 0xFC00, 0x0001, 0x8001, 0x7BFF, 0xFBFF, 0x3C00, 0x4000]
 
 
 def random_rows(pool, count):
@@ -152,21 +125,17 @@ def random_rows(pool, count):
 def blocks(width):
     """[(name, dims, input bits, [(k, indices, values)])] for one width."""
     flat = lambda rows: [b for row in rows for b in row]  # noqa: E731
-    if width is F32:
-        litert, specials, pool = LITERT_ROWS, SPECIALS_F32, POOL_F32
-    else:
-        litert, specials, pool = LITERT_ROWS_F16, SPECIALS_F16, POOL_F16
     plan = [
-        ("litert", [1, 1, 8, 8], flat(litert), [1, 3, 8]),
-        ("specials", [1, 2, 2, 8], flat(specials), [1, 2, 5, 8]),
-        ("random", [2, 3, 2, 11], random_rows(pool, 2 * 3 * 2 * 11), [1, 3, 5, 11]),
+        ("litert", [1, 1, 8, 8], flat(LITERT_ROWS), [1, 3, 8]),
+        ("specials", [1, 2, 2, 8], flat(SPECIALS_F32), [1, 2, 5, 8]),
+        ("random", [2, 3, 2, 11], random_rows(POOL_F32, 2 * 3 * 2 * 11), [1, 3, 5, 11]),
     ]
     out = []
     for name, dims, bits, ks in plan:
         cases = []
         for k in ks:
             indices, values = reference(width, bits, dims, k)
-            if width is F32 and name == "litert":
+            if name == "litert":
                 want_i = [i for row in LITERT_INDICES[k] for i in row]
                 want_v = [v for row in LITERT_VALUES[k] for v in row]
                 if (indices, values) != (want_i, want_v):
@@ -197,13 +166,10 @@ def header(width):
              ""]
     table = []
     for name, dims, bits, cases in blocks(width):
-        if width is F32 and name == "litert":
+        if name == "litert":
             lines += [f"/* The {INTERPRETER} observation: the expected outputs of this block are the",
                       " * interpreter's TOPK_V2 indices and value bits, as literals; the reference reproduces",
                       " * them. */"]
-        elif name == "litert":
-            lines += ["/* The rows the interpreter was observed on, in binary16; the expected outputs are the",
-                      " * reference's (the interpreter has no float16 TOPK_V2). */"]
         lines += [f"static const {width.ctype} tk_{name}_input[{len(bits)}] = {{"]
         lines += rows(bits, hexfmt, 8)
         lines += ["};"]
@@ -230,9 +196,8 @@ def header(width):
               "static const tk_golden_case tk_golden_cases[TK_GOLDEN_CASES] = {"]
     lines += table
     lines += ["};", ""]
-    if width is F32:
-        lines += [f"/* {INTERPRETER}'s cases are the first three of tk_golden_cases. */",
-                  "#define TK_LITERT_CASES 3", ""]
+    lines += [f"/* {INTERPRETER}'s cases are the first three of tk_golden_cases. */",
+              "#define TK_LITERT_CASES 3", ""]
     return "\n".join(lines)
 
 
@@ -240,7 +205,6 @@ def outputs():
     root = HERE.parent
     return {
         root / "test_arm_topk_v2_f32" / "topk_v2_f32_data.h": header(F32),
-        root / "test_arm_topk_v2_f16" / "topk_v2_f16_data.h": header(F16),
     }
 
 

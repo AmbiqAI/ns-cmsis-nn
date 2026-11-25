@@ -70,7 +70,6 @@
         "^arm_logical_(and|or|not)_bool$",
         "^arm_mean",
         "^arm_nn_mean",
-        "^arm_nn_(l1|sq_l2)_distance",
         "^arm_nn_rbf_kernel",
         "^arm_nn_tree_walk",
         "^arm_not_equal",

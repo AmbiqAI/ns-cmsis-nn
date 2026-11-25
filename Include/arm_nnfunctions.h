@@ -56,12 +56,6 @@
 /** arm_topk_v2_f32, the LiteRT TOPK_V2 builtin over the innermost axis, is available. */
 #define ARM_NN_HAS_TOPK_V2_F32 1
 
-/** arm_topk_v2_f16, the LiteRT TOPK_V2 builtin over the innermost axis, is available. */
-#define ARM_NN_HAS_TOPK_V2_F16 1
-
-/** arm_nn_sq_l2_distance_f32, fused scalar-order float32 distance reduction, is available. */
-#define ARM_NN_HAS_SQ_L2_DISTANCE_F32 1
-
 /** arm_nn_rbf_kernel_f32, the radial basis function kernel values of a float32 reference table against one row, is
  *  available, and its body arm_nn_rbf_kernel_body_f32, with the block bodies arm_nn_rbf_kernel_block_f32 and
  *  arm_nn_rbf_sq_distance_block_f32, are static inline functions of Internal/arm_nn_rbf_kernel_flt.h that take every
