@@ -34,6 +34,9 @@ extern int  arm_max_pool_s8(void);
 extern int  arm_avgpool_s8(void);
 extern int  arm_elementwise_add_s8(void);
 extern int  arm_elementwise_mul_s8(void);
+/* staticlib_build_check.c: reads the archive's build-target stamp. Listed
+ * below so --gc-sections (the --no-strict GNU link) keeps it and the stamp. */
+extern int  ns_cmsis_nn_smoke_build_check(void);
 
 /* Single anchor that references the symbols so the linker keeps them
  * in the final ELF. */
@@ -46,6 +49,7 @@ void (* const ns_cmsis_nn_smoke_refs[])(void) = {
     (void (*)(void)) arm_avgpool_s8,
     (void (*)(void)) arm_elementwise_add_s8,
     (void (*)(void)) arm_elementwise_mul_s8,
+    (void (*)(void)) ns_cmsis_nn_smoke_build_check,
 };
 
 /* The image entry point.
