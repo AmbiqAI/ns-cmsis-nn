@@ -178,6 +178,18 @@ def test_packed_plan_matches_the_stream(planner):
         multipliers=[1 << 30] * 16, shifts=[-1] * 16)
 
 
+def test_packed_stream_reads_the_filter_as_output_rows(planner):
+    # Accumulation depth 3, output depth 2: row r of the filter is output channel r.
+    weights = [1, 2, 3, 4, 5, 6]
+    stream = planner.pack_fully_connected_per_channel_packed_s8(weights, filter_dims=(3, 1, 1, 2),
+                                                               kernel_sums=[7, -8], multipliers=[1 << 30, 1 << 29],
+                                                               shifts=[-1, -2])
+    rows = bytes([1, 2, 3] + [0] * 13 + [4, 5, 6] + [0] * 13) + bytes(32)
+    params = b"".join(v.to_bytes(4, "little", signed=True)
+                      for v in (7, -8, 0, 0, 1 << 30, 1 << 29, 0, 0, -1, -2, 0, 0))
+    assert stream == rows + params
+
+
 @pytest.mark.parametrize("kwargs, match", [
     (dict(filter_offset=2**32), "filter_offset"),
     (dict(filter_offset=1.0), "filter_offset"),

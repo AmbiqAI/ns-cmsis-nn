@@ -60,6 +60,20 @@ static arm_nn_plan_status check_dims(const cmsis_nn_dims *dims)
     return count < 0 ? ARM_NN_PLAN_E_RANGE : ARM_NN_PLAN_OK;
 }
 
+/* A fully connected filter or output: the kernels read only N and C, positive and within int32_t elements. */
+static arm_nn_plan_status check_nc_dims(const cmsis_nn_dims *dims)
+{
+    if (dims == NULL)
+    {
+        return ARM_NN_PLAN_E_NULL;
+    }
+    if (dims->n < 1 || dims->c < 1)
+    {
+        return ARM_NN_PLAN_E_SHAPE;
+    }
+    return (int64_t)dims->n * dims->c > INT32_MAX ? ARM_NN_PLAN_E_RANGE : ARM_NN_PLAN_OK;
+}
+
 #define PLAN_TRY(expr)                                                                                                 \
     do                                                                                                                 \
     {                                                                                                                  \
@@ -148,6 +162,58 @@ static arm_nn_plan_status check_dw_opt_channelwise_limits(const arm_nn_plan_targ
     }
 }
 
+/* arm_depthwise_conv_to_conv_s8() runs arm_convolve_wrapper_s8() on the layer as a convolution of one input channel:
+   the arguments the convolution kernel it selects rejects beyond its route's gate. A 1xN staging span past int32_t is
+   the scratch query's -1. */
+static arm_nn_plan_status check_to_conv_limits(const arm_nn_plan_target *target,
+                                               const cmsis_nn_dw_conv_params *dw_conv_params,
+                                               const cmsis_nn_dims *input_dims,
+                                               const cmsis_nn_dims *filter_dims,
+                                               const cmsis_nn_dims *output_dims)
+{
+    const cmsis_nn_conv_params conv_params = {dw_conv_params->input_offset,
+                                              dw_conv_params->output_offset,
+                                              dw_conv_params->stride,
+                                              dw_conv_params->padding,
+                                              dw_conv_params->dilation,
+                                              dw_conv_params->activation};
+    const cmsis_nn_dims conv_filter = {filter_dims->c, filter_dims->h, filter_dims->w, filter_dims->n};
+    const int32_t route = target->autovectorize
+        ? arm_nn_plan_route_conv_s8_mve_autovec(&conv_params, input_dims, &conv_filter, output_dims)
+        : arm_nn_plan_route_conv_s8_mve(&conv_params, input_dims, &conv_filter, output_dims);
+    int32_t invalid;
+    switch (route)
+    {
+    case ARM_NN_CONV_S8_ROUTE_1X1_FAST:
+        invalid = output_dims->h != input_dims->h || output_dims->w != input_dims->w;
+        break;
+    case ARM_NN_CONV_S8_ROUTE_1X1:
+        invalid = ((int64_t)output_dims->w - 1) * conv_params.stride.w >= input_dims->w ||
+            ((int64_t)output_dims->h - 1) * conv_params.stride.h >= input_dims->h;
+        break;
+    case ARM_NN_CONV_S8_ROUTE_1_X_N:
+        invalid = 0;
+        break;
+    case ARM_NN_CONV_S8_ROUTE_1X1_OUT:
+    case ARM_NN_CONV_S8_ROUTE_SMALL_CIN:
+    case ARM_NN_CONV_S8_ROUTE_3X3_C16_S1:
+    case ARM_NN_CONV_S8_ROUTE_GENERIC:
+        invalid = arm_nn_convolve_s8_args_invalid(&conv_params, input_dims, &conv_filter, output_dims);
+        break;
+    default:
+        return ARM_NN_PLAN_E_UNSUPPORTED;
+    }
+    return invalid ? ARM_NN_PLAN_E_RANGE : ARM_NN_PLAN_OK;
+}
+
+/* The weight sums the MVE opt, planar and convolution kernels read from weight_sum_ctx; other builds read none. */
+static arm_nn_plan_status check_weight_sums(const arm_nn_plan_target *target, const cmsis_nn_dims *output_dims)
+{
+    const int32_t bytes = target->isa == ARM_NN_PLAN_ISA_MVE ? arm_nn_plan_route_weights_sum_bytes_mve(output_dims)
+                                                             : arm_nn_plan_route_weights_sum_bytes_scalar(output_dims);
+    return bytes < 0 ? ARM_NN_PLAN_E_RANGE : ARM_NN_PLAN_OK;
+}
+
 /* A scratch-size query's answer: a negative one is the sizers' out-of-range sentinel. */
 static arm_nn_plan_status write_plan(arm_nn_plan_result *plan,
                                      const char *kernel,
@@ -224,14 +290,17 @@ arm_nn_plan_status arm_nn_plan_depthwise_conv_wrapper_s8(const arm_nn_plan_targe
     case ARM_NN_DW_CONV_S8_ROUTE_OPT:
         /* Within the wrapper's gate the planar path never declines, so a channelwise limit is the only refusal. */
         PLAN_TRY(check_dw_opt_channelwise_limits(target, dw_conv_params, input_dims, filter_dims, output_dims));
+        PLAN_TRY(check_weight_sums(target, output_dims));
         break;
     case ARM_NN_DW_CONV_S8_ROUTE_GENERIC:
         PLAN_TRY(check_dw_generic_limits(dw_conv_params, input_dims, filter_dims, output_dims));
         break;
     case ARM_NN_DW_CONV_S8_ROUTE_TO_CONV:
+        PLAN_TRY(check_to_conv_limits(target, dw_conv_params, input_dims, filter_dims, output_dims));
+        PLAN_TRY(check_weight_sums(target, output_dims));
+        break;
     case ARM_NN_DW_CONV_S8_ROUTE_3X3:
-        /* to_conv declines only an unsizable layer, which write_plan() reports; the selector already holds the 3x3
-           kernel's limits. */
+        /* The selector already holds the 3x3 kernel's limits. */
         break;
     default:
         return ARM_NN_PLAN_E_UNSUPPORTED;
@@ -282,6 +351,7 @@ arm_nn_plan_status arm_nn_plan_depthwise_conv_s8_opt(const arm_nn_plan_target *t
     {
         return ARM_NN_PLAN_E_RANGE;
     }
+    PLAN_TRY(check_weight_sums(target, output_dims));
 
     const int32_t route = target->isa == ARM_NN_PLAN_ISA_MVE
         ? (target->autovectorize
@@ -325,8 +395,8 @@ arm_nn_plan_status arm_nn_plan_fully_connected_wrapper_s8(const arm_nn_plan_targ
     }
     PLAN_TRY(check_target(target));
     PLAN_TRY(check_dims(input_dims));
-    PLAN_TRY(check_dims(filter_dims));
-    PLAN_TRY(check_dims(output_dims));
+    PLAN_TRY(check_nc_dims(filter_dims));
+    PLAN_TRY(check_nc_dims(output_dims));
     const int64_t accumulation = (int64_t)input_dims->h * input_dims->w * input_dims->c;
     if (accumulation != filter_dims->n || output_dims->c != filter_dims->c || output_dims->n != input_dims->n)
     {
@@ -370,7 +440,7 @@ arm_nn_plan_fully_connected_per_channel_packed_s8(const arm_nn_plan_target *targ
         return ARM_NN_PLAN_E_NULL;
     }
     PLAN_TRY(check_target(target));
-    PLAN_TRY(check_dims(filter_dims));
+    PLAN_TRY(check_nc_dims(filter_dims));
     if (quant_params->multiplier == NULL || quant_params->shift == NULL)
     {
         return ARM_NN_PLAN_E_NULL;
@@ -429,6 +499,13 @@ arm_nn_plan_status arm_nn_plan_pool_s8(const arm_nn_plan_target *target,
     if (max)
     {
         return write_plan(plan, "arm_max_pool_s8", NULL, -1, 0, ARM_NN_PLAN_CTX_NONE, 0);
+    }
+    /* Every build of arm_avgpool_s8() rounds the int32_t window sum as sum -/+ count / 2, which wraps for an input of
+       -128 once 128 * count + count / 2 passes 2^31. No window covers more than min(K, IN) per axis. */
+    if ((int64_t)ARM_NN_MIN(filter_dims->h, input_dims->h) * ARM_NN_MIN(filter_dims->w, input_dims->w) >
+        ARM_NN_PLAN_AVGPOOL_S8_MAX_WINDOW)
+    {
+        return ARM_NN_PLAN_E_RANGE;
     }
 
     int32_t ctx_bytes;
@@ -583,7 +660,9 @@ arm_nn_plan_status arm_nn_plan_buffer_bytes(const arm_nn_plan_target *target,
         }
         if (takes & SIZE_ARG_FILTER_DIMS)
         {
-            PLAN_TRY(check_dims(operands->filter_dims));
+            const size_query_id id = size_queries[query].id;
+            PLAN_TRY(id == SIZE_FC_S8 || id == SIZE_FC_PACKED_S8 ? check_nc_dims(operands->filter_dims)
+                                                                 : check_dims(operands->filter_dims));
         }
         if (takes & SIZE_ARG_OUTPUT_DIMS)
         {

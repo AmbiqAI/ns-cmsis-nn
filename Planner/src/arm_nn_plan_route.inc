@@ -22,6 +22,14 @@ int32_t ARM_NN_PLAN_ROUTE_FN(dw_conv_s8)(const cmsis_nn_dw_conv_params *dw_conv_
     return (int32_t)arm_nn_depthwise_conv_wrapper_s8_select(dw_conv_params, input_dims, filter_dims, output_dims);
 }
 
+int32_t ARM_NN_PLAN_ROUTE_FN(conv_s8)(const cmsis_nn_conv_params *conv_params,
+                                      const cmsis_nn_dims *input_dims,
+                                      const cmsis_nn_dims *filter_dims,
+                                      const cmsis_nn_dims *output_dims)
+{
+    return (int32_t)arm_nn_convolve_wrapper_s8_select(conv_params, input_dims, filter_dims, output_dims);
+}
+
 int32_t ARM_NN_PLAN_ROUTE_FN(fc_s8)(const cmsis_nn_quant_params *quant_params)
 {
     return (int32_t)arm_nn_fully_connected_wrapper_s8_select(quant_params);

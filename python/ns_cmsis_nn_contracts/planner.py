@@ -488,8 +488,8 @@ class Planner:
 
     def pack_fully_connected_per_channel_packed_s8(self, filter_data, *, filter_dims, kernel_sums: Sequence[int],
                                                    multipliers: Sequence[int], shifts: Sequence[int]) -> bytes:
-        """The stream arm_fully_connected_per_channel_packed_s8_pack writes (filter [accumulation depth][output depth]
-        as the kernel takes it)."""
+        """The stream arm_fully_connected_per_channel_packed_s8_pack writes (filter [output depth][accumulation depth],
+        one row of filter_dims n values per output channel, as the kernel takes it)."""
         dims = _dims(filter_dims, "filter_dims")
         if dims.n < 1 or dims.c < 1:
             raise ValueError(f"filter_dims {filter_dims!r} must have positive depths")

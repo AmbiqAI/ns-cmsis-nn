@@ -31,6 +31,10 @@ extern "C" {
 /** Version of the functions and structures below; bumped on any incompatible change. */
 #define ARM_NN_PLAN_ABI_VERSION 1
 
+/** Most input elements one arm_avgpool_s8() window may cover (255 x 65537): past it the kernel's int32_t rounding
+    wraps for an input of -128. */
+#define ARM_NN_PLAN_AVGPOOL_S8_MAX_WINDOW 16711935
+
 /** Instruction set the target library is built for. */
 typedef enum
 {
@@ -115,7 +119,9 @@ int32_t arm_nn_plan_toolchain_built(void);
  * Dims: input [N, H, W, C_IN], filter [1, H, W, C_OUT], output [N, H, W, C_OUT] with C_OUT = C_IN * ch_mult.
  * ctx is scratch sized as arm_depthwise_conv_wrapper_s8_get_buffer_size() for the target. A layer the selected
  * kernel rejects on the target (ARM_CMSIS_NN_ARG_ERROR: the generic kernel's uint16_t values and int16_t tap index,
- * the DSP channelwise kernel's uint16_t channel and tap counts) is ARM_NN_PLAN_E_RANGE.
+ * the DSP channelwise kernel's uint16_t channel and tap counts, the limits of the convolution the to_conv route runs)
+ * is ARM_NN_PLAN_E_RANGE, as is a layer whose weight sums (arm_convolve_s8_get_weights_sum_size(), read by the MVE
+ * opt and to_conv routes) do not fit int32_t bytes.
  */
 arm_nn_plan_status arm_nn_plan_depthwise_conv_wrapper_s8(const arm_nn_plan_target *target,
                                                          const cmsis_nn_dw_conv_params *dw_conv_params,
@@ -133,7 +139,8 @@ arm_nn_plan_status arm_nn_plan_depthwise_conv_wrapper_s8(const arm_nn_plan_targe
  * non-zero ctx_size below its scratch, and a layer past its kernel's limits on the target (ARM_NN_PLAN_E_RANGE). The
  * planar path takes N == 1 only, and the DSP and MVE channelwise kernels compute only the first batch, so N != 1 on
  * those targets is ARM_NN_PLAN_E_UNSUPPORTED; a scalar target runs arm_depthwise_conv_s8(), which takes any N. The
- * plan's ctx_bytes is arm_depthwise_conv_s8_opt_get_buffer_size() for the target.
+ * plan's ctx_bytes is arm_depthwise_conv_s8_opt_get_buffer_size() for the target. Weight sums past int32_t bytes on
+ * MVE are ARM_NN_PLAN_E_RANGE.
  */
 arm_nn_plan_status arm_nn_plan_depthwise_conv_s8_opt(const arm_nn_plan_target *target,
                                                      const cmsis_nn_dw_conv_params *dw_conv_params,
@@ -147,7 +154,8 @@ arm_nn_plan_status arm_nn_plan_depthwise_conv_s8_opt(const arm_nn_plan_target *t
  * @brief Plan arm_fully_connected_wrapper_s8().
  *
  * Dims: input [N, H, W, C_IN] (accumulation depth H * W * C_IN), filter [N = accumulation depth, C = output depth],
- * output [N, C_OUT]. On MVE ctx holds the kernel sums; elsewhere it is not read.
+ * output [N, C_OUT]; the filter's and output's H and W are not read. On MVE ctx holds the kernel sums; elsewhere it is
+ * not read.
  */
 arm_nn_plan_status arm_nn_plan_fully_connected_wrapper_s8(const arm_nn_plan_target *target,
                                                           const cmsis_nn_quant_params *quant_params,
@@ -175,7 +183,8 @@ arm_nn_plan_fully_connected_per_channel_packed_s8(const arm_nn_plan_target *targ
  *
  * Dims: input [N, H, W, C], filter [-, H, W, -], output [N, H, W, C]. avgpool scratch is sized as
  * arm_avgpool_s8_get_buffer_size() for the target; max pooling reads no ctx. Every pooling window must overlap the
- * input and its bounds fit int32_t, as both kernels require (ARM_NN_PLAN_E_SHAPE).
+ * input and its bounds fit int32_t, as both kernels require (ARM_NN_PLAN_E_SHAPE). An average pool whose window
+ * could cover more than ARM_NN_PLAN_AVGPOOL_S8_MAX_WINDOW input elements, min(K, IN) per axis, is ARM_NN_PLAN_E_RANGE.
  */
 arm_nn_plan_status arm_nn_plan_pool_s8(const arm_nn_plan_target *target,
                                        int32_t max,
@@ -189,10 +198,11 @@ arm_nn_plan_status arm_nn_plan_pool_s8(const arm_nn_plan_target *target,
  * @brief Bytes a buffer size query returns for the target: the size_query.symbol of a buffer in
  *        Tests/KernelContracts/kernel_implementations.json, answered by the library's own query for the target ISA.
  *
- * Every dims operand must have positive dimensions within int32_t elements, dw_conv_params a valid window that agrees
- * with the dims (as for arm_nn_plan_depthwise_conv_wrapper_s8()) and the int32_t operands must be positive. The size is
- * the query's answer whether or not the buffer's entry runs on the target. A query that names no size in range
- * (its -1) is ARM_NN_PLAN_E_RANGE; *bytes is written only on ARM_NN_PLAN_OK.
+ * Every dims operand must have positive dimensions within int32_t elements (a fully connected filter its N and C
+ * only), dw_conv_params a valid window that agrees with the dims (as for arm_nn_plan_depthwise_conv_wrapper_s8()) and
+ * the int32_t operands must be positive. The size is the query's answer whether or not the buffer's entry runs on the
+ * target. A query that names no size in range (its -1) is ARM_NN_PLAN_E_RANGE; *bytes is written only on
+ * ARM_NN_PLAN_OK.
  *
  * @return ARM_NN_PLAN_E_UNSUPPORTED for a query this planner does not evaluate, ARM_NN_PLAN_E_NULL for a missing
  *         operand the query takes, ARM_NN_PLAN_E_SHAPE for an operand it does not take.
