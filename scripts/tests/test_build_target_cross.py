@@ -92,6 +92,15 @@ def test_derivation_and_stamp_agree(gcc, tmp_path, flags, target, features):
     assert [s for s in defined if s.startswith("arm_nn_build_")] == [build.stamp]
 
 
+def test_probe_reads_the_requested_checkout_over_a_competing_include(gcc, tmp_path):
+    competing = tmp_path / "other" / "Include"
+    (competing / "Internal").mkdir(parents=True)
+    for name in ("arm_nn_build_target.h", "arm_nn_math_types.h", "Internal/arm_nn_compiler.h"):
+        (competing / name).write_text('#error "the competing copy was used"\n')
+    build = probe_compiler(ROOT, gcc, [f"-I{competing}", f"-iquote{competing}", *M55])
+    assert build.target == Target("mve") and build.stamp == "arm_nn_build_mve_av0_sr0_gcc"
+
+
 def test_probe_refuses_autovectorize_without_mve(gcc):
     with pytest.raises(BuildTargetError, match="does not model"):
         probe_compiler(ROOT, gcc, M4 + ["-DARM_MATH_AUTOVECTORIZE"])

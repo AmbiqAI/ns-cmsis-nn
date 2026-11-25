@@ -51,8 +51,10 @@ def stamp_name(target: Target, toolchain: str) -> str:
             f"{toolchain}")
 
 
-def _probe_source() -> str:
-    lines = ['#include "arm_nn_build_target.h"']
+def _probe_source(header: Path) -> str:
+    # By absolute path: a -I in the caller's flags for another ns-cmsis-nn copy must not supply the header. The
+    # header's own includes are quoted, so they resolve next to it, inside the same checkout.
+    lines = [f'#include "{header.as_posix()}"']
     lines += [f"arm_nn_probe {name} {macro}" for name, macro in _FIELDS.items()]
     return "\n".join(lines) + "\n"
 
@@ -110,14 +112,17 @@ def probe_compiler(root: Path, cc: Union[str, Sequence[str]], flags: Sequence[st
         raise ValueError("flags must be a sequence of strings")
     if timeout <= 0:
         raise ValueError("timeout must be positive")
-    include = Path(root) / "Include"
-    if not (Path(root) / HEADER).is_file():
+    include = (Path(root) / "Include").resolve()
+    header = (Path(root) / HEADER).resolve()
+    if not header.is_file():
         raise BuildTargetError(f"{root}: has no {HEADER}; the checkout predates the build-target check")
+    if '"' in header.as_posix():
+        raise BuildTargetError(f"{header}: a path with a double quote cannot be #included")
     with tempfile.TemporaryDirectory(prefix="arm_nn_probe_") as scratch:
         source = Path(scratch) / "arm_nn_build_probe.c"
-        source.write_text(_probe_source(), encoding="utf-8")
-        argv = [*command, *flags, "-E", "-P", f"-I{include}", str(source)]
-        shown = " ".join(argv[:len(command) + len(flags)])
+        source.write_text(_probe_source(header), encoding="utf-8")
+        argv = [*command, f"-I{include}", *flags, "-E", "-P", str(source)]
+        shown = " ".join([*command, *flags])
         try:
             result = subprocess.run(argv, capture_output=True, text=True, timeout=timeout, check=False)
         except FileNotFoundError:

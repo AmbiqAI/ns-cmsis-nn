@@ -35,7 +35,7 @@ def fake_cc(tmp_path, *, lines=None, exit_code=0, stderr="", sleep=0.0, record=N
     script.write_text(textwrap.dedent(f"""
         import json, sys, time
         if {record!r}:
-            open({record!r}, "w").write(json.dumps(sys.argv[1:]))
+            open({record!r}, "w").write(json.dumps({{"argv": sys.argv[1:], "source": open(sys.argv[-1]).read()}}))
         time.sleep({sleep!r})
         sys.stdout.write({json.dumps(chr(10).join(lines or []) + chr(10))})
         sys.stderr.write({stderr!r})
@@ -67,10 +67,35 @@ def test_probe_passes_the_flags_and_the_checkout_include(tmp_path):
     record = tmp_path / "argv.json"
     flags = ["-mcpu=cortex-m55", "-mfloat-abi=hard", "-DCMSIS_NN_USE_SINGLE_ROUNDING"]
     probe_compiler(ROOT, fake_cc(tmp_path, lines=probe_lines(MVE_OUTPUT), record=str(record)), flags)
-    argv = json.loads(record.read_text())
-    assert argv[:len(flags)] == flags
-    assert argv[len(flags):len(flags) + 3] == ["-E", "-P", f"-I{ROOT / 'Include'}"]
+    seen = json.loads(record.read_text())
+    argv = seen["argv"]
+    assert argv[0] == f"-I{(ROOT / 'Include').resolve()}"
+    assert argv[1:len(flags) + 1] == flags
+    assert argv[len(flags) + 1:len(flags) + 3] == ["-E", "-P"]
     assert argv[-1].endswith("arm_nn_build_probe.c")
+    assert seen["source"].splitlines()[0] == f'#include "{(ROOT / "Include" / "arm_nn_build_target.h").resolve().as_posix()}"'
+
+
+HOST_CC = os.environ.get("CC") or shutil.which("cc") or shutil.which("gcc")
+
+
+@pytest.mark.skipif(HOST_CC is None, reason="host C compiler required")
+def test_probe_reads_the_requested_checkout_over_a_competing_include(tmp_path):
+    competing = tmp_path / "other-ns-cmsis-nn" / "Include"
+    (competing / "Internal").mkdir(parents=True)
+    for name in ("arm_nn_build_target.h", "arm_nn_math_types.h", "Internal/arm_nn_compiler.h",
+                 "Internal/arm_nn_config.h"):
+        (competing / name).write_text('#error "the competing copy was used"\n')
+    build = probe_compiler(ROOT, HOST_CC, [f"-I{competing}", f"-iquote{competing}"])
+    assert build.target == Target("scalar") and build.toolchain == "gcc"
+
+
+@pytest.mark.skipif(HOST_CC is None, reason="host C compiler required")
+def test_probe_refuses_a_checkout_path_with_a_quote(tmp_path):
+    root = tmp_path / 'quo"te'
+    shutil.copytree(ROOT / "Include", root / "Include")
+    with pytest.raises(BuildTargetError, match="double quote cannot be #included"):
+        probe_compiler(root, HOST_CC)
 
 
 @pytest.mark.parametrize("change, message", [
