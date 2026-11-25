@@ -13,6 +13,7 @@
 #include <string.h>
 #include <unity.h>
 
+#include "reduce_sum_differential.h"
 #include "rsum_f32_data.h"
 
 static const cmsis_nn_dims rsum_f32_input_dims = {2, 3, 4, 5};

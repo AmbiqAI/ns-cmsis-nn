@@ -50,6 +50,46 @@
 /** NHWC broadcast squared difference for enabled floating-point types. */
 #define ARM_NN_HAS_SQUARED_DIFFERENCE_BROADCAST_FLOAT 1
 
+/** arm_nn_exp_f32, the elementwise float32 exponential, is available. */
+#define ARM_NN_HAS_EXP_F32 1
+
+/** arm_topk_v2_f32, the LiteRT TOPK_V2 builtin over the innermost axis, is available. */
+#define ARM_NN_HAS_TOPK_V2_F32 1
+
+/** arm_nn_rbf_kernel_f32, the radial basis function kernel values of a float32 reference table against one row, is
+ *  available, and its body arm_nn_rbf_kernel_body_f32, with the block bodies arm_nn_rbf_kernel_block_f32 and
+ *  arm_nn_rbf_sq_distance_block_f32, are static inline functions of Internal/arm_nn_rbf_kernel_flt.h that take every
+ *  extent by value, so generated code may call them with literal rows, features and lanes. */
+#define ARM_NN_HAS_RBF_KERNEL_F32 1
+
+/** arm_nn_tree_walk_f32, the table walk of a packed float32 tree table, is available. */
+#define ARM_NN_HAS_TREE_WALK_F32 1
+
+/** arm_nn_tree_walk_mean_argmax_f32, the table walk with the mean of the leaf rows and their first maximum, is
+ *  available. */
+#define ARM_NN_HAS_TREE_WALK_MEAN_ARGMAX_F32 1
+
+/** arm_nn_tree_walk_values_f32, the table walk with the value of the leaf each tree reaches, is available. */
+#define ARM_NN_HAS_TREE_WALK_VALUES_F32 1
+
+/** The bodies of arm_nn_tree_walk_mean_argmax_f32 and arm_nn_tree_walk_values_f32 are static inline functions of
+ *  Internal/arm_nn_tree_walk_flt.h that take every count by value (arm_nn_tree_walk_mean_argmax_body_f32 and
+ *  arm_nn_tree_walk_values_body_f32), so generated code may call them with literal counts. */
+#define ARM_NN_HAS_TREE_WALK_INLINE_BODIES_F32 1
+
+/** The body arm_argmax_f32 returns is arm_nn_arg_extrema, a static inline function of Internal/arm_nn_arg_extrema_flt.h
+ *  that takes the dims, axis, element width and sense as arguments, so generated code may call it with constant
+ *  extents. */
+#define ARM_NN_HAS_ARG_EXTREMA_INLINE_BODY_F32 1
+
+/** The body arm_nn_mat_mult_nt_t_f32 returns is arm_nn_mat_mult_nt_t_f32_inline, a static inline function of
+ *  Internal/arm_nn_mat_mult_nt_t_flt.h that takes every extent by value, so generated code may call it with literal
+ *  rows, columns and depth. */
+#define ARM_NN_HAS_MAT_MULT_NT_T_INLINE_BODY_F32 1
+
+/** The float32 and float16 matmul products (nt_t, nt_n_packed) pass a NaN accumulator through on every leg. */
+#define ARM_NN_HAS_MAT_MULT_FLT_NAN_PROPAGATION 1
+
 #include "arm_nn_math_types.h"
 #include "arm_nn_types.h"
 

@@ -56,3 +56,11 @@ void test_rsum_f32_legacy_shapes_arm_reduce_sum_f32(void) { rsum_f32_legacy_shap
 void test_rsum_f32_spatial_order_arm_reduce_sum_f32(void) { rsum_f32_spatial_order_arm_reduce_sum_f32(); }
 
 void test_rsum_f32_fp_control_arm_reduce_sum_f32(void) { rsum_f32_fp_control_arm_reduce_sum_f32(); }
+
+void test_rsum_f32_differential_shapes(void) { rd_shapes(); }
+
+void test_rsum_f32_differential_shapes_flush(void) { rd_shapes_flush(); }
+
+void test_rsum_f32_differential_refusals(void) { rd_refusals(); }
+
+void test_rsum_f32_differential_fits(void) { rd_fits(); }

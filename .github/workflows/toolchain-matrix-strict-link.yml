@@ -709,12 +709,14 @@ jobs:
         run: |
           # Kernels whose results changed under LLVM fast math (#852, #853, #854).
           set -euo pipefail
+          # An imported archive skips the root project that sets the harness optimization level.
+          # Optimize the GNU differential reference so its 12,792 NaN cases fit the QEMU deadline.
           cmake -S Tests/UnitTest -B "${RUNNER_TEMP}/m55-float" \
             -DPython3_EXECUTABLE="${RUNNER_TEMP}/unity-env/bin/python" \
             -DCMAKE_TOOLCHAIN_FILE="${RUNNER_TEMP}/ethos-u-core-platform/cmake/toolchain/arm-none-eabi-gcc.cmake" \
             -DTARGET_CPU=cortex-m55 -DCMSIS_PATH="${RUNNER_TEMP}/CMSIS_5" \
             -DCMSIS_NN_TEST_LIBRARY="${GITHUB_WORKSPACE}/output/atfe/cortex-m55/libns-cmsis-nn-atfe-cortex-m55-${VERSION}.a" \
-            -DARM_NN_ENABLE_F32=ON -DARM_NN_ENABLE_F16=ON
+            -DARM_NN_ENABLE_F32=ON -DARM_NN_ENABLE_F16=ON -DCMSIS_OPTIMIZATION_LEVEL=-O2
           python3 scripts/check_atfe_unity_suites.py --build "${RUNNER_TEMP}/m55-float" --suite-set m55-float
 
   armclang:

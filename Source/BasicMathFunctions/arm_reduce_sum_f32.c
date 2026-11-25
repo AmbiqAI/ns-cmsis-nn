@@ -275,16 +275,22 @@ arm_cmsis_nn_status arm_reduce_sum_f32(const float32_t *input_data,
         output_dims->c == input_dims->c)
     {
         const int32_t sizes[4] = {input_dims->n, input_dims->h, input_dims->w, input_dims->c};
-        int32_t elements = 1;
         bool fits = true;
-        for (int32_t i = 0; i < 4; ++i)
+        /* Every extent is positive here. Where each is below 2^7 (their OR below 128) the element
+         * count is at most 127^4 = 260,144,641, below 2^28, and the bound cannot refuse it, so
+         * the per-extent division is taken only for a larger extent. */
+        if ((input_dims->n | input_dims->h | input_dims->w | input_dims->c) >= (INT32_C(1) << 7))
         {
-            if (sizes[i] > INT32_MAX / elements)
+            int32_t elements = 1;
+            for (int32_t i = 0; i < 4; ++i)
             {
-                fits = false;
-                break;
+                if (sizes[i] > INT32_MAX / elements)
+                {
+                    fits = false;
+                    break;
+                }
+                elements *= sizes[i];
             }
-            elements *= sizes[i];
         }
         if (fits)
         {

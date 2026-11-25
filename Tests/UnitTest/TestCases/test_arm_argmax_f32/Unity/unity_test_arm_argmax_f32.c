@@ -23,3 +23,9 @@ void test_arm_argmax_f32_patterns(void) { ae_patterns(); }
 void test_arm_argmax_f32_empty(void) { ae_empty(); }
 void test_arm_argmax_f32_invalid(void) { ae_invalid(); }
 void test_arm_argmax_f32_fp_controls(void) { ae_fp_controls(); }
+void test_arm_argmax_f32_extent_wrap(void) { ae_extent_wrap(); }
+void test_arm_argmax_f32_long_line(void) { ae_long_line(); }
+void test_arm_argmax_f32_differential_shapes(void) { ad_shapes(); }
+void test_arm_argmax_f32_differential_positions(void) { ad_positions(); }
+void test_arm_argmax_f32_differential_refusals(void) { ad_refusals(); }
+void test_arm_argmax_f32_differential_decisions(void) { ad_decisions_sweep(); }
