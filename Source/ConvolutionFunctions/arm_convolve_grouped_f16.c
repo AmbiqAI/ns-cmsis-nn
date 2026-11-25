@@ -64,6 +64,7 @@ __STATIC_FORCEINLINE arm_cmsis_nn_status arm_grouped_ohwi_f16(const cmsis_nn_con
     const int32_t groups = input_c / kernel_ch;
     const int32_t output_ch_per_group = output_c / groups;
     #if defined(ARM_MATH_MVE_FLOAT16) && !defined(ARM_MATH_AUTOVECTORIZE)
+    const bool single_vector_taps = kernel_ch <= 8 && (int64_t)kernel_h * kernel_w <= block;
     const bool fold = (int64_t)kernel_h * kernel_w * kernel_ch > block;
     #endif
 
@@ -75,14 +76,16 @@ __STATIC_FORCEINLINE arm_cmsis_nn_status arm_grouped_ohwi_f16(const cmsis_nn_con
         for (int32_t out_y = 0; out_y < output_h; ++out_y)
         {
             const int64_t in_y0 = (int64_t)out_y * stride_h - pad_h;
+            int32_t ky_first, ky_end;
+            uint32_t iy_first;
+            arm_conv_f16_tap_span(in_y0, dil_h, kernel_h, input_h, &ky_first, &ky_end, &iy_first);
             for (int32_t out_x = 0; out_x < output_w; ++out_x)
             {
                 const int64_t in_x0 = (int64_t)out_x * stride_w - pad_w;
                 float16_t *out_pos = output_b + ((size_t)out_y * output_w + (size_t)out_x) * output_c;
 
-                int32_t ky_first, ky_end, kx_first, kx_end;
-                uint32_t iy_first, ix_first;
-                arm_conv_f16_tap_span(in_y0, dil_h, kernel_h, input_h, &ky_first, &ky_end, &iy_first);
+                int32_t kx_first, kx_end;
+                uint32_t ix_first;
                 arm_conv_f16_tap_span(in_x0, dil_w, kernel_w, input_w, &kx_first, &kx_end, &ix_first);
     #if defined(ARM_MATH_MVE_FLOAT16) && !defined(ARM_MATH_AUTOVECTORIZE)
                 const bool fold_px = fold && (int64_t)(ky_end - ky_first) * (kx_end - kx_first) * kernel_ch > block;
@@ -136,46 +139,67 @@ __STATIC_FORCEINLINE arm_cmsis_nn_status arm_grouped_ohwi_f16(const cmsis_nn_con
     #endif
 
     #if defined(ARM_MATH_MVE_FLOAT16) && !defined(ARM_MATH_AUTOVECTORIZE)
-                        uint32_t in_y = iy_first;
-                        for (int32_t ky = ky_first; ky < ky_end; ++ky, in_y += (uint32_t)dil_h)
+                        /* Each tap fits one partial vector and the filter fits one accumulation block. */
+                        if (single_vector_taps)
                         {
-                            uint32_t in_x = ix_first;
-                            for (int32_t kx = kx_first; kx < kx_end; ++kx, in_x += (uint32_t)dil_w)
+                            const mve_pred16_t active = vctp16q((uint32_t)kernel_ch);
+                            uint32_t iy = iy_first;
+                            for (int32_t ky = ky_first; ky < ky_end; ++ky, iy += (uint32_t)dil_h)
                             {
-                                const size_t k0 = ((size_t)ky * kernel_w + (size_t)kx) * kernel_ch;
-                                const float16_t *x =
-                                    input_b + ((size_t)in_y * input_w + (size_t)in_x) * input_c + in_ch_start;
-                                /* Full blocks unpredicated, one predicated tail: no vctp inside a loop. */
-                                const float16_t *w_tap = w_oc + k0;
-                                int32_t ic = 0;
-                                while (ic < kernel_ch)
+                                size_t x = ((size_t)iy * input_w + ix_first) * input_c + in_ch_start;
+                                size_t w = ((size_t)ky * kernel_w + kx_first) * kernel_ch;
+                                for (int32_t kx = kx_first; kx < kx_end; ++kx)
                                 {
-                                    int32_t ic_end = kernel_ch;
-                                    if (fold_px)
+                                    vacc =
+                                        vfmaq_m(vacc, vld1q_z(input_b + x, active), vld1q_z(w_oc + w, active), active);
+                                    x += (size_t)dil_w * input_c;
+                                    w += kernel_ch;
+                                }
+                            }
+                        }
+                        else
+                        {
+                            uint32_t in_y = iy_first;
+                            for (int32_t ky = ky_first; ky < ky_end; ++ky, in_y += (uint32_t)dil_h)
+                            {
+                                uint32_t in_x = ix_first;
+                                for (int32_t kx = kx_first; kx < kx_end; ++kx, in_x += (uint32_t)dil_w)
+                                {
+                                    const size_t k0 = ((size_t)ky * kernel_w + (size_t)kx) * kernel_ch;
+                                    const float16_t *x =
+                                        input_b + ((size_t)in_y * input_w + (size_t)in_x) * input_c + in_ch_start;
+                                    /* Full blocks unpredicated, one predicated tail: no vctp inside a loop. */
+                                    const float16_t *w_tap = w_oc + k0;
+                                    int32_t ic = 0;
+                                    while (ic < kernel_ch)
                                     {
-                                        if (n_vec == block)
+                                        int32_t ic_end = kernel_ch;
+                                        if (fold_px)
                                         {
-                                            arm_nn_f16_fold_pairs_f32(&acc_pairs, vacc, first_block);
-                                            first_block = false;
-                                            vacc = vdupq_n_f16((float16_t)0.0f);
-                                            n_vec = 0;
+                                            if (n_vec == block)
+                                            {
+                                                arm_nn_f16_fold_pairs_f32(&acc_pairs, vacc, first_block);
+                                                first_block = false;
+                                                vacc = vdupq_n_f16((float16_t)0.0f);
+                                                n_vec = 0;
+                                            }
+                                            const int32_t n_left = (kernel_ch - ic + 7) / 8;
+                                            if (n_left > block - n_vec)
+                                            {
+                                                ic_end = ic + (block - n_vec) * 8;
+                                            }
+                                            n_vec += (ic_end - ic + 7) / 8;
                                         }
-                                        const int32_t n_left = (kernel_ch - ic + 7) / 8;
-                                        if (n_left > block - n_vec)
+                                        for (; ic + 8 <= ic_end; ic += 8)
                                         {
-                                            ic_end = ic + (block - n_vec) * 8;
+                                            vacc = vfmaq(vacc, vld1q(x + ic), vld1q(w_tap + ic));
                                         }
-                                        n_vec += (ic_end - ic + 7) / 8;
-                                    }
-                                    for (; ic + 8 <= ic_end; ic += 8)
-                                    {
-                                        vacc = vfmaq(vacc, vld1q(x + ic), vld1q(w_tap + ic));
-                                    }
-                                    if (ic < ic_end)
-                                    {
-                                        const mve_pred16_t p = vctp16q((uint32_t)(ic_end - ic));
-                                        vacc = vfmaq_m(vacc, vld1q_z(x + ic, p), vld1q_z(w_tap + ic, p), p);
-                                        ic = ic_end;
+                                        if (ic < ic_end)
+                                        {
+                                            const mve_pred16_t p = vctp16q((uint32_t)(ic_end - ic));
+                                            vacc = vfmaq_m(vacc, vld1q_z(x + ic, p), vld1q_z(w_tap + ic, p), p);
+                                            ic = ic_end;
+                                        }
                                     }
                                 }
                             }
