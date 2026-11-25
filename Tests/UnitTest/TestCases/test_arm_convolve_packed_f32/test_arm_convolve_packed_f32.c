@@ -1120,6 +1120,7 @@ typedef arm_cmsis_nn_status (*conv_entry_f32)(const cmsis_nn_context *,
 
 enum
 {
+    ROUTE_GROUPED_F32 = -1,
     ROUTE_1X1_F32,
     ROUTE_1XN_F32,
     ROUTE_K5_F32,
@@ -1149,6 +1150,10 @@ static int32_t conv_route_f32(const cmsis_nn_context *ctx,
                              const cmsis_nn_dims *flt,
                              const cmsis_nn_dims *out)
 {
+    if (in->c != flt->c)
+    {
+        return ROUTE_GROUPED_F32;
+    }
     const int32_t row = flt->h * flt->w * in->c * (int32_t)sizeof(float32_t);
     if (arm_nn_conv_flt_is_1x1(&cp->padding, flt) &&
         arm_nn_conv_flt_1x1_window_ok(&cp->stride, in, out))
@@ -1359,6 +1364,12 @@ void convolve_direct_entries_f32(void)
 /* The float32 small-C predicate against a fixed answer: 1 to 3 input channels and a non-empty output */
 void convolve_route_predicates_f32(void)
 {
+    const cmsis_nn_dims grouped_in = {1, 1, 1, 4}, grouped_filter = {4, 1, 1, 2};
+    cmsis_nn_conv_params_f32 grouped_params = {0};
+    grouped_params.stride = grouped_params.dilation = (cmsis_nn_tile){1, 1};
+    TEST_ASSERT_EQUAL_INT32(ROUTE_GROUPED_F32,
+                            conv_route_f32(NULL, &grouped_params, &grouped_in, &grouped_filter, &grouped_in));
+
     const cmsis_nn_dims in = {1, 6, 6, 3};
     const cmsis_nn_dims out = {1, 6, 6, 8};
     TEST_ASSERT_TRUE(arm_nn_conv_f32_is_small_c(&in, &out));
