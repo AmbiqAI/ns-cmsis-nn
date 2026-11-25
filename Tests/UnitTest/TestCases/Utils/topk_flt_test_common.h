@@ -6,8 +6,8 @@
  */
 #pragma once
 
-/* The including suite defines TK_HALF, TK_KERNEL and TK_ARGMAX and includes its
- * generated topk_v2_<width>_data.h first. */
+/* The including suite defines TK_KERNEL and TK_ARGMAX and includes its generated
+ * topk_v2_f32_data.h first. */
 
 #include <arm_nnfunctions.h>
 #include <limits.h>
@@ -18,27 +18,15 @@
 
 /* Format fields are local to this independent binary64 reference.
  * An all-ones exponent means Inf or NaN. */
-#if TK_HALF
-    #define TK_TYPE float16_t
-    #define TK_BITS uint16_t
-    #define TK_SIGN_MASK UINT32_C(0x8000)
-    #define TK_EXPONENT_MASK UINT32_C(0x7c00)
-    #define TK_ONE_BITS UINT32_C(0x3c00)
-    #define TK_TWO_BITS UINT32_C(0x4000)
-    #define TK_MAX_BITS UINT32_C(0x7bff)
-    #define TK_FRAC 10
-    #define TK_BIAS 15
-#else
-    #define TK_TYPE float32_t
-    #define TK_BITS uint32_t
-    #define TK_SIGN_MASK UINT32_C(0x80000000)
-    #define TK_EXPONENT_MASK UINT32_C(0x7f800000)
-    #define TK_ONE_BITS UINT32_C(0x3f800000)
-    #define TK_TWO_BITS UINT32_C(0x40000000)
-    #define TK_MAX_BITS UINT32_C(0x7f7fffff)
-    #define TK_FRAC 23
-    #define TK_BIAS 127
-#endif
+#define TK_TYPE float32_t
+#define TK_BITS uint32_t
+#define TK_SIGN_MASK UINT32_C(0x80000000)
+#define TK_EXPONENT_MASK UINT32_C(0x7f800000)
+#define TK_ONE_BITS UINT32_C(0x3f800000)
+#define TK_TWO_BITS UINT32_C(0x40000000)
+#define TK_MAX_BITS UINT32_C(0x7f7fffff)
+#define TK_FRAC 23
+#define TK_BIAS 127
 #define TK_MAGNITUDE_MASK (TK_SIGN_MASK - 1)
 #define TK_FRACTION_MASK ((UINT32_C(1) << TK_FRAC) - 1)
 #define TK_QUIET ((TK_FRACTION_MASK >> 1) + 1)
@@ -51,11 +39,7 @@
 
 /* The arg-extrema goldens, for k = 1 against arm_argmax_* (their AE_BITS is ours). */
 #define AE_BITS TK_BITS
-#if TK_HALF
-    #include "arg_extrema_f16_data.h"
-#else
-    #include "arg_extrema_f32_data.h"
-#endif
+#include "arg_extrema_f32_data.h"
 
 static TK_TYPE tk_storage[TK_CAP + 2 * TK_GUARD];
 static TK_BITS tk_bits[TK_CAP];
@@ -75,8 +59,7 @@ static cmsis_nn_dims tk_dims(const int32_t d[4])
 }
 
 /* Decode directly into binary64, independently of the kernel's integer keys.
- * Every finite binary16 and binary32 value is normal in binary64, including
- * subnormals. */
+ * Every finite binary32 value is normal in binary64, including subnormals. */
 static double tk_value(uint32_t bits)
 {
     const uint32_t magnitude = bits & TK_MAGNITUDE_MASK;
@@ -430,28 +413,20 @@ static void tk_special(void)
     }
 }
 
-/* Each bit pattern of the width (every binary16 one; random binary32 ones) as one
- * competitor against fixed others, at every position of a five-element row. */
+/* Random binary32 bit patterns, each as one competitor against fixed others, at every
+ * position of a five-element row. */
 static void tk_patterns(void)
 {
     const int32_t d[4] = {1, 1, 256, 5};
     const int32_t ks[] = {1, 2, 3, 5};
-#if TK_HALF
-    for (uint32_t start = 0; start < 65536; start += 256)
-#else
     uint32_t state = UINT32_C(0x9e3779b9);
     for (uint32_t start = 0; start < 8192; start += 256)
-#endif
     {
         for (int rotation = 0; rotation < 5; ++rotation)
         {
             for (uint32_t c = 0; c < 256; ++c)
             {
-#if TK_HALF
-                const uint32_t bits = start + c;
-#else
                 const uint32_t bits = tk_xorshift(&state);
-#endif
                 const uint32_t competitors[5] = {bits,
                                                  TK_SIGN_MASK * (c & 1),
                                                  TK_ONE_BITS | (TK_SIGN_MASK * ((c >> 1) & 1)),
@@ -492,22 +467,14 @@ static void tk_argmax(void)
     TEST_ASSERT_EQUAL_INT32_ARRAY(ae_max_axis3, tk_indices, 12);
     /* The arg-extrema suite's ae_patterns triples, laid along the innermost axis. */
     const int32_t d[4] = {1, 1, 256, 3};
-#if TK_HALF
-    for (uint32_t start = 0; start < 65536; start += 256)
-#else
     uint32_t state = UINT32_C(0x9e3779b9);
     for (uint32_t start = 0; start < 8192; start += 256)
-#endif
     {
         for (int rotation = 0; rotation < 3; ++rotation)
         {
             for (uint32_t c = 0; c < 256; ++c)
             {
-#if TK_HALF
-                const uint32_t bits = start + c;
-#else
                 const uint32_t bits = tk_xorshift(&state);
-#endif
                 const uint32_t competitors[3] = {
                     bits, TK_SIGN_MASK * (c & 1), TK_ONE_BITS | (TK_SIGN_MASK * ((c >> 1) & 1))};
                 for (int k = 0; k < 3; ++k)
@@ -591,25 +558,14 @@ static void tk_invalid(void)
         tk_expect_refused(&negative[i], 0, tk_storage, tk_values, tk_indices);
         tk_expect_refused(&negative[i], 1, tk_storage, tk_values, tk_indices);
     }
-    /* Byte counts above INT32_MAX: the input's, and at k = c the indices' too (four bytes
-     * each, which exceeds a binary16 input's two: the last three shapes). */
+    /* Byte counts above INT32_MAX: the input's, and at k = c the indices' too. */
     const cmsis_nn_dims overflow[] = {{1, 1, 1, INT32_MAX}, {65536, 32768, 1, 1}, {1, 1, 536870912, 1},
                                       {536870912, 1, 1, 1}, {1, 1, 268435456, 2}};
     for (unsigned i = 0; i < sizeof(overflow) / sizeof(overflow[0]); ++i)
         tk_expect_refused(&overflow[i], overflow[i].c, tk_storage, tk_values, tk_indices);
-    /* At k = 0 only the input's count remains: it overflows in both widths for the first
-     * two shapes and in binary32 alone for the other three, where binary16 succeeds. */
+    /* At k = 0 only the input's count remains, and it overflows for every shape. */
     for (unsigned i = 0; i < sizeof(overflow) / sizeof(overflow[0]); ++i)
-    {
-    #if TK_HALF
-        if (i >= 2)
-        {
-            TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, TK_KERNEL(NULL, &overflow[i], 0, NULL, NULL));
-            continue;
-        }
-    #endif
         tk_expect_refused(&overflow[i], 0, tk_storage, tk_values, tk_indices);
-    }
     /* k above an empty innermost extent. */
     const cmsis_nn_dims empty_axis = {2, 3, 4, 0};
     tk_expect_refused(&empty_axis, 1, NULL, NULL, NULL);

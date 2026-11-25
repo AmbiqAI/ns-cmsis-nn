@@ -18,7 +18,7 @@ arm_cmsis_nn_status arm_topk_v2_f32(const float32_t *input_data,
                                     float32_t *output_values,
                                     int32_t *output_indices)
 {
-    return arm_nn_topk(input_data, input_dims, k, output_values, output_indices, 4);
+    return arm_nn_topk(input_data, input_dims, k, output_values, output_indices);
 }
 
 #endif
