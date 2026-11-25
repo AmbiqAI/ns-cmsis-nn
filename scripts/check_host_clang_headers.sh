@@ -50,7 +50,14 @@ for cfg in "${configs[@]}"; do
   for lang in c c++; do
     if [[ "${lang}" == c ]]; then std=-std=c11; else std=-std=c++17; fi
     for header in "${headers[@]}"; do
-      printf '#include "%s"\n' "${header}" > "${work}/tu"
+      : > "${work}/tu"
+      # arm_nn_build_target_check.h stops any build that names no plan, so it
+      # is compiled with the plan of this host build (scalar, not armclang).
+      if [[ "${header}" == arm_nn_build_target_check.h ]]; then
+        printf '#define ARM_NN_EXPECT_%s\n' "ISA ARM_NN_ISA_SCALAR" "AUTOVECTORIZE 0" "SINGLE_ROUNDING 0" \
+          "TOOLCHAIN ARM_NN_TOOLCHAIN_ID_GCC" > "${work}/tu"
+      fi
+      printf '#include "%s"\n' "${header}" >> "${work}/tu"
       if ! "${clang_bin}" --target=x86_64-linux-gnu -x "${lang}" "${std}" -fsyntax-only -Wall -Wextra -Werror \
           "${defines[@]}" -I"${root}/Include" "${work}/tu" 2> "${work}/err"; then
         echo "FAIL ${header} (${lang}, ${cfg})"
