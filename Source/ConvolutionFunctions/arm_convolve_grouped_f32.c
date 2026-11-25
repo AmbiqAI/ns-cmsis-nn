@@ -87,14 +87,16 @@ __STATIC_FORCEINLINE arm_cmsis_nn_status arm_grouped_ohwi_f32(const cmsis_nn_con
         for (int32_t out_y = 0; out_y < output_h; ++out_y)
         {
             const int64_t in_y0 = (int64_t)out_y * stride_h - pad_h;
+            int32_t ky_first, ky_end;
+            uint32_t iy_first;
+            arm_conv_f32_tap_span(in_y0, dil_h, kernel_h, input_h, &ky_first, &ky_end, &iy_first);
             for (int32_t out_x = 0; out_x < output_w; ++out_x)
             {
                 const int64_t in_x0 = (int64_t)out_x * stride_w - pad_w;
                 float32_t *out_pos = output_b + ((size_t)out_y * output_w + (size_t)out_x) * output_c;
 
-                int32_t ky_first, ky_end, kx_first, kx_end;
-                uint32_t iy_first, ix_first;
-                arm_conv_f32_tap_span(in_y0, dil_h, kernel_h, input_h, &ky_first, &ky_end, &iy_first);
+                int32_t kx_first, kx_end;
+                uint32_t ix_first;
                 arm_conv_f32_tap_span(in_x0, dil_w, kernel_w, input_w, &kx_first, &kx_end, &ix_first);
 
                 for (int32_t group = 0; group < groups; ++group)
