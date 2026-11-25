@@ -5,15 +5,17 @@ implementation manifest and the host planner of an ns-cmsis-nn checkout (RFC #82
 from pathlib import Path
 from typing import Optional
 
-from .errors import ContractError, ContractSchemaError, PlannerError, PlanRefused
+from .build_target import BuildTarget, probe_compiler, render_guard, stamp_name, unmet
+from .errors import BuildTargetError, ContractError, ContractSchemaError, PlannerError, PlanRefused
 from .implementations import Buffer, Implementation, ImplementationSet, PrepareStep, load_implementations
 from .planner import Plan, Planner, Target, build_planner, route_enums
 from .signatures import FunctionDecl, ParamDecl, SignatureSet, load_signatures
 
 __all__ = [
-    "Buffer", "ContractError", "ContractSchemaError", "FunctionDecl", "Implementation", "ImplementationSet",
-    "ParamDecl", "Plan", "PlanRefused", "Planner", "PlannerError", "PrepareStep", "SignatureSet", "Target",
-    "build_planner", "load_implementations", "load_signatures", "open_planner", "route_enums",
+    "Buffer", "BuildTarget", "BuildTargetError", "ContractError", "ContractSchemaError", "FunctionDecl",
+    "Implementation", "ImplementationSet", "ParamDecl", "Plan", "PlanRefused", "Planner", "PlannerError",
+    "PrepareStep", "SignatureSet", "Target", "build_planner", "load_implementations", "load_signatures",
+    "open_planner", "probe_compiler", "render_guard", "route_enums", "stamp_name", "unmet",
 ]
 
 

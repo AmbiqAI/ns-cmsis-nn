@@ -18,10 +18,13 @@ import sys
 import tempfile
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Mapping, Optional, Sequence
+from typing import TYPE_CHECKING, Mapping, Optional, Sequence
 
 from .errors import ContractError, PlannerError, PlanRefused
 from .implementations import Implementation, ImplementationSet
+
+if TYPE_CHECKING:
+    from .build_target import BuildTarget
 
 ABI_VERSION = 1
 TOOLCHAINS = {"gcc": 0, "armclang": 1}
@@ -329,6 +332,14 @@ class Planner:
             fn = getattr(lib, name)
             fn.argtypes = args
             fn.restype = ctypes.c_int32
+
+    def check_build(self, build: "BuildTarget") -> Target:
+        """The Target of a probed build (build_target.probe_compiler), refused when that build's toolchain is not the
+        one this planner routes and sizes for."""
+        if build.toolchain != self.toolchain:
+            raise PlannerError(f"the probed build uses toolchain {build.toolchain}, this planner plans for "
+                               f"{self.toolchain}; open the planner for {build.toolchain}")
+        return build.target
 
     def _target(self, target: Target) -> _Target:
         return _Target(ISAS[target.isa], int(target.autovectorize), int(target.single_rounding),

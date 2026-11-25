@@ -6,6 +6,11 @@ of its `ctx` buffer, and the size of any prepared constant stream. It reuses the
 cannot disagree. API: `include/arm_nn_plan.h`.
 
 - The target ISA (scalar, DSP, MVE), `ARM_MATH_AUTOVECTORIZE` and `CMSIS_NN_USE_SINGLE_ROUNDING` are runtime inputs.
+  Take them from the firmware's compiler rather than stating them: `Include/arm_nn_build_target.h` derives them from
+  the compiler's macros, `ns_cmsis_nn_contracts.probe_compiler()` reads them on the host, and
+  `Include/arm_nn_build_target_check.h` fails the firmware compile (`#error`) or link (library stamp
+  `arm_nn_build_<isa>_av<0|1>_sr<0|1>_<toolchain>`, defined by `Source/NNSupportFunctions/arm_nn_build_target.c`) of a
+  build that differs from the plan.
 - The target toolchain is fixed per build (`ARM_NN_PLAN_TOOLCHAIN=gcc|armclang`) because a few routes and sizes
   depend on it at compile time; a plan for another toolchain returns `ARM_NN_PLAN_E_TARGET`.
 - Covered so far: `arm_depthwise_conv_wrapper_s8`, `arm_depthwise_conv_s8_opt` (planar or channelwise for a given
