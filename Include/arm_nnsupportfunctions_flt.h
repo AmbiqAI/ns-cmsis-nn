@@ -1551,7 +1551,10 @@ arm_cmsis_nn_status arm_nn_gru_step_f32(const float32_t *data_in,
 
 /**
  * @defgroup floatConvRoutes Float convolution route predicates
- * The rules by which arm_convolve_f16(), arm_convolve_f16_acc16() and arm_convolve_f32() choose a route, in their
+ * These predicates apply to single-group convolution (input_dims->c == filter_dims->c). A caller selecting a
+ * route ahead of time must check the channel depths first. For a grouped OHWI layer, use a grouped-capable NHWC
+ * entry for the target precision.
+ * The single-group rules for arm_convolve_f16(), arm_convolve_f16_acc16() and arm_convolve_f32(), in their
  * dispatch order: 1x1, 1xN, conv1d k5, conv1d k3, small-C (MVE float builds), packed-patch GEMM (when ctx holds one
  * patch row), direct. The routers, their buffer-size queries and the direct entries of each route share these, so
  * that a caller selecting the entry per layer ahead of time takes the route the router takes.

@@ -1532,6 +1532,7 @@ void convolve_grouped_padded_nan_f16(void)
 
 enum
 {
+    ROUTE_GROUPED_F16 = -1,
     ROUTE_1X1_F16,
     ROUTE_1XN_F16,
     ROUTE_K5_F16,
@@ -1561,6 +1562,10 @@ static int32_t conv_route_f16(const cmsis_nn_context *ctx,
                              const cmsis_nn_dims *flt,
                              const cmsis_nn_dims *out)
 {
+    if (in->c != flt->c)
+    {
+        return ROUTE_GROUPED_F16;
+    }
     const int32_t row = flt->h * flt->w * in->c * (int32_t)sizeof(float16_t);
     if (arm_nn_conv_flt_is_1x1(&cp->padding, flt) &&
         arm_nn_conv_flt_1x1_window_ok(&cp->stride, in, out))
@@ -1783,6 +1788,12 @@ typedef struct
 
 void convolve_route_predicates_f16(void)
 {
+    const cmsis_nn_dims grouped_in = {1, 1, 1, 4}, grouped_filter = {4, 1, 1, 2};
+    cmsis_nn_conv_params_f16 grouped_params = {0};
+    grouped_params.stride = grouped_params.dilation = (cmsis_nn_tile){1, 1};
+    TEST_ASSERT_EQUAL_INT32(ROUTE_GROUPED_F16,
+                            conv_route_f16(NULL, &grouped_params, &grouped_in, &grouped_filter, &grouped_in));
+
     const conv_shape_flt pw = {{1, 1}, {0, 0}, {1, 1}, {1, 4, 4, 8}, {8, 1, 1, 8}, {1, 4, 4, 8}};
     TEST_ASSERT_TRUE(arm_nn_conv_flt_is_1x1(&pw.padding, &pw.flt));
     EXPECT_TERM(pw, flt.h, 2, false, arm_nn_conv_flt_is_1x1(&s_.padding, &s_.flt));
