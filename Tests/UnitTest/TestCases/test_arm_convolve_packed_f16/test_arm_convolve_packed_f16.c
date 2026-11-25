@@ -7,6 +7,7 @@
  * See LICENSE (root) or LICENSES/LicenseRef-Ambiq-Apollo-SDK.txt for the full text.
  */
 
+#include <Internal/arm_nn_conv_grouped_f16.h>
 #include <arm_nnfunctions.h>
 #include <arm_nnsupportfunctions.h>
 #include <math.h>
@@ -15,7 +16,6 @@
 #include <unity.h>
 
 #include "../Common/float_packed_test_utils.h"
-#include "Internal/arm_nn_conv_grouped_f16.h"
 
 // Deterministic data in [-1, 1) that survives a float16 round trip.
 static float16_t conv_f16_value(int32_t i, int32_t seed)
