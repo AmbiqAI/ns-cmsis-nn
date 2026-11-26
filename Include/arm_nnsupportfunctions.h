@@ -1613,7 +1613,8 @@ arm_cmsis_nn_status arm_nn_depthwise_conv_nt_t_s8(const int32_t *weight_sum_buf,
                                                   int8_t *out);
 
 /**
- * @brief Necessary conditions of the planar rule that are cheap to test inline: at most 32 channels and stride 1.
+ * @brief Necessary conditions of the planar rule that are cheap to test inline: at most 32 channels, or at most 96
+ *        with an input height of 1, and stride 1.
  *        A caller can skip arm_nn_depthwise_conv_s8_planar() for layers that fail them without changing which layers
  *        it takes.
  *
@@ -1625,7 +1626,8 @@ arm_cmsis_nn_status arm_nn_depthwise_conv_nt_t_s8(const int32_t *weight_sum_buf,
 __STATIC_FORCEINLINE int32_t arm_nn_depthwise_conv_s8_planar_candidate(const cmsis_nn_dw_conv_params *dw_conv_params,
                                                                        const cmsis_nn_dims *input_dims)
 {
-    return input_dims->c <= 32 && dw_conv_params->stride.w == 1 && dw_conv_params->stride.h == 1;
+    return (input_dims->c <= 32 || (input_dims->h == 1 && input_dims->c <= 96)) && dw_conv_params->stride.w == 1 &&
+        dw_conv_params->stride.h == 1;
 }
 
 /**
