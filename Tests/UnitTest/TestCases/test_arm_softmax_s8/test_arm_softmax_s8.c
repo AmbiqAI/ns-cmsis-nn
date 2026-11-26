@@ -142,3 +142,104 @@ void softmax_shift31_arm_softmax_s8(void)
     TEST_ASSERT_EQUAL_INT16_ARRAY(ref16, out16, 9);
     TEST_ASSERT_EQUAL_UINT8_ARRAY(ref_u8, out_u8, 9);
 }
+
+/* Scalar softmax reference, one row at a time */
+static void ref_softmax(const int8_t *input,
+                        int32_t num_rows,
+                        int32_t row_size,
+                        int32_t mult,
+                        int32_t shift,
+                        int32_t diff_min,
+                        bool int16_output,
+                        void *output)
+{
+    const uint32_t mask = 1U << shift;
+    for (int32_t row = 0; row < num_rows; row++)
+    {
+        const int8_t *in = input + row * row_size;
+        int8_t max = in[0];
+        for (int32_t col = 1; col < row_size; col++)
+        {
+            max = ARM_NN_MAX(max, in[col]);
+        }
+        int64_t sum = 0;
+        for (int32_t col = 0; col < row_size; col++)
+        {
+            const int32_t diff = in[col] - max;
+            if (diff >= diff_min)
+            {
+                sum += DIV_POW2(EXP_ON_NEG(MUL_SAT((int32_t)((uint32_t)diff * mask), mult)), 12);
+            }
+        }
+        int32_t bits;
+        const int32_t scale = arm_nn_softmax_row_scale(sum, 12 + (int16_output ? 15 : 23), &bits);
+        const int32_t lo = int16_output ? NN_Q15_MIN : NN_Q7_MIN;
+        const int32_t hi = int16_output ? NN_Q15_MAX : NN_Q7_MAX;
+        for (int32_t col = 0; col < row_size; col++)
+        {
+            const int32_t diff = in[col] - max;
+            int32_t res = lo;
+            if (diff >= diff_min)
+            {
+                res = DIV_POW2(MUL_SAT(scale, EXP_ON_NEG(MUL_SAT((int32_t)((uint32_t)diff * mask), mult))), bits) + lo;
+                res = ARM_NN_CLAMP(res, hi, lo);
+            }
+            if (int16_output)
+            {
+                ((int16_t *)output)[row * row_size + col] = (int16_t)res;
+            }
+            else
+            {
+                ((int8_t *)output)[row * row_size + col] = (int8_t)res;
+            }
+        }
+    }
+}
+
+/* Short rows, tails, long rows, diff_min edges */
+void softmax_shapes_arm_softmax_s8(void)
+{
+    static int8_t input[9 * 300];
+    static int8_t out[9 * 300];
+    static int8_t ref[9 * 300];
+    static int16_t out16[9 * 300];
+    static int16_t ref16[9 * 300];
+    const int32_t params[][3] = {{1077952576, 23, -248},
+                                 {1077952576, 23, -1},
+                                 {1077952576, 23, 0},
+                                 {1077952576, 23, 1},
+                                 {1902325760, 26, -256},
+                                 {1342177280, 22, -257},
+                                 {1717986918, 20, INT32_MIN},
+                                 {1879048192, 30, -3},
+                                 {1073741824, 31, -2}};
+    const int32_t rows[] = {1, 2, 3, 5, 9};
+    const int32_t cols[] = {1, 2, 3, 4, 5, 7, 8, 16, 17, 33, 255, 256, 300};
+    const int32_t ranges[][2] = {{-128, 127}, {120, 127}, {-40, 40}};
+    uint32_t seed = 4242u;
+
+    for (size_t p = 0; p < sizeof(params) / sizeof(params[0]); p++)
+    {
+        for (size_t r = 0; r < sizeof(rows) / sizeof(rows[0]); r++)
+        {
+            for (size_t c = 0; c < sizeof(cols) / sizeof(cols[0]); c++)
+            {
+                /* Each row draws from its own range */
+                for (int32_t i = 0; i < rows[r] * cols[c]; i++)
+                {
+                    const int32_t *range = ranges[(i / cols[c] + p + c) % 3];
+                    seed = seed * 1664525u + 1013904223u;
+                    input[i] = (int8_t)(range[0] + (int32_t)((seed >> 8) % (uint32_t)(range[1] - range[0] + 1)));
+                }
+                const int32_t n = rows[r] * cols[c];
+                const int32_t *q = params[p];
+                arm_softmax_s8(input, rows[r], cols[c], q[0], q[1], q[2], out);
+                ref_softmax(input, rows[r], cols[c], q[0], q[1], q[2], false, ref);
+                TEST_ASSERT_EQUAL_INT8_ARRAY(ref, out, n);
+                arm_softmax_s8_s16(input, rows[r], cols[c], q[0], q[1], q[2], out16);
+                ref_softmax(input, rows[r], cols[c], q[0], q[1], q[2], true, ref16);
+                TEST_ASSERT_EQUAL_INT16_ARRAY(ref16, out16, n);
+            }
+        }
+    }
+}
