@@ -21,8 +21,8 @@
  * Title:        arm_depthwise_conv_get_buffer_sizes_s8.c
  * Description:  Collection of get buffer size functions for the various s8 convolution layer functions.
  *
- * $Date:        1 November 2024
- * $Revision:    V.1.3.0
+ * $Date:        8 November 2026
+ * $Revision:    V.1.4.0
  *
  * Target :  Arm(R) M-Profile Architecture
  *
@@ -70,6 +70,35 @@ arm_deptwise_conv_s8_one_in_ch_get_buffer_size_mve(const cmsis_nn_dw_conv_params
     filter_elements = arm_nn_size_mul(filter_elements, filter_dims->n);
 
     return (int32_t)arm_nn_size_add(filter_elements, size);
+}
+
+/*
+ * On MVE, arm_depthwise_conv_wrapper_s8() tries the direct 3x3 entries (arm_depthwise_conv_s8_opt_3x3[_c64_s1]())
+ * before arm_depthwise_conv_s8_opt(). They decline unless ctx->size covers their own scratch, so the sizer reserves
+ * the larger of the two for layers that can pass their gate. The checks here are the gate's cheap shape terms, so a
+ * layer the entries would refuse anyway (too few or too many channels, a large stride or padding, dilation) keeps
+ * the arm_depthwise_conv_s8_opt() size. `opt_size` is that size, already checked to be non-negative.
+ */
+__STATIC_INLINE int32_t arm_depthwise_conv_s8_with_opt_3x3_size_mve(const cmsis_nn_dw_conv_params *dw_conv_params,
+                                                                    const cmsis_nn_dims *input_dims,
+                                                                    const cmsis_nn_dims *filter_dims,
+                                                                    const int32_t opt_size)
+{
+    const bool candidate = filter_dims->w == 3 && filter_dims->h == 3 && input_dims->c >= 16 && input_dims->c <= 2048 &&
+        dw_conv_params->stride.h >= 1 && dw_conv_params->stride.h <= 2 && dw_conv_params->stride.w >= 1 &&
+        dw_conv_params->stride.w <= 2 && dw_conv_params->padding.h >= 0 && dw_conv_params->padding.h <= 1 &&
+        dw_conv_params->padding.w >= 0 && dw_conv_params->padding.w <= 1 && dw_conv_params->dilation.h == 1 &&
+        dw_conv_params->dilation.w == 1;
+    if (!candidate)
+    {
+        return opt_size;
+    }
+    const int32_t opt_3x3_size = arm_depthwise_conv_s8_opt_3x3_get_buffer_size(input_dims);
+    if (opt_3x3_size < 0)
+    {
+        return -1;
+    }
+    return opt_3x3_size > opt_size ? opt_3x3_size : opt_size;
 }
 
 int32_t arm_depthwise_conv_s8_opt_get_buffer_size_mve(const cmsis_nn_dims *input_dims, const cmsis_nn_dims *filter_dims)
@@ -149,6 +178,12 @@ int32_t arm_depthwise_conv_wrapper_s8_get_buffer_size(const cmsis_nn_dw_conv_par
         }
 #endif
         size = arm_depthwise_conv_s8_opt_get_buffer_size(input_dims, filter_dims);
+#if defined(ARM_MATH_MVEI)
+        if (size >= 0)
+        {
+            size = arm_depthwise_conv_s8_with_opt_3x3_size_mve(dw_conv_params, input_dims, filter_dims, size);
+        }
+#endif
     }
 
     return size;
@@ -191,6 +226,11 @@ int32_t arm_depthwise_conv_wrapper_s8_get_buffer_size_mve(const cmsis_nn_dw_conv
     {
         size = arm_depthwise_conv_s8_opt_get_buffer_size_mve(input_dims, filter_dims);
 
+        if (size < 0)
+        {
+            return -1;
+        }
+        size = arm_depthwise_conv_s8_with_opt_3x3_size_mve(dw_conv_params, input_dims, filter_dims, size);
         if (size < 0)
         {
             return -1;
