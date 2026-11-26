@@ -844,16 +844,16 @@ __STATIC_FORCEINLINE arm_cmsis_nn_status arm_convolve_nhwc_direct_f32_body(const
     return ARM_CMSIS_NN_SUCCESS;
 }
 
-arm_cmsis_nn_status arm_convolve_nhwc_f32(const cmsis_nn_context *ctx,
-                                          const cmsis_nn_conv_params_f32 *conv_params,
-                                          const cmsis_nn_dims *input_dims,
-                                          const float32_t *input_data,
-                                          const cmsis_nn_dims *filter_dims,
-                                          const float32_t *filter_data,
-                                          const cmsis_nn_dims *bias_dims,
-                                          const float32_t *bias_data,
-                                          const cmsis_nn_dims *output_dims,
-                                          float32_t *output_data)
+arm_cmsis_nn_status arm_nn_convolve_single_group_nhwc_f32(const cmsis_nn_context *ctx,
+                                                          const cmsis_nn_conv_params_f32 *conv_params,
+                                                          const cmsis_nn_dims *input_dims,
+                                                          const float32_t *input_data,
+                                                          const cmsis_nn_dims *filter_dims,
+                                                          const float32_t *filter_data,
+                                                          const cmsis_nn_dims *bias_dims,
+                                                          const float32_t *bias_data,
+                                                          const cmsis_nn_dims *output_dims,
+                                                          float32_t *output_data)
 {
     (void)bias_dims;
 
@@ -1256,16 +1256,16 @@ arm_cmsis_nn_status arm_convolve_patch_gemm_nhwc_packed_f32(const cmsis_nn_conte
         ctx, conv_params, input_dims, input_data, filter_dims, filter_data, bias_data, output_dims, output_data, true);
 }
 
-arm_cmsis_nn_status arm_convolve_direct_nhwc_ohwi_f32(const cmsis_nn_context *ctx,
-                                                      const cmsis_nn_conv_params_f32 *conv_params,
-                                                      const cmsis_nn_dims *input_dims,
-                                                      const float32_t *input_data,
-                                                      const cmsis_nn_dims *filter_dims,
-                                                      const float32_t *filter_data,
-                                                      const cmsis_nn_dims *bias_dims,
-                                                      const float32_t *bias_data,
-                                                      const cmsis_nn_dims *output_dims,
-                                                      float32_t *output_data)
+arm_cmsis_nn_status arm_nn_convolve_single_group_direct_nhwc_ohwi_f32(const cmsis_nn_context *ctx,
+                                                                      const cmsis_nn_conv_params_f32 *conv_params,
+                                                                      const cmsis_nn_dims *input_dims,
+                                                                      const float32_t *input_data,
+                                                                      const cmsis_nn_dims *filter_dims,
+                                                                      const float32_t *filter_data,
+                                                                      const cmsis_nn_dims *bias_dims,
+                                                                      const float32_t *bias_data,
+                                                                      const cmsis_nn_dims *output_dims,
+                                                                      float32_t *output_data)
 {
     (void)ctx;
     (void)bias_dims;

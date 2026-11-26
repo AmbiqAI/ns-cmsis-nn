@@ -27,7 +27,7 @@ test('unknown legacy page returns 404 and leads to Home', async ({ page }) => {
   expect(response?.status()).toBe(404);
   await expect(page.getByRole('heading', { name: 'This page has moved' })).toBeVisible();
   await expect(page.getByRole('link', { name: 'API reference', exact: true }).last()).toHaveAttribute('href', '/ns-cmsis-nn/reference/');
-  await page.screenshot({ path: 'test-results/not-found.png' });
+  // The five-second meta refresh can interrupt screenshot capture; verify navigation directly.
   await page.waitForURL('**/ns-cmsis-nn/', { timeout: 10000 });
   await expect(page.locator('h1')).toBeVisible();
 });
