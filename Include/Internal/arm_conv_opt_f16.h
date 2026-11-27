@@ -37,6 +37,48 @@
 #include "Internal/arm_nn_activation_flt.h"
 #include "arm_nnsupportfunctions.h"
 
+/* Single-group entries used by the public convolution dispatchers. */
+arm_cmsis_nn_status arm_nn_convolve_single_group_nhwc_f16(const cmsis_nn_context *ctx,
+                                                          const cmsis_nn_conv_params_f16 *conv_params,
+                                                          const cmsis_nn_dims *input_dims,
+                                                          const float16_t *input_data,
+                                                          const cmsis_nn_dims *filter_dims,
+                                                          const float16_t *filter_data,
+                                                          const cmsis_nn_dims *bias_dims,
+                                                          const float16_t *bias_data,
+                                                          const cmsis_nn_dims *output_dims,
+                                                          float16_t *output_data);
+arm_cmsis_nn_status arm_nn_convolve_single_group_direct_nhwc_ohwi_f16(const cmsis_nn_context *ctx,
+                                                                      const cmsis_nn_conv_params_f16 *conv_params,
+                                                                      const cmsis_nn_dims *input_dims,
+                                                                      const float16_t *input_data,
+                                                                      const cmsis_nn_dims *filter_dims,
+                                                                      const float16_t *filter_data,
+                                                                      const cmsis_nn_dims *bias_dims,
+                                                                      const float16_t *bias_data,
+                                                                      const cmsis_nn_dims *output_dims,
+                                                                      float16_t *output_data);
+arm_cmsis_nn_status arm_nn_convolve_single_group_nhwc_f16_acc16(const cmsis_nn_context *ctx,
+                                                                const cmsis_nn_conv_params_f16 *conv_params,
+                                                                const cmsis_nn_dims *input_dims,
+                                                                const float16_t *input_data,
+                                                                const cmsis_nn_dims *filter_dims,
+                                                                const float16_t *filter_data,
+                                                                const cmsis_nn_dims *bias_dims,
+                                                                const float16_t *bias_data,
+                                                                const cmsis_nn_dims *output_dims,
+                                                                float16_t *output_data);
+arm_cmsis_nn_status arm_nn_convolve_single_group_direct_nhwc_ohwi_f16_acc16(const cmsis_nn_context *ctx,
+                                                                            const cmsis_nn_conv_params_f16 *conv_params,
+                                                                            const cmsis_nn_dims *input_dims,
+                                                                            const float16_t *input_data,
+                                                                            const cmsis_nn_dims *filter_dims,
+                                                                            const float16_t *filter_data,
+                                                                            const cmsis_nn_dims *bias_dims,
+                                                                            const float16_t *bias_data,
+                                                                            const cmsis_nn_dims *output_dims,
+                                                                            float16_t *output_data);
+
 /*
  * conv1d with a 1 x K filter (K = 3 or 5) on the shape arm_nn_conv_flt_is_1d_k() accepts, then the activation clamp.
  * K and the accumulation are compile-time constants at every call site, and the filter format is one in each direct
@@ -89,6 +131,17 @@ __STATIC_FORCEINLINE void arm_conv1d_nhwc_f16_run(const cmsis_nn_conv_params_f16
     arm_nn_vector_clamp_f16(output_data, out_count, params->activation.min, params->activation.max);
 }
 
+typedef arm_cmsis_nn_status (*arm_conv_call_f16)(const cmsis_nn_context *ctx,
+                                                 const cmsis_nn_conv_params_f16 *params,
+                                                 const cmsis_nn_dims *input_dims,
+                                                 const float16_t *input_data,
+                                                 const cmsis_nn_dims *filter_dims,
+                                                 const float16_t *filter_data,
+                                                 const cmsis_nn_dims *bias_dims,
+                                                 const float16_t *bias_data,
+                                                 const cmsis_nn_dims *output_dims,
+                                                 float16_t *output_data);
+
 #ifndef NN_DISABLE_SPECIALIZATION
 typedef bool (*arm_conv_match_f16)(const cmsis_nn_context *ctx,
                                    const cmsis_nn_conv_params_f16 *params,
@@ -100,17 +153,6 @@ typedef bool (*arm_conv_match_f16)(const cmsis_nn_context *ctx,
                                    const float16_t *bias_data,
                                    const cmsis_nn_dims *output_dims,
                                    float16_t *output_data);
-
-typedef arm_cmsis_nn_status (*arm_conv_call_f16)(const cmsis_nn_context *ctx,
-                                                 const cmsis_nn_conv_params_f16 *params,
-                                                 const cmsis_nn_dims *input_dims,
-                                                 const float16_t *input_data,
-                                                 const cmsis_nn_dims *filter_dims,
-                                                 const float16_t *filter_data,
-                                                 const cmsis_nn_dims *bias_dims,
-                                                 const float16_t *bias_data,
-                                                 const cmsis_nn_dims *output_dims,
-                                                 float16_t *output_data);
 
 typedef struct
 {

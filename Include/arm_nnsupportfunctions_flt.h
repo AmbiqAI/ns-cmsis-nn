@@ -1551,7 +1551,10 @@ arm_cmsis_nn_status arm_nn_gru_step_f32(const float32_t *data_in,
 
 /**
  * @defgroup floatConvRoutes Float convolution route predicates
- * The rules by which arm_convolve_f16(), arm_convolve_f16_acc16() and arm_convolve_f32() choose a route, in their
+ * These predicates apply to single-group convolution (input_dims->c == filter_dims->c). A caller selecting a
+ * route ahead of time must check the channel depths first. For a grouped OHWI layer, use a grouped-capable NHWC
+ * entry for the target precision.
+ * The single-group rules for arm_convolve_f16(), arm_convolve_f16_acc16() and arm_convolve_f32(), in their
  * dispatch order: 1x1, 1xN, conv1d k5, conv1d k3, small-C (MVE float builds), packed-patch GEMM (when ctx holds one
  * patch row), direct. The routers, their buffer-size queries and the direct entries of each route share these, so
  * that a caller selecting the entry per layer ahead of time takes the route the router takes.
@@ -1603,6 +1606,94 @@ __STATIC_INLINE bool arm_nn_conv_flt_axis_ok(int32_t out, int32_t kernel, int32_
 }
 
 /**
+ * @brief Bound element counts and byte offsets for tensors with validated nonnegative dimensions.
+ * @param[in] input_dims Input tensor dimensions.
+ * @param[in] filter_dims Filter tensor dimensions.
+ * @param[in] output_dims Output tensor dimensions.
+ * @param[in] element_size Bytes per tensor element.
+ * @param[in] packed_lanes Channel block size and vector loop width.
+ * @param[in] packed Whether filters use packed storage with padded output channels.
+ * @return true when the accessed tensor and loop indices fit their supported ranges.
+ */
+__STATIC_INLINE bool arm_nn_conv_flt_tensor_sizes_ok(const cmsis_nn_dims *input_dims,
+                                                     const cmsis_nn_dims *filter_dims,
+                                                     const cmsis_nn_dims *output_dims,
+                                                     size_t element_size,
+                                                     int32_t packed_lanes,
+                                                     bool packed)
+{
+    /* Leave room for the largest vector loop increment as well as packed channel rounding. */
+    const int64_t limit = ARM_NN_MIN((size_t)(INT32_MAX - 2 * packed_lanes), SIZE_MAX / element_size);
+    /* Each accepted product is at most INT32_MAX before multiplication by the next int32 dimension. */
+    const int64_t input_hw = (int64_t)input_dims->h * input_dims->w;
+    const int64_t output_hw = (int64_t)output_dims->h * output_dims->w;
+    const int64_t filter_hw = (int64_t)filter_dims->h * filter_dims->w;
+    if (input_hw > limit || output_hw > limit || filter_hw > limit)
+    {
+        return false;
+    }
+    const int64_t input_len = input_hw * input_dims->c;
+    const int64_t output_len = output_hw * output_dims->c;
+    const int64_t patch_len = filter_hw * filter_dims->c;
+    if (input_len > limit || output_len > limit || patch_len > limit || output_dims->c > limit)
+    {
+        return false;
+    }
+    const int64_t filter_c =
+        packed ? ((int64_t)output_dims->c + packed_lanes - 1) / packed_lanes * packed_lanes : output_dims->c;
+    return input_len * input_dims->n <= limit && output_len * output_dims->n <= limit && patch_len * filter_c <= limit;
+}
+
+/**
+ * @brief Validate common float convolution metadata and accessed arithmetic.
+ * Output windows are explicit; generic kernels clip their out-of-input taps.
+ * @param[in] stride Spatial output steps.
+ * @param[in] padding Leading spatial padding.
+ * @param[in] dilation Spatial filter steps.
+ * @param[in] input_dims Input dimensions [N, H, W, C_IN].
+ * @param[in] filter_dims Filter dimensions [C_OUT, KH, KW, C_IN / groups].
+ * @param[in] output_dims Output dimensions [N, H, W, C_OUT].
+ * @param[in] element_size Bytes per tensor element.
+ * @param[in] packed_lanes Channel block size and vector loop width for the dtype.
+ * @param[in] packed Whether the filter uses NT_N_PACKED storage.
+ * @return true for consistent metadata and representable nonempty work, or a valid empty request.
+ */
+__STATIC_INLINE bool arm_nn_conv_flt_grouped_dims_ok(const cmsis_nn_tile *stride,
+                                                     const cmsis_nn_tile *padding,
+                                                     const cmsis_nn_tile *dilation,
+                                                     const cmsis_nn_dims *input_dims,
+                                                     const cmsis_nn_dims *filter_dims,
+                                                     const cmsis_nn_dims *output_dims,
+                                                     size_t element_size,
+                                                     int32_t packed_lanes,
+                                                     bool packed)
+{
+    if (input_dims->n < 0 || input_dims->h < 0 || input_dims->w < 0 || input_dims->c <= 0 ||
+        output_dims->n != input_dims->n || output_dims->h < 0 || output_dims->w < 0 || output_dims->c <= 0 ||
+        filter_dims->n != output_dims->c ||
+        (filter_dims->c != input_dims->c &&
+         (filter_dims->c <= 0 || input_dims->c % filter_dims->c != 0 ||
+          output_dims->c % (input_dims->c / filter_dims->c) != 0)) ||
+        filter_dims->h <= 0 || filter_dims->w <= 0 || stride->h <= 0 || stride->w <= 0 || dilation->h <= 0 ||
+        dilation->w <= 0 || padding->h < 0 || padding->w < 0)
+    {
+        return false;
+    }
+    if (arm_nn_conv_flt_empty(output_dims))
+    {
+        return true;
+    }
+    if (input_dims->h == 0 || input_dims->w == 0)
+    {
+        return false;
+    }
+    return arm_nn_conv_flt_tensor_sizes_ok(input_dims, filter_dims, output_dims, element_size, packed_lanes, packed) &&
+        (filter_dims->c != input_dims->c ||
+         (arm_nn_conv_flt_axis_ok(output_dims->h, filter_dims->h, stride->h, padding->h, dilation->h) &&
+          arm_nn_conv_flt_axis_ok(output_dims->w, filter_dims->w, stride->w, padding->w, dilation->w)));
+}
+
+/**
  * @brief Validate common float convolution metadata and accessed arithmetic.
  * Output windows are explicit; generic kernels clip their out-of-input taps.
  * @param[in] stride Spatial output steps.
@@ -1642,6 +1733,8 @@ __STATIC_INLINE bool arm_nn_conv_flt_dims_ok(const cmsis_nn_tile *stride,
     {
         return false;
     }
+    /* Keep the legacy size checks in this validator. An out-of-line tensor-size check adds a
+     * live stack frame in the ordinary Cortex-M55 convolution path on ATfE. */
     /* Leave room for the largest vector loop increment as well as packed channel rounding. */
     const int64_t limit = ARM_NN_MIN((size_t)(INT32_MAX - 2 * packed_lanes), SIZE_MAX / element_size);
     const int64_t input_hw = (int64_t)input_dims->h * input_dims->w;

@@ -37,6 +37,28 @@
 #include "Internal/arm_nn_activation_flt.h"
 #include "arm_nnsupportfunctions.h"
 
+/* Single-group entries used by the public convolution dispatchers. */
+arm_cmsis_nn_status arm_nn_convolve_single_group_nhwc_f32(const cmsis_nn_context *ctx,
+                                                          const cmsis_nn_conv_params_f32 *conv_params,
+                                                          const cmsis_nn_dims *input_dims,
+                                                          const float32_t *input_data,
+                                                          const cmsis_nn_dims *filter_dims,
+                                                          const float32_t *filter_data,
+                                                          const cmsis_nn_dims *bias_dims,
+                                                          const float32_t *bias_data,
+                                                          const cmsis_nn_dims *output_dims,
+                                                          float32_t *output_data);
+arm_cmsis_nn_status arm_nn_convolve_single_group_direct_nhwc_ohwi_f32(const cmsis_nn_context *ctx,
+                                                                      const cmsis_nn_conv_params_f32 *conv_params,
+                                                                      const cmsis_nn_dims *input_dims,
+                                                                      const float32_t *input_data,
+                                                                      const cmsis_nn_dims *filter_dims,
+                                                                      const float32_t *filter_data,
+                                                                      const cmsis_nn_dims *bias_dims,
+                                                                      const float32_t *bias_data,
+                                                                      const cmsis_nn_dims *output_dims,
+                                                                      float32_t *output_data);
+
 /*
  * conv1d with a 1 x K filter (K = 3 or 5) on the shape arm_nn_conv_flt_is_1d_k() accepts, then the activation clamp.
  * K is a compile-time constant at every call site, and the filter format is one in each direct entry, so a direct

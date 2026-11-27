@@ -452,13 +452,19 @@ Setup_Environment() {
         "${WORKING_DIR}/ethos-u-core-platform" "${ETHOS_U_CORE_PLATFORM_COMMIT}"
 
     echo "++ Setting up python environment"
-    if [[ -d ${WORKING_DIR}/cmsis_nn_venv ]]; then
-        echo "Python venv already installed. If you wish to install a new version, please delete the old folder."
-    else
+    local new_venv=0
+    if [[ ! -d ${WORKING_DIR}/cmsis_nn_venv ]]; then
         python3 -m venv cmsis_nn_venv
-        source cmsis_nn_venv/bin/activate
-        pip3 install --disable-pip-version-check -qq -r ../requirements.txt
-        deactivate
+        new_venv=1
+    fi
+    # ensurepip can seed an old pip even in a patched container. Repair reused
+    # environments too, before any index-based install (emSign incident #893).
+    local venv_python="${WORKING_DIR}/cmsis_nn_venv/bin/python"
+    "${venv_python}" -m pip install --no-cache-dir \
+        "pip @ https://files.pythonhosted.org/packages/3f/06/3e4420302363fbb71be3c7f35ce042f54bfca330e3e66b3a2e3c4cca579f/pip-26.2.2-py3-none-any.whl#sha256=fd7f4dfa8190e014013b9f08f3e973f4e4c26ffd179a204895533a7254813a70"
+    "${venv_python}" -m pip install --no-cache-dir 'certifi>=2026.10.19'
+    if [[ ${new_venv} -eq 1 ]]; then
+        "${venv_python}" -m pip install --disable-pip-version-check -qq -r ../requirements.txt
     fi
 }
 

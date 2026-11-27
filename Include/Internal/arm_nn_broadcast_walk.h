@@ -59,6 +59,12 @@ arm_nn_broadcast_dims_valid(const cmsis_nn_dims *dims_1, const cmsis_nn_dims *di
         arm_nn_broadcast_dim_valid(dims_1->c, dims_2->c, dims_out->c);
 }
 
+/* The walker uses signed 32-bit offsets. Call after validating all axes as positive. */
+static inline int32_t arm_nn_broadcast_bytes_fit(const cmsis_nn_dims *dims, int32_t element_bytes)
+{
+    return dims->c <= INT32_MAX / element_bytes / dims->n / dims->h / dims->w;
+}
+
 /**
  * @brief Walk an NHWC broadcast of two operands, calling a contiguous kernel on each run.
  *
@@ -182,6 +188,33 @@ arm_nn_broadcast_dims_valid(const cmsis_nn_dims *dims_1, const cmsis_nn_dims *di
                     }                                                                                                  \
                 }                                                                                                      \
             }                                                                                                          \
+        }                                                                                                              \
+    } while (0)
+
+/**
+ * @brief NHWC walk for a symmetric binary operation with a hot per-channel scalar broadcast.
+ *
+ * With equal outer shapes, flatten NHW to a single row loop. One scalar kernel handles both
+ * operand orders. All other shapes use the general walker. The caller must validate broadcast
+ * compatibility and bound the output element count before invoking this macro.
+ */
+#define ARM_NN_BROADCAST_WALK_SYMMETRIC_NHWC(TYPE, a, ad, b, bd, out, od, FULL, SCALAR)                                \
+    do                                                                                                                 \
+    {                                                                                                                  \
+        if ((ad)->n == (bd)->n && (ad)->h == (bd)->h && (ad)->w == (bd)->w && (ad)->c != (bd)->c)                      \
+        {                                                                                                              \
+            const int32_t channels = (od)->c;                                                                          \
+            const int32_t rows = (od)->n * (od)->h * (od)->w;                                                          \
+            const TYPE *scalars = (bd)->c == 1 ? (b) : (a);                                                            \
+            const TYPE *vectors = (bd)->c == 1 ? (a) : (b);                                                            \
+            for (int32_t row = 0; row < rows; ++row)                                                                   \
+            {                                                                                                          \
+                SCALAR(scalars + row, vectors + row * channels, (out) + row * channels, channels);                     \
+            }                                                                                                          \
+        }                                                                                                              \
+        else                                                                                                           \
+        {                                                                                                              \
+            ARM_NN_BROADCAST_WALK_NHWC(TYPE, TYPE, a, ad, b, bd, out, od, FULL, SCALAR, SCALAR);                       \
         }                                                                                                              \
     } while (0)
 

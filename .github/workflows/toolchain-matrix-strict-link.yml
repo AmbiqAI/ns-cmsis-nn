@@ -165,6 +165,19 @@ jobs:
       - name: Report toolchain version
         run: arm-none-eabi-gcc --version
 
+      - name: Compile FP16 activation limits in a strict C11 consumer
+        if: matrix.target_cpu == 'cortex-m55'
+        run: |
+          arm-none-eabi-gcc -mcpu=cortex-m55 -mthumb -mfp16-format=ieee \
+            -std=c11 -pedantic-errors -Wall -Wextra -Werror -DARM_NN_ENABLE_F16=1 \
+            -isystem Include -fsyntax-only -x c - <<'EOF'
+          #include <arm_nn_types.h>
+          const cmsis_nn_activation_f16 clamp_range = {
+              .min = ARM_NN_F16_FINITE_LOWEST,
+              .max = ARM_NN_F16_FINITE_MAX,
+          };
+          EOF
+
       - name: Build static library
         run: |
           set -euo pipefail
@@ -723,8 +736,9 @@ jobs:
     # Digest-pinned for the same reason as release.yml's armclang job: this
     # job handles the Arm licensing secret, so the image it runs must be one
     # that was actually reviewed, not whatever `:latest` points at today.
+    # Verified emSign remediation image: security-893-fc15b5cf (issue #893).
     container:
-      image: ghcr.io/ambiqai/ns-cmsis-nn-ci@sha256:0d18641d43015eba02d8e05821b59c95ddfcdf0d9ff7a070edd532bad3e09eeb
+      image: ghcr.io/ambiqai/ns-cmsis-nn-ci@sha256:090c83310103ac5295d7b7591ea15c6fe6e02caa44037ddbffef049e1d98cd20
     defaults:
       run:
         # Inside a container GitHub defaults to `sh -e`, which lacks

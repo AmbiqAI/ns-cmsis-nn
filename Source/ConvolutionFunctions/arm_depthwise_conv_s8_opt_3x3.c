@@ -43,6 +43,12 @@ __STATIC_FORCEINLINE int64_t dw3_scratch_bytes(const cmsis_nn_dims *input_dims)
 
 #if defined(ARM_MATH_MVEI) && !defined(ARM_MATH_AUTOVECTORIZE)
 
+// The packed scratch layout contains both byte weights and four-word parameter slots.
+__STATIC_FORCEINLINE void dw3_store_words(void *dst, int32x4_t words)
+{
+    vstrbq_s8((int8_t *)dst, vreinterpretq_s8_s32(words));
+}
+
 /* A block is three output rows at one output column; each 4-channel group loads its nine weight vectors once for the
    three rows and reads the input rows in place. Parameters are repacked per 4-channel group as [9 taps x 4 weights][ws]
    (52 bytes), in three variants: all taps, left edge and right edge. An edge variant shifts the window one column
@@ -444,11 +450,11 @@ __attribute__((noinline)) static arm_cmsis_nn_status dw3_s8(const cmsis_nn_conte
                 vstrbq_s32(rt + (ky * 3 + 2) * 4, w1);
             }
             const int32x4_t wsv = vldrwq_z_s32(ws + g * 4, active);
-            vstrwq_s32((int32_t *)(void *)(f + 36), wsv);
-            vstrwq_s32((int32_t *)(void *)(l + 36), vmlaq_n_s32(wsv, col0, pad_val));
-            vstrwq_s32((int32_t *)(void *)(rt + 36), vmlaq_n_s32(wsv, col2, pad_val));
-            vstrwq_s32(qm + g * 8, vldrwq_z_s32(q->multiplier + c0 + g * 4, active));
-            vstrwq_s32(qm + g * 8 + 4, vldrwq_z_s32(q->shift + c0 + g * 4, active));
+            dw3_store_words(f + 36, wsv);
+            dw3_store_words(l + 36, vmlaq_n_s32(wsv, col0, pad_val));
+            dw3_store_words(rt + 36, vmlaq_n_s32(wsv, col2, pad_val));
+            dw3_store_words(qm + g * 8, vldrwq_z_s32(q->multiplier + c0 + g * 4, active));
+            dw3_store_words(qm + g * 8 + 4, vldrwq_z_s32(q->shift + c0 + g * 4, active));
         }
 
         const dw3_layer L = {pk_full,

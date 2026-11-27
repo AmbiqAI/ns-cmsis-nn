@@ -108,25 +108,19 @@ typedef _Float16 float16_t;
     #endif
 
     /**
-     * @brief Largest finite float16 value representable by the toolchain.
+     * @brief Largest finite IEEE binary16 value.
+     *
+     * Use an exact float literal so the macro is usable in ISO C11 initializers.
      */
-    #if defined(__FLT16_MAX__)
-        #define ARM_NN_F16_FINITE_MAX ((float16_t)__FLT16_MAX__)
-    #else
-        #define ARM_NN_F16_FINITE_MAX ((float16_t)65504.0f)
-    #endif
+    #define ARM_NN_F16_FINITE_MAX ((float16_t)65504.0f)
 
     /**
-     * @brief Lowest finite float16 value representable by the toolchain.
+     * @brief Lowest finite IEEE binary16 value.
      *
      * Negated before the cast: negating a float16_t that is __fp16 promotes it
      * to float, which -Wdouble-promotion reports at every use.
      */
-    #if defined(__FLT16_MAX__)
-        #define ARM_NN_F16_FINITE_LOWEST ((float16_t)(-__FLT16_MAX__))
-    #else
-        #define ARM_NN_F16_FINITE_LOWEST ((float16_t)(-65504.0f))
-    #endif
+    #define ARM_NN_F16_FINITE_LOWEST ((float16_t)(-65504.0f))
 
 #endif
 

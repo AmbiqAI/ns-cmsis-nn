@@ -47,6 +47,12 @@
  *  float16-lane fast path (#830). */
 #define ARM_NN_HAS_DEPTHWISE_F16_ACC32 1
 
+/** NHWC broadcast squared difference for enabled floating-point types. */
+#define ARM_NN_HAS_SQUARED_DIFFERENCE_BROADCAST_FLOAT 1
+
+/** The float32 NHWC convolution and direct OHWI entries accept grouped standard filters. */
+#define ARM_NN_HAS_GROUPED_CONV_F32 1
+
 #include "arm_nn_math_types.h"
 #include "arm_nn_types.h"
 
@@ -8494,12 +8500,17 @@ arm_broadcast_to_s16(const int16_t *input, const cmsis_nn_broadcast_to_params *p
 /**
  * @brief Scatter updates into a zero-initialized output tensor for int8.
  *
+ * @details Supply dense row-major strides in elements for the indexed dimensions. An empty trailing
+ *          slice has zero output size and zero indexed strides. Coordinates must still be nonnegative;
+ *          the caller must check their upper bounds since the strides do not encode those extents.
+ *
  * @param[in]   indices     Pointer to indices data (int32, shape [num_updates, index_depth])
  * @param[in]   updates     Pointer to updates data
  * @param[in]   params      Pointer to scatter_nd parameters
  * @param[out]  output      Pointer to output tensor data (pre-allocated by caller)
  *
- * @return     The function returns <code>ARM_CMSIS_NN_SUCCESS</code>
+ * @return     ARM_CMSIS_NN_SUCCESS on success, or ARM_CMSIS_NN_ARG_ERROR for invalid parameters or an
+ *             coordinate outside the bounds described above. Earlier updates may already have been applied on error.
  *
  */
 arm_cmsis_nn_status arm_scatter_nd_s8(const int32_t *indices,
@@ -8653,12 +8664,15 @@ arm_cmsis_nn_status arm_select_v2_s16(const bool *condition,
 /**
  * @brief Reverse variable-length sequences along a dimension for int8.
  *
+ * @details The sequence and batch axes must be distinct.
+ *
  * @param[in]   input         Pointer to input tensor data
  * @param[in]   seq_lengths   Pointer to per-batch sequence lengths (int32)
  * @param[in]   params        Pointer to reverse_sequence parameters
  * @param[out]  output        Pointer to output tensor data
  *
- * @return     The function returns <code>ARM_CMSIS_NN_SUCCESS</code>
+ * @return     ARM_CMSIS_NN_SUCCESS on success, or ARM_CMSIS_NN_ARG_ERROR for invalid parameters or a
+ *             sequence length outside [0, shape[seq_dim]].
  *
  */
 arm_cmsis_nn_status arm_reverse_sequence_s8(const int8_t *input,

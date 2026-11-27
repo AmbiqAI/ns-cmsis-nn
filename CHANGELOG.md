@@ -1,5 +1,33 @@
 # Changelog
 
+## [7.48.0](https://github.com/AmbiqAI/ns-cmsis-nn/compare/v7.47.2...v7.48.0) (2026-11-22)
+
+
+### Features
+
+* add a Corstone-320 NSX entry point for integer kernels ([#913](https://github.com/AmbiqAI/ns-cmsis-nn/issues/913)) ([5a2d78b](https://github.com/AmbiqAI/ns-cmsis-nn/commit/5a2d78be4eecf376bb1c6bc5c6f568447ca2bea7))
+
+
+### Bug Fixes
+
+* **headers:** make FP16 finite limits valid in strict C11 ([#912](https://github.com/AmbiqAI/ns-cmsis-nn/issues/912)) ([ee830b5](https://github.com/AmbiqAI/ns-cmsis-nn/commit/ee830b50b4c336129b6cbe1044f047a299b33a04))
+
+## [7.47.2](https://github.com/AmbiqAI/ns-cmsis-nn/compare/v7.47.1...v7.47.2) (2026-11-21)
+
+
+### Bug Fixes
+
+* **kernels:** validate ReverseSequence and ScatterND indices and bound MVE activation lookups ([#908](https://github.com/AmbiqAI/ns-cmsis-nn/issues/908)) ([efe7771](https://github.com/AmbiqAI/ns-cmsis-nn/commit/efe7771d0e97505e3c1d2188ab3a53269a7e7156))
+
+## [7.47.1](https://github.com/AmbiqAI/ns-cmsis-nn/compare/v7.47.0...v7.47.1) (2026-11-20)
+
+
+### Bug Fixes
+
+* **ci:** refresh Python certificate trust after emSign incident ([#895](https://github.com/AmbiqAI/ns-cmsis-nn/issues/895)) ([fc15b5c](https://github.com/AmbiqAI/ns-cmsis-nn/commit/fc15b5cf8a87d19078d913295766c6858166c3c4)), closes [#893](https://github.com/AmbiqAI/ns-cmsis-nn/issues/893)
+* **ci:** use verified emSign remediation image ([#897](https://github.com/AmbiqAI/ns-cmsis-nn/issues/897)) ([a15e5b1](https://github.com/AmbiqAI/ns-cmsis-nn/commit/a15e5b14d2bce570917de764f55d9140b66fa108)), closes [#893](https://github.com/AmbiqAI/ns-cmsis-nn/issues/893)
+* **zephyr:** support Apollo510 MVE word accesses with default integer types ([#907](https://github.com/AmbiqAI/ns-cmsis-nn/issues/907)) ([8dbfbef](https://github.com/AmbiqAI/ns-cmsis-nn/commit/8dbfbef6ab1c8a0bb1e52ad28e5d6b62e83b8b88))
+
 ## [7.47.0](https://github.com/AmbiqAI/ns-cmsis-nn/compare/v7.46.0...v7.47.0) (2026-10-18)
 
 

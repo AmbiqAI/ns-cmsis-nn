@@ -181,6 +181,19 @@ extern "C++" {
 #endif
 #if defined(__ARM_FEATURE_MVE) && (((__ARM_FEATURE_MVE & 3) == 3) || (__ARM_FEATURE_MVE & 1))
     #include <arm_mve.h>
+// A vctp32q predicate enables all four bytes of each live word. Byte accesses preserve
+// the object representation even when Zephyr and the MVE intrinsics use different
+// underlying types for uint32_t. The integer load also preserves FP subnormal bit tests.
+__STATIC_FORCEINLINE uint32x4_t arm_nn_mve_load_word_bits(const void *src, mve_pred16_t p)
+{
+    return vreinterpretq_u32_u8(vldrbq_z_u8((const uint8_t *)src, p));
+}
+
+__STATIC_FORCEINLINE void arm_nn_mve_store_word_bits(void *dst, uint32x4_t bits, mve_pred16_t p)
+{
+    vstrbq_p_u8((uint8_t *)dst, vreinterpretq_u8_u32(bits), p);
+}
+
     // GCC 15/Zephyr compatibility shim
     #if defined(__ZEPHYR__) && defined(__GNUC__) && !defined(__clang__) && (__GNUC__ >= 15)
         #define vldrwq_s32(base) vldrwq_s32((const long int *)(base))
