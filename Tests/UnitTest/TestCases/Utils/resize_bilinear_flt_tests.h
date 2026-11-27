@@ -33,7 +33,7 @@ static void resize_bilinear_reference(void)
         for (int b = 0; b < batches; ++b)
             for (int i = 0; i < out.h * out.w; ++i)
                 for (int c = 0; c < channels; ++c)
-                    TEST_ASSERT_FLOAT_WITHIN(RESIZE_TOLERANCE,
+                    TEST_ASSERT_FLOAT_WITHIN(RESIZE_TOLERANCE(10 + b * 16 + c),
                                              resize_cases[k].expected[i] + b * 16 + c,
                                              (float)output[(b * out.h * out.w + i) * channels + c]);
         TEST_ASSERT_EQUAL_FLOAT(-99, (float)output[count]);

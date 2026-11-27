@@ -4856,9 +4856,17 @@ void arm_reshape_f16(const float16_t *input, float16_t *output, uint32_t total_s
 
 /**
  * @ingroup Reshape
- * @brief Bilinear resize of a float16 NHWC tensor. Coordinates, weights and accumulation use float32,
- *        with one conversion to float16 on output. Identity and exact sample locations copy the original bits.
- * @copydetails arm_resize_bilinear_f32
+ * @brief Bilinear resize of a float16 NHWC tensor.
+ * @param[in] resize_params Default, aligned-corners or half-pixel coordinates. The flags are mutually exclusive.
+ * @param[in] input_dims Positive input N,H,W,C. Total byte count must fit INT32_MAX.
+ * @param[in] input_data Input tensor, disjoint from output_data.
+ * @param[in] output_dims Positive output N,H,W,C with matching N and C. Total byte count must fit INT32_MAX.
+ * @param[out] output_data Contiguous output tensor. Caller provides the declared capacity.
+ * @return ARM_CMSIS_NN_SUCCESS or ARM_CMSIS_NN_ARG_ERROR for invalid pointers, shapes or options.
+ * @note Coordinates and boundary selection use FP32. The four weights are rounded to FP16 and applied
+ *       with FP16 accumulation. Interpolation of finite inputs saturates at the finite binary16 limits.
+ *       Contraction and subnormal handling depend on the build and target. Identity resizes and exact
+ *       sample locations copy storage bits. No scratch buffer or heap allocation.
  */
 arm_cmsis_nn_status arm_resize_bilinear_f16(const cmsis_nn_resize_params *resize_params,
                                             const cmsis_nn_dims *input_dims,

@@ -32,3 +32,4 @@ void tearDown(void) {}
 void test_resize_bilinear_f16_reference(void) { resize_bilinear_reference(); }
 void test_resize_bilinear_f16_copies(void) { resize_bilinear_copies(); }
 void test_resize_bilinear_f16_rejects(void) { resize_bilinear_rejects(); }
+void test_resize_bilinear_f16_finite_extrema(void) { resize_bilinear_finite_extrema(); }

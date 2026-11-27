@@ -23,33 +23,32 @@ static inline void interpolate(const void *top_left,
 {
     const float16_t *tl_data = top_left, *bl_data = bottom_left, *tr_data = top_right, *br_data = bottom_right;
     float16_t *out = dst;
+    const _Float16 tl_weight = (_Float16)w_tl;
+    const _Float16 bl_weight = (_Float16)w_bl;
+    const _Float16 tr_weight = (_Float16)w_tr;
+    const _Float16 br_weight = (_Float16)w_br;
+    // Rounded weights can sum to more than one. Keep finite samples in binary16 range.
+    const _Float16 limit = (_Float16)65504.0f;
     #if defined(ARM_MATH_MVE_FLOAT16) && !defined(ARM_MATH_AUTOVECTORIZE)
+    const float16x8_t lower = vdupq_n_f16(-limit);
+    const float16x8_t upper = vdupq_n_f16(limit);
     for (int32_t c = 0; c < channels; c += 8)
     {
-        // Cap the explicit load/store predicate at one vector. GCC 15 otherwise
-        // emits DLSTP.16 across the widened FP32 arithmetic and drops a live tail lane.
-        const uint32_t lanes = (uint32_t)(channels - c);
-        const mve_pred16_t p = vctp16q(lanes < 8U ? lanes : 8U);
-        const float16x8_t tl = vld1q_z(tl_data + c, p);
-        const float16x8_t bl = vld1q_z(bl_data + c, p);
-        const float16x8_t tr = vld1q_z(tr_data + c, p);
-        const float16x8_t br = vld1q_z(br_data + c, p);
-        float32x4_t even = vmulq_n_f32(arm_nn_vcvtbq_f32_f16(tl), w_tl);
-        float32x4_t odd = vmulq_n_f32(arm_nn_vcvttq_f32_f16(tl), w_tl);
-        even = vfmaq_n_f32(even, arm_nn_vcvtbq_f32_f16(bl), w_bl);
-        odd = vfmaq_n_f32(odd, arm_nn_vcvttq_f32_f16(bl), w_bl);
-        even = vfmaq_n_f32(even, arm_nn_vcvtbq_f32_f16(tr), w_tr);
-        odd = vfmaq_n_f32(odd, arm_nn_vcvttq_f32_f16(tr), w_tr);
-        even = vfmaq_n_f32(even, arm_nn_vcvtbq_f32_f16(br), w_br);
-        odd = vfmaq_n_f32(odd, arm_nn_vcvttq_f32_f16(br), w_br);
-        float16x8_t result = arm_nn_vcvtbq_f16_f32(vdupq_n_f16(0), even);
-        vstrhq_p(out + c, arm_nn_vcvttq_f16_f32(result, odd), p);
+        const mve_pred16_t p = vctp16q(channels - c);
+        float16x8_t acc = vmulq_n_f16(vld1q_z(tl_data + c, p), tl_weight);
+        acc = vfmaq_n_f16(acc, vld1q_z(bl_data + c, p), bl_weight);
+        acc = vfmaq_n_f16(acc, vld1q_z(tr_data + c, p), tr_weight);
+        acc = vfmaq_n_f16(acc, vld1q_z(br_data + c, p), br_weight);
+        vstrhq_p(out + c, vminnmq(vmaxnmq(acc, lower), upper), p);
     }
     #else
     for (int32_t c = 0; c < channels; ++c)
     {
-        out[c] = (float16_t)((float)tl_data[c] * w_tl + (float)bl_data[c] * w_bl + (float)tr_data[c] * w_tr +
-                             (float)br_data[c] * w_br);
+        _Float16 acc = (_Float16)tl_data[c] * tl_weight;
+        acc += (_Float16)bl_data[c] * bl_weight;
+        acc += (_Float16)tr_data[c] * tr_weight;
+        acc += (_Float16)br_data[c] * br_weight;
+        out[c] = arm_nn_clamp_f16h(acc, limit, -limit);
     }
     #endif
 }
