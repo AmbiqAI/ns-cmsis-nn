@@ -14,6 +14,10 @@ class PlannerError(RuntimeError):
     """The host planner library cannot be built, loaded or trusted."""
 
 
+class BuildTargetError(RuntimeError):
+    """A compiler's build cannot be read, or cannot run what was planned for it."""
+
+
 class PlanRefused(ValueError):
     """The planner refused a layer; ``status`` names why (see arm_nn_plan_status)."""
 

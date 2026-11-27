@@ -259,7 +259,8 @@ function(_ns_cmsis_nn_group_def group out_subdir out_patterns out_extras)
   elseif(group STREQUAL "nnsupport")
     set(subdir   "NNSupportFunctions")
     set(patterns "*_s4*.c" "*_s8*.c" "*_s16*.c" "*_s32*.c")
-    set(extras   "arm_nntables.c"
+    set(extras   "arm_nn_build_target.c"
+                 "arm_nntables.c"
                  "arm_q7_to_q15_with_offset.c"
                  "arm_s8_to_s16_unordered_with_offset.c")
     if(ARM_NN_ENABLE_F32 OR ARM_NN_ENABLE_F16)

@@ -16,33 +16,22 @@
 #ifndef ARM_NN_DISPATCH_H
 #define ARM_NN_DISPATCH_H
 
+#include "arm_nn_build_target.h"
 #include "arm_nnfunctions.h"
 #include "arm_nnsupportfunctions.h"
-
-/* The build this translation unit compiles kernels for. */
-#if defined(ARM_MATH_MVEI)
-    #define ARM_NN_BUILD_MVEI 1
-#else
-    #define ARM_NN_BUILD_MVEI 0
-#endif
-#if defined(ARM_MATH_AUTOVECTORIZE)
-    #define ARM_NN_BUILD_AUTOVECTORIZE 1
-#else
-    #define ARM_NN_BUILD_AUTOVECTORIZE 0
-#endif
 
 /* The build a selector routes for. A library build takes its own; a host planner defines these (0 or 1) to route for a
  * target without compiling that target's intrinsics. */
 #ifndef ARM_NN_ROUTE_MVEI
-    #define ARM_NN_ROUTE_MVEI ARM_NN_BUILD_MVEI
+    #define ARM_NN_ROUTE_MVEI ARM_NN_BUILD_HAS_MVEI
 #endif
 #ifndef ARM_NN_ROUTE_AUTOVECTORIZE
-    #define ARM_NN_ROUTE_AUTOVECTORIZE ARM_NN_BUILD_AUTOVECTORIZE
+    #define ARM_NN_ROUTE_AUTOVECTORIZE ARM_NN_BUILD_HAS_AUTOVECTORIZE
 #endif
 
 /* A wrapper calls the kernel its selector names, so the two must describe the same build. */
 #define ARM_NN_ROUTES_MATCH_BUILD                                                                                      \
-    ((ARM_NN_ROUTE_MVEI == ARM_NN_BUILD_MVEI) && (ARM_NN_ROUTE_AUTOVECTORIZE == ARM_NN_BUILD_AUTOVECTORIZE))
+    ((ARM_NN_ROUTE_MVEI == ARM_NN_BUILD_HAS_MVEI) && (ARM_NN_ROUTE_AUTOVECTORIZE == ARM_NN_BUILD_HAS_AUTOVECTORIZE))
 
 /** The kernel arm_convolve_wrapper_s8() calls. */
 typedef enum

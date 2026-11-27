@@ -29,6 +29,10 @@ REPO = Path(__file__).resolve().parents[1]
 INCLUDE_DIR = REPO / "Include"
 # Headers that the others expect to be included first
 FIRST = ("arm_nnfunctions.h", "arm_nnsupportfunctions.h")
+# arm_nn_build_target_check.h stops any build that names no plan; parse it with the plan of this host build.
+PRELUDE = {"arm_nn_build_target_check.h": "".join(
+    f"#define ARM_NN_EXPECT_{name} {value}\n" for name, value in
+    (("ISA", "ARM_NN_ISA_SCALAR"), ("AUTOVECTORIZE", 0), ("SINGLE_ROUNDING", 0), ("TOOLCHAIN", "ARM_NN_TOOLCHAIN_ID_GCC")))}
 CLANG_ARGS = ("-fsyntax-only", "-w", "-Wno-error=implicit-function-declaration", "-DARM_NN_ENABLE_F16=1",
               "-DARM_NN_ENABLE_F32=1", "-Xclang", "-ast-dump=json")
 
@@ -75,7 +79,8 @@ def main(include_dir: Path = INCLUDE_DIR) -> int:
     clang = os.environ.get("CLANG", "clang")
     with tempfile.TemporaryDirectory() as tmp:
         tu = Path(tmp) / "all_headers.c"
-        tu.write_text("".join(f'#include "{h.resolve()}"\n' for h in headers), encoding="utf-8")
+        tu.write_text("".join(PRELUDE.get(h.name, "") + f'#include "{h.resolve()}"\n' for h in headers),
+                      encoding="utf-8")
         try:
             result = subprocess.run([clang, *CLANG_ARGS, f"-I{include_dir}", str(tu)], capture_output=True, text=True)
         except FileNotFoundError:

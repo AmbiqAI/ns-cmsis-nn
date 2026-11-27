@@ -88,10 +88,12 @@ for v in TARGET_CPU LIBRARY OUTDIR; do
   if [[ -z "${!v}" ]]; then echo "$v required" >&2; exit 2; fi
 done
 
+# isa_name is the ISA the archive of each CPU is built for (Include/arm_nn_build_target.h), which its build-target
+# stamp names.
 case "${TARGET_CPU}" in
-  cortex-m0)  arch_flags=(-mcpu=cortex-m0  -mthumb -mfloat-abi=soft) ;;
-  cortex-m4)  arch_flags=(-mcpu=cortex-m4  -mthumb -mfpu=fpv4-sp-d16 -mfloat-abi=hard) ;;
-  cortex-m55) arch_flags=(-mcpu=cortex-m55 -mthumb -mfloat-abi=hard) ;;
+  cortex-m0)  arch_flags=(-mcpu=cortex-m0  -mthumb -mfloat-abi=soft); isa_name=scalar ;;
+  cortex-m4)  arch_flags=(-mcpu=cortex-m4  -mthumb -mfpu=fpv4-sp-d16 -mfloat-abi=hard); isa_name=dsp ;;
+  cortex-m55) arch_flags=(-mcpu=cortex-m55 -mthumb -mfloat-abi=hard); isa_name=mve ;;
   *)
     echo "unsupported target-cpu '${TARGET_CPU}'" >&2
     exit 2
@@ -107,6 +109,8 @@ LIBRARY="$(cd "$(dirname "${LIBRARY}")" && pwd)/$(basename "${LIBRARY}")"
 repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 smoke_src="${repo_root}/scripts/smoke/staticlib_smoke.c"
 [[ -f "${smoke_src}" ]] || { echo "smoke source missing: ${smoke_src}" >&2; exit 3; }
+build_check_src="${repo_root}/scripts/smoke/staticlib_build_check.c"
+[[ -f "${build_check_src}" ]] || { echo "smoke source missing: ${build_check_src}" >&2; exit 3; }
 
 mkdir -p "${OUTDIR}"
 OUTDIR="$(cd "${OUTDIR}" && pwd)"
@@ -176,6 +180,21 @@ case "${TOOLCHAIN}" in
     ;;
 esac
 
+# The archive is built without ARM_MATH_AUTOVECTORIZE and CMSIS_NN_USE_SINGLE_ROUNDING (scripts/build_staticlib.sh).
+# gcc and ATfE both route as "not Arm Compiler 6".
+toolchain_name=gcc
+[[ "${TOOLCHAIN}" == "armclang" ]] && toolchain_name=armclang
+expected_stamp="arm_nn_build_${isa_name}_av0_sr0_${toolchain_name}"
+isa_macro="ARM_NN_ISA_$(tr '[:lower:]' '[:upper:]' <<<"${isa_name}")"
+toolchain_macro="ARM_NN_TOOLCHAIN_ID_$(tr '[:lower:]' '[:upper:]' <<<"${toolchain_name}")"
+build_check_flags=(
+  "-I${repo_root}/Include"
+  "-DARM_NN_EXPECT_ISA=${isa_macro}"
+  -DARM_NN_EXPECT_AUTOVECTORIZE=0
+  -DARM_NN_EXPECT_SINGLE_ROUNDING=0
+  "-DARM_NN_EXPECT_TOOLCHAIN=${toolchain_macro}"
+)
+
 [[ -x "${compiler}" || -n "$(command -v "${compiler}" 2>/dev/null || true)" ]] || { echo "compiler not found: ${compiler}" >&2; exit 3; }
 [[ -n "${nm}" ]] || { echo "llvm-nm not found for ${TOOLCHAIN}" >&2; exit 3; }
 [[ -n "${size}" ]] || { echo "llvm-size not found for ${TOOLCHAIN}" >&2; exit 3; }
@@ -198,6 +217,7 @@ required_syms=(
   arm_avgpool_s8
   arm_elementwise_add_s8
   arm_elementwise_mul_s8
+  "${expected_stamp}"
 )
 
 # Before the link, because the link cannot see this (AmbiqAI/ns-cmsis-nn#291).
@@ -207,6 +227,13 @@ for s in "${required_syms[@]}"; do index_args+=(--require-symbol "${s}"); done
   --library "${LIBRARY}" \
   --nm "${nm}" \
   "${index_args[@]}"
+
+# Exactly one build-target stamp, the one of this CPU's build: an archive mixing objects of two builds would carry two.
+stamps="$("${nm}" --defined-only "${LIBRARY}" 2>/dev/null | awk 'NF == 3 && $3 ~ /^arm_nn_build_/ {print $3}' | sort -u)"
+if [[ "${stamps}" != "${expected_stamp}" ]]; then
+  echo "archive build-target stamps are [${stamps//$'\n'/ }], expected exactly ${expected_stamp}" >&2
+  exit 4
+fi
 
 if [[ "${link_style}" == "gnu" ]]; then
   if (( STRICT )); then
@@ -223,9 +250,11 @@ if [[ "${link_style}" == "gnu" ]]; then
     "${link_flags[@]}" \
     "${resolve_flags[@]}" \
     -Wl,--entry=ns_cmsis_nn_smoke_entry \
+    "${build_check_flags[@]}" \
     -Wl,--whole-archive "${LIBRARY}" -Wl,--no-whole-archive \
     -o "${elf}" \
     "${smoke_src}" \
+    "${build_check_src}" \
     "${post_link_libs[@]+"${post_link_libs[@]}"}"
 else
   # armlink dialect. Two deliberate differences from the GNU path:
@@ -283,8 +312,10 @@ else
     "${link_flags[@]}" \
     "${resolve_flags[@]}" \
     -Wl,--entry=ns_cmsis_nn_smoke_entry \
+    "${build_check_flags[@]}" \
     -o "${elf}" \
     "${smoke_src}" \
+    "${build_check_src}" \
     "${members[@]}" \
     "${post_link_libs[@]+"${post_link_libs[@]}"}"
 fi
