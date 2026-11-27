@@ -33,3 +33,4 @@ void test_resize_bilinear_f32_reference(void) { resize_bilinear_reference(); }
 void test_resize_bilinear_f32_copies(void) { resize_bilinear_copies(); }
 void test_resize_bilinear_f32_rejects(void) { resize_bilinear_rejects(); }
 void test_resize_bilinear_f32_fractional_coordinate(void) { resize_bilinear_fractional_coordinate(); }
+void test_resize_bilinear_f32_extrema(void) { resize_bilinear_f32_extrema(); }

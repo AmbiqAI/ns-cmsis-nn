@@ -2014,9 +2014,9 @@ void arm_reshape_f32(const float32_t *input, float32_t *output, uint32_t total_s
  * @param[out] output_data Contiguous output tensor. Caller provides the declared capacity.
  * @return ARM_CMSIS_NN_SUCCESS or ARM_CMSIS_NN_ARG_ERROR for invalid pointers, shapes or options.
  * @note Samples are clamped at the image boundary. Exact sample locations and identity resizes copy storage bits.
- *       Interpolated finite inputs use FP32 weights and accumulation; rounding, contraction and subnormal handling
- *       depend on the build and target. Exceptional values in interpolated samples have no bitwise guarantee.
- *       No scratch buffer or heap allocation.
+ *       Finite inputs use FP32 weights and accumulation. Outputs saturate at the finite FP32 limits.
+ *       Rounding, contraction and subnormal handling depend on the build and target.
+ *       Exceptional values in interpolated samples have no bitwise guarantee. No scratch buffer or heap allocation.
  */
 arm_cmsis_nn_status arm_resize_bilinear_f32(const cmsis_nn_resize_params *resize_params,
                                             const cmsis_nn_dims *input_dims,

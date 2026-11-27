@@ -26,3 +26,22 @@ static void resize_bilinear_fractional_coordinate(void)
     TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, arm_resize_bilinear_f32(&params, &in, input, &out, output));
     TEST_ASSERT_FLOAT_WITHIN(1e-6f, -0.36184692f, output[195]);
 }
+
+static void resize_bilinear_f32_extrema(void)
+{
+    const cmsis_nn_dims in = {1, 2, 2, 5}, out = {1, 3, 5, 5};
+    const cmsis_nn_resize_params params = {false, false};
+    float input[2 * 2 * 5], output[3 * 5 * 5];
+    const uint32_t extrema[] = {0x7f7fffffu, 0xff7fffffu};
+    for (int i = 0; i < 20; ++i)
+        memcpy(input + i, &extrema[(i % 5) % 2], sizeof(float));
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, RESIZE_ENTRY(&params, &in, input, &out, output));
+    for (int i = 0; i < 75; ++i)
+    {
+        uint32_t bits;
+        memcpy(&bits, output + i, sizeof(bits));
+        const uint32_t magnitude = bits & 0x7fffffffu;
+        TEST_ASSERT_EQUAL_UINT32(extrema[(i % 5) % 2] >> 31, bits >> 31);
+        TEST_ASSERT_TRUE(magnitude <= 0x7f7fffffu && magnitude >= 0x7f7ffffcu);
+    }
+}
