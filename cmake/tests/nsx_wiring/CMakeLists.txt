@@ -13,6 +13,7 @@
 # Parameterised by -DCASE=<case>, where <case> is one of:
 #   configuration_reconfigure — all float pairs, sparse/empty groups and
 #                               options across 30 same-cache transitions.
+#   corstone_source           — integer sources consume Corstone CPU usage requirements.
 #   source_all      (default) — baseline int source set attached, alias present.
 #   source_subset             — NSX_CMSIS_NN_GROUPS=activation;convolution,
 #                               expect SSoT-derived source count.
@@ -71,7 +72,7 @@ project(ns_cmsis_nn_nsx_wiring C)
 
 set(CASE "source_all" CACHE STRING "Which wiring case to exercise.")
 set_property(CACHE CASE PROPERTY STRINGS
-  configuration_reconfigure source_all source_subset inline_asm float_f32 float_f16 float_both
+  configuration_reconfigure source_all corstone_source source_subset inline_asm float_f32 float_f16 float_both
   float_renamed_switch float_query float_query_target prebuilt
   prebuilt_manifest_ok prebuilt_manifest_reject
   prebuilt_manifest_legacy)
@@ -626,7 +627,7 @@ set(ARM_NN_ENABLE_F32 OFF CACHE BOOL "" FORCE)
 set(ARM_NN_ENABLE_F16 OFF CACHE BOOL "" FORCE)
 unset(NSX_CMSIS_NN_LIB CACHE)
 
-if(CASE STREQUAL "source_all")
+if(CASE STREQUAL "source_all" OR CASE STREQUAL "corstone_source")
   _compute_expected_source_count(_expected_sources "ALL" 0 0)
 
 elseif(CASE STREQUAL "source_subset")
@@ -690,7 +691,18 @@ endif()
 # ----------------------------------------------------------------------------
 # Drive the real NSX module.
 # ----------------------------------------------------------------------------
-add_subdirectory("${_repo_root}/nsx" "${CMAKE_BINARY_DIR}/_nsx")
+if(CASE STREQUAL "corstone_source")
+  unset(NSX_BOARD_FLAGS_TARGET)
+  add_library(corstone_cpu INTERFACE)
+  add_library(nsx::corstone_cpu ALIAS corstone_cpu)
+  add_subdirectory("${_repo_root}/nsx-corstone" "${CMAKE_BINARY_DIR}/_nsx")
+  get_target_property(_links nsx_cmsis_nn INTERFACE_LINK_LIBRARIES)
+  if(NOT "nsx::corstone_cpu" IN_LIST _links)
+    _fail("Corstone CPU requirements missing from kernel target: ${_links}")
+  endif()
+else()
+  add_subdirectory("${_repo_root}/nsx" "${CMAKE_BINARY_DIR}/_nsx")
+endif()
 
 # ----------------------------------------------------------------------------
 # Common assertions: target + alias must exist in every mode.

@@ -1,8 +1,8 @@
 {
   "schema": "ns-cmsis-nn/kernel-implementations/1",
-  "library_version": "7.47.0",
+  "library_version": "7.48.0",
   "signature_schema": "ns-cmsis-nn/kernel-contracts/1",
-  "signature_sha256": "c4a4d4221c16699079f8c376563861e6ff74a63a81ef87cc2ca8a260748f91b0",
+  "signature_sha256": "b8ce5a3a738fbf3e27e4468514fbd480e025d195b88f29c90d9cdc48abe43457",
   "planner_abi": 1,
   "implementations": [
     {

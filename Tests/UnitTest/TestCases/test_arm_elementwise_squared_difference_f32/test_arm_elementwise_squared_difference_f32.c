@@ -161,3 +161,29 @@ void squared_difference_f32_arg_error(void)
         TEST_ASSERT_EQUAL(ARM_CMSIS_NN_ARG_ERROR, arm_elementwise_squared_difference_f32(&a, &a, &out, invalid[i]));
     expect_bits(bits_of(123.0f), out);
 }
+
+typedef float32_t broadcast_element;
+#define broadcast_kernel arm_elementwise_squared_difference_broadcast_f32
+#include "../Common/squared_difference_broadcast_tests.h"
+
+static void broadcast_threshold(int flush)
+{
+    const cmsis_nn_dims rows = {1, 1, 2, 1}, full = {1, 1, 2, 9};
+    const float32_t scalars[] = {0, from_bits(0x7f800000)};
+    float32_t vec[18] = {0}, out[18];
+    vec[8] = from_bits(0x1fffffff); /* Largest difference whose square is subnormal. */
+    vec[9] = scalars[1];
+    vec[10] = from_bits(0x7fc00001);
+    for (int swap = 0; swap <= 1; ++swap)
+    {
+        TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, broadcast_kernel(swap ? scalars : vec, swap ? &rows : &full,
+            swap ? vec : scalars, swap ? &full : &rows, out, &full));
+        for (int i = 0; i < 8; ++i)
+            expect_bits(0, out[i]);
+        expect_bits(flush ? 0 : 0x007fffffu, out[8]);
+        expect_bits(0x7fc00000u, out[9]);
+        expect_bits(0x7fc00000u, out[10]);
+        for (int i = 11; i < 18; ++i)
+            expect_bits(0x7f800000u, out[i]);
+    }
+}

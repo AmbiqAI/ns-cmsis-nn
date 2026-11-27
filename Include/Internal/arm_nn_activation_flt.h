@@ -396,6 +396,17 @@ __STATIC_INLINE float32_t arm_nn_gelu_scalar_f32(float32_t x) { return 0.5f * x 
 
 #if ARM_NN_ENABLE_F16
 
+/* Grouped convolution uses the MVE maxNum/minNum order even for a scalar output
+ * on the MVE path. Keep the scalar build's high-bound-first clamp. */
+__STATIC_FORCEINLINE _Float16 arm_nn_clamp_grouped_conv_f16(_Float16 value, _Float16 min_v, _Float16 max_v)
+{
+    #if defined(ARM_MATH_MVE_FLOAT16) && !defined(ARM_MATH_AUTOVECTORIZE)
+    return arm_nn_min_f16h(arm_nn_max_f16h(value, min_v), max_v);
+    #else
+    return arm_nn_clamp_f16h(value, max_v, min_v);
+    #endif
+}
+
 __STATIC_INLINE float16_t arm_nn_clamp_scalar_f16(float16_t x, float16_t min_v, float16_t max_v)
 {
     /* NaN propagates (TFLite semantics), matching arm_nn_clamp_scalar_f32 and
