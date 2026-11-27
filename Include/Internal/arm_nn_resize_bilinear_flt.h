@@ -21,80 +21,79 @@ typedef struct
     float fraction;
 } arm_nn_bilinear_coordinate;
 
-// Track the sampling grid as an integer index plus a fractional remainder. Incrementing
-// the remainder preserves exact sample positions even when the FP32 scale would round.
+// The next output position that lands exactly on an input pixel, and its source index.
 typedef struct
 {
-    int32_t index;
-    uint32_t remainder;
-} arm_nn_bilinear_position;
+    int32_t output;
+    int32_t input;
+} arm_nn_bilinear_sample;
 
 typedef struct
 {
-    int32_t stride;
-    uint32_t increment;
-    uint32_t denominator;
-    float inverse_denominator;
-    arm_nn_bilinear_position start;
+    float scale;
+    int32_t output_step;
+    int32_t input_step;
+    arm_nn_bilinear_sample first;
 } arm_nn_bilinear_grid;
 
 static inline arm_nn_bilinear_grid
 arm_nn_bilinear_make_grid(int32_t in, int32_t out, const cmsis_nn_resize_params *params)
 {
     const bool align = params->align_corners && out > 1;
-    const uint32_t numerator = align ? in - 1 : in;
-    const uint32_t denominator = align ? out - 1 : out;
-    arm_nn_bilinear_grid grid;
-    grid.stride = (int32_t)(numerator / denominator);
-    grid.increment = numerator % denominator;
-    grid.denominator = denominator;
-    grid.start = (arm_nn_bilinear_position){0, 0};
+    const int32_t numerator = align ? in - 1 : in;
+    const int32_t denominator = align ? out - 1 : out;
+    int32_t a = numerator, b = denominator;
+    while (b != 0)
+    {
+        const int32_t remainder = a % b;
+        a = b;
+        b = remainder;
+    }
+    // With reduced scale p/q, ordinary coordinates map output k*q to input k*p.
+    arm_nn_bilinear_grid grid = {(float)numerator / (float)denominator, denominator / a, numerator / a, {0, 0}};
     if (params->half_pixel_centers)
     {
-        // (pos + 1/2) * in/out - 1/2 starts at (in - out)/(2*out).
-        grid.denominator *= 2;
-        grid.increment *= 2;
-        const int32_t offset = in - out;
-        if (offset < 0)
+        // (2*x+1)*p = (2*i+1)*q has a solution only when both reduced steps are odd.
+        if ((grid.input_step & grid.output_step & 1) != 0)
         {
-            grid.start.index = -1;
-            grid.start.remainder = (uint32_t)(in + out);
+            grid.first.output = grid.output_step / 2;
+            grid.first.input = grid.input_step / 2;
         }
         else
         {
-            grid.start.index = (int32_t)((uint32_t)offset / grid.denominator);
-            grid.start.remainder = (uint32_t)offset % grid.denominator;
+            grid.first.output = -1;
         }
     }
-    grid.inverse_denominator = 1.0f / (float)grid.denominator;
     return grid;
 }
 
-static inline void arm_nn_bilinear_advance(arm_nn_bilinear_position *pos, const arm_nn_bilinear_grid *grid)
+static inline arm_nn_bilinear_coordinate arm_nn_bilinear_axis(int32_t pos,
+                                                              int32_t extent,
+                                                              bool half,
+                                                              const arm_nn_bilinear_grid *grid,
+                                                              arm_nn_bilinear_sample *next)
 {
-    // The byte-count guard bounds both dimensions to INT32_MAX/2 even for FP16.
-    pos->index += grid->stride;
-    pos->remainder += grid->increment;
-    if (pos->remainder >= grid->denominator)
+    if (pos == next->output)
     {
-        pos->remainder -= grid->denominator;
-        ++pos->index;
+        const int32_t sample = next->input;
+        // The byte-count guard bounds each dimension to INT32_MAX/2.
+        next->output += grid->output_step;
+        next->input += grid->input_step;
+        return (arm_nn_bilinear_coordinate){sample, sample, 0.0f};
     }
-}
-
-static inline arm_nn_bilinear_coordinate
-arm_nn_bilinear_axis(arm_nn_bilinear_position pos, int32_t extent, float inverse_denominator)
-{
-    if (pos.index < 0)
+    // For fractional positions evaluate the same FP32 coordinate as the LiteRT reference.
+    const float x = half ? ((float)pos + 0.5f) * grid->scale - 0.5f : (float)pos * grid->scale;
+    if (x <= 0.0f)
     {
         return (arm_nn_bilinear_coordinate){0, 0, 0.0f};
     }
-    if (pos.index >= extent - 1)
+    const int32_t lo = (int32_t)x;
+    if (lo >= extent - 1)
     {
         return (arm_nn_bilinear_coordinate){extent - 1, extent - 1, 0.0f};
     }
-    return (arm_nn_bilinear_coordinate){
-        pos.index, pos.index + (pos.remainder != 0), (float)pos.remainder * inverse_denominator};
+    const float fraction = x - (float)lo;
+    return (arm_nn_bilinear_coordinate){lo, lo + (fraction > 0.0f), fraction};
 }
 
 typedef void (*arm_nn_bilinear_pixel_fn)(const void *,
@@ -156,16 +155,18 @@ __STATIC_FORCEINLINE arm_cmsis_nn_status arm_nn_bilinear_resize(const cmsis_nn_r
     for (int32_t b = 0; b < in->n; ++b)
     {
         const uint8_t *batch = (const uint8_t *)src + b * in->h * row_bytes;
-        arm_nn_bilinear_position row = rows.start;
-        for (int32_t y = 0; y < out->h; ++y, arm_nn_bilinear_advance(&row, &rows))
+        arm_nn_bilinear_sample row = rows.first;
+        for (int32_t y = 0; y < out->h; ++y)
         {
-            const arm_nn_bilinear_coordinate v = arm_nn_bilinear_axis(row, in->h, rows.inverse_denominator);
+            const arm_nn_bilinear_coordinate v =
+                arm_nn_bilinear_axis(y, in->h, params->half_pixel_centers, &rows, &row);
             const uint8_t *top = batch + v.lo * row_bytes;
             const uint8_t *bottom = batch + v.hi * row_bytes;
-            arm_nn_bilinear_position col = cols.start;
-            for (int32_t x = 0; x < out->w; ++x, output += pixel_bytes, arm_nn_bilinear_advance(&col, &cols))
+            arm_nn_bilinear_sample col = cols.first;
+            for (int32_t x = 0; x < out->w; ++x, output += pixel_bytes)
             {
-                const arm_nn_bilinear_coordinate u = arm_nn_bilinear_axis(col, in->w, cols.inverse_denominator);
+                const arm_nn_bilinear_coordinate u =
+                    arm_nn_bilinear_axis(x, in->w, params->half_pixel_centers, &cols, &col);
                 const size_t left = u.lo * pixel_bytes;
                 const size_t right = u.hi * pixel_bytes;
                 if (u.lo == u.hi && v.lo == v.hi)
