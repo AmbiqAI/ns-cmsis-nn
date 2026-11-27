@@ -19,7 +19,8 @@ static inline void interpolate(const void *top_left,
                                float w_tr,
                                float w_br,
                                int32_t channels,
-                               void *dst)
+                               void *dst,
+                               bool quarter_grid)
 {
     const float16_t *tl_data = top_left, *bl_data = bottom_left, *tr_data = top_right, *br_data = bottom_right;
     float16_t *out = dst;
@@ -30,6 +31,9 @@ static inline void interpolate(const void *top_left,
     // Rounded weights can sum to more than one. Keep finite samples in binary16 range.
     const _Float16 limit = (_Float16)65504.0f;
     #if defined(ARM_MATH_MVE_FLOAT16) && !defined(ARM_MATH_AUTOVECTORIZE)
+    // With nonnegative weights MVE's fixed multiply/FMA chain is monotone in each
+    // sample. For the 16 quarter-fraction pairs even four signed finite extrema
+    // stay in range (covered by the extreme-grid test), so these grids need no clamp.
     const float16x8_t lower = vdupq_n_f16(-limit);
     const float16x8_t upper = vdupq_n_f16(limit);
     for (int32_t c = 0; c < channels; c += 8)
@@ -39,9 +43,10 @@ static inline void interpolate(const void *top_left,
         acc = vfmaq_n_f16(acc, vld1q_z(bl_data + c, p), bl_weight);
         acc = vfmaq_n_f16(acc, vld1q_z(tr_data + c, p), tr_weight);
         acc = vfmaq_n_f16(acc, vld1q_z(br_data + c, p), br_weight);
-        vstrhq_p(out + c, vminnmq(vmaxnmq(acc, lower), upper), p);
+        vstrhq_p(out + c, (quarter_grid ? acc : vminnmq(vmaxnmq(acc, lower), upper)), p);
     }
     #else
+    (void)quarter_grid;
     for (int32_t c = 0; c < channels; ++c)
     {
         _Float16 acc = (_Float16)tl_data[c] * tl_weight;

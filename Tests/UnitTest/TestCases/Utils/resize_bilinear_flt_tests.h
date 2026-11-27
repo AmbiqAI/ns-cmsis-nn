@@ -107,3 +107,30 @@ static void resize_bilinear_rejects(void)
     }
     TEST_ASSERT_EQUAL_FLOAT(-2, (float)dst);
 }
+
+static void resize_bilinear_quarter_grid_extrema(void)
+{
+    const cmsis_nn_dims in = {1, 4, 4, 9};
+    const cmsis_nn_resize_params params = {false, true};
+    const int sides[] = {2, 8};
+    RESIZE_TYPE input[4 * 4 * 9], output[8 * 8 * 9];
+    // 4 -> 2 visits half fractions and 4 -> 8 visits quarter, three-quarter
+    // and clamped samples. Their Cartesian product exercises all 16 weight sets.
+    const RESIZE_TYPE limits[] = {RESIZE_MAX, -RESIZE_MAX};
+    for (int i = 0; i < 4 * 4 * 9; ++i)
+        input[i] = limits[(i % 9) % 2];
+    for (int h = 0; h < 2; ++h)
+    {
+        for (int w = 0; w < 2; ++w)
+        {
+            const cmsis_nn_dims out = {1, sides[h], sides[w], 9};
+            TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, RESIZE_ENTRY(&params, &in, input, &out, output));
+            for (int i = 0; i < out.h * out.w * out.c; ++i)
+            {
+                const float value = (float)output[i];
+                TEST_ASSERT_TRUE(value >= -(float)RESIZE_MAX && value <= (float)RESIZE_MAX);
+                TEST_ASSERT_FLOAT_WITHIN((float)RESIZE_MAX * 0.002f, (float)limits[(i % 9) % 2], value);
+            }
+        }
+    }
+}

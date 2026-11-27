@@ -21,12 +21,16 @@ static inline void interpolate(const void *top_left,
                                float w_tr,
                                float w_br,
                                int32_t channels,
-                               void *dst)
+                               void *dst,
+                               bool quarter_grid)
 {
     const float32_t *tl_data = top_left, *bl_data = bottom_left, *tr_data = top_right, *br_data = bottom_right;
     float32_t *out = dst;
     #if defined(ARM_MATH_MVEF) && !defined(ARM_MATH_AUTOVECTORIZE)
     // Rounded interpolation weights can sum to more than one even for finite pixels.
+    // With nonnegative weights MVE's fixed multiply/FMA chain is monotone in each
+    // sample. For the 16 quarter-fraction pairs even four signed finite extrema
+    // stay in range (covered by the extreme-grid test), so these grids need no clamp.
     const float32x4_t lower = vdupq_n_f32(-FLT_MAX);
     const float32x4_t upper = vdupq_n_f32(FLT_MAX);
     for (int32_t c = 0; c < channels; c += 4)
@@ -37,9 +41,10 @@ static inline void interpolate(const void *top_left,
         acc = vfmaq_n_f32(acc, vld1q_z(bl_data + c, p), w_bl);
         acc = vfmaq_n_f32(acc, vld1q_z(tr_data + c, p), w_tr);
         acc = vfmaq_n_f32(acc, vld1q_z(br_data + c, p), w_br);
-        vstrwq_p(out + c, arm_nn_clamp_propagate_nan_mve_f32(acc, lower, upper), p);
+        vstrwq_p(out + c, (quarter_grid ? acc : arm_nn_clamp_propagate_nan_mve_f32(acc, lower, upper)), p);
     }
     #else
+    (void)quarter_grid;
     for (int32_t c = 0; c < channels; ++c)
     {
         const float acc = tl_data[c] * w_tl + bl_data[c] * w_bl + tr_data[c] * w_tr + br_data[c] * w_br;

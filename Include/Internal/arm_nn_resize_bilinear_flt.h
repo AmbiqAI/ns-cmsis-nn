@@ -105,7 +105,8 @@ typedef void (*arm_nn_bilinear_pixel_fn)(const void *,
                                          float,
                                          float,
                                          int32_t,
-                                         void *);
+                                         void *,
+                                         bool);
 
 // Both callers pass a compile-time element width and pixel function.
 __STATIC_FORCEINLINE arm_cmsis_nn_status arm_nn_bilinear_resize(const cmsis_nn_resize_params *params,
@@ -151,6 +152,10 @@ __STATIC_FORCEINLINE arm_cmsis_nn_status arm_nn_bilinear_resize(const cmsis_nn_r
     const size_t row_bytes = in->w * pixel_bytes;
     const arm_nn_bilinear_grid rows = arm_nn_bilinear_make_grid(in->h, out->h, params);
     const arm_nn_bilinear_grid cols = arm_nn_bilinear_make_grid(in->w, out->w, params);
+    // Exact scales 0, 1/2, 1, and 2 yield only 0, 1/4, 1/2, or 3/4 as fractions,
+    // including half-pixel coordinates. Both precisions represent their weights exactly.
+    const bool quarter_grid =
+        rows.input_step <= 2 && rows.output_step <= 2 && cols.input_step <= 2 && cols.output_step <= 2;
     uint8_t *output = (uint8_t *)dst;
     for (int32_t b = 0; b < in->n; ++b)
     {
@@ -183,7 +188,8 @@ __STATIC_FORCEINLINE arm_cmsis_nn_status arm_nn_bilinear_resize(const cmsis_nn_r
                       (1.0f - v.fraction) * u.fraction,
                       v.fraction * u.fraction,
                       in->c,
-                      output);
+                      output,
+                      quarter_grid);
             }
         }
     }

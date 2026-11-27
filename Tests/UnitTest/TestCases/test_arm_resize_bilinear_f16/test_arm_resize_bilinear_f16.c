@@ -8,6 +8,7 @@
 #include "arm_nnfunctions.h"
 #include "unity.h"
 static const uint16_t resize_special_bits[] = {0x7e53, 0x8000, 1};
+#define RESIZE_MAX 65504.0f
 #define RESIZE_TYPE float16_t
 #define RESIZE_ENTRY arm_resize_bilinear_f16
 // Allow half-weight and accumulation rounding relative to the largest contributing input.
