@@ -8,7 +8,9 @@
 #include "arm_nnfunctions.h"
 
 #if ARM_NN_ENABLE_F32
+    #include "Internal/arm_nn_activation_flt.h"
     #include "Internal/arm_nn_resize_bilinear_flt.h"
+    #include <float.h>
 
 static inline void interpolate(const void *top_left,
                                const void *bottom_left,
@@ -25,6 +27,8 @@ static inline void interpolate(const void *top_left,
     float32_t *out = dst;
     #if defined(ARM_MATH_MVEF) && !defined(ARM_MATH_AUTOVECTORIZE)
     // Rounded interpolation weights can sum to more than one even for finite pixels.
+    const float32x4_t lower = vdupq_n_f32(-FLT_MAX);
+    const float32x4_t upper = vdupq_n_f32(FLT_MAX);
     for (int32_t c = 0; c < channels; c += 4)
     {
         const mve_pred16_t p = vctp32q(channels - c);
@@ -33,10 +37,7 @@ static inline void interpolate(const void *top_left,
         acc = vfmaq_n_f32(acc, vld1q_z(bl_data + c, p), w_bl);
         acc = vfmaq_n_f32(acc, vld1q_z(tr_data + c, p), w_tr);
         acc = vfmaq_n_f32(acc, vld1q_z(br_data + c, p), w_br);
-        const uint32x4_t bits = vreinterpretq_u32_f32(acc);
-        const mve_pred16_t overflow = vcmpeqq_n_u32(vshlq_n_u32(bits, 1), 0xff000000u);
-        const uint32x4_t saturated = vsubq_m_n_u32(bits, bits, 1, overflow);
-        vstrwq_p(out + c, vreinterpretq_f32_u32(saturated), p);
+        vstrwq_p(out + c, arm_nn_clamp_propagate_nan_mve_f32(acc, lower, upper), p);
     }
     #else
     for (int32_t c = 0; c < channels; ++c)
