@@ -60,6 +60,7 @@ if (ARM_NN_ENABLE_F16)
                       arm_nn_mat_mult_nt_n_packed_f16.c)
 endif()
 
-target_sources(cmsis-nn PRIVATE ${SRC_S4} ${SRC_S8} ${SRC_S16} ${SRC_S32} ${SRC_FLT} arm_nntables.c
+target_sources(cmsis-nn PRIVATE ${SRC_S4} ${SRC_S8} ${SRC_S16} ${SRC_S32} ${SRC_FLT} arm_nn_build_target.c
+  arm_nntables.c
   arm_q7_to_q15_with_offset.c
   arm_s8_to_s16_unordered_with_offset.c)

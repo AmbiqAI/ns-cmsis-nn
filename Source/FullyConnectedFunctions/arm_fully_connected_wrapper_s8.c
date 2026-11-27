@@ -28,8 +28,13 @@
  *
  * -------------------------------------------------------------------- */
 
+#include "Internal/arm_nn_dispatch.h"
 #include "arm_nnfunctions.h"
 #include "arm_nnsupportfunctions.h"
+
+#if !ARM_NN_ROUTES_MATCH_BUILD
+    #error "ARM_NN_ROUTE_* must describe the build that compiles this wrapper"
+#endif
 
 /**
  *  @ingroup Public
@@ -60,7 +65,7 @@ arm_cmsis_nn_status arm_fully_connected_wrapper_s8(const cmsis_nn_context *ctx,
                                                    int8_t *output_data)
 {
 
-    if (quant_params->is_per_channel)
+    if (arm_nn_fully_connected_wrapper_s8_select(quant_params) == ARM_NN_FC_S8_ROUTE_PER_CHANNEL)
     {
         const cmsis_nn_per_channel_quant_params per_channel_quant_params = {quant_params->multiplier,
                                                                             quant_params->shift};
