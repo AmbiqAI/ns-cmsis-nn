@@ -40,7 +40,7 @@
 /** Exact-rational INT8 bilinear resize direct entries are available. */
 #define ARM_NN_HAS_RESIZE_BILINEAR_S8 1
 
-/** Bilinear resize for enabled floating-point types, with FP32 interpolation. */
+/** Bilinear resize with exact grid indexing and interpolation in the enabled tensor precision. */
 #define ARM_NN_HAS_RESIZE_BILINEAR_FLOAT 1
 
 /** arm_dequantize_f16_bits_f32 keeps a NaN's sign and payload on the MVE vector path too (#871). */

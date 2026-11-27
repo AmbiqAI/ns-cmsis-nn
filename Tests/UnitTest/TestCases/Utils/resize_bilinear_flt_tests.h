@@ -52,6 +52,39 @@ static void resize_bilinear_copies(void)
     TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, RESIZE_ENTRY(&params, &in, input, &out, output));
     for (int i = 0; i < 6; ++i)
         TEST_ASSERT_EQUAL_MEMORY(input, output + 3 * i, sizeof(input));
+
+    // The last aligned coordinate of a 2 -> 42 resize rounds below 1 in FP32.
+    // Check the 2-D endpoints one axis at a time, including the stored sign of zero.
+    const cmsis_nn_resize_params aligned = {true, false};
+    const cmsis_nn_dims axes_in[] = {{1, 1, 2, 3}, {1, 2, 1, 3}};
+    const cmsis_nn_dims axes_out[] = {{1, 1, 42, 3}, {1, 42, 1, 3}};
+    RESIZE_TYPE pixels[6] = {1, 1, 1};
+    RESIZE_TYPE resized[42 * 3];
+    memcpy(pixels + 3, input, sizeof(input));
+    for (int axis = 0; axis < 2; ++axis)
+    {
+        TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
+                          RESIZE_ENTRY(&aligned, axes_in + axis, pixels, axes_out + axis, resized));
+        TEST_ASSERT_EQUAL_MEMORY(input, resized + 41 * 3, sizeof(input));
+    }
+
+    // These interior positions are exact samples in the respective grids. A rounded
+    // scale would interpolate with the adjacent pixel instead of copying the sample.
+    const struct
+    {
+        int in_w, out_w, dst_x, src_x;
+        cmsis_nn_resize_params params;
+    } grids[] = {{8, 28, 21, 6, {false, false}}, {5, 29, 21, 3, {true, false}}, {7, 13, 6, 3, {false, true}}};
+    for (size_t k = 0; k < sizeof(grids) / sizeof(grids[0]); ++k)
+    {
+        const cmsis_nn_dims in_dims = {1, 1, grids[k].in_w, 3}, out_dims = {1, 1, grids[k].out_w, 3};
+        RESIZE_TYPE samples[8 * 3];
+        for (size_t j = 0; j < sizeof(samples) / sizeof(samples[0]); ++j)
+            samples[j] = (RESIZE_TYPE)1;
+        memcpy(samples + grids[k].src_x * 3, input, sizeof(input));
+        TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, RESIZE_ENTRY(&grids[k].params, &in_dims, samples, &out_dims, resized));
+        TEST_ASSERT_EQUAL_MEMORY(input, resized + grids[k].dst_x * 3, sizeof(input));
+    }
 }
 
 static void resize_bilinear_rejects(void)

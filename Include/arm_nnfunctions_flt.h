@@ -2006,7 +2006,7 @@ void arm_reshape_f32(const float32_t *input, float32_t *output, uint32_t total_s
 
 /**
  * @ingroup Reshape
- * @brief Bilinear resize of a float32 NHWC tensor with FP32 coordinates and interpolation.
+ * @brief Bilinear resize of a float32 NHWC tensor with FP32 interpolation.
  * @param[in] resize_params Default, aligned-corners or half-pixel coordinates. The two flags are mutually exclusive.
  * @param[in] input_dims Positive input N,H,W,C. Total byte count must fit INT32_MAX.
  * @param[in] input_data Input tensor, disjoint from output_data.
@@ -4863,7 +4863,7 @@ void arm_reshape_f16(const float16_t *input, float16_t *output, uint32_t total_s
  * @param[in] output_dims Positive output N,H,W,C with matching N and C. Total byte count must fit INT32_MAX.
  * @param[out] output_data Contiguous output tensor. Caller provides the declared capacity.
  * @return ARM_CMSIS_NN_SUCCESS or ARM_CMSIS_NN_ARG_ERROR for invalid pointers, shapes or options.
- * @note Coordinates and boundary selection use FP32. The four weights are rounded to FP16 and applied
+ * @note Grid indexing uses integer arithmetic. The four weights are calculated in FP32, rounded to FP16, and applied
  *       with FP16 accumulation. Interpolation of finite inputs saturates at the finite binary16 limits.
  *       Contraction and subnormal handling depend on the build and target. Identity resizes and exact
  *       sample locations copy storage bits. No scratch buffer or heap allocation.

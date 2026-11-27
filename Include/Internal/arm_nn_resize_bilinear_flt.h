@@ -21,26 +21,80 @@ typedef struct
     float fraction;
 } arm_nn_bilinear_coordinate;
 
-static inline float arm_nn_bilinear_scale(int32_t in, int32_t out, bool align)
+// Track the sampling grid as an integer index plus a fractional remainder. Incrementing
+// the remainder preserves exact sample positions even when the FP32 scale would round.
+typedef struct
 {
-    return align && out > 1 ? (float)(in - 1) / (float)(out - 1) : (float)in / (float)out;
+    int32_t index;
+    uint32_t remainder;
+} arm_nn_bilinear_position;
+
+typedef struct
+{
+    int32_t stride;
+    uint32_t increment;
+    uint32_t denominator;
+    float inverse_denominator;
+    arm_nn_bilinear_position start;
+} arm_nn_bilinear_grid;
+
+static inline arm_nn_bilinear_grid
+arm_nn_bilinear_make_grid(int32_t in, int32_t out, const cmsis_nn_resize_params *params)
+{
+    const bool align = params->align_corners && out > 1;
+    const uint32_t numerator = align ? in - 1 : in;
+    const uint32_t denominator = align ? out - 1 : out;
+    arm_nn_bilinear_grid grid;
+    grid.stride = (int32_t)(numerator / denominator);
+    grid.increment = numerator % denominator;
+    grid.denominator = denominator;
+    grid.start = (arm_nn_bilinear_position){0, 0};
+    if (params->half_pixel_centers)
+    {
+        // (pos + 1/2) * in/out - 1/2 starts at (in - out)/(2*out).
+        grid.denominator *= 2;
+        grid.increment *= 2;
+        const int32_t offset = in - out;
+        if (offset < 0)
+        {
+            grid.start.index = -1;
+            grid.start.remainder = (uint32_t)(in + out);
+        }
+        else
+        {
+            grid.start.index = (int32_t)((uint32_t)offset / grid.denominator);
+            grid.start.remainder = (uint32_t)offset % grid.denominator;
+        }
+    }
+    grid.inverse_denominator = 1.0f / (float)grid.denominator;
+    return grid;
 }
 
-static inline arm_nn_bilinear_coordinate arm_nn_bilinear_axis(int32_t pos, float scale, int32_t extent, bool half)
+static inline void arm_nn_bilinear_advance(arm_nn_bilinear_position *pos, const arm_nn_bilinear_grid *grid)
 {
-    const float x = half ? ((float)pos + 0.5f) * scale - 0.5f : (float)pos * scale;
-    // Clamp the integer index itself: (float)(extent - 1) may round up on long axes.
-    int32_t lo = (int32_t)x;
-    if (x <= 0.0f)
+    // The byte-count guard bounds both dimensions to INT32_MAX/2 even for FP16.
+    pos->index += grid->stride;
+    pos->remainder += grid->increment;
+    if (pos->remainder >= grid->denominator)
+    {
+        pos->remainder -= grid->denominator;
+        ++pos->index;
+    }
+}
+
+static inline arm_nn_bilinear_coordinate
+arm_nn_bilinear_axis(arm_nn_bilinear_position pos, int32_t extent, float inverse_denominator)
+{
+    if (pos.index < 0)
     {
         return (arm_nn_bilinear_coordinate){0, 0, 0.0f};
     }
-    if (lo >= extent - 1)
+    if (pos.index >= extent - 1)
     {
         return (arm_nn_bilinear_coordinate){extent - 1, extent - 1, 0.0f};
     }
-    const float fraction = x - (float)lo;
-    return (arm_nn_bilinear_coordinate){lo, lo + (fraction > 0.0f), fraction};
+    return (arm_nn_bilinear_coordinate){
+        pos.index, pos.index + (pos.remainder != 0), (float)pos.remainder * inverse_denominator};
 }
 
 typedef void (*arm_nn_bilinear_pixel_fn)(const void *,
@@ -81,21 +135,37 @@ __STATIC_FORCEINLINE arm_cmsis_nn_status arm_nn_bilinear_resize(const cmsis_nn_r
     }
 
     const size_t pixel_bytes = in->c * width;
+    if (in->h == 1 && in->w == 1)
+    {
+        const int32_t pixels = out->h * out->w;
+        uint8_t *output = (uint8_t *)dst;
+        for (int32_t b = 0; b < in->n; ++b)
+        {
+            const uint8_t *sample = (const uint8_t *)src + b * pixel_bytes;
+            for (int32_t i = 0; i < pixels; ++i, output += pixel_bytes)
+            {
+                memcpy(output, sample, pixel_bytes);
+            }
+        }
+        return ARM_CMSIS_NN_SUCCESS;
+    }
     const size_t row_bytes = in->w * pixel_bytes;
-    const float sy = arm_nn_bilinear_scale(in->h, out->h, params->align_corners);
-    const float sx = arm_nn_bilinear_scale(in->w, out->w, params->align_corners);
+    const arm_nn_bilinear_grid rows = arm_nn_bilinear_make_grid(in->h, out->h, params);
+    const arm_nn_bilinear_grid cols = arm_nn_bilinear_make_grid(in->w, out->w, params);
     uint8_t *output = (uint8_t *)dst;
     for (int32_t b = 0; b < in->n; ++b)
     {
         const uint8_t *batch = (const uint8_t *)src + b * in->h * row_bytes;
-        for (int32_t y = 0; y < out->h; ++y)
+        arm_nn_bilinear_position row = rows.start;
+        for (int32_t y = 0; y < out->h; ++y, arm_nn_bilinear_advance(&row, &rows))
         {
-            const arm_nn_bilinear_coordinate v = arm_nn_bilinear_axis(y, sy, in->h, params->half_pixel_centers);
+            const arm_nn_bilinear_coordinate v = arm_nn_bilinear_axis(row, in->h, rows.inverse_denominator);
             const uint8_t *top = batch + v.lo * row_bytes;
             const uint8_t *bottom = batch + v.hi * row_bytes;
-            for (int32_t x = 0; x < out->w; ++x, output += pixel_bytes)
+            arm_nn_bilinear_position col = cols.start;
+            for (int32_t x = 0; x < out->w; ++x, output += pixel_bytes, arm_nn_bilinear_advance(&col, &cols))
             {
-                const arm_nn_bilinear_coordinate u = arm_nn_bilinear_axis(x, sx, in->w, params->half_pixel_centers);
+                const arm_nn_bilinear_coordinate u = arm_nn_bilinear_axis(col, in->w, cols.inverse_denominator);
                 const size_t left = u.lo * pixel_bytes;
                 const size_t right = u.hi * pixel_bytes;
                 if (u.lo == u.hi && v.lo == v.hi)
