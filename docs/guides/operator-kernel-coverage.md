@@ -9,6 +9,9 @@ The goal is not to document every function on this page. For exact prototypes,
 parameters, scratch-buffer queries, and per-function behavior, use the generated
 API reference described in [API](../reference/api-groups.md).
 
+For a builtin-by-builtin comparison, model evidence and proposed FP32/FP16 work,
+see the [LiteRT Micro operator ledger](litert-micro-operator-ledger.md).
+
 ## Acceleration paths
 
 Kernel selection is compile-time and follows the feature flags produced by the
