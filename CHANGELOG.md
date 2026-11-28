@@ -1,5 +1,16 @@
 # Changelog
 
+## [7.49.0](https://github.com/AmbiqAI/ns-cmsis-nn/compare/v7.48.0...v7.49.0) (2026-11-28)
+
+
+### Features
+
+* add FP32 GREATER and SELECT_V2 with broadcasting ([#926](https://github.com/AmbiqAI/ns-cmsis-nn/issues/926)) ([21abfd4](https://github.com/AmbiqAI/ns-cmsis-nn/commit/21abfd49f6512884e85bd2309ad06c0f6d47abb1))
+* broadcast FP16 and FP32 squared difference ([#915](https://github.com/AmbiqAI/ns-cmsis-nn/issues/915)) ([08ca750](https://github.com/AmbiqAI/ns-cmsis-nn/commit/08ca7502f3db76975a22eeefa34caa85dde09ac1))
+* **conv:** support grouped convolution in float16 ([#236](https://github.com/AmbiqAI/ns-cmsis-nn/issues/236)) ([92448e2](https://github.com/AmbiqAI/ns-cmsis-nn/commit/92448e2c99db02fe0ee578f794e8e5b33166c781))
+* **conv:** support grouped float32 convolution ([#497](https://github.com/AmbiqAI/ns-cmsis-nn/issues/497)) ([f8e41ee](https://github.com/AmbiqAI/ns-cmsis-nn/commit/f8e41ee1ba23d606310ee4f620b4868ed54ce706))
+* **resize:** add FP32 and FP16 bilinear resize ([#923](https://github.com/AmbiqAI/ns-cmsis-nn/issues/923)) ([5f8f478](https://github.com/AmbiqAI/ns-cmsis-nn/commit/5f8f478b57c13723bd8e083fb6f88608c04b3e27))
+
 ## [7.48.0](https://github.com/AmbiqAI/ns-cmsis-nn/compare/v7.47.2...v7.48.0) (2026-11-22)
 
 
