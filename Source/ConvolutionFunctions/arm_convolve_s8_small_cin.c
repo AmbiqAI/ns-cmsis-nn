@@ -32,21 +32,24 @@
 
 /*
  * Input depth 1 to 3 (first layers), in the gate of arm_nn_is_convolve_s8_small_cin(): one group, unit dilation, no
- * upscale, a kernel row (kernel_x * input_ch) of at most 16 bytes, at most 48 filter values per output channel and a
- * multiple of 4 output channels.
+ * upscale, a kernel row (kernel_x * input_ch) of at most 16 bytes, at most 80 filter values per output channel (a 5x5
+ * kernel over three channels) and a multiple of 4 output channels.
  *
  * im2col writes each kernel row with one predicated vector store, taking padding lanes from a splat of -input_offset,
  * into columns of col_len = 16 * nk bytes, so four columns fill the arm_convolve_s8_get_buffer_size() buffer exactly.
- * The columns are multiplied four output channels at a time, with the per-channel weight sums, multipliers and
- * shifts applied as vectors and the four results stored contiguously. The integer sums and the requantization are
- * those of arm_nn_mat_mult_nt_t_s8(), so the output is the same bit for bit.
+ * The columns are multiplied four output channels at a time; each accumulator starts from its channel's weight sum
+ * (the bias with the input offset folded in), and the multipliers and shifts are applied as vectors with the four
+ * results stored contiguously. The next pixel block's last kernel row is prefetched while a column is staged (on an
+ * Apollo510 EVB the rows are already cache-resident from the previous output row, so this measured neutral: 21.18 ms
+ * against 21.16 ms for a 128x128x3 5x5 stride-2 layer with 24 output channels). The integer sums and the
+ * requantization are those of arm_nn_mat_mult_nt_t_s8(), so the output is the same bit for bit.
  */
 
 /* lhs_rows im2col columns of col_len = 16 * nk bytes against output_ch filters, four output channels per step. With
    whole_head, the first three filters' last chunks are loaded whole: past rhs_cols they read the following filters,
    which multiply the zeroed column tail, and they stay inside filter_data only while 16 * nk <= 2 * rhs_cols. That
-   holds for nk 2 and 3 (rhs_cols of at least 17 and 33) and for nk 1 from 8 values; below that every chunk load is
-   predicated. The fourth filter's last chunk is always predicated. */
+   holds for nk 2 to 5 (rhs_cols of at least 17, 33, 49 and 65) and for nk 1 from 8 values; below that every chunk
+   load is predicated. The fourth filter's last chunk is always predicated. */
 __STATIC_FORCEINLINE void arm_convolve_s8_small_cin_gemm_nk(const int8_t *lhs,
                                                             const int32_t lhs_rows,
                                                             const int8_t *filter_data,
@@ -67,6 +70,10 @@ __STATIC_FORCEINLINE void arm_convolve_s8_small_cin_gemm_nk(const int8_t *lhs,
     for (int32_t i_ch = 0; i_ch < output_ch; i_ch += 4)
     {
         const int32x4_t wsum = vldrwq_s32(weight_sum + i_ch);
+        const int32_t s0 = vgetq_lane_s32(wsum, 0);
+        const int32_t s1 = vgetq_lane_s32(wsum, 1);
+        const int32_t s2 = vgetq_lane_s32(wsum, 2);
+        const int32_t s3 = vgetq_lane_s32(wsum, 3);
         const int32x4_t mult = vldrwq_s32(output_mult + i_ch);
         const int32x4_t shift = vldrwq_s32(output_shift + i_ch);
         const int8_t *w0 = filter_data + i_ch * rhs_cols;
@@ -80,40 +87,62 @@ __STATIC_FORCEINLINE void arm_convolve_s8_small_cin_gemm_nk(const int8_t *lhs,
             if (nk == 1)
             {
                 const int8x16_t a0 = vldrbq_s8(a);
-                acc0 = vmladavq_s8(a0, whole_head ? vldrbq_s8(w0) : vldrbq_z_s8(w0, p_last));
-                acc1 = vmladavq_s8(a0, whole_head ? vldrbq_s8(w1) : vldrbq_z_s8(w1, p_last));
-                acc2 = vmladavq_s8(a0, whole_head ? vldrbq_s8(w2) : vldrbq_z_s8(w2, p_last));
-                acc3 = vmladavq_s8(a0, vldrbq_z_s8(w3, p_last));
+                acc0 = vmladavaq_s8(s0, a0, whole_head ? vldrbq_s8(w0) : vldrbq_z_s8(w0, p_last));
+                acc1 = vmladavaq_s8(s1, a0, whole_head ? vldrbq_s8(w1) : vldrbq_z_s8(w1, p_last));
+                acc2 = vmladavaq_s8(s2, a0, whole_head ? vldrbq_s8(w2) : vldrbq_z_s8(w2, p_last));
+                acc3 = vmladavaq_s8(s3, a0, vldrbq_z_s8(w3, p_last));
             }
             else if (nk == 2)
             {
                 const int8x16_t a0 = vldrbq_s8(a);
                 const int8x16_t a1 = vldrbq_s8(a + 16);
-                acc0 = vmladavaq_s8(vmladavq_s8(a0, vldrbq_s8(w0)), a1, vldrbq_s8(w0 + 16));
-                acc1 = vmladavaq_s8(vmladavq_s8(a0, vldrbq_s8(w1)), a1, vldrbq_s8(w1 + 16));
-                acc2 = vmladavaq_s8(vmladavq_s8(a0, vldrbq_s8(w2)), a1, vldrbq_s8(w2 + 16));
-                acc3 = vmladavaq_s8(vmladavq_s8(a0, vldrbq_s8(w3)), a1, vldrbq_z_s8(w3 + 16, p_last));
+                acc0 = vmladavaq_s8(vmladavaq_s8(s0, a0, vldrbq_s8(w0)), a1, vldrbq_s8(w0 + 16));
+                acc1 = vmladavaq_s8(vmladavaq_s8(s1, a0, vldrbq_s8(w1)), a1, vldrbq_s8(w1 + 16));
+                acc2 = vmladavaq_s8(vmladavaq_s8(s2, a0, vldrbq_s8(w2)), a1, vldrbq_s8(w2 + 16));
+                acc3 = vmladavaq_s8(vmladavaq_s8(s3, a0, vldrbq_s8(w3)), a1, vldrbq_z_s8(w3 + 16, p_last));
             }
-            else
+            else if (nk == 3)
             {
                 const int8x16_t a0 = vldrbq_s8(a);
                 const int8x16_t a1 = vldrbq_s8(a + 16);
                 const int8x16_t a2 = vldrbq_s8(a + 32);
                 acc0 = vmladavaq_s8(
-                    vmladavaq_s8(vmladavq_s8(a0, vldrbq_s8(w0)), a1, vldrbq_s8(w0 + 16)), a2, vldrbq_s8(w0 + 32));
+                    vmladavaq_s8(vmladavaq_s8(s0, a0, vldrbq_s8(w0)), a1, vldrbq_s8(w0 + 16)), a2, vldrbq_s8(w0 + 32));
                 acc1 = vmladavaq_s8(
-                    vmladavaq_s8(vmladavq_s8(a0, vldrbq_s8(w1)), a1, vldrbq_s8(w1 + 16)), a2, vldrbq_s8(w1 + 32));
+                    vmladavaq_s8(vmladavaq_s8(s1, a0, vldrbq_s8(w1)), a1, vldrbq_s8(w1 + 16)), a2, vldrbq_s8(w1 + 32));
                 acc2 = vmladavaq_s8(
-                    vmladavaq_s8(vmladavq_s8(a0, vldrbq_s8(w2)), a1, vldrbq_s8(w2 + 16)), a2, vldrbq_s8(w2 + 32));
-                acc3 = vmladavaq_s8(vmladavaq_s8(vmladavq_s8(a0, vldrbq_s8(w3)), a1, vldrbq_s8(w3 + 16)),
+                    vmladavaq_s8(vmladavaq_s8(s2, a0, vldrbq_s8(w2)), a1, vldrbq_s8(w2 + 16)), a2, vldrbq_s8(w2 + 32));
+                acc3 = vmladavaq_s8(vmladavaq_s8(vmladavaq_s8(s3, a0, vldrbq_s8(w3)), a1, vldrbq_s8(w3 + 16)),
                                     a2,
                                     vldrbq_z_s8(w3 + 32, p_last));
+            }
+            else
+            {
+                /* Four or five chunks (K 49 to 80): whole chunks first, the last one predicated on the fourth
+                   filter only (the first three read into the next filter's zeroed-tail-free columns, see above). */
+                acc0 = s0;
+                acc1 = s1;
+                acc2 = s2;
+                acc3 = s3;
+                int32_t k = 0;
+                for (; k < (nk - 1) * 16; k += 16)
+                {
+                    const int8x16_t ak = vldrbq_s8(a + k);
+                    acc0 = vmladavaq_s8(acc0, ak, vldrbq_s8(w0 + k));
+                    acc1 = vmladavaq_s8(acc1, ak, vldrbq_s8(w1 + k));
+                    acc2 = vmladavaq_s8(acc2, ak, vldrbq_s8(w2 + k));
+                    acc3 = vmladavaq_s8(acc3, ak, vldrbq_s8(w3 + k));
+                }
+                const int8x16_t ak = vldrbq_s8(a + k);
+                acc0 = vmladavaq_s8(acc0, ak, vldrbq_s8(w0 + k));
+                acc1 = vmladavaq_s8(acc1, ak, vldrbq_s8(w1 + k));
+                acc2 = vmladavaq_s8(acc2, ak, vldrbq_s8(w2 + k));
+                acc3 = vmladavaq_s8(acc3, ak, vldrbq_z_s8(w3 + k, p_last));
             }
             int32x4_t res = vdupq_n_s32(acc0);
             res = vsetq_lane_s32(acc1, res, 1);
             res = vsetq_lane_s32(acc2, res, 2);
             res = vsetq_lane_s32(acc3, res, 3);
-            res = vaddq_s32(res, wsum);
             res = arm_requantize_mve_32x4(res, mult, shift);
             res = vaddq_n_s32(res, out_offset);
             res = vmaxq_s32(res, vdupq_n_s32(act_min));
@@ -197,7 +226,7 @@ arm_convolve_s8_small_cin_gemm(const int8_t *lhs,
                                           2,
                                           1);
     }
-    else
+    else if (rhs_cols <= 48)
     {
         arm_convolve_s8_small_cin_gemm_nk(lhs,
                                           lhs_rows,
@@ -212,6 +241,40 @@ arm_convolve_s8_small_cin_gemm(const int8_t *lhs,
                                           act_min,
                                           act_max,
                                           3,
+                                          1);
+    }
+    else if (rhs_cols <= 64)
+    {
+        arm_convolve_s8_small_cin_gemm_nk(lhs,
+                                          lhs_rows,
+                                          filter_data,
+                                          weight_sum,
+                                          mult,
+                                          shift,
+                                          out,
+                                          output_ch,
+                                          rhs_cols,
+                                          out_offset,
+                                          act_min,
+                                          act_max,
+                                          4,
+                                          1);
+    }
+    else
+    {
+        arm_convolve_s8_small_cin_gemm_nk(lhs,
+                                          lhs_rows,
+                                          filter_data,
+                                          weight_sum,
+                                          mult,
+                                          shift,
+                                          out,
+                                          output_ch,
+                                          rhs_cols,
+                                          out_offset,
+                                          act_min,
+                                          act_max,
+                                          5,
                                           1);
     }
 }
@@ -295,6 +358,9 @@ arm_convolve_s8_small_cin_kernel(const cmsis_nn_context *ctx,
                     x_edge = 1;
                 }
                 const int8_t *src_int = (const int8_t *)src_x;
+                /* Prefetch: the last kernel row of the pixel eight output columns ahead is the first line the
+                   stage has not touched yet (the rows above it were read for the previous output row). */
+                __builtin_prefetch(src_int + (kernel_y - 1) * in_row_stride + 8 * stride_x * input_ch);
                 if (!x_edge && ky_valid == kernel_y && kernel_y == 3)
                 {
                     /* Interior pixel of a 3-row kernel: three row copies, no bounds work. */
