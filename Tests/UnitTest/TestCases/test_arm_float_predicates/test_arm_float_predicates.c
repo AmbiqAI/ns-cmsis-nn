@@ -2,6 +2,7 @@
  * SPDX-FileCopyrightText: 2026 Ambiq
  * SPDX-License-Identifier: LicenseRef-Ambiq-Apollo-SDK
  */
+#include "Internal/arm_nn_fp_control.h"
 #include "arm_nnfunctions.h"
 #include "float_predicates_data.h"
 #include "unity.h"
@@ -92,6 +93,43 @@ static void predicates_tail(void)
         for (int j = 0; j < 4; j++)
             TEST_ASSERT_TRUE(mask[j]);
         TEST_ASSERT_EQUAL(cases[i][2], mask[4]);
+    }
+}
+
+/* Consecutive groups and a scalar tail, with a byte-offset output mask. */
+static void predicates_packed_mask(void)
+{
+    const cmsis_nn_dims dims = {1, 1, 1, 9};
+    const int32_t length = 9, stride = 1;
+    const cmsis_nn_select_v2_params params = {1, &length, &stride, &stride, &stride};
+    const uint32_t left[] = {1, 0x80000001, 0, 0x80000000, 0x7f800000, 0x7f800001, 0xff800000, 0x807fffff, 1};
+    const uint32_t right[] = {0, 0x80000000, 0x80000000, 0, 0x7f800000, 0xffc12345, 0xff800000, 0x80800000, 0};
+    const bool expected[] = {true, false, false, false, false, false, false, true, true};
+    float32_t a[9], b[9], selected[9];
+    memcpy(a, left, sizeof(a));
+    memcpy(b, right, sizeof(b));
+
+    for (int flush = 0; flush <= 1; ++flush)
+    {
+        bool mask[11] = {true};
+        mask[10] = true;
+#if defined(ARM_NN_FP_CONTROL_AVAILABLE)
+        const arm_nn_fp_control_t saved = arm_nn_get_fp_control();
+        const arm_nn_fp_control_t fz = 1u << 24;
+        arm_nn_set_fp_control((saved & ~fz) | (flush ? fz : 0));
+#endif
+        const arm_cmsis_nn_status status = arm_greater_f32(a, &dims, b, &dims, mask + 1, &dims);
+#if defined(ARM_NN_FP_CONTROL_AVAILABLE)
+        arm_nn_set_fp_control(saved);
+#endif
+        TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, status);
+        TEST_ASSERT_TRUE(mask[0] && mask[10]);
+        TEST_ASSERT_EQUAL_MEMORY(expected, mask + 1, sizeof(expected));
+        TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, arm_select_v2_f32(mask + 1, a, b, &params, selected));
+        for (int i = 0; i < length; ++i)
+        {
+            TEST_ASSERT_EQUAL_MEMORY((expected[i] ? left : right) + i, selected + i, sizeof(uint32_t));
+        }
     }
 }
 

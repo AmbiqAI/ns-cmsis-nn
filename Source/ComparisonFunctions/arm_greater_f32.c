@@ -36,9 +36,32 @@ __STATIC_FORCEINLINE uint32x4_t compare_four(const uint32x4_t x, const uint32x4_
     vstrbq_p_u32((uint8_t *)out, vpselq(vdupq_n_u32(1), vdupq_n_u32(0), gt), p);
     return vmaxq(vshlq_n_u32(x, 1), vshlq_n_u32(y, 1));
 }
+    #elif defined(__ARM_FP) && (__ARM_FP & 4) && defined(__ARM_ARCH_7EM__) && (defined(__GNUC__) || defined(__clang__))
+        #define ARM_NN_COMPARE_SCALAR_FPU 1
+/* An equal VCMP result can hide differing subnormals when FPSCR.FZ is set.
+ * Replay only that case using the original storage bits. A comparison with
+ * either NaN reports unordered (both GT and EQ clear). */
+static __attribute__((noinline)) bool compare_tie(float32_t a, float32_t b)
+{
+    return order_key(load_bits(&a)) > order_key(load_bits(&b));
+}
+
+static inline bool scalar_greater(float32_t a, float32_t b)
+{
+    /* Comparing b to a puts ordered b < a in N and equality in Z.
+     * Read those bits directly to keep the same ordered test under fast-math. */
+    uint32_t flags;
+    __asm("vcmp.f32 %2, %1\n\tvmrs %0, fpscr" : "=r"(flags) : "t"(a), "t"(b));
+    if (__builtin_expect((flags & (1u << 30)) != 0, false))
+    {
+        return compare_tie(a, b);
+    }
+    return (flags >> 31) != 0;
+}
+
     #endif
 __STATIC_FORCEINLINE void
-compare_span(const float32_t *a, const float32_t *b, bool *out, int32_t count, bool scalar_a, bool scalar_b)
+compare_span(const float32_t *a, const float32_t *b, bool *restrict out, int32_t count, bool scalar_a, bool scalar_b)
 {
     #if defined(ARM_MATH_MVEF) && !defined(ARM_MATH_AUTOVECTORIZE)
     uint32x4_t largest = vdupq_n_u32(0);
@@ -71,6 +94,26 @@ compare_span(const float32_t *a, const float32_t *b, bool *out, int32_t count, b
     {
         return;
     }
+    #elif defined(ARM_NN_COMPARE_SCALAR_FPU)
+    /* Store four consecutive one-byte results together, including when the
+     * public mask starts at a byte-aligned offset. */
+    int32_t i = 0;
+    for (; i <= count - 4; i += 4)
+    {
+        bool group[4];
+        for (int lane = 0; lane < 4; ++lane)
+        {
+            const float32_t x = a[scalar_a ? 0 : i + lane], y = b[scalar_b ? 0 : i + lane];
+            group[lane] = scalar_greater(x, y);
+        }
+        __builtin_memcpy(out + i, group, sizeof(group));
+    }
+    for (; i < count; ++i)
+    {
+        const float32_t x = a[scalar_a ? 0 : i], y = b[scalar_b ? 0 : i];
+        out[i] = scalar_greater(x, y);
+    }
+    return;
     #endif
 
     compare_storage(a, b, out, count, scalar_a ? 0 : 1, scalar_b ? 0 : 1);
