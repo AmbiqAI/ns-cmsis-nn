@@ -160,6 +160,7 @@ static inline unsigned clz_u32(unsigned long mask)
     #endif
 #endif
 
+#include <stdint.h>
 #include <string.h>
 
 /* Both pointers address aligned 32-bit tensor elements. Retain word accesses even
