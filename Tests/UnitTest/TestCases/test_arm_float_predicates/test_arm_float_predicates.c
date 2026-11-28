@@ -2,7 +2,7 @@
  * SPDX-FileCopyrightText: 2026 Ambiq
  * SPDX-License-Identifier: LicenseRef-Ambiq-Apollo-SDK
  */
-#include "Internal/arm_nn_fp_control.h"
+#include <Internal/arm_nn_fp_control.h>
 #include "arm_nnfunctions.h"
 #include "float_predicates_data.h"
 #include "unity.h"
@@ -30,6 +30,25 @@ static void predicates_reference(void)
     const uint32_t guard = 0x55555555;
     TEST_ASSERT_EQUAL_MEMORY(&guard, result, 4);
     TEST_ASSERT_EQUAL_MEMORY(&guard, result + 109, 4);
+}
+
+/* Restore the caller's control word before Unity can return on a failure. */
+static arm_cmsis_nn_status compare_with_flush(const float32_t *a, const cmsis_nn_dims *ad,
+                                             const float32_t *b, const cmsis_nn_dims *bd,
+                                             bool *out, const cmsis_nn_dims *od, bool flush)
+{
+#if defined(ARM_NN_FP_CONTROL_AVAILABLE)
+    const arm_nn_fp_control_t saved = arm_nn_get_fp_control();
+    const arm_nn_fp_control_t fz = 1u << 24;
+    arm_nn_set_fp_control((saved & ~fz) | (flush ? fz : 0));
+#else
+    (void)flush;
+#endif
+    const arm_cmsis_nn_status status = arm_greater_f32(a, ad, b, bd, out, od);
+#if defined(ARM_NN_FP_CONTROL_AVAILABLE)
+    arm_nn_set_fp_control(saved);
+#endif
+    return status;
 }
 
 static void predicates_order(void)
@@ -61,10 +80,13 @@ static void predicates_order(void)
             const bool left = mode == 1;
             const float32_t *a = left ? data + i : data;
             const float32_t *b = left ? data : (mode == 0 ? data + i : repeated);
-            TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
-                              arm_greater_f32(a, left ? &one : &many, b, mode == 0 ? &one : &many, out, &many));
-            for (int j = 0; j < 12; j++)
-                TEST_ASSERT_EQUAL(i < 8 && j < 8 && (left ? rank[i] > rank[j] : rank[j] > rank[i]), out[j]);
+            for (int flush = 0; flush <= 1; ++flush)
+            {
+                TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
+                                  compare_with_flush(a, left ? &one : &many, b, mode == 0 ? &one : &many, out, &many, flush));
+                for (int j = 0; j < 12; j++)
+                    TEST_ASSERT_EQUAL(i < 8 && j < 8 && (left ? rank[i] > rank[j] : rank[j] > rank[i]), out[j]);
+            }
         }
     }
 }
@@ -113,16 +135,7 @@ static void predicates_packed_mask(void)
     {
         bool mask[11] = {true};
         mask[10] = true;
-#if defined(ARM_NN_FP_CONTROL_AVAILABLE)
-        const arm_nn_fp_control_t saved = arm_nn_get_fp_control();
-        const arm_nn_fp_control_t fz = 1u << 24;
-        arm_nn_set_fp_control((saved & ~fz) | (flush ? fz : 0));
-#endif
-        const arm_cmsis_nn_status status = arm_greater_f32(a, &dims, b, &dims, mask + 1, &dims);
-#if defined(ARM_NN_FP_CONTROL_AVAILABLE)
-        arm_nn_set_fp_control(saved);
-#endif
-        TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, status);
+        TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, compare_with_flush(a, &dims, b, &dims, mask + 1, &dims, flush));
         TEST_ASSERT_TRUE(mask[0] && mask[10]);
         TEST_ASSERT_EQUAL_MEMORY(expected, mask + 1, sizeof(expected));
         TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, arm_select_v2_f32(mask + 1, a, b, &params, selected));
