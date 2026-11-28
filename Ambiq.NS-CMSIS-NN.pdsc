@@ -96,6 +96,7 @@
         <file category="header" name="Include/Internal/arm_nn_resize_bilinear_flt.h"/>
         <file category="header" name="Include/Internal/arm_nn_rsub_scalar.h"/>
         <file category="header" name="Include/Internal/arm_nn_s4_decode.h"/>
+        <file category="header" name="Include/Internal/arm_nn_select_word.h"/>
         <file category="header" name="Include/Internal/arm_nn_sqrt_flt.h"/>
         <file category="header" name="Include/Internal/arm_minmax_f16_common.h"/>
         <file category="header" name="Include/Internal/arm_minmax_f32_common.h"/>
@@ -247,6 +248,7 @@
         <file category="source" name="Source/ComparisonFunctions/arm_equal_bool.c"/>
         <file category="source" name="Source/ComparisonFunctions/arm_equal_s32.c"/>
         <file category="source" name="Source/ComparisonFunctions/arm_greater_equal_s32.c"/>
+        <file category="source" name="Source/ComparisonFunctions/arm_greater_f32.c"/>
         <file category="source" name="Source/ComparisonFunctions/arm_greater_s32.c"/>
         <file category="source" name="Source/ComparisonFunctions/arm_less_equal_s32.c"/>
         <file category="source" name="Source/ComparisonFunctions/arm_less_s32.c"/>
@@ -503,6 +505,7 @@
         <file category="source" name="Source/BroadcastFunctions/arm_broadcast_to_s16.c"/>
         <file category="source" name="Source/ScatterFunctions/arm_scatter_nd_s8.c"/>
         <file category="source" name="Source/ScatterFunctions/arm_scatter_nd_s16.c"/>
+        <file category="source" name="Source/SelectFunctions/arm_select_v2_f32.c"/>
         <file category="source" name="Source/SelectFunctions/arm_select_v2_s16.c"/>
         <file category="source" name="Source/SelectFunctions/arm_select_v2_s32.c"/>
         <file category="source" name="Source/SelectFunctions/arm_select_v2_s8.c"/>

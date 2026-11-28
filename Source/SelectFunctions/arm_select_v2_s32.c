@@ -3,15 +3,29 @@
  * SPDX-License-Identifier: LicenseRef-Ambiq-Apollo-SDK
  */
 
+#include "Internal/arm_nn_select_word.h"
 #include "arm_nnfunctions.h"
 #include "arm_nnsupportfunctions.h"
 #include <limits.h>
 
+#if defined(ARM_MATH_MVEI) && !defined(ARM_MATH_AUTOVECTORIZE)
+static inline uint32x4_t load_span(const unsigned char *data, uint32_t index, int32_t step, mve_pred16_t p)
+{
+    if (step == 1)
+    {
+        return arm_nn_mve_load_word_bits(data + index * sizeof(uint32_t), p);
+    }
+    uint32_t value;
+    arm_nn_copy_word(&value, data);
+    return vdupq_n_u32(value);
+}
+#endif
+
 /* Each span is contiguous or scalar in every operand. */
 __STATIC_FORCEINLINE void select_span(const bool *condition,
-                                      const int32_t *x,
-                                      const int32_t *y,
-                                      int32_t *output,
+                                      const unsigned char *x,
+                                      const unsigned char *y,
+                                      unsigned char *output,
                                       int32_t count,
                                       int32_t cs,
                                       int32_t xs,
@@ -23,23 +37,25 @@ __STATIC_FORCEINLINE void select_span(const bool *condition,
     {
         const mve_pred16_t p = vctp32q((uint32_t)remaining);
         const uint32x4_t vc = cs == 1 ? vldrbq_z_u32((const uint8_t *)condition + i, p) : vdupq_n_u32(*condition);
-        const int32x4_t vx = xs == 1 ? vldrwq_z_s32(x + i, p) : vdupq_n_s32(*x);
-        const int32x4_t vy = ys == 1 ? vldrwq_z_s32(y + i, p) : vdupq_n_s32(*y);
-        arm_nn_mve_store_word_bits(output + i, vreinterpretq_u32_s32(vpselq(vx, vy, vcmpneq_n_u32(vc, 0))), p);
+        const uint32x4_t vx = load_span(x, i, xs, p);
+        const uint32x4_t vy = load_span(y, i, ys, p);
+        arm_nn_mve_store_word_bits(output + i * sizeof(uint32_t), vpselq(vx, vy, vcmpneq_n_u32(vc, 0)), p);
     }
 #else
     for (int32_t i = 0; i < count; ++i)
     {
-        output[i] = condition[cs == 1 ? i : 0] ? x[xs == 1 ? i : 0] : y[ys == 1 ? i : 0];
+        const unsigned char *source = condition[cs == 1 ? i : 0] ? x + (xs == 1 ? i : 0) * sizeof(uint32_t)
+                                                                 : y + (ys == 1 ? i : 0) * sizeof(uint32_t);
+        arm_nn_copy_word(output + i * sizeof(uint32_t), source);
     }
 #endif
 }
 
-arm_cmsis_nn_status arm_select_v2_s32(const bool *condition,
-                                      const int32_t *x,
-                                      const int32_t *y,
-                                      const cmsis_nn_select_v2_params *params,
-                                      int32_t *output)
+arm_cmsis_nn_status arm_nn_select_word(const bool *condition,
+                                       const unsigned char *x,
+                                       const unsigned char *y,
+                                       const cmsis_nn_select_v2_params *params,
+                                       unsigned char *output)
 {
     if (!condition || !x || !y || !params || !output || params->rank < 1 || params->rank > 8 || !params->output_shape ||
         !params->cond_strides || !params->x_strides || !params->y_strides)
@@ -116,9 +132,9 @@ arm_cmsis_nn_status arm_select_v2_s32(const bool *condition,
     for (int32_t written = 0; written < count; written += span)
     {
         select_span(condition + offsets[0],
-                    x + offsets[1],
-                    y + offsets[2],
-                    output + written,
+                    x + offsets[1] * sizeof(uint32_t),
+                    y + offsets[2] * sizeof(uint32_t),
+                    output + written * sizeof(uint32_t),
                     span,
                     steps[0],
                     steps[1],
@@ -146,4 +162,14 @@ arm_cmsis_nn_status arm_select_v2_s32(const bool *condition,
         }
     }
     return ARM_CMSIS_NN_SUCCESS;
+}
+
+arm_cmsis_nn_status arm_select_v2_s32(const bool *condition,
+                                      const int32_t *x,
+                                      const int32_t *y,
+                                      const cmsis_nn_select_v2_params *params,
+                                      int32_t *output)
+{
+    return arm_nn_select_word(
+        condition, (const unsigned char *)x, (const unsigned char *)y, params, (unsigned char *)output);
 }

@@ -40,6 +40,9 @@
 /** Exact-rational INT8 bilinear resize direct entries are available. */
 #define ARM_NN_HAS_RESIZE_BILINEAR_S8 1
 
+/** FP32 ordered GREATER with NHWC broadcasting and bit-preserving strided SELECT_V2. */
+#define ARM_NN_HAS_PREDICATES_F32 1
+
 /** Bilinear resize with exact grid indexing and interpolation in the enabled tensor precision. */
 #define ARM_NN_HAS_RESIZE_BILINEAR_FLOAT 1
 

@@ -44,6 +44,42 @@ extern "C" {
 #if ARM_NN_ENABLE_F32
 
 /**
+ * @ingroup Comparison
+ * @brief Ordered IEEE binary32 greater-than comparison with NHWC singleton broadcasting.
+ * @param[in] input_1 First operand.
+ * @param[in] input_1_dims Positive NHWC shape of the first operand.
+ * @param[in] input_2 Second operand.
+ * @param[in] input_2_dims Positive NHWC shape of the second operand.
+ * @param[out] output Contiguous Boolean mask, disjoint from the inputs.
+ * @param[in] output_dims Exact broadcast shape. Its element count must fit INT32_MAX / 4.
+ * @return ARM_CMSIS_NN_SUCCESS or ARM_CMSIS_NN_ARG_ERROR.
+ * @note NaNs compare false, both zero signs compare equal, and subnormal inputs retain their order. No scratch.
+ */
+arm_cmsis_nn_status arm_greater_f32(const float32_t *input_1,
+                                    const cmsis_nn_dims *input_1_dims,
+                                    const float32_t *input_2,
+                                    const cmsis_nn_dims *input_2_dims,
+                                    bool *output,
+                                    const cmsis_nn_dims *output_dims);
+
+/**
+ * @ingroup Select
+ * @brief Copy selected FP32 storage bits, preserving signed zero, subnormals and NaN payloads.
+ * @param[in] condition Boolean mask.
+ * @param[in] x Payload selected when the mask is true.
+ * @param[in] y Payload selected when the mask is false.
+ * @param[in] params Rank 1..8, positive output extents and nonnegative element strides. Zero strides broadcast.
+ * @param[out] output Contiguous result disjoint from the inputs.
+ * @return ARM_CMSIS_NN_SUCCESS or ARM_CMSIS_NN_ARG_ERROR.
+ * @note Output and addressed input byte counts must fit INT32_MAX. Caller provides the addressed storage. No scratch.
+ */
+arm_cmsis_nn_status arm_select_v2_f32(const bool *condition,
+                                      const float32_t *x,
+                                      const float32_t *y,
+                                      const cmsis_nn_select_v2_params *params,
+                                      float32_t *output);
+
+/**
  * @addtogroup NNConv
  * @{
  */
