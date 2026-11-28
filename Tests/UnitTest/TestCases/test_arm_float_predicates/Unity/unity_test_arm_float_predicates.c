@@ -32,5 +32,6 @@ void tearDown(void) {}
 void test_float_predicates_reference(void) { predicates_reference(); }
 void test_float_predicates_order(void) { predicates_order(); }
 void test_float_predicates_tail(void) { predicates_tail(); }
+void test_float_predicates_packed_mask(void) { predicates_packed_mask(); }
 void test_float_predicates_strides(void) { predicates_strides(); }
 void test_float_predicates_reject(void) { predicates_reject(); }

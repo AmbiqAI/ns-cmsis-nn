@@ -2,6 +2,7 @@
  * SPDX-FileCopyrightText: 2026 Ambiq
  * SPDX-License-Identifier: LicenseRef-Ambiq-Apollo-SDK
  */
+#include <Internal/arm_nn_fp_control.h>
 #include "arm_nnfunctions.h"
 #include "float_predicates_data.h"
 #include "unity.h"
@@ -29,6 +30,25 @@ static void predicates_reference(void)
     const uint32_t guard = 0x55555555;
     TEST_ASSERT_EQUAL_MEMORY(&guard, result, 4);
     TEST_ASSERT_EQUAL_MEMORY(&guard, result + 109, 4);
+}
+
+/* Restore the caller's control word before Unity can return on a failure. */
+static arm_cmsis_nn_status compare_with_flush(const float32_t *a, const cmsis_nn_dims *ad,
+                                             const float32_t *b, const cmsis_nn_dims *bd,
+                                             bool *out, const cmsis_nn_dims *od, bool flush)
+{
+#if defined(ARM_NN_FP_CONTROL_AVAILABLE)
+    const arm_nn_fp_control_t saved = arm_nn_get_fp_control();
+    const arm_nn_fp_control_t fz = 1u << 24;
+    arm_nn_set_fp_control((saved & ~fz) | (flush ? fz : 0));
+#else
+    (void)flush;
+#endif
+    const arm_cmsis_nn_status status = arm_greater_f32(a, ad, b, bd, out, od);
+#if defined(ARM_NN_FP_CONTROL_AVAILABLE)
+    arm_nn_set_fp_control(saved);
+#endif
+    return status;
 }
 
 static void predicates_order(void)
@@ -60,10 +80,13 @@ static void predicates_order(void)
             const bool left = mode == 1;
             const float32_t *a = left ? data + i : data;
             const float32_t *b = left ? data : (mode == 0 ? data + i : repeated);
-            TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
-                              arm_greater_f32(a, left ? &one : &many, b, mode == 0 ? &one : &many, out, &many));
-            for (int j = 0; j < 12; j++)
-                TEST_ASSERT_EQUAL(i < 8 && j < 8 && (left ? rank[i] > rank[j] : rank[j] > rank[i]), out[j]);
+            for (int flush = 0; flush <= 1; ++flush)
+            {
+                TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS,
+                                  compare_with_flush(a, left ? &one : &many, b, mode == 0 ? &one : &many, out, &many, flush));
+                for (int j = 0; j < 12; j++)
+                    TEST_ASSERT_EQUAL(i < 8 && j < 8 && (left ? rank[i] > rank[j] : rank[j] > rank[i]), out[j]);
+            }
         }
     }
 }
@@ -93,6 +116,42 @@ static void predicates_tail(void)
             TEST_ASSERT_TRUE(mask[j]);
         TEST_ASSERT_EQUAL(cases[i][2], mask[4]);
     }
+}
+
+/* Consecutive groups and a scalar tail, with a byte-offset output mask. */
+static void predicates_packed_mask(void)
+{
+    const cmsis_nn_dims dims = {1, 1, 1, 9};
+    const int32_t length = 9, stride = 1;
+    const cmsis_nn_select_v2_params params = {1, &length, &stride, &stride, &stride};
+    const uint32_t left[] = {1, 0x80000001, 0, 0x80000000, 0x7f800000, 0x7f800001, 0xff800000, 0x807fffff, 1};
+    const uint32_t right[] = {0, 0x80000000, 0x80000000, 0, 0x7f800000, 0xffc12345, 0xff800000, 0x80800000, 0};
+    const bool expected[] = {true, false, false, false, false, false, false, true, true};
+    float32_t a[9], b[9], selected[9];
+    memcpy(a, left, sizeof(a));
+    memcpy(b, right, sizeof(b));
+
+    for (int flush = 0; flush <= 1; ++flush)
+    {
+        bool mask[11] = {true};
+        mask[10] = true;
+        TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, compare_with_flush(a, &dims, b, &dims, mask + 1, &dims, flush));
+        TEST_ASSERT_TRUE(mask[0] && mask[10]);
+        TEST_ASSERT_EQUAL_MEMORY(expected, mask + 1, sizeof(expected));
+        TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, arm_select_v2_f32(mask + 1, a, b, &params, selected));
+        for (int i = 0; i < length; ++i)
+        {
+            TEST_ASSERT_EQUAL_MEMORY((expected[i] ? left : right) + i, selected + i, sizeof(uint32_t));
+        }
+    }
+
+    /* Two equal trailing groups (including a NaN) follow a true first lane. */
+    memcpy(b + 1, a + 1, 8 * sizeof(*a));
+    bool mask[11];
+    for (int i = 0; i < 11; ++i) mask[i] = true;
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, compare_with_flush(a, &dims, b, &dims, mask + 1, &dims, true));
+    TEST_ASSERT_TRUE(mask[0] && mask[1] && mask[10]);
+    for (int i = 2; i < 10; ++i) TEST_ASSERT_FALSE(mask[i]);
 }
 
 static void predicates_strides(void)

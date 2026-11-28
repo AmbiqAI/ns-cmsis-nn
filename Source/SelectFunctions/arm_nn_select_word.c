@@ -61,6 +61,37 @@ __STATIC_FORCEINLINE void select_span(const bool *condition,
     {
         select_four(condition, x, y, output, i, cs, xs, ys, scalar_mask, scalar_x, scalar_y, vctp32q(count - i));
     }
+#elif defined(__ARM_ARCH_7EM__) && (defined(__GNUC__) || defined(__clang__))
+    #if defined(__ARM_FEATURE_UNALIGNED)
+    /* Batch the four mask bytes and output words for contiguous inputs. */
+    if (cs && xs && ys)
+    {
+        while (count >= 4)
+        {
+            bool choices[4];
+            uint32_t words[4];
+            __builtin_memcpy(choices, condition, sizeof(choices));
+            for (int lane = 0; lane < 4; ++lane)
+            {
+                arm_nn_copy_word(words + lane, (choices[lane] ? x : y) + lane * sizeof(uint32_t));
+            }
+            __builtin_memcpy(__builtin_assume_aligned(output, 4), words, sizeof(words));
+            condition += 4;
+            x += sizeof(words);
+            y += sizeof(words);
+            output += sizeof(words);
+            count -= 4;
+        }
+    }
+    #endif
+    for (int32_t i = 0; i < count; ++i)
+    {
+        arm_nn_copy_word(output, *condition ? x : y);
+        condition += cs;
+        x += xs * sizeof(uint32_t);
+        y += ys * sizeof(uint32_t);
+        output += sizeof(uint32_t);
+    }
 #else
     for (int32_t i = 0; i < count; ++i)
     {
