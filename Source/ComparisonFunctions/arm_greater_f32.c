@@ -4,6 +4,7 @@
  */
 
 #include "Internal/arm_nn_broadcast_walk.h"
+#include "Internal/arm_nn_fp_control.h"
 #include "arm_nnfunctions.h"
 #include "arm_nnsupportfunctions.h"
 
@@ -40,25 +41,77 @@ __STATIC_FORCEINLINE uint32x4_t compare_four(const uint32x4_t x, const uint32x4_
         #define ARM_NN_COMPARE_SCALAR_FPU 1
 /* An equal VCMP result can hide differing subnormals when FPSCR.FZ is set.
  * Replay only that case using the original storage bits. A comparison with
- * either NaN reports unordered (both GT and EQ clear). */
+ * either NaN reports unordered (N and Z both clear). */
 static __attribute__((noinline)) bool compare_tie(float32_t a, float32_t b)
 {
     return order_key(load_bits(&a)) > order_key(load_bits(&b));
 }
 
-static inline bool scalar_greater(float32_t a, float32_t b)
+static inline bool scalar_greater(float32_t a, float32_t b, bool repair_ties)
 {
     /* Comparing b to a puts ordered b < a in N and equality in Z.
      * Read those bits directly to keep the same ordered test under fast-math. */
     uint32_t flags;
     __asm("vcmp.f32 %2, %1\n\tvmrs %0, fpscr" : "=r"(flags) : "t"(a), "t"(b));
-    if (__builtin_expect((flags & (1u << 30)) != 0, false))
+    if (repair_ties && __builtin_expect((flags & (1u << 30)) != 0, false))
     {
-        return compare_tie(a, b);
+        return load_bits(&a) != load_bits(&b) && compare_tie(a, b);
     }
     return (flags >> 31) != 0;
 }
 
+/* For a tiny nonzero threshold, sortable encodings form one inclusive
+ * interval ending at the appropriate infinity. NaNs fall outside it. */
+static inline uint32_t sortable_bits(uint32_t bits) { return bits ^ ((0u - (bits >> 31)) | 0x80000000u); }
+
+static __attribute__((noinline)) void
+compare_tiny_scalar(const float32_t *values, uint32_t threshold, bool *restrict out, int32_t count, bool less)
+{
+    if ((threshold << 1) == 0)
+    {
+        const uint32_t first = less ? 0x80000001u : 1u;
+        for (int32_t i = 0; i < count; ++i)
+        {
+            out[i] = load_bits(values + i) - first < 0x7f800000u;
+        }
+        return;
+    }
+
+    const uint32_t low = less ? sortable_bits(0xff800000u) : sortable_bits(threshold) + 1;
+    const uint32_t high = less ? sortable_bits(threshold) - 1 : sortable_bits(0x7f800000u);
+    for (int32_t i = 0; i < count; ++i)
+    {
+        out[i] = sortable_bits(load_bits(values + i)) - low <= high - low;
+    }
+}
+
+__STATIC_FORCEINLINE void compare_scalar_span(const float32_t *a,
+                                              const float32_t *b,
+                                              bool *restrict out,
+                                              int32_t count,
+                                              bool scalar_a,
+                                              bool scalar_b,
+                                              bool repair_ties)
+{
+    /* Store four consecutive one-byte results together, including when the
+     * public mask starts at a byte-aligned offset. */
+    int32_t i = 0;
+    for (; i <= count - 4; i += 4)
+    {
+        bool group[4];
+        for (int lane = 0; lane < 4; ++lane)
+        {
+            const float32_t x = a[scalar_a ? 0 : i + lane], y = b[scalar_b ? 0 : i + lane];
+            group[lane] = scalar_greater(x, y, repair_ties);
+        }
+        __builtin_memcpy(out + i, group, sizeof(group));
+    }
+    for (; i < count; ++i)
+    {
+        const float32_t x = a[scalar_a ? 0 : i], y = b[scalar_b ? 0 : i];
+        out[i] = scalar_greater(x, y, repair_ties);
+    }
+}
     #endif
 __STATIC_FORCEINLINE void
 compare_span(const float32_t *a, const float32_t *b, bool *restrict out, int32_t count, bool scalar_a, bool scalar_b)
@@ -95,23 +148,21 @@ compare_span(const float32_t *a, const float32_t *b, bool *restrict out, int32_t
         return;
     }
     #elif defined(ARM_NN_COMPARE_SCALAR_FPU)
-    /* Store four consecutive one-byte results together, including when the
-     * public mask starts at a byte-aligned offset. */
-    int32_t i = 0;
-    for (; i <= count - 4; i += 4)
+    /* With a normal scalar threshold, flushing a subnormal on the other side
+     * cannot change the order. The same is true for infinity and NaN. */
+    const uint32_t fpscr = arm_nn_get_fp_control();
+    if (!(fpscr & (1u << 24)) || (scalar_a && (load_bits(a) << 1) >= 0x01000000u) ||
+        (scalar_b && (load_bits(b) << 1) >= 0x01000000u))
     {
-        bool group[4];
-        for (int lane = 0; lane < 4; ++lane)
-        {
-            const float32_t x = a[scalar_a ? 0 : i + lane], y = b[scalar_b ? 0 : i + lane];
-            group[lane] = scalar_greater(x, y);
-        }
-        __builtin_memcpy(out + i, group, sizeof(group));
+        compare_scalar_span(a, b, out, count, scalar_a, scalar_b, false);
     }
-    for (; i < count; ++i)
+    else if (scalar_a || scalar_b)
     {
-        const float32_t x = a[scalar_a ? 0 : i], y = b[scalar_b ? 0 : i];
-        out[i] = scalar_greater(x, y);
+        compare_tiny_scalar(scalar_a ? b : a, load_bits(scalar_a ? a : b), out, count, scalar_a);
+    }
+    else
+    {
+        compare_scalar_span(a, b, out, count, false, false, true);
     }
     return;
     #endif
