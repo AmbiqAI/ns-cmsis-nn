@@ -184,6 +184,18 @@ endif()
 # ----------------------------------------------------------------------------
 # Report.
 # ----------------------------------------------------------------------------
+# A consumer may attach only FP32 select. The shared word traversal must
+# survive the dtype filter even when the INT32 public entry is excluded.
+set(ARM_NN_ENABLE_F32 ON)
+add_library(_ssot_probe_f32_select STATIC)
+ns_cmsis_nn_attach(_ssot_probe_f32_select GROUPS select DTYPES f32)
+get_target_property(_f32_select_sources _ssot_probe_f32_select SOURCES)
+foreach(file arm_nn_select_word.c arm_select_v2_f32.c)
+  if(NOT "${_repo_root}/Source/SelectFunctions/${file}" IN_LIST _f32_select_sources)
+    _fail("FP32-only select missing ${file}.")
+  endif()
+endforeach()
+
 if(_failures)
   message(FATAL_ERROR "SSoT contract test FAILED:${_failures}")
 endif()
