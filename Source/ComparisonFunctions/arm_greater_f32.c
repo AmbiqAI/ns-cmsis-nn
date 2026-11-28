@@ -15,41 +15,65 @@ static inline uint32_t load_bits(const float32_t *input)
     return bits;
 }
 
-    /* These monotonic keys map both signed zeros to the midpoint. Integer comparisons
-     * retain subnormal ordering with MVE and NaN handling under finite-math-only. */
-    #if defined(ARM_MATH_MVEF) && !defined(ARM_MATH_AUTOVECTORIZE)
-static inline uint32x4_t order_key(uint32x4_t bits)
-{
-    const uint32x4_t midpoint = vdupq_n_u32(0x80000000u);
-    return vpselq(vsubq(vdupq_n_u32(0), bits), veorq(bits, midpoint), vcmpcsq_n_u32(bits, 0x80000000u));
-}
-    #else
+/* Map signed zeros to the same key and preserve binary32 order for non-NaNs. */
 static inline uint32_t order_key(uint32_t bits) { return bits >= 0x80000000u ? 0u - bits : bits ^ 0x80000000u; }
-    #endif
 
+static __attribute__((noinline)) void
+compare_storage(const float32_t *a, const float32_t *b, bool *out, int32_t count, int32_t step_a, int32_t step_b)
+{
+    for (int32_t i = 0; i < count; ++i)
+    {
+        const uint32_t x = load_bits(a + i * step_a);
+        const uint32_t y = load_bits(b + i * step_b);
+        out[i] = (x & 0x7fffffffu) <= 0x7f800000u && (y & 0x7fffffffu) <= 0x7f800000u && order_key(x) > order_key(y);
+    }
+}
+
+    #if defined(ARM_MATH_MVEF) && !defined(ARM_MATH_AUTOVECTORIZE)
+__STATIC_FORCEINLINE uint32x4_t compare_four(const uint32x4_t x, const uint32x4_t y, bool *out, mve_pred16_t p)
+{
+    const mve_pred16_t gt = vcmpgtq_f32(vreinterpretq_f32_u32(x), vreinterpretq_f32_u32(y));
+    vstrbq_p_u32((uint8_t *)out, vpselq(vdupq_n_u32(1), vdupq_n_u32(0), gt), p);
+    return vmaxq(vshlq_n_u32(x, 1), vshlq_n_u32(y, 1));
+}
+    #endif
 __STATIC_FORCEINLINE void
 compare_span(const float32_t *a, const float32_t *b, bool *out, int32_t count, bool scalar_a, bool scalar_b)
 {
     #if defined(ARM_MATH_MVEF) && !defined(ARM_MATH_AUTOVECTORIZE)
-    for (int32_t i = 0; i < count; i += 4)
+    uint32x4_t largest = vdupq_n_u32(0);
+    uint32x4_t smallest = vdupq_n_u32(UINT32_MAX);
+    const uint32x4_t ax = scalar_a ? vdupq_n_u32(load_bits(a)) : vdupq_n_u32(0);
+    const uint32x4_t bx = scalar_b ? vdupq_n_u32(load_bits(b)) : vdupq_n_u32(0);
+    int32_t i = 0;
+    for (; i <= count - 4; i += 4)
     {
-        const mve_pred16_t p = vctp32q((uint32_t)(count - i));
-        const uint32x4_t x = scalar_a ? vdupq_n_u32(load_bits(a)) : arm_nn_mve_load_word_bits(a + i, p);
-        const uint32x4_t y = scalar_b ? vdupq_n_u32(load_bits(b)) : arm_nn_mve_load_word_bits(b + i, p);
-        const uint32x4_t magnitude = vdupq_n_u32(0x7fffffffu);
-        const uint32x4_t largest = vmaxq(vandq(x, magnitude), vandq(y, magnitude));
-        const mve_pred16_t ordered = vcmpcsq(vdupq_n_u32(0x7f800000u), largest);
-        const mve_pred16_t greater = vcmphiq(order_key(x), order_key(y));
-        vstrbq_p_u32((uint8_t *)out + i, vpselq(vdupq_n_u32(1), vdupq_n_u32(0), (mve_pred16_t)(ordered & greater)), p);
+        const uint32x4_t x = scalar_a ? ax : arm_nn_mve_load_word_bits(a + i, 0xffff);
+        const uint32x4_t y = scalar_b ? bx : arm_nn_mve_load_word_bits(b + i, 0xffff);
+        const uint32x4_t magnitude = compare_four(x, y, out + i, 0xffff);
+        largest = vmaxq(largest, magnitude);
+        smallest = vminq(smallest, vsubq_n_u32(magnitude, 1));
     }
-    #else
-    for (int32_t i = 0; i < count; ++i)
+    if (i < count)
     {
-        const uint32_t x = load_bits(a + (scalar_a ? 0 : i));
-        const uint32_t y = load_bits(b + (scalar_b ? 0 : i));
-        out[i] = (x & 0x7fffffffu) <= 0x7f800000u && (y & 0x7fffffffu) <= 0x7f800000u && order_key(x) > order_key(y);
+        const mve_pred16_t p = vctp32q(count - i);
+        const uint32x4_t x = scalar_a ? ax : arm_nn_mve_load_word_bits(a + i, p);
+        const uint32x4_t y = scalar_b ? bx : arm_nn_mve_load_word_bits(b + i, p);
+        const uint32x4_t magnitude = compare_four(x, y, out + i, p);
+        largest = vmaxq_m(largest, largest, magnitude, p);
+        smallest = vminq_m(smallest, smallest, vsubq_n_u32(magnitude, 1), p);
+    }
+    // Doubled magnitudes clear the sign. Above infinity the native fast-math
+    // compare can be unordered. Flushing to zero can change the order only
+    // when both magnitudes are below the first normal. Subtracting one maps a
+    // pair of exact zeros to UINT32_MAX so sparse zero runs stay on the fast path.
+    if (vminvq(UINT32_MAX, smallest) >= 0x00ffffffu && vmaxvq(0, largest) <= 0xff000000u)
+    {
+        return;
     }
     #endif
+
+    compare_storage(a, b, out, count, scalar_a ? 0 : 1, scalar_b ? 0 : 1);
 }
 
 /* The broadcast walker can visit a span from several geometry branches. Keep one

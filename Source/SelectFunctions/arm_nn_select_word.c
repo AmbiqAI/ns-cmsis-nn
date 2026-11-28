@@ -9,15 +9,32 @@
 #include <limits.h>
 
 #if defined(ARM_MATH_MVEI) && !defined(ARM_MATH_AUTOVECTORIZE)
-static inline uint32x4_t load_span(const unsigned char *data, uint32_t index, int32_t step, mve_pred16_t p)
+static inline uint32x4_t broadcast_word(const unsigned char *data)
 {
-    if (step == 1)
-    {
-        return arm_nn_mve_load_word_bits(data + index * sizeof(uint32_t), p);
-    }
-    uint32_t value;
-    arm_nn_copy_word(&value, data);
-    return vdupq_n_u32(value);
+    uint32_t bits;
+    arm_nn_copy_word(&bits, data);
+    return vdupq_n_u32(bits);
+}
+
+__STATIC_FORCEINLINE void select_four(const bool *condition,
+                                      const unsigned char *x,
+                                      const unsigned char *y,
+                                      unsigned char *output,
+                                      int32_t i,
+                                      int32_t cs,
+                                      int32_t xs,
+                                      int32_t ys,
+                                      uint32x4_t scalar_mask,
+                                      uint32x4_t scalar_x,
+                                      uint32x4_t scalar_y,
+                                      mve_pred16_t p)
+{
+    const uint32x4_t mask = cs ? (p == UINT16_MAX ? vldrbq_u32((const uint8_t *)condition + i)
+                                                  : vldrbq_z_u32((const uint8_t *)condition + i, p))
+                               : scalar_mask;
+    const uint32x4_t vx = xs ? arm_nn_mve_load_word_bits(x + i * sizeof(uint32_t), p) : scalar_x;
+    const uint32x4_t vy = ys ? arm_nn_mve_load_word_bits(y + i * sizeof(uint32_t), p) : scalar_y;
+    arm_nn_mve_store_word_bits(output + i * sizeof(uint32_t), vpselq(vx, vy, vcmpneq_n_u32(mask, 0)), p);
 }
 #endif
 
@@ -32,14 +49,17 @@ __STATIC_FORCEINLINE void select_span(const bool *condition,
                                       int32_t ys)
 {
 #if defined(ARM_MATH_MVEI) && !defined(ARM_MATH_AUTOVECTORIZE)
-    uint32_t i = 0;
-    for (int32_t remaining = count; remaining > 0; remaining -= 4, i += 4)
+    const uint32x4_t scalar_x = xs ? vdupq_n_u32(0) : broadcast_word(x);
+    const uint32x4_t scalar_y = ys ? vdupq_n_u32(0) : broadcast_word(y);
+    const uint32x4_t scalar_mask = vdupq_n_u32(cs ? 0 : *condition);
+    int32_t i = 0;
+    for (; i <= count - 4; i += 4)
     {
-        const mve_pred16_t p = vctp32q((uint32_t)remaining);
-        const uint32x4_t vc = cs == 1 ? vldrbq_z_u32((const uint8_t *)condition + i, p) : vdupq_n_u32(*condition);
-        const uint32x4_t vx = load_span(x, i, xs, p);
-        const uint32x4_t vy = load_span(y, i, ys, p);
-        arm_nn_mve_store_word_bits(output + i * sizeof(uint32_t), vpselq(vx, vy, vcmpneq_n_u32(vc, 0)), p);
+        select_four(condition, x, y, output, i, cs, xs, ys, scalar_mask, scalar_x, scalar_y, 0xffff);
+    }
+    if (i < count)
+    {
+        select_four(condition, x, y, output, i, cs, xs, ys, scalar_mask, scalar_x, scalar_y, vctp32q(count - i));
     }
 #else
     for (int32_t i = 0; i < count; ++i)

@@ -68,6 +68,33 @@ static void predicates_order(void)
     }
 }
 
+/* Keep the only exceptional comparison in the last active lane of a partial vector. */
+static void predicates_tail(void)
+{
+    const cmsis_nn_dims five = {1, 1, 1, 5};
+    const uint32_t cases[][3] = {
+        {0x00000001, 0, 1},
+        {0, 0x80000001, 1},
+        {0x007fffff, 1, 1},
+        {0x00800000, 0x007fffff, 1},
+        {0, 0x80000000, 0},
+        {0x7f800001, 0xff800000, 0},
+        {0x7f800000, 0xff800001, 0},
+        {0x7f800000, 0x7f7fffff, 1},
+    };
+    float32_t a[5] = {1, 2, 3, 4, 0}, b[5] = {0, 1, 2, 3, 0};
+    bool mask[5];
+    for (size_t i = 0; i < sizeof(cases) / sizeof(cases[0]); i++)
+    {
+        memcpy(a + 4, cases[i], 4);
+        memcpy(b + 4, cases[i] + 1, 4);
+        TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, arm_greater_f32(a, &five, b, &five, mask, &five));
+        for (int j = 0; j < 4; j++)
+            TEST_ASSERT_TRUE(mask[j]);
+        TEST_ASSERT_EQUAL(cases[i][2], mask[4]);
+    }
+}
+
 static void predicates_strides(void)
 {
     const int32_t shape[8] = {1, 1, 1, 1, 1, 1, 2, 3}, cs[8] = {0}, xs[8] = {0, 0, 0, 0, 0, 0, 1, 2}, ys[8] = {0};
