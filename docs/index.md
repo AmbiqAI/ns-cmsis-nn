@@ -50,6 +50,7 @@ why
 getting-started/index
 guides/index
 guides/operator-kernel-coverage
+guides/litert-micro-operator-ledger
 guides/dsp-mve-coverage
 guides/kernel-benchmarks
 guides/releases
