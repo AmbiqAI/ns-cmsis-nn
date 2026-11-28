@@ -62,6 +62,7 @@ __STATIC_FORCEINLINE void select_span(const bool *condition,
         select_four(condition, x, y, output, i, cs, xs, ys, scalar_mask, scalar_x, scalar_y, vctp32q(count - i));
     }
 #elif defined(__ARM_ARCH_7EM__) && (defined(__GNUC__) || defined(__clang__))
+    #if defined(__ARM_FEATURE_UNALIGNED)
     /* Batch the four mask bytes and output words for contiguous inputs. */
     if (cs && xs && ys)
     {
@@ -82,6 +83,7 @@ __STATIC_FORCEINLINE void select_span(const bool *condition,
             count -= 4;
         }
     }
+    #endif
     for (int32_t i = 0; i < count; ++i)
     {
         arm_nn_copy_word(output, *condition ? x : y);

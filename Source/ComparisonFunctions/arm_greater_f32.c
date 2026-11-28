@@ -93,9 +93,10 @@ __STATIC_FORCEINLINE void compare_scalar_span(const float32_t *a,
                                               bool scalar_b,
                                               bool repair_ties)
 {
+    int32_t i = 0;
+        #if defined(__ARM_FEATURE_UNALIGNED)
     /* Store four consecutive one-byte results together, including when the
      * public mask starts at a byte-aligned offset. */
-    int32_t i = 0;
     for (; i <= count - 4; i += 4)
     {
         bool group[4];
@@ -106,6 +107,7 @@ __STATIC_FORCEINLINE void compare_scalar_span(const float32_t *a,
         }
         __builtin_memcpy(out + i, group, sizeof(group));
     }
+        #endif
     for (; i < count; ++i)
     {
         const float32_t x = a[scalar_a ? 0 : i], y = b[scalar_b ? 0 : i];
