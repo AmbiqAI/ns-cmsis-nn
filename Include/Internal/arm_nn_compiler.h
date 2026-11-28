@@ -160,6 +160,22 @@ static inline unsigned clz_u32(unsigned long mask)
     #endif
 #endif
 
+#include <stdint.h>
+#include <string.h>
+
+/* Both pointers address aligned 32-bit tensor elements. Retain word accesses even
+ * on cores without unaligned loads and in freestanding builds. */
+__STATIC_FORCEINLINE void arm_nn_copy_word(void *dst, const void *src)
+{
+#if defined(__GNUC__) || defined(__clang__)
+    __builtin_memcpy(__builtin_assume_aligned(dst, __alignof__(uint32_t)),
+                     __builtin_assume_aligned(src, __alignof__(uint32_t)),
+                     sizeof(uint32_t));
+#else
+    memcpy(dst, src, sizeof(uint32_t));
+#endif
+}
+
 #ifdef __cplusplus
 // Arm MVE intrinsics provide C++ overloads and must not inherit C linkage.
 extern "C++" {
