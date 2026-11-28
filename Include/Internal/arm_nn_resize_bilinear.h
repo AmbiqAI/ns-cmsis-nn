@@ -27,9 +27,9 @@ static inline int arm_nn_resize_shape_valid(const cmsis_nn_dims *dims)
 
 static inline int arm_nn_resize_bilinear_valid(const cmsis_nn_resize_params *params,
                                                const cmsis_nn_dims *input_dims,
-                                               const int8_t *input,
+                                               const void *input,
                                                const cmsis_nn_dims *output_dims,
-                                               int8_t *output)
+                                               void *output)
 {
     return params && input && output && arm_nn_resize_shape_valid(input_dims) &&
         arm_nn_resize_shape_valid(output_dims) && input_dims->n == output_dims->n && input_dims->c == output_dims->c &&

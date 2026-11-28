@@ -2005,6 +2005,26 @@ void arm_reshape_f32(const float32_t *input, float32_t *output, uint32_t total_s
  */
 
 /**
+ * @ingroup Reshape
+ * @brief Bilinear resize of a float32 NHWC tensor with FP32 interpolation.
+ * @param[in] resize_params Default, aligned-corners or half-pixel coordinates. The two flags are mutually exclusive.
+ * @param[in] input_dims Positive input N,H,W,C. Total byte count must fit INT32_MAX.
+ * @param[in] input_data Input tensor, disjoint from output_data.
+ * @param[in] output_dims Positive output N,H,W,C with matching N and C. Total byte count must fit INT32_MAX.
+ * @param[out] output_data Contiguous output tensor. Caller provides the declared capacity.
+ * @return ARM_CMSIS_NN_SUCCESS or ARM_CMSIS_NN_ARG_ERROR for invalid pointers, shapes or options.
+ * @note Samples are clamped at the image boundary. Exact sample locations and identity resizes copy storage bits.
+ *       Finite inputs use FP32 weights and accumulation. Outputs saturate at the finite FP32 limits.
+ *       Rounding, contraction and subnormal handling depend on the build and target.
+ *       Exceptional values in interpolated samples have no bitwise guarantee. No scratch buffer or heap allocation.
+ */
+arm_cmsis_nn_status arm_resize_bilinear_f32(const cmsis_nn_resize_params *resize_params,
+                                            const cmsis_nn_dims *input_dims,
+                                            const float32_t *input_data,
+                                            const cmsis_nn_dims *output_dims,
+                                            float32_t *output_data);
+
+/**
  * @brief Scratch size in bytes for arm_resize_nearest_neighbor_f32() / arm_resize_nearest_neighbor_f16().
  *
  * The kernels precompute one int32_t input index per output row and per output column, so the requirement is
@@ -4833,6 +4853,27 @@ void arm_reshape_f16(const float16_t *input, float16_t *output, uint32_t total_s
  * @addtogroup Reshape
  * @{
  */
+
+/**
+ * @ingroup Reshape
+ * @brief Bilinear resize of a float16 NHWC tensor.
+ * @param[in] resize_params Default, aligned-corners or half-pixel coordinates. The flags are mutually exclusive.
+ * @param[in] input_dims Positive input N,H,W,C. Total byte count must fit INT32_MAX.
+ * @param[in] input_data Input tensor, disjoint from output_data.
+ * @param[in] output_dims Positive output N,H,W,C with matching N and C. Total byte count must fit INT32_MAX.
+ * @param[out] output_data Contiguous output tensor. Caller provides the declared capacity.
+ * @return ARM_CMSIS_NN_SUCCESS or ARM_CMSIS_NN_ARG_ERROR for invalid pointers, shapes or options.
+ * @note Integer grid steps identify exact samples. Fractional coordinates and weights use FP32. The four weights are
+ *       rounded to FP16 and applied
+ *       with FP16 accumulation. Interpolation of finite inputs saturates at the finite binary16 limits.
+ *       Contraction and subnormal handling depend on the build and target. Identity resizes and exact
+ *       sample locations copy storage bits. No scratch buffer or heap allocation.
+ */
+arm_cmsis_nn_status arm_resize_bilinear_f16(const cmsis_nn_resize_params *resize_params,
+                                            const cmsis_nn_dims *input_dims,
+                                            const float16_t *input_data,
+                                            const cmsis_nn_dims *output_dims,
+                                            float16_t *output_data);
 
 /**
  * @copydoc arm_resize_nearest_neighbor_f32_get_buffer_size
