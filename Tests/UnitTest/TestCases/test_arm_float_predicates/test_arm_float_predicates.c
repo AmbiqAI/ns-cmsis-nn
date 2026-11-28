@@ -144,6 +144,14 @@ static void predicates_packed_mask(void)
             TEST_ASSERT_EQUAL_MEMORY((expected[i] ? left : right) + i, selected + i, sizeof(uint32_t));
         }
     }
+
+    /* Two equal trailing groups (including a NaN) follow a true first lane. */
+    memcpy(b + 1, a + 1, 8 * sizeof(*a));
+    bool mask[11];
+    for (int i = 0; i < 11; ++i) mask[i] = true;
+    TEST_ASSERT_EQUAL(ARM_CMSIS_NN_SUCCESS, compare_with_flush(a, &dims, b, &dims, mask + 1, &dims, true));
+    TEST_ASSERT_TRUE(mask[0] && mask[1] && mask[10]);
+    for (int i = 2; i < 10; ++i) TEST_ASSERT_FALSE(mask[i]);
 }
 
 static void predicates_strides(void)

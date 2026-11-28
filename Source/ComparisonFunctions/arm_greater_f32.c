@@ -164,6 +164,22 @@ compare_span(const float32_t *a, const float32_t *b, bool *restrict out, int32_t
     }
     else
     {
+        #if defined(__ARM_FEATURE_UNALIGNED)
+        /* Identical encodings are never greater. Clear equal trailing groups
+         * before the FZ-aware loop, particularly useful for padded activations. */
+        while (count >= 4)
+        {
+            const int32_t last = count - 1;
+            if (load_bits(a + last) != load_bits(b + last) || load_bits(a + last - 1) != load_bits(b + last - 1) ||
+                load_bits(a + last - 2) != load_bits(b + last - 2) ||
+                load_bits(a + last - 3) != load_bits(b + last - 3))
+            {
+                break;
+            }
+            count -= 4;
+            __builtin_memset(out + count, 0, 4 * sizeof(bool));
+        }
+        #endif
         compare_scalar_span(a, b, out, count, false, false, true);
     }
     return;
