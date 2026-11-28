@@ -505,6 +505,7 @@
         <file category="source" name="Source/BroadcastFunctions/arm_broadcast_to_s16.c"/>
         <file category="source" name="Source/ScatterFunctions/arm_scatter_nd_s8.c"/>
         <file category="source" name="Source/ScatterFunctions/arm_scatter_nd_s16.c"/>
+        <file category="source" name="Source/SelectFunctions/arm_nn_select_word.c"/>
         <file category="source" name="Source/SelectFunctions/arm_select_v2_f32.c"/>
         <file category="source" name="Source/SelectFunctions/arm_select_v2_s16.c"/>
         <file category="source" name="Source/SelectFunctions/arm_select_v2_s32.c"/>
